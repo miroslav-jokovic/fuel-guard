@@ -14,7 +14,7 @@ const LONG = "Class A over-the-road reefer runs out of our yard, paid by the mil
 const creative = (over: Partial<AdsCreativeView> = {}): AdsCreativeView => ({
   id: "cr-1", preset_version_id: "pv", brand_kit_version_id: "kv", supersedes_id: null, state: "ready", platform_status: null,
   copy: { en: { hook: "Home weekly", cta: "Apply now" }, es: { hook: "En casa cada semana", cta: "Aplica ya" } },
-  regenerations: 0, last_error: null, checks: null, created_at: "2026-11-16T12:00:00Z", candidates: null, pairings: null,
+  regenerations: 0, last_error: null, checks: null, created_at: "2026-11-16T12:00:00Z", candidates: null, pairings: null, motion: null,
   platform_text: { en: { primary_text: "Regional dry van. Home every weekend. $0.65 a mile.", headline: "Class A regional drivers" }, es: { primary_text: LONG, headline: "Conductores Clase A para rutas regionales" } },
   assets: [asset("1:1", "en"), asset("4:5", "en"), asset("1:1", "es")],
   ...over,

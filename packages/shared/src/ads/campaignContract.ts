@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MAX_PICTURES_PER_CREATIVE, asGoodCount, type AdPairing, type AdPairings, type AdPicture } from "./adPairings.js";
 import type { AdCandidates } from "./copyCandidates.js";
+import type { AdMotionView } from "./motionAd.js";
 import type { PlatformText } from "./platformText.js";
 import type { AdNameLanguage } from "./naming.js";
 import { recordId } from "../recordId.js";
@@ -128,6 +129,12 @@ export interface AdsCreativeView {
    * 0619); null for an ad made from one picture — every ad before V3, and one built from a person's choice.
    */
   pairings: AdPairingsView | null;
+  /**
+   * The ad's video, when its plan angle asked for a motion ad and one was made (V4, 0625): one file per language,
+   * each with a short-lived link. Null for a still — and for a motion ad that could not be made, whose reason is
+   * in `checks.motion` (`motionOpinion`).
+   */
+  motion: AdMotionView | null;
   /**
    * The two texts Meta is handed beside the image, per language — primary text above it, headline under it — as the
    * publisher would send them (`platformText`). A language is null when its copy lacks one of them; the whole is

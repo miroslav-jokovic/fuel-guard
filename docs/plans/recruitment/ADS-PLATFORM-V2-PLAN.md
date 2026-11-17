@@ -262,6 +262,16 @@ the same fault as the image upload's on 2026-11-05. In the contract suite as its
 (`publisherVideo.contract.test.ts`), with real MP4s. Not built: the `video` kind in `CAMPAIGN_WORKERS`, `motion`
 in `PLAN_FORMATS_BUILT`, the player on the review screen.
 
+**Built 2026-11-17 (V4n):** the video on the review screen (`AdsMotionAd.vue`, under each language's images). An ad
+whose video was made shows a player for that language's file — its poster the ad's own feed picture, nothing
+fetched until play is pressed — with its length, "no sound", and a line saying the ad is published as this video.
+An ad whose plan asked for a video that could not be made shows one sentence saying so, with compose's reason
+(`motionOpinion`, shared), and that the ad is the picture above: nobody approves a video they were not shown. A
+still shows nothing. The campaign read hands out the video's short-lived link with the images', under the same
+folder rule. **Not done:** the reason is compose's own sentence ("clip: price_unknown"), not yet office wording —
+it joins the wording pass with `last_error`, which the screen shows the same way. Not looked at in a browser:
+ads are off on staging, so no real creative holds a video to open.
+
 **The order from here (2026-11-17):** the publisher's video road comes BEFORE `motion` is added to
 `PLAN_FORMATS_BUILT`. That list is what the Strategist is told can be made; the day `motion` is on it, a plan on a
 real connection can name a video ad, and until the publisher can upload one, the ad Meta receives would be the

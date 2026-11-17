@@ -121,3 +121,25 @@ export const adMotionSchema = z.object({
   frames_checked: z.number().int().positive(),
 });
 export type AdMotion = z.infer<typeof adMotionSchema>;
+
+/** A motion ad as the review screen reads it: each language's file with a short-lived link (null when none could be made). */
+export type AdMotionView = Omit<AdMotion, "files"> & { files: Array<AdMotion["files"][number] & { url: string | null }> };
+
+/**
+ * What the review screen says about an ad's video (V4): null for an ad that was never asked to move — every ad
+ * before V4, and every still angle — so the screen shows nothing; otherwise whether one was made, and why not.
+ * Read from `checks.motion`, which compose writes only when the plan's angle asked for a motion ad
+ * (`composeCreative` `motionOf`): `{ ok: true, frames }` when the video was made, else `{ ok: false, reason }`
+ * with compose's own sentence. A body this cannot read says so; it is never read as "made".
+ */
+export type MotionOpinion = { made: true; frames: number } | { made: false; why: string };
+const motionCheckSchema = z.object({ ok: z.boolean(), frames: z.number().int().positive().optional(), reason: z.string().min(1).optional() }).passthrough();
+export function motionOpinion(raw: unknown): MotionOpinion | null {
+  if (raw === undefined || raw === null) return null;
+  const parsed = motionCheckSchema.safeParse(raw);
+  if (!parsed.success) return { made: false, why: "the record of it could not be read" };
+  const c = parsed.data;
+  if (c.ok && c.frames !== undefined) return { made: true, frames: c.frames };
+  // Compose's sentence opens with "motion" ("motion clip: …", "motion: …"); the screen's own sentence already says it is about the video.
+  return { made: false, why: (c.reason ?? "no reason was recorded").replace(/^motion:? /, "") };
+}

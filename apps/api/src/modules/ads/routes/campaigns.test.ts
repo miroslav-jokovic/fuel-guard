@@ -245,6 +245,21 @@ describe("GET /api/ads/campaigns(/:id) — the list and the review screen's read
     expect(plain.campaign.creatives[0]!.pairings).toBeNull();
   });
 
+  it("a motion ad also gets a link to each language's video — in this carrier's folder, in the same request as its images; a still says null", async () => {
+    await call("POST", "campaigns", ask());
+    const asset = { format: "4:5", language: "en", sha256: "a".repeat(64), width: 1080, height: 1350 };
+    const clip = { sha256: "c".repeat(64), format: "mp4", width: 1080, height: 1350, duration_ms: 7000, has_audio: true, byte_size: 900_000 };
+    tables.ads_creatives = [{
+      id: "c1", org_id: ORG, campaign_id: NEW_ID, state: "ready", created_at: "2026-11-04T10:01:00Z", assets: [{ ...asset, path: `${ORG}/a.png` }],
+      motion: { format: "4:5", model: "simulator/video", clip, frames_checked: 11, files: [{ ...clip, language: "en", path: `${ORG}/en.mp4` }, { ...clip, language: "es", path: `${OTHER}/es.mp4` }] },
+    }, { id: "c2", org_id: ORG, campaign_id: NEW_ID, state: "ready", created_at: "2026-11-04T10:02:00Z", assets: [{ ...asset, path: `${ORG}/a.png` }], motion: null }];
+    const body = (await (await call("GET", `campaigns/${NEW_ID}`)).json()) as { campaign: { creatives: Array<{ motion: { model: string; files: Array<{ language: string; url: string | null }> } | null }> } };
+    expect(body.campaign.creatives[0]!.motion!.files.map((f) => [f.language, f.url])).toEqual([["en", `https://store/${ORG}/en.mp4?token=t`], ["es", null]]);
+    expect(body.campaign.creatives[0]!.motion!.model).toBe("simulator/video");
+    expect(body.campaign.creatives[1]!.motion).toBeNull();
+    expect(db.storageCalls()).toEqual([{ bucket: "ad-assets", fn: "createSignedUrls", args: [[`${ORG}/a.png`, `${ORG}/en.mp4`], 600] }]);
+  });
+
   it("hands the review screen the two texts Meta is sent beside each ad's image, by the slots that ad's own preset version names", async () => {
     await call("POST", "campaigns", ask());
     const copy = { en: { hook: "On the image", cta: "Apply", body: "Above the picture.", title: "Under it" }, es: { hook: "En la imagen", cta: "Aplica", body: "Arriba de la foto." } };
