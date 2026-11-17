@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { FEED_FORMATS, type AdFormat } from "./renderGeometry.js";
+import { AD_FORMATS, FEED_FORMATS, type AdFormat } from "./renderGeometry.js";
 
 /**
  * When each line of a motion ad appears (ADS-PLATFORM-V2-PLAN V4, Q-APX13). Pure: no image, no clock, no ffmpeg.
@@ -105,3 +105,19 @@ export const adClipRefSchema = z.object({
   byte_size: z.number().int().positive(),
 });
 export type AdClipRef = z.infer<typeof adClipRefSchema>;
+
+/**
+ * A creative's motion ad, as `ads_creatives.motion` holds it (migration 0625; V4h). One model's clip, joined once
+ * per language with that language's words. The still is not here: it stays in `assets`, where it always was, and
+ * is the last frame of every file below.
+ */
+export const adMotionSchema = z.object({
+  format: z.enum(AD_FORMATS),
+  /** The image-to-video model that made the clip. */
+  model: z.string().min(1).max(200),
+  clip: adClipRefSchema,
+  files: z.array(adClipRefSchema.extend({ language: z.enum(["en", "es"]), path: z.string().min(1).max(300) })).min(1).max(2),
+  /** How many frames of the moving picture the contrast check looked at, per language. */
+  frames_checked: z.number().int().positive(),
+});
+export type AdMotion = z.infer<typeof adMotionSchema>;

@@ -3,7 +3,9 @@ import { createHash } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { AD_ASSET_MAX_BYTES, type AdClipRef } from "@silvicom/shared";
+import { AD_ASSETS_BUCKET } from "../brandAssets.js";
 
 /**
  * A model's clip, read before it is kept (ADS-PLATFORM-V2-PLAN V4e). The twin of `prepareAsset` for a moving
@@ -79,4 +81,26 @@ export async function prepareClip(bytes: Buffer, opts: { ffprobe?: string } = {}
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+/** A clip's bytes from `ad-assets`, refused (thrown) when the stored file is not the one the ref names — as `readAdAsset` does for an image. */
+export async function readAdClip(admin: SupabaseClient, orgId: string, ref: Pick<AdClipRef, "sha256">): Promise<Buffer> {
+  const { data: blob, error } = await admin.storage.from(AD_ASSETS_BUCKET).download(clipKey(orgId, ref));
+  if (error || !blob) throw new Error(`ad-assets: clip ${ref.sha256} could not be read (${error?.message ?? "missing"})`);
+  const bytes = Buffer.from(await blob.arrayBuffer());
+  if (createHash("sha256").update(bytes).digest("hex") !== ref.sha256) throw new Error(`ad-assets: clip ${ref.sha256} holds other bytes`);
+  return bytes;
+}
+
+/**
+ * A video WE made (a joined motion ad) stored by its hash, read back through the same ffprobe a model's clip is.
+ * The same bytes twice is the same file, so "already exists" is success. A file of ours that is refused is a bug
+ * of ours and throws, as `storeAdAsset` does.
+ */
+export async function storeAdClip(admin: SupabaseClient, orgId: string, bytes: Buffer): Promise<AdClipRef> {
+  const prepared = await prepareClip(bytes);
+  if (prepared.kind !== "ready") throw new Error(`ad-assets: our own video was refused (${prepared.kind === "refused" ? prepared.code : prepared.detail})`);
+  const { error } = await admin.storage.from(AD_ASSETS_BUCKET).upload(clipKey(orgId, prepared.ref), prepared.bytes, { contentType: "video/mp4", upsert: false });
+  if (error && !/already exists|409/.test(`${error.message} ${(error as { statusCode?: unknown }).statusCode ?? ""}`)) throw new Error(`ad-assets: ${error.message}`);
+  return prepared.ref;
 }
