@@ -147,6 +147,25 @@ hand checking the owner described, which the database cannot measure.
 - **D-LRC9. Two weeks of silent running before the first reminder.** The cases are built and shown
   to admins only; each day's list is compared with what billing actually did. Reminders are switched
   on when the list has had no false case for a week.
+- **D-LRC13. A payment keyed on the wrong order is pointed at, never moved** (owner, 2026-11-17,
+  from the accuracy audit). When one order holds a payment with no lumper charged or billed, and
+  another order of the same dispatcher and company holds a charge or invoice of the same amount to
+  the cent with no payment, delivered within 14 days of the payment, both cases say "check order …"
+  and the case explains what to correct in McLeod. Same dispatcher, not same broker: on the first
+  read payroll's wrong order was the dispatcher's previous load for a different broker. Two
+  candidates on either side give no hint. States do not change: McLeod is the record, and the next
+  read corrects both cases once payroll moves the line (`lumperPossibleMisposts`).
+- **D-LRC14. An order-less settlement line that is the other half of a counted payment is not
+  "order unknown".** A money code and its reimbursement are one payment (LRC2's "larger side, not
+  the sum"); when one half carries the order and the other does not, the order-less half (same
+  payee, same amount, within 7 days, on an order that lacks that half) is listed under the order it
+  belongs to, not as a lumper to match. Ambiguity leaves it on the unknown list
+  (`lumperOrderlessMatches`).
+- **D-LRC15. "Broker paid the invoice in full" closes a case** (owner, 2026-11-17). The first read
+  opened 78 cases "Billed, no revised RC" back to August, before 360 could hold an RC; for an
+  invoice the broker already paid, the RC no longer decides anything. A person's statement, kept
+  with their name, taken only on an order McLeod shows invoiced (migration 0629). Reading McLeod's
+  receivables to know it would be a new request to IT, not made.
 
 ## 3. Phases
 
@@ -451,4 +470,16 @@ VM runs it. Q-LRC8 (EFS money codes) and Q-LRC9 are open.
     for the owner, not code: no member has the Accountant role, so the accounting defaults reach
     nobody until somebody is given it or named on Settings › Notifications; and production still
     runs schema 0623, so no reminder can run there before the release that carries 0624.
-
+- 2026-11-17, accuracy audit of the first production read, and its fixes (branch
+  `claude/lumper-accuracy`, no connector change). The 94 cases were recomputed independently from
+  the raw McLeod mirror: 78 billed no RC, 10 billed without the lumper, 1 short, 5 waiting, the same
+  as the page; no order without a case, no duplicate. Where the list is wrong, McLeod's keying is:
+  payroll keyed 0135863's $703.64 on the wrong order (it belongs to 0135778's $403.64 + $300, paid
+  10/01 before 0135863 delivered 10/05), and very likely 0135053/0134847's $518 the same way; 0134303's
+  $100 money code has no EFS reference and equals a re-bill reduction, so it is probably not a lumper
+  (left for a person). Three of the four "order unknown" lines were the reimbursement half of a
+  money code already counted. `billing_history.invoice_no` is empty on every bill (99 lumper, 14,156
+  finance), so the case showed "— on <day>". Built: D-LRC13 (the two pairs above, and nothing else
+  on this read), D-LRC14 (CRTUCKER, TLAMAR, YHUGGLER matched; DRUTHERF's $100 stays unknown),
+  D-LRC15 with 0629, "Invoiced <day>" when there is no number, and "Paid to" (the payee) on the
+  order-unknown list, where the driver column was empty for every reimbursement line.

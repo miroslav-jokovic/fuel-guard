@@ -74,6 +74,13 @@ const total = (rows: readonly { amount: number }[]): number => rows.reduce((t, r
 /** A credit memo. Its amounts are POSITIVE in McLeod (377 of 377 in 2026); the type alone says it takes money back. */
 const isCredit = (b: { bill_type: string | null }): boolean => (b.bill_type ?? "").trim().toUpperCase() === "C";
 
+/**
+ * Invoiced while more invoices than credit memos stand: an order whose only invoice was credited back
+ * is not billed. One definition for the case's state and for the close that requires an invoice (D-LRC15).
+ */
+export const lumperOrderInvoiced = (bills: readonly { bill_type: string | null }[]): boolean =>
+  bills.filter((b) => !isCredit(b)).length > bills.filter(isCredit).length;
+
 export function lumperCaseState(facts: LumperCaseFacts): LumperCaseReading {
   const live = facts.payments.filter((p) => !p.is_void);
 
@@ -95,9 +102,7 @@ export function lumperCaseState(facts: LumperCaseFacts): LumperCaseReading {
   const invoices = facts.bills.filter((b) => !isCredit(b));
   const credits = facts.bills.filter(isCredit);
   const billedCents = invoices.reduce((t, b) => t + cents(b.lumper_amount), 0) - credits.reduce((t, b) => t + cents(b.lumper_amount), 0);
-  // Invoiced while more invoices than credit memos stand: an order whose only invoice was credited
-  // back is not billed.
-  const invoiced = invoices.length > credits.length;
+  const invoiced = lumperOrderInvoiced(facts.bills);
   const lastInvoice = [...invoices].sort((a, b) => (a.bill_date ?? "").localeCompare(b.bill_date ?? "")).at(-1) ?? null;
 
   const chargeCents = total(facts.charges);

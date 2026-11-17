@@ -58,20 +58,20 @@ const order = (id: string, seen = "2026-10-09T13:00:00Z") => ({
 });
 const payment = (id: string, orderId: string | null, o: Record<string, unknown> = {}) => ({
   org_id: ORG, company_id: "TMS", payment_id: id, settlement_state: "paid", order_id: orderId, deduct_code: "UNL", amount: "310.00",
-  transacted_at: "2026-10-02T00:00:00Z", reference_no: `EFS-${id}`, driver_code: "DRV1", tractor_unit: "101", is_void: false, ...o,
+  transacted_at: "2026-10-02T00:00:00Z", reference_no: `EFS-${id}`, driver_code: "DRV1", payee_id: "DRV1", tractor_unit: "101", is_void: false, ...o,
 });
 const bill = (id: string, orderId: string, lumper: string) => ({
   org_id: ORG, company_id: "TMS", bill_id: id, order_id: orderId, bill_type: "I", bill_date: "2026-10-05T00:00:00Z", invoice_no: `INV-${id}`, lumper_amount: lumper,
 });
 
-function seed(over: { dispatchers?: Record<string, unknown>[]; reminders?: Record<string, unknown>[]; cases?: Record<string, unknown>[]; files?: Record<string, unknown>[]; stored?: Uint8Array | null; roleAccess?: Record<string, unknown>[]; userAccess?: Record<string, unknown>[]; module?: boolean } = {}): SupabaseRecorder {
+function seed(over: { extraPayments?: Record<string, unknown>[]; extraCharges?: Record<string, unknown>[]; extraBills?: Record<string, unknown>[]; extraOrders?: Record<string, unknown>[]; dispatchers?: Record<string, unknown>[]; reminders?: Record<string, unknown>[]; cases?: Record<string, unknown>[]; files?: Record<string, unknown>[]; stored?: Uint8Array | null; roleAccess?: Record<string, unknown>[]; userAccess?: Record<string, unknown>[]; module?: boolean } = {}): SupabaseRecorder {
   rec = createSupabaseRecorder({
     tables: {
       org_role_surface_access: postgrestFixture((over.roleAccess ?? []).map((g) => ({ org_id: ORG, ...g }))),
       user_surface_access: postgrestFixture((over.userAccess ?? []).map((g) => ({ org_id: ORG, ...g }))),
       lumper_cases: postgrestFixture(over.cases ?? [aCase(CASE_WAITING, "A"), aCase(CASE_DONE, "B"), aCase(CASE_NO_LUMPER, "C")]),
       // C's order was last carried by an August read: older than the window, its facts frozen (Q-LRC9).
-      mcleod_lumper_orders: postgrestFixture([order("A"), order("B"), order("C", "2026-08-01T13:00:00Z")]),
+      mcleod_lumper_orders: postgrestFixture([order("A"), order("B"), order("C", "2026-08-01T13:00:00Z"), ...(over.extraOrders ?? [])]),
       lumper_reminder_settings: postgrestFixture(over.reminders ?? []),
       // `kane`, every order's dispatcher here, is linked to Dana unless a test says otherwise.
       tms_dispatchers: postgrestFixture(over.dispatchers ?? [{ org_id: ORG, provider: "mcleod", external_id: "kane", display_name: "kane", is_system: false, is_active: true, user_id: DANA }]),
@@ -80,6 +80,7 @@ function seed(over: { dispatchers?: Record<string, unknown>[]; reminders?: Recor
       mcleod_lumper_charges: postgrestFixture([
         { org_id: ORG, company_id: "TMS", charge_id: "OC1", order_id: "A", charge_code: "LUM", descr: "Unloading", amount: "310.00" },
         { org_id: ORG, company_id: "TMS", charge_id: "OC2", order_id: "B", charge_code: "LUM", descr: "Unloading", amount: "200.00" },
+        ...(over.extraCharges ?? []),
       ]),
       mcleod_lumper_payments: postgrestFixture([
         payment("D1", "A"),
@@ -87,8 +88,9 @@ function seed(over: { dispatchers?: Record<string, unknown>[]; reminders?: Recor
         payment("D3", "B", { amount: "200.00" }),
         payment("D4", "C", { amount: "150.00" }),
         payment("D5", null, { amount: "90.00", settlement_state: "pending" }),
+        ...(over.extraPayments ?? []),
       ]),
-      mcleod_lumper_bills: postgrestFixture([bill("BL1", "B", "200.00"), bill("BL2", "C", "0.00")]),
+      mcleod_lumper_bills: postgrestFixture([bill("BL1", "B", "200.00"), bill("BL2", "C", "0.00"), ...((over.extraBills ?? []) as ReturnType<typeof bill>[])]),
       lumper_case_files: postgrestFixture(
         over.files ?? [{ id: FILE, org_id: ORG, case_id: CASE_DONE, file_name: "rc-b.pdf", mime: "application/pdf", byte_size: 1200, uploaded_by: DANA, created_at: "2026-10-04T15:00:00Z", removed_at: null, storage_path: `${ORG}/${CASE_DONE}/${FILE}` }],
       ),
@@ -167,7 +169,9 @@ describe("what the list says", () => {
     // The money code and its reimbursement are one $310 payment, not $620.
     expect(a).toMatchObject({ paidAmount: 310, chargeAmount: 310, references: ["EFS-D1"], customerName: "A Broker", dispatcherName: "Kane", consigneeCity: "Joliet", consigneeState: "IL", driverCode: "DRV1", rcOnFile: false, invoiced: false });
     expect(body.cases[1]).toMatchObject({ paidAmount: 150, billedAmount: 0, shortAmount: 150, lastInvoiceNo: "INV-BL2" });
-    expect(body.unmatchedPayments).toEqual([{ id: "pending:D5", deductCode: "UNL", amount: 90, transactedAt: "2026-10-02T00:00:00Z", referenceNo: "EFS-D5", driverCode: "DRV1", tractorUnit: "101", pending: true }]);
+    expect(body.unmatchedPayments).toEqual([{ id: "pending:D5", deductCode: "UNL", amount: 90, transactedAt: "2026-10-02T00:00:00Z", referenceNo: "EFS-D5", driverCode: "DRV1", tractorUnit: "101", pending: true, payeeId: "DRV1" }]);
+    expect(body.matchedPayments).toEqual([]);
+    expect(body.cases.every((c) => c.possibleMisposts.length === 0)).toBe(true);
     expect(body.sweptAt).toBe("2026-10-09T13:00:00Z");
     // Whether a case's McLeod facts came from the latest read (Q-LRC9), and that nobody is reminded yet (D-LRC9).
     expect(body.cases.map((c) => [c.orderId, c.factsCurrent, c.factsSeenAt])).toEqual([["A", true, "2026-10-09T13:00:00Z"], ["C", false, "2026-08-01T13:00:00Z"]]);
@@ -188,6 +192,37 @@ describe("what the list says", () => {
     seed({ files: [{ id: FILE, org_id: ORG, case_id: CASE_DONE, file_name: "rc-b.pdf", mime: "application/pdf", byte_size: 1200, uploaded_by: DANA, created_at: "2026-10-04T15:00:00Z", removed_at: "2026-10-06T00:00:00Z" }] });
     const body = (await (await call("/", "dispatcher")).json()) as LumperCasesResponse;
     expect(body.cases.find((c) => c.orderId === "B")).toMatchObject({ state: "billed_no_rc", rcOnFile: false, files: [] });
+  });
+});
+
+describe("a lumper McLeod holds in the wrong place (accuracy audit 2026-11-17)", () => {
+  it("names the order an order-less reimbursement belongs to, and keeps it off the unknown list (D-LRC14)", async () => {
+    // Production's shape: the money code is on order C (D4, $150, payee DRV1, 10-02) and its reimbursement
+    // was keyed three days later with no order number.
+    seed({ extraPayments: [payment("D6", null, { deduct_code: "LUM", amount: "150.00", transacted_at: "2026-10-05T00:00:00Z", reference_no: null, driver_code: null })] });
+    const body = (await (await call("/", "dispatcher")).json()) as LumperCasesResponse;
+    expect(body.matchedPayments).toEqual([expect.objectContaining({ id: "paid:D6", orderId: "C", amount: 150, payeeId: "DRV1" })]);
+    expect(body.unmatchedPayments.map((p) => p.id)).toEqual(["pending:D5"]);
+    // Counted once on C: the larger side, not the sum, and the order-less half does not add to it.
+    expect(body.cases.find((c) => c.orderId === "C")).toMatchObject({ paidAmount: 150 });
+  });
+
+  it("points two cases at each other when payroll paid one order and the charge is on the dispatcher's other (D-LRC13)", async () => {
+    // C: paid $150, invoiced with no lumper. D: same dispatcher, $150 charged and invoiced, nothing paid.
+    seed({
+      cases: [aCase(CASE_WAITING, "A"), aCase(CASE_NO_LUMPER, "C"), aCase(CASE_DONE, "D")],
+      extraOrders: [order("D")],
+      extraCharges: [{ org_id: ORG, company_id: "TMS", charge_id: "OC4", order_id: "D", charge_code: "LUM", descr: "unloading", amount: "150.00" }],
+      extraBills: [bill("BL4", "D", "150.00")],
+      files: [],
+    });
+    const body = (await (await call("/", "dispatcher")).json()) as LumperCasesResponse;
+    const of = (o: string) => body.cases.find((c) => c.orderId === o)!;
+    expect(of("C").possibleMisposts).toEqual([{ orderId: "D", amount: 150, direction: "paid_here" }]);
+    expect(of("D").possibleMisposts).toEqual([{ orderId: "C", amount: 150, direction: "charged_here" }]);
+    // A hint only: neither state moves until McLeod is corrected.
+    expect([of("C").state, of("D").state]).toEqual(["billed_without_lumper", "billed_no_rc"]);
+    expect(of("A").possibleMisposts).toEqual([]);
   });
 });
 
@@ -263,6 +298,22 @@ describe("closing a case that will not be billed (D-LRC4)", () => {
     const update = rec.forTable("lumper_cases").find((q) => q.write?.method === "update")!;
     expect(update.write!.payload).toMatchObject({ closed_by: CTX.accountant!.userId, close_reason: "broker_paid_directly", close_note: "Paid at the dock" });
     expect(audits()[0]).toMatchObject({ action: "lumper_case.closed", entity_id: CASE_WAITING });
+    expectOrgScoped(rec, ORG, EXEMPT);
+  });
+
+  it("closes as paid in full only an order McLeod shows invoiced (D-LRC15)", async () => {
+    seed();
+    const refused = await post(`/${CASE_WAITING}/close`, "accountant", { reason: "broker_paid_in_full", note: null });
+    expect(refused.status).toBe(409);
+    expect(JSON.stringify(await refused.json())).toContain("not_invoiced");
+    expect(rec.forTable("lumper_cases").some((q) => q.write?.method === "update")).toBe(false);
+    expect(audits()).toHaveLength(0);
+    // B is invoiced (BL1).
+    const res = await post(`/${CASE_DONE}/close`, "accountant", { reason: "broker_paid_in_full", note: null });
+    expect(res.status).toBe(200);
+    const update = rec.forTable("lumper_cases").find((q) => q.write?.method === "update")!;
+    expect(update.write!.payload).toMatchObject({ closed_by: CTX.accountant!.userId, close_reason: "broker_paid_in_full" });
+    expect(audits()[0]).toMatchObject({ action: "lumper_case.closed", entity_id: CASE_DONE });
     expectOrgScoped(rec, ORG, EXEMPT);
   });
 

@@ -8,7 +8,7 @@ const row = (o: Partial<LumperCaseRow> = {}): LumperCaseRow => ({
   customerName: "A Broker", dispatcherUserId: "kane", dispatcherName: "Kane", dispatcherLinked: true, consigneeName: "A Warehouse", consigneeCity: "Joliet", consigneeState: "IL",
   deliveredAt: "2026-10-01T00:00:00Z", driverCode: "DRV1", factsSeenAt: "2026-10-09T13:00:00Z", factsCurrent: true, paidAmount: 310, paidAt: "2026-10-02T00:00:00Z", references: ["EFS-77"], chargeAmount: 310,
   chargeDescriptions: ["Unloading"], billedAmount: 0, shortAmount: 0, invoiced: false, lastInvoiceNo: null, lastInvoiceAt: null, rcOnFile: false, files: [],
-  closedAt: null, closedByName: null, closeReason: null, closeNote: null, ...o,
+  closedAt: null, closedByName: null, closeReason: null, closeNote: null, possibleMisposts: [], ...o,
 });
 
 describe("how a lumper case is shown", () => {

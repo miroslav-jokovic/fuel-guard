@@ -145,6 +145,18 @@ console.log("guards");
 ok("a sweep with no org is refused", (await sqlstate(`select lumper_sweep_apply(null, 'TMS', '2026-08-15', '[]', '[]', '[]', '[]')`)) === "22023");
 ok("a case cannot be half closed", (await sqlstate(`update lumper_cases set closed_at = now() where org_id = $1 and order_id = 'A'`, [ORG])) === "23514");
 ok("a close reason outside the list is refused", (await sqlstate(`update lumper_cases set closed_at = now(), closed_by = $2, close_reason = 'because' where org_id = $1 and order_id = 'A'`, [ORG, closer])) === "23514");
+// 0629: the CHECK and the contract's list are the same five, and "paid in full" (D-LRC15) is one of them.
+{
+  const { LUMPER_CLOSE_REASONS } = await import("../../packages/shared/dist/index.js");
+  const refused = [];
+  for (const reason of LUMPER_CLOSE_REASONS) {
+    await db.exec("begin");
+    const code = await sqlstate(`update lumper_cases set closed_at = now(), closed_by = $2, close_reason = $3 where org_id = $1 and order_id = 'A'`, [ORG, closer, reason]);
+    await db.exec("rollback");
+    if (code) refused.push(`${reason}:${code}`);
+  }
+  ok("every close reason the contract offers is one the table takes, broker_paid_in_full included", LUMPER_CLOSE_REASONS.includes("broker_paid_in_full") && refused.length === 0, refused.join(", "));
+}
 ok("a settlement state outside paid and pending is refused", (await sqlstate(`insert into mcleod_lumper_payments (org_id, company_id, settlement_state, payment_id, deduct_code, amount) values ($1, 'TMS', 'maybe', 'X', 'UNL', 1)`, [ORG])) === "23514");
 
 // ── the revised RC on a case (0601) ───────────────────────────────────────────────────────────
