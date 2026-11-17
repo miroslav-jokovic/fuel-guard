@@ -64,7 +64,8 @@ export interface MotionJoinInput {
   still: Buffer;
 }
 
-export type MotionJoinRefusal = "ffmpeg_missing" | "cues_do_not_match_layers" | "hold_shorter_than_settle" | "ffmpeg_failed" | "ffmpeg_timeout";
+export type FfmpegRefusal = "ffmpeg_missing" | "ffmpeg_failed" | "ffmpeg_timeout";
+export type MotionJoinRefusal = FfmpegRefusal | "cues_do_not_match_layers" | "hold_shorter_than_settle";
 export type MotionJoinOutcome =
   | { kind: "joined"; mp4: Buffer; width: number; height: number; fps: number; duration_ms: number }
   | { kind: "refused"; refusal: MotionJoinRefusal; detail: string };
@@ -81,10 +82,8 @@ export function motionFfmpegArgs(t: MotionTimeline, files: { clip: string; under
   const image = (file: string, ms: number) => ["-loop", "1", "-framerate", String(MOTION_FPS), "-t", s(ms), "-i", file];
   const still = 2 + files.words.length, silence = still + 1;
 
-  // The picture: covered to the frame as `frameStill` covers the still, at our frame rate, cut to the clip's
-  // length (a model may return a little more or less than asked), its last frame held while the still arrives.
   const graph = [
-    `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,fps=${MOTION_FPS},trim=duration=${s(t.clip_ms)},setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration=${s(SETTLE_MS + 1000)},trim=duration=${s(moving)},format=yuv444p[pic]`,
+    `[0:v]${motionPictureChain(t)}[pic]`,
     `[pic][1:v]overlay=0:0:format=auto[l0]`,
   ];
   t.cues.forEach((cue, i) => {
@@ -115,6 +114,17 @@ export function motionFfmpegArgs(t: MotionTimeline, files: { clip: string; under
   ];
 }
 
+/**
+ * The model's clip as the motion ad shows it: covered to the frame as `frameStill` covers the still, at our frame
+ * rate, cut to the clip's length (a model may return a little more or less than asked), its last frame held while
+ * the still arrives. ONE definition, read by the join and by the frame check (`motionFrames.ts`), so the frames
+ * that are judged are the frames that are shown.
+ */
+export function motionPictureChain(t: MotionTimeline): string {
+  const { width, height } = FORMAT_SIZE[MOTION_FORMAT];
+  return `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,fps=${MOTION_FPS},trim=duration=${s(t.clip_ms)},setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration=${s(SETTLE_MS + 1000)},trim=duration=${s(t.clip_ms + SETTLE_MS)},format=yuv444p`;
+}
+
 const AAC_FRAME = 1024;
 /**
  * The silent track, as an AAC file: stereo, whole frames, and never longer than the picture (the encoder adds one
@@ -129,7 +139,8 @@ export function silenceFfmpegArgs(durationMs: number, out: string): string[] {
   ];
 }
 
-function run(bin: string, args: string[]): Promise<{ ok: true } | { ok: false; refusal: MotionJoinRefusal; detail: string }> {
+/** One ffmpeg run, its failure named: missing, out of time, or ffmpeg's own last words. Shared with the frame check. */
+export function runFfmpeg(bin: string, args: string[]): Promise<{ ok: true } | { ok: false; refusal: FfmpegRefusal; detail: string }> {
   return new Promise((resolve) => {
     execFile(bin, args, { timeout: TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 }, (error, _out, stderr) => {
       if (!error) return resolve({ ok: true });
@@ -161,7 +172,7 @@ export async function joinMotion(input: MotionJoinInput, opts: { ffmpeg?: string
     ]);
     const bin = opts.ffmpeg ?? "ffmpeg";
     for (const args of [silenceFfmpegArgs(t.duration_ms, files.silence), motionFfmpegArgs(t, files)]) {
-      const ran = await run(bin, args);
+      const ran = await runFfmpeg(bin, args);
       if (!ran.ok) return { kind: "refused", refusal: ran.refusal, detail: ran.detail };
     }
     const { width, height } = FORMAT_SIZE[MOTION_FORMAT];

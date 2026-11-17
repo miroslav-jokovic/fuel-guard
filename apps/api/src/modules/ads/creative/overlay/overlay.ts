@@ -252,6 +252,14 @@ export type MotionLayersOutcome =
     under: Buffer;
     /** The timed words in the order they arrive, each a transparent layer of the frame's size. */
     words: MotionWordLayer[];
+    /**
+     * `under` before any word was painted on it: scrim, band and logo alone. Over a frame of the moving picture
+     * it is what lies BEHIND every line at that moment — what the frame check samples (`motionFrames.ts`). `under`
+     * itself would not do: it carries the always-on rows, and a line's own ink is not its background.
+     */
+    ground: Buffer;
+    /** Where each row's lines are drawn, by row label: the boxes the still's contrast was sampled under. */
+    lines: Record<string, Rect[]>;
   })
   | Extract<OverlayOutcome, { kind: "refused" }>;
 
@@ -262,12 +270,13 @@ export type MotionLayersOutcome =
  *
  * The words arrive in reading order: the headline (with `number`'s figure) first, then each remaining row in the
  * layout's own order — today one, the supporting line, which every look draws under the headline. What `photo`'s words lie on moves once the picture does; the still's contrast verdict
- * speaks for the last frame only, and the frames before it are the sampled-frame check's (V4 "Checks", not built).
+ * speaks for the last frame only, and the frames before it are the sampled-frame check's (`checkMotionFrames`).
  */
 export async function renderMotionLayers(input: OverlayInput): Promise<MotionLayersOutcome> {
   const p = await paint(input, true);
   if (p.kind !== "painted") return p;
   const { l, out } = p, under = p.under!;
+  const ground = await under.encode("png");
   paintText(under.getContext("2d"), l, l.rows.filter((r) => ALWAYS_ROWS.has(r.label)));
 
   const timed = l.rows.filter((r) => !ALWAYS_ROWS.has(r.label));
@@ -281,5 +290,6 @@ export async function renderMotionLayers(input: OverlayInput): Promise<MotionLay
     words.push({ labels: rows.map((r) => r.label), chars: rows.reduce((n, r) => n + r.lines.map((line) => line.text).join(" ").length, 0), png: await layer.encode("png") });
   }
   const { png: still, ...rest } = out;
-  return { ...rest, still, under: await under.encode("png"), words };
+  const lines = Object.fromEntries(l.rows.map((r) => [r.label, r.lines.map((_, i) => lineBox(r, i))]));
+  return { ...rest, still, under: await under.encode("png"), words, ground, lines };
 }

@@ -5,13 +5,11 @@ import {
   rollUp,
   shiftDay,
   todayInZone,
-  type CoverageMonth,
+  type RollupAnswer,
   type RollupBucket,
-  type RollupBucketRow,
   type RollupKind,
   type RollupRepair,
   type RollupUnit,
-  type RollupUnitRow,
 } from "@silvicom/shared";
 import { orgTimezone } from "../org/index.js";
 import { readCoverage } from "./coverage.js";
@@ -47,15 +45,8 @@ export interface RollupQuery {
   offset: number;
 }
 
-export interface RollupAnswer {
-  buckets: RollupBucketRow[];
-  units: RollupUnitRow[];
-  /** Unit rows in the whole answer, before `limit`/`offset`. */
-  unitTotal: number;
-  /** Per month: FleetPal's invoicing, the ledger family and the "at least" bound (Q10 (a)). */
-  coverage: CoverageMonth[];
-  unmatchedUnits: number;
-}
+/** The answer's shape is the shared contract the Repair cost tab reads (`@silvicom/shared`). */
+export type { RollupAnswer };
 
 export type RollupOutcome = { ok: RollupAnswer } | { refused: string[] };
 

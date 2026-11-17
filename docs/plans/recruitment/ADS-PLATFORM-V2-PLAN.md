@@ -192,6 +192,15 @@ five seconds from a real model fits the store's 15 MB an object (no real clip ha
 Higgsfield's API has no credits — Q-APX16. Still not built: the check of the frames before the last, the `video`
 kind, the publisher's video road, the player on the review screen.
 
+**Built 2026-11-17 (V4f):** the contrast check of the frames before the last (`creative/motion/motionFrames.ts`).
+The moving picture with our scrim, band and logo over it, and no word, is sampled every half second and on the
+motion's last frame; under every line that has arrived, the pixels go to the still's own judge. A failing frame
+refuses the motion ad, not the still. **Measured:** with a dark ground colour and white words the weakest scrim
+step already keeps white at about 3.3:1 over a frame that is white edge to edge, and every row of today's looks
+is large text (3:1) — so for such a kit no picture can fail it; the check decides for a kit with no ground colour,
+a lighter ground, or words that are not white. **Found:** a clip shorter than was asked freezes on its last frame
+rather than ending; nothing refuses that yet. Nothing calls the check yet.
+
 **Done when:** a motion ad passes the contract suite on the fake, and Renderer and Publisher show L3 for
 `meta:video`.
 
@@ -305,10 +314,33 @@ video against stills (cheaper impressions for stills, more engagement for video)
 follow when counsel's release and Q-APX5 are settled. `ads_ad_spend_hourly` already holds per-ad figures, so the
 answer for this carrier is measured in its first month instead of taken from a vendor.
 
-### Q-APX5 · Speech-to-text for driver clips — open
+### Q-APX5 · Speech-to-text for driver clips — read 2026-11-17, open
 
-Not researched. Candidates to compare on price, accuracy on cab noise, Spanish, and where audio is kept. Nothing
-in V4's motion lane waits on it.
+A driver clip (V4) needs its speech as text with the time of every word, in English and Spanish, to draw captions.
+
+| | Price, recorded audio | Word times | Spanish | What they keep, as their own pages say |
+|---|---|---|---|---|
+| Amazon Transcribe | $0.006 a minute (US East), billed by the second, no minimum | "start time, end time, and confidence score for every word" | `es-US` and `en-US`, batch | "By default, Amazon Transcribe stores and uses voice inputs that it has processed to develop the service"; switched off by an AWS Organizations opt-out policy. Takes MP4. Transcript in our own bucket |
+| Deepgram Nova-3 | $0.0043 a minute; $0.0052 multilingual | not stated on the pricing page | "60+ languages", Spanish not named there | Not on the page read; an opt-out (`mip_opt_out=true`) exists, its price not stated |
+| AssemblyAI | $0.21 an hour ($0.0035 a minute); $0.15 for the older model | not stated for recorded audio | listed for its medical mode (EN, ES) | Not on the pricing page |
+| OpenAI | $0.006 a minute (`gpt-4o-transcribe`, Whisper); $0.003 (`mini`) | not read | not read | not read |
+
+For scale: a 60-second clip costs between a third of a cent and six tenths of a cent anywhere. A hundred clips a
+month is under a dollar. **Price does not decide this.**
+
+- **(a) Amazon Transcribe — recommended.** The servers and the storage are already on AWS, so the driver's voice
+  goes to no new company and needs no new contract or key; every fact needed (word times, both languages, MP4 in)
+  is stated on its own pages; the "used to improve the service" default has a documented switch, which is set
+  before the first clip. It is the dearest of the four by a fraction of a cent.
+- (b) Deepgram. The cheapest with a stated price for both languages, but a new vendor holding drivers' voices, and
+  its retention terms are on a page not yet read.
+- (c) Decide when the driver clip is built. It also waits on a signed release from the driver (counsel), so
+  nothing is lost by waiting — but the release's wording should name where the recording goes.
+
+Not read: Deepgram's and AssemblyAI's retention pages, OpenAI's terms and timestamps, how well any of them hears
+a driver in a running cab. The last is a test on real clips, not a page.
+
+Nothing in V4's motion lane waits on it.
 
 ### Q-APX6 · Is planning mandatory, or the carrier's choice? — RULED (b), 2026-11-15
 
@@ -615,7 +647,7 @@ is 100%."*** Taken as:
 | Id | Question | Recommendation | Who |
 |---|---|---|---|
 | Q-APX1–4 | — | **ruled 2026-11-14, §5a** | — |
-| Q-APX5 | Speech-to-text provider | research owed | Claude |
+| Q-APX5 | Speech-to-text provider | **read 2026-11-17: (a) Amazon Transcribe** | owner |
 | Q-APX6 | Planning mandatory, or the carrier's choice | **ruled (b) 2026-11-15, §5a** | — |
 | Q-APX7–15 | — | **ruled 2026-11-16 as proposed, §5a**; Q-APX12's sitting still waits on the Higgsfield key | — |
 | Q-APX16 | The picture budget is in "credits"; Higgsfield's API bills dollars and has a price call | (a) budget in dollars, price asked from `/estimate` | owner |

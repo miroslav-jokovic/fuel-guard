@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { bucketsOf, monthsOfSpan, rollUp, weekStart, type RollupRepair, type RollupUnit } from "./fleetpalRollup.js";
+import { bucketsOf, lastPrintableRun, monthsOfSpan, rollUp, sumMoney, weekStart, type RollupRepair, type RollupUnit } from "./fleetpalRollup.js";
+import type { CoverageMonth } from "./fleetpal/coverage.js";
 
 const units: RollupUnit[] = [
   { fleetpalId: "u-777", number: "777", vehicleId: "truck-777", trailerId: null },
@@ -90,5 +91,35 @@ describe("rollUp", () => {
   it("a unit mapped to both a truck and a trailer is unmatched, not counted twice", () => {
     const r = rollUp([repair("u-both", "2026-07-10", 10)], [{ fleetpalId: "u-both", number: "X", vehicleId: "v", trailerId: "t" }], window);
     expect(r.buckets[0]!.byKind).toMatchObject({ unmatched: { operational: 10 }, tractor: { operational: null }, trailer: { operational: null } });
+  });
+});
+
+describe("the Repair cost tab's window and total", () => {
+  const month = (m: string, ratio: number | null): CoverageMonth => ({
+    month: m, fleetpalInvoiced: 0, glMaintenance: ratio === null ? null : 1, confirmedInLedger: 0, ratioLowerBound: ratio,
+    matchedExactlyOne: 0, matchedSeveral: 0, matchedNone: 0, amountDiffers: 0,
+  });
+
+  it("opens on the newest printable run, never on the unswept current month", () => {
+    const months = [month("2026-08", 0.4), month("2026-09", 0.5), month("2026-10", 0.6), month("2026-11", null)];
+    expect(lastPrintableRun(months)).toEqual({ from: "2026-08-01", to: "2026-10-31" });
+  });
+
+  it("stops walking back at a month the sweep missed, and at max", () => {
+    const months = [month("2026-06", 0.4), month("2026-07", null), month("2026-08", 0.5), month("2026-09", 0.5), month("2026-10", 0.6)];
+    expect(lastPrintableRun(months)).toEqual({ from: "2026-08-01", to: "2026-10-31" });
+    expect(lastPrintableRun(months, 2)).toEqual({ from: "2026-09-01", to: "2026-10-31" });
+  });
+
+  it("crosses a year end and answers null when nothing is printable", () => {
+    expect(lastPrintableRun([month("2025-12", 0.4), month("2026-01", null)])).toEqual({ from: "2025-12-01", to: "2025-12-31" });
+    expect(lastPrintableRun([month("2026-11", null)])).toBeNull();
+  });
+
+  it("sums buckets without turning an unpriced window into $0", () => {
+    const priced = { operational: 10, external: 7, repairs: 2, unpriced: 0 };
+    const unpriced = { operational: null, external: null, repairs: 1, unpriced: 1 };
+    expect(sumMoney([priced, unpriced, priced])).toEqual({ operational: 20, external: 14, repairs: 5, unpriced: 1 });
+    expect(sumMoney([unpriced])).toEqual({ operational: null, external: null, repairs: 1, unpriced: 1 });
   });
 });
