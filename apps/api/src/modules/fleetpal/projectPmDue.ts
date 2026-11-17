@@ -9,11 +9,16 @@
  * out: it is our record's (`dot_annual_inspection_expires_at`), and a second column carrying
  * FleetPal's date for it would be the two-sources workaround CLAUDE.md names.
  *
+ * The verdict (`next_pm_verdict`, Q11) comes from the same pass: each schedule's verdict as
+ * `judgeSchedule` gave it, across every unit the truck resolves to, folded by `truckPmVerdict` — so the
+ * Vehicles list and the truck's page read one judgement, and "can't tell" never reads as "ok".
+ *
  * Trailers have no such columns (0099 added them to `vehicles` only), so a trailer's PM is read live
  * from the page and projected nowhere. The write goes through roster's `recordVehiclePmDue`, which
  * writes only what changed.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { truckPmVerdict, type PmStatus } from "@silvicom/shared";
 import { readFleetIdentities, recordVehiclePmDue, type PmDuePlacement } from "../roster/index.js";
 import { readPmDueFleet } from "./pmDue.js";
 
@@ -24,17 +29,22 @@ export async function projectPmDue(admin: SupabaseClient, orgId: string, now: Da
 
   // One placement per TRUCK, across every FleetPal unit it resolves to (the duplicate-VIN case).
   const byVehicle = new Map<string, PmDuePlacement>();
+  const verdicts = new Map<string, (PmStatus["verdict"] | null)[]>();
   for (const u of due) {
     if (!u.unit.vehicle_id) continue;
-    const p = byVehicle.get(u.unit.vehicle_id) ?? { vehicleId: u.unit.vehicle_id, nextPmDueOdometer: null, nextPmDueAt: null };
+    const p = byVehicle.get(u.unit.vehicle_id) ?? { vehicleId: u.unit.vehicle_id, nextPmDueOdometer: null, nextPmDueAt: null, nextPmVerdict: null };
+    const vs = verdicts.get(u.unit.vehicle_id) ?? [];
     for (const s of u.schedules) {
+      vs.push(s.verdict);
       for (const i of s.intervals) {
         if (i.dueOn && (p.nextPmDueAt === null || i.dueOn < p.nextPmDueAt)) p.nextPmDueAt = i.dueOn;
         if (i.dueAtMiles !== null && (p.nextPmDueOdometer === null || i.dueAtMiles < p.nextPmDueOdometer)) p.nextPmDueOdometer = i.dueAtMiles;
       }
     }
     byVehicle.set(u.unit.vehicle_id, p);
+    verdicts.set(u.unit.vehicle_id, vs);
   }
+  for (const [id, p] of byVehicle) p.nextPmVerdict = truckPmVerdict(verdicts.get(id) ?? []);
   // A truck with a FleetPal unit but no judgeable schedule is written NULL — "no schedule" — rather than
   // left holding a date from a schedule FleetPal has since deleted.
   const changed = await recordVehiclePmDue(admin, orgId, [...byVehicle.values()]);

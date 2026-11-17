@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { AppBadge, AppCard as BaseCard, DataTable, type DataTableColumn } from "@silvicom/ui";
 import type { PmIntervalStatusDto, PmScheduleDto, UnitShopFileDto } from "@silvicom/shared";
 import { formatDate } from "@/lib/format";
+import { pmVerdictLabel as label, pmVerdictTone as tone } from "./pmVerdictWords";
 
 /**
  * Due — every service FleetPal schedules on this unit, against the latest meter (FleetPal F11;
@@ -34,8 +35,6 @@ function dueText(s: PmScheduleDto): string {
   const said = words.filter((w): w is string => w !== null);
   return said.length ? said.join(" or ") : "Can't tell";
 }
-const tone = (v: PmScheduleDto["verdict"]) => (v === "overdue" ? "danger" : v === "due" ? "caution" : v === "ok" ? "success" : "neutral");
-const label = (v: PmScheduleDto["verdict"]) => (v === "overdue" ? "Overdue" : v === "due" ? "Due soon" : v === "ok" ? "OK" : "Can't tell");
 </script>
 
 <template>
