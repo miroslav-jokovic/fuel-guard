@@ -1,4 +1,4 @@
-// Silvicom 360 — toll statements kept as uploaded (migration 0626; TOLLS-PER-TRUCK-PLAN.md TL4a).
+// Silvicom 360 — toll statements kept as uploaded (migration 0627; TOLLS-PER-TRUCK-PLAN.md TL4a).
 //
 // 1. A statement keeps its provider, file, format, size and fingerprint; PrePass, an unknown format,
 //    a malformed fingerprint and a name holding a slash are refused.

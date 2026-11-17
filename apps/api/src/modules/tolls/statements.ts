@@ -11,7 +11,7 @@ import {
 } from "@silvicom/shared";
 
 /**
- * The toll statements the office uploaded (TOLLS-PER-TRUCK-PLAN.md TL4a, migration 0626).
+ * The toll statements the office uploaded (TOLLS-PER-TRUCK-PLAN.md TL4a, migration 0627).
  *
  * Upload is two calls, as lumper RCs and chat files are: the API signs a place for the bytes, the
  * browser puts them there, and only then is the row written, after the stored bytes are read back
@@ -144,7 +144,7 @@ export async function tollStatementLink(admin: SupabaseClient, orgId: string, id
   return { url: signed.data.signedUrl, fileName: row.file_name };
 }
 
-/** A wrong file is taken off the list with a reason. The row and the bytes stay (0626). */
+/** A wrong file is taken off the list with a reason. The row and the bytes stay (0627). */
 export async function removeTollStatement(admin: SupabaseClient, orgId: string, userId: string, id: string, reason: string, now: Date): Promise<{ fileName: string; provider: TollProvider } | StatementRefusal> {
   const { data, error } = await admin
     .from("toll_statements")

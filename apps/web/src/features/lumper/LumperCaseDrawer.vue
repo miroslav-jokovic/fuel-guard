@@ -48,7 +48,7 @@ const facts = computed<Fact[]>(() => {
   if (!k) return [];
   return [
     { label: "Broker", value: k.customerName ?? "—" },
-    { label: "Dispatcher", value: k.dispatcherName ?? "Unassigned" },
+    { label: "Dispatcher", value: k.dispatcherName ? `${k.dispatcherName}${k.dispatcherLinked ? "" : " (not linked to a person, so not reminded)"}` : "Unassigned" },
     { label: "Delivered at", value: lumperPlace(k) },
     { label: "Delivered on", value: mcleodDay(k.deliveredAt) },
     { label: "Driver", value: k.driverCode ?? "—" },

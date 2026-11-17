@@ -8,7 +8,7 @@ import { postgrestFixture } from "../../../testing/postgrestFixture.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 
 /**
- * `/api/tolls/statements` (TOLLS-PER-TRUCK-PLAN.md TL4a). What 0626 refuses is proved by its PGlite
+ * `/api/tolls/statements` (TOLLS-PER-TRUCK-PLAN.md TL4a). What 0627 refuses is proved by its PGlite
  * matrix (`supabase/tests/toll-statements.test.mjs`); what is left is the API's half:
  *
  *   · a statement is kept only when the stored bytes are the file picked (size, SHA-256) and a

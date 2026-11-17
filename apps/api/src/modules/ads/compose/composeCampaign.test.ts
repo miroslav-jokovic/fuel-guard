@@ -10,11 +10,11 @@ import type { ComposeOutcome } from "./composeCreative.js";
  * `composeCreative` is replaced — its own suite proves one creative — so these tests see only the campaign's part.
  */
 const outcomes = new Map<string, ComposeOutcome>();
-const composed: Array<{ id: string; preset: string; maxRegenerations: number; choice?: unknown; angle: unknown }> = [];
+const composed: Array<{ id: string; preset: string; maxRegenerations: number; choice?: unknown; angle: unknown; motion: unknown }> = [];
 vi.mock("./composeCreative.js", async (orig) => ({
   ...(await orig<object>()),
-  composeCreative: vi.fn(async (_deps: unknown, input: { creative: { id: string; preset_version_id: string }; maxRegenerations: number; choice?: unknown; angle?: unknown }) => {
-    composed.push({ id: input.creative.id, preset: input.creative.preset_version_id, maxRegenerations: input.maxRegenerations, angle: input.angle, ...(input.choice ? { choice: input.choice } : {}) });
+  composeCreative: vi.fn(async (_deps: unknown, input: { creative: { id: string; preset_version_id: string }; maxRegenerations: number; choice?: unknown; angle?: unknown; motion?: unknown }) => {
+    composed.push({ id: input.creative.id, preset: input.creative.preset_version_id, maxRegenerations: input.maxRegenerations, angle: input.angle, motion: input.motion, ...(input.choice ? { choice: input.choice } : {}) });
     return outcomes.get(input.creative.preset_version_id) ?? { kind: "ready" };
   }),
 }));
@@ -164,6 +164,20 @@ describe("composeCampaign — a planned campaign's ads are written from the plan
     const stored = { seed: `plan:${PLAN_ID}`, eligible: ["pv-0", "pv-1"], excluded_live: [], order: ["pv-1", "pv-0"], exhausted: false };
     await composeCampaign(deps(planned({ draw: stored })), campaign);
     expect(composed.map((c) => [c.preset, c.angle])).toEqual([["pv-1", null], ["pv-0", { idea: "Lead with the pay per mile.", proof: "The opening states the rate." }]]);
+  });
+
+  it("only the creative whose angle the plan made a motion ad is set moving; a still angle, a preset with no angle and an unplanned campaign are not (V4)", async () => {
+    const moving = { ...plan, angles: [{ ...plan.angles[0]!, format: "motion" }, plan.angles[1]!] };
+    await composeCampaign(deps(planned({ plans: [{ id: PLAN_ID, campaign_id: "c-1", version: 2, plan: moving, evidence: [], author_kind: "person" }] })), campaign);
+    expect(composed.map((c) => [c.preset, c.motion])).toEqual([["pv-2", true], ["pv-0", false]]);
+    composed.length = 0;
+    // pv-1 is in a stored draw and the plan names no angle for it.
+    const stored = { seed: `plan:${PLAN_ID}`, eligible: ["pv-0", "pv-1"], excluded_live: [], order: ["pv-1", "pv-0"], exhausted: false };
+    await composeCampaign(deps(planned({ draw: stored })), campaign);
+    expect(composed.map((c) => c.motion)).toEqual([false, false]);
+    composed.length = 0;
+    await composeCampaign(deps(world({ concepts: CONCEPTS })), campaign);
+    expect(composed.map((c) => c.motion)).toEqual([false, false, false]);
   });
 
   it("a campaign that was not planned hands no idea to any creative, and reads no plan", async () => {

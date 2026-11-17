@@ -3049,6 +3049,17 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
+    "tms_dispatcher_link_holds": {
+      "module": "mcleod",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "LUMPER-REVISED-RC-PLAN / LM11 (0626): one row per McLeod login the office unlinked from a person, so the automatic linker never relinks it. At most one per dispatcher login; bounded by the carrier's staff."
+      }
+    },
     "tms_dispatchers": {
       "module": "mcleod",
       "layer": "raw",
@@ -3090,7 +3101,7 @@
       "retention_days": null,
       "partition": null,
       "budget_rows_per_day": 5,
-      "why": "TOLLS-PER-TRUCK-PLAN TL4a (0626): one row per statement file the office uploads, three providers sending one a week each, plus a six-month backfill once (owner 2026-11-17). Never deleted: every per-truck toll traces to a line of one of these files (D-TL8); a wrong file is marked removed."
+      "why": "TOLLS-PER-TRUCK-PLAN TL4a (0627): one row per statement file the office uploads, three providers sending one a week each, plus a six-month backfill once (owner 2026-11-17). Never deleted: every per-truck toll traces to a line of one of these files (D-TL8); a wrong file is marked removed."
     }
   },
   "toll_transponder_assignments": {

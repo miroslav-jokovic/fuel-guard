@@ -1,4 +1,4 @@
--- 0626 — Toll statements, kept as uploaded (TOLLS-PER-TRUCK-PLAN.md TL4a).
+-- 0627 — Toll statements, kept as uploaded (TOLLS-PER-TRUCK-PLAN.md TL4a).
 --
 -- ── ONE ROW PER FILE THE OFFICE UPLOADED, BEFORE ANY READER EXISTS ─────────────────────────────
 -- The weekly statements from E-ZPass, K-TAG and ExpressToll are the only record of which tag paid

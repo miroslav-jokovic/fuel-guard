@@ -30,7 +30,7 @@ export const TOLL_STATEMENT_FORMAT_LABEL: Record<TollStatementFormat, string> = 
   csv: "CSV",
 };
 
-/** One statement file, 25 MB at most — the bucket refuses more (0626). */
+/** One statement file, 25 MB at most — the bucket refuses more (0627). */
 export const TOLL_STATEMENT_MAX_BYTES = 25 * 1024 * 1024;
 
 /** What the picker offers. A hint only: the bytes decide (`tollStatementFormatOf`). */

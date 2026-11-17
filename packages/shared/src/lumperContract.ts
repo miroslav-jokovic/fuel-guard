@@ -185,6 +185,11 @@ export const lumperCaseRowSchema = z.object({
   customerName: z.string().nullable(),
   dispatcherUserId: z.string().nullable(),
   dispatcherName: z.string().nullable(),
+  /**
+   * The dispatcher's McLeod login is linked to a 360 person, so the reminder can reach them (plan §4:
+   * "the case shows 'dispatcher not linked'"). False for an order with no dispatcher too.
+   */
+  dispatcherLinked: z.boolean(),
   consigneeName: z.string().nullable(),
   consigneeCity: z.string().nullable(),
   consigneeState: z.string().nullable(),

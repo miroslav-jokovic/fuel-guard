@@ -179,6 +179,15 @@ export function writerAngle(plan: Pick<CampaignPlan, "angles">, preset: { hook_f
   return angle ? { idea: angle.idea, proof: angle.proof } : null;
 }
 
+/**
+ * The format the plan chose for this preset's ad, found the way `writerAngle` finds its idea; null when the plan
+ * has no such angle. Its own function and not a field of `WriterAngle`: that object is what the two writers are
+ * handed, and a format is not theirs to read — it decides what is MADE from their work (V4), not what they write.
+ */
+export function angleFormat(plan: Pick<CampaignPlan, "angles">, preset: { hook_family?: string | null; scene_family?: string | null }): PlanFormat | null {
+  return plan.angles.find((a) => a.hook_family === preset.hook_family && a.scene_family === preset.scene_family)?.format ?? null;
+}
+
 // ── the doors a person uses (V2c): read the plan, save an edit, approve a version ────────────────────────
 /** A plan version as the review screen reads it. `author_name` is null for the Strategist's. */
 export interface AdsCampaignPlanView {

@@ -19,7 +19,7 @@ vi.mock("@vueuse/core", async (orig) => {
 
 const aCase = (o: Partial<LumperCaseRow>): LumperCaseRow => ({
   id: "c1", companyId: "TMS", orderId: "0291013", chargeCode: "LUM", state: "waiting_for_rc", open: true, openedAt: "2020-01-02T12:00:00Z",
-  customerName: "A Broker", dispatcherUserId: "kane", dispatcherName: "Kane", consigneeName: "A Warehouse", consigneeCity: "Joliet", consigneeState: "IL",
+  customerName: "A Broker", dispatcherUserId: "kane", dispatcherName: "Kane", dispatcherLinked: true, consigneeName: "A Warehouse", consigneeCity: "Joliet", consigneeState: "IL",
   deliveredAt: "2020-01-01T00:00:00Z", driverCode: "DRV1", factsSeenAt: "2026-10-09T13:00:00Z", factsCurrent: true, paidAmount: 310, paidAt: "2020-01-02T00:00:00Z", references: ["EFS-77"], chargeAmount: 310,
   chargeDescriptions: ["Unloading"], billedAmount: 0, shortAmount: 0, invoiced: false, lastInvoiceNo: null, lastInvoiceAt: null, rcOnFile: false, files: [],
   closedAt: null, closedByName: null, closeReason: null, closeNote: null, ...o,
@@ -135,6 +135,13 @@ describe("LumperFeesPage", () => {
     const row = (await mountPage("/lumper-fees", response({ cases: frozen }))).w.findAll("tbody tr")[0]!.text();
     expect(row).toContain("as of 08/01/2026");
     expect((await mountPage()).w.findAll("tbody tr")[0]!.text()).not.toContain("as of");
+  });
+
+  it("marks a dispatcher whose McLeod login no reminder can reach (plan §4)", async () => {
+    const unlinked = CASES.map((c) => (c.orderId === "0300001" ? { ...c, dispatcherLinked: false } : c));
+    const rows = (await mountPage("/lumper-fees", response({ cases: unlinked }))).w.findAll("tbody tr");
+    expect(rows[0]!.text()).toContain("not linked");
+    expect(rows.slice(1).some((r) => r.text().includes("not linked"))).toBe(false);
   });
 
   it("shows a failed read as a failure, never as an empty list", async () => {
