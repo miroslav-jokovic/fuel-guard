@@ -844,6 +844,7 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 
 | # | Question | Candidates | Recommendation |
 |---|---|---|---|
+| **Q11** | The Vehicles list's "Next PM due" column must give `pmStatus`'s verdict, never a second rule, and "Can't tell" must never read as OK. But `vehicles.next_pm_due_odometer` / `next_pm_due_at` (the only PM facts on the list's read, a direct `vehicles` select behind the **equipment** section) hold the due point only. `pmStatus`'s `due` needs FleetPal's warning window (`threshold`), which is not stored, and "Can't tell" is written as NULL, the same as "no schedule". What does the column read? (Found 2026-11-17.) | (a) Show the due point as a fact (date, or "at N mi"), with no verdict. (b) Derive only "overdue" from the columns: a second rule beside `pmStatus`, and it shows trucks inside their window as plain. (c) The list reads `GET /api/maintenance/units/attention`, which already carries `pmStatus` verdicts, but it is maintenance-gated, so an equipment-only reader sees nothing. (d) A migration adds `next_pm_verdict` (`overdue`/`due`/`ok`/`unknown`), written by `projectPmDue` from `pmStatus` in the same pass, and read by the list one merge later. | **(d)**, two merges: the migration + writer, then the column. It is the only option that gives the shared verdict on the list's own read, under its own gate, and keeps "Can't tell" distinct from "no schedule". (a) is acceptable as the first merge if the owner wants the column sooner. |
 
 ### 6.3 Assumptions — each retired by the step that needs it
 
@@ -1943,3 +1944,6 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
     opening a page.
   - Browser pass on a built bundle with raw-JSON route mocks at 390 and 834 px: no horizontal overflow,
     one table on screen (`docs/plans/maintenance/screenshots/f9d-repair-cost-*.png`).
+  - **Not built in this step: the Vehicles list's "Next PM due" column.** The columns it would read do
+    not carry what `pmStatus` needs to say "due soon", or to tell "can't tell" from "no schedule".
+    Recorded as **Q11** in §6.2 with a recommendation, rather than shipping an overdue-only second rule.
