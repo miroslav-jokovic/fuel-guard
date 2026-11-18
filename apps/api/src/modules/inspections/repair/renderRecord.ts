@@ -1,6 +1,7 @@
 import { formatDisplayDate, formatDisplayDateTime } from "@silvicom/shared";
 import { CONTENT_WIDTH, INK, MARGIN, MUTED, PAGE_HEIGHT, body, field, heading, muted, newDrawing, pdfkitText, rule, table, title, type Column } from "../../../lib/pdfDraw.js";
 import type { WorkOrderRecord } from "../../fleetpal/index.js";
+import type { FrozenBill } from "./freezeBills.js";
 
 /**
  * The rendered repair record of a roadside inspection (INSPECTION-CHALLENGE-PLAN IC11 B2, D-IC14; Q-IC12
@@ -28,6 +29,8 @@ export interface RepairRecordUnit {
   /** The accepted work order as the proposal showed it, when FleetPal no longer holds it. */
   workOrderRef: string | null;
   workOrder: WorkOrderRecord | null;
+  /** The vendor bills frozen with this certification for this unit's work order (F16c). */
+  bills: FrozenBill[];
 }
 
 export interface RepairRecordInput {
@@ -112,6 +115,22 @@ function unitBlock(doc: PDFKit.PDFDocument, u: RepairRecordUnit, zone: string): 
   }
   if (u.workOrder) workOrder(doc, u.workOrder, zone);
   else field(doc, "FleetPal work order", `${u.workOrderRef ?? "—"} (no longer in FleetPal's records as of this rendering)`);
+  if (u.workOrder?.invoices.length) bills(doc, u);
+}
+
+/** The scanned bills filed with this record — each by name and fingerprint, or why it is not kept. */
+function bills(doc: PDFKit.PDFDocument, u: RepairRecordUnit): void {
+  doc.moveDown(0.4);
+  if (!u.bills.length) {
+    muted(doc, "No scanned vendor bill is attached to these invoices in FleetPal.");
+    return;
+  }
+  body(doc, "Vendor bills filed with this record");
+  const number = (invoiceId: string) => u.workOrder?.invoices.find((i) => i.invoiceId === invoiceId)?.invoiceNumber ?? "—";
+  for (const b of u.bills) {
+    body(doc, `Invoice ${number(b.invoiceId)} — ${b.filename}`);
+    muted(doc, b.sha256 ? `SHA-256 ${b.sha256}` : "Not kept: FleetPal holds it as a file type the document store does not accept (PDF and images only).");
+  }
 }
 
 export async function renderRepairRecord(input: RepairRecordInput): Promise<Buffer> {

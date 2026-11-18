@@ -28,6 +28,11 @@ let manages = new Set(["safety", "maintenance"]);
 
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
 vi.mock("../../../lib/appLocals.js", () => ({ getAppLocals: () => ({ env: {} }) }));
+// FleetPal's key, for freezing the vendor bills (F16c). Off unless a test turns it on.
+let fleetpalConnected = false;
+vi.mock("../../fleetpal/credentials.js", () => ({
+  getApiKey: async () => (fleetpalConnected ? { apiKey: "the-shop-fleetpal-key", baseUrl: "https://fleetpal.test" } : null),
+}));
 vi.mock("../../../middleware/auth.js", () => ({
   requireAuth: (req: Request, _res: Response, next: NextFunction) => {
     req.auth = { userId: "u-1", orgId: ORG, role: "fleet_manager", email: "fm@example.test" };
@@ -59,7 +64,7 @@ const val = (q: RecordedQuery, col: string) => q.filters().find((f) => f.col ===
 const filtered = <T extends Record<string, unknown>>(rows: T[], q: RecordedQuery, cols: string[]) =>
   rows.filter((r) => cols.every((c) => val(q, c) === undefined || r[c] === val(q, c)));
 
-function recorder(repairs: Record<string, unknown>[] = SETTLED, opts: { certs?: Record<string, unknown>[]; certWriteError?: unknown; name?: string | null; unknown?: boolean } = {}) {
+function recorder(repairs: Record<string, unknown>[] = SETTLED, opts: { certs?: Record<string, unknown>[]; certWriteError?: unknown; name?: string | null; unknown?: boolean; invoice?: boolean } = {}) {
   return createSupabaseRecorder({
     tables: {
       inspection_repairs: (q) => ({ data: filtered(repairs, q, ["org_id", "inspection_id", "inspection_unit_id"]) }),
@@ -84,8 +89,8 @@ function recorder(repairs: Record<string, unknown>[] = SETTLED, opts: { certs?: 
       fleetpal_work_orders: (q) => ({ data: filtered([{ org_id: ORG, fleetpal_id: "wo-1", reference_number: "WO-10482", status: "CLOSED", vendor_created_at: "2026-10-07T14:00:00Z", completed: null, description: "Brakes" }], q, ["org_id"]) }),
       fleetpal_jobs: [],
       fleetpal_job_items: [],
-      fleetpal_purchase_orders: [],
-      fleetpal_po_invoices: [],
+      fleetpal_purchase_orders: (q) => ({ data: opts.invoice ? filtered([{ org_id: ORG, fleetpal_id: "po-1", work_order_fleetpal_id: "wo-1", reference_number: "PO-1" }], q, ["org_id"]) : [] }),
+      fleetpal_po_invoices: (q) => ({ data: opts.invoice ? filtered([{ org_id: ORG, fleetpal_id: "inv1", purchase_order_fleetpal_id: "po-1", invoice_number: "8812", invoice_date: "2026-10-09T00:00:00Z", invoice_type: "STANDARD", amount: "120.5" }], q, ["org_id"]) : [] }),
       documents: [],
       user_profiles: [],
       audit_logs: [],
@@ -126,6 +131,8 @@ const CERTIFY = { signerTitle: "Safety Director", basedOn: [PERSON, SCENE] };
 beforeEach(() => {
   rec = recorder();
   manages = new Set(["safety", "maintenance"]);
+  fleetpalConnected = false;
+  vi.unstubAllGlobals();
 });
 
 describe("safety certifies the repairs (396.9(d)(3)(i), Q-IC13)", () => {
@@ -236,5 +243,70 @@ describe("the certification as the card reads it", () => {
     manages = new Set();
     const res = await send("GET", `/${INSP}/repairs/certification`);
     expect([res.status, res.body.data]).toEqual([200, null]);
+  });
+});
+
+describe("the vendor's bills are frozen with the certification (FleetPal Q12 (a), F16c)", () => {
+  const PDF = Buffer.from("%PDF-1.4 the shop's scanned bill");
+  const SIGNED = "https://storage.test/po_invoice_uploads/inv1.PDF?X-Amz-Signature=abc";
+  const realFetch = globalThis.fetch;
+  let vendor: { url: string; auth: string | null }[] = [];
+  function fleetpal(answer: { invoice?: () => globalThis.Response; bytes?: Buffer } = {}) {
+    fleetpalConnected = true;
+    vendor = [];
+    vi.stubGlobal("fetch", async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.startsWith("http://127.0.0.1")) return realFetch(input, init);
+      vendor.push({ url, auth: new Headers(init?.headers).get("authorization") });
+      if (url === SIGNED) return new globalThis.Response(answer.bytes ?? PDF);
+      if (url.startsWith("https://fleetpal.test/v1/purchase-order-invoices/inv1/")) {
+        return answer.invoice?.() ?? globalThis.Response.json({ id: "inv1", attachments: [{ index: 0, filename: "WO_Priced_4011391635", content_type: "application/pdf", url: SIGNED }] });
+      }
+      return new globalThis.Response("{}", { status: 404 });
+    });
+  }
+
+  it("files each bill on the inspection BEFORE the record, and the record names it by its SHA-256", async () => {
+    rec = recorder(SETTLED, { invoice: true });
+    fleetpal();
+    const res = await send("POST", `/${INSP}/repairs/certify`, CERTIFY);
+    expect(res.status).toBe(201);
+    const docs = rec.writtenRows("documents") as { kind: string; content_type: string; subject_id: string; sha256: string }[];
+    expect(docs.map((d) => d.kind)).toEqual(["roadside_repair_bill", "roadside_repair_record"]);
+    expect(docs[0]).toMatchObject({ subject_id: INSP, content_type: "application/pdf" });
+    const uploads = rec.storageCalls().filter((o) => o.fn === "upload");
+    expect((uploads[0]!.args[1] as Buffer).equals(PDF)).toBe(true);
+    const record = await pdfText(uploads[1]!.args[1] as Buffer);
+    expect(record).toContain("Invoice 8812");
+    expect(record).toContain(`SHA-256 ${docs[0]!.sha256}`);
+    expect(rec.writtenRows("audit_logs")[0]).toMatchObject({ meta: { bills: [{ invoiceId: "inv1", sha256: docs[0]!.sha256 }] } });
+    // The storage link got no key; FleetPal's API got the org's.
+    expect(vendor.find((v) => v.url === SIGNED)!.auth).toBeNull();
+  });
+
+  it("⚠ refuses, and files nothing, when FleetPal cannot hand over a bill", async () => {
+    rec = recorder(SETTLED, { invoice: true });
+    fleetpal({ invoice: () => new globalThis.Response("down", { status: 500 }) });
+    const res = await send("POST", `/${INSP}/repairs/certify`, CERTIFY);
+    expect([res.status, res.body.error?.code]).toEqual([503, "fleetpal_unreachable"]);
+    expect(rec.writtenRows("documents")).toEqual([]);
+    expect(rec.writtenRows("inspection_repair_certifications")).toEqual([]);
+  });
+
+  it("⚠ refuses when FleetPal is not connected and the work order has invoices", async () => {
+    rec = recorder(SETTLED, { invoice: true });
+    const res = await send("POST", `/${INSP}/repairs/certify`, CERTIFY);
+    expect([res.status, res.body.error?.code]).toEqual([503, "fleetpal_not_connected"]);
+    expect(rec.writtenRows("inspection_repair_certifications")).toEqual([]);
+  });
+
+  it("keeps a file it cannot store out of the documents, and the record says it was not kept", async () => {
+    rec = recorder(SETTLED, { invoice: true });
+    fleetpal({ bytes: Buffer.from("II*\u0000 a TIFF scan") });
+    const res = await send("POST", `/${INSP}/repairs/certify`, CERTIFY);
+    expect(res.status).toBe(201);
+    expect((rec.writtenRows("documents") as { kind: string }[]).map((d) => d.kind)).toEqual(["roadside_repair_record"]);
+    const record = await pdfText(rec.storageCalls().find((o) => o.fn === "upload")!.args[1] as Buffer);
+    expect(record).toContain("Not kept");
   });
 });

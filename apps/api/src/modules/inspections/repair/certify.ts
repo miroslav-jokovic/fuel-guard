@@ -11,10 +11,12 @@ import { writeAudit } from "../../../lib/audit.js";
 import { derivedUuid } from "../../../lib/derivedUuid.js";
 import { labelOf, memberLabels } from "../../../lib/memberLabels.js";
 import { fileGeneratedDocument } from "../../evidence/index.js";
+import type { Env } from "../../../env.js";
 import { readWorkOrderRecords } from "../../fleetpal/index.js";
 import { getCarrierIdentity } from "../../org/index.js";
 import { readInspectionRepairs } from "../read/inspectionRepairs.js";
 import type { DbError } from "../read/inspectionsList.js";
+import { freezeBills } from "./freezeBills.js";
 import { renderRepairRecord, type RepairRecordUnit } from "./renderRecord.js";
 
 /**
@@ -33,24 +35,31 @@ import { renderRepairRecord, type RepairRecordUnit } from "./renderRecord.js";
  * what is certified, by whom and on which day, so a retried click files onto the same rows instead of a
  * second copy (`derivedUuid`); a different title or a moved record is a new act.
  *
+ * ── THE VENDOR'S BILLS ARE FROZEN FIRST (FLEETPAL Q12 (a), F16c) ─────────────────────────────────
+ * Before the record is rendered, every file on the accepted work orders' invoices is copied from FleetPal
+ * and filed on the inspection (`freezeBills.ts`); the record then names each with its SHA-256. FleetPal
+ * failing to hand one over refuses the whole act (503) — it is retried, never certified without its paper.
+ *
  * The signer is the signed-in person, their name frozen as the product shows it; the date is the carrier's
  * calendar day the server sees. Only the title is the person's to give.
  */
 
 export type CertifyOutcome =
   | { ok: true; data: RoadsideRepairCertificationDto }
-  | { ok: false; status: 404 | 409 | 422; code: string; message: string }
+  | { ok: false; status: 404 | 409 | 422 | 503; code: string; message: string }
   | { error: DbError | { message: string } };
 
-const refuse = (status: 404 | 409 | 422, code: string, message: string): CertifyOutcome => ({ ok: false, status, code, message });
+const refuse = (status: 404 | 409 | 422 | 503, code: string, message: string): CertifyOutcome => ({ ok: false, status, code, message });
 
 export async function certifyRepairs(
   admin: SupabaseClient,
+  env: Env,
   orgId: string,
   inspectionId: string,
   actorId: string,
   input: RoadsideRepairCertifyRequest,
   now: Date = new Date(),
+  fetchImpl?: typeof fetch,
 ): Promise<CertifyOutcome> {
   const repairs = await readInspectionRepairs(admin, orgId, inspectionId);
   if ("error" in repairs) return repairs;
@@ -94,6 +103,12 @@ export async function certifyRepairs(
   } catch (e) {
     return { error: { message: e instanceof Error ? e.message : String(e) } };
   }
+  const accepted = repairs.flatMap((r) => (r.decision?.workOrder ? [records.orders.get(r.decision.workOrder.workOrderId)] : []));
+  const frozen = await freezeBills(admin, env, orgId, {
+    certificationId: id, inspectionId, actorId, signedOn,
+    invoiceIds: accepted.flatMap((wo) => wo?.invoices.map((i) => i.invoiceId) ?? []),
+  }, fetchImpl);
+  if (!frozen.ok) return refuse(503, frozen.code, frozen.message);
   const units: RepairRecordUnit[] = repairs.map((r) => ({
     name: repairUnitName(r),
     violations: r.violations,
@@ -103,6 +118,10 @@ export async function certifyRepairs(
     note: r.decision?.note ?? null,
     workOrderRef: r.decision?.workOrder?.reference ?? r.decision?.workOrder?.workOrderId ?? null,
     workOrder: r.decision?.workOrder ? records.orders.get(r.decision.workOrder.workOrderId) ?? null : null,
+    bills: frozen.bills.filter((b) => {
+      const wo = r.decision?.workOrder ? records.orders.get(r.decision.workOrder.workOrderId) : undefined;
+      return wo?.invoices.some((i) => i.invoiceId === b.invoiceId) ?? false;
+    }),
   }));
   const certifiedAt = now.toISOString();
   const pdf = await renderRepairRecord({
@@ -144,7 +163,10 @@ export async function certifyRepairs(
       action: "roadside.repair_certified",
       entity: "roadside_inspection",
       entityId: inspectionId,
-      meta: { certificationId: id, documentId: filed.documentId, sha256: filed.sha256, signerTitle: title, signedOn, repairs: current },
+      meta: {
+        certificationId: id, documentId: filed.documentId, sha256: filed.sha256, signerTitle: title, signedOn, repairs: current,
+        bills: frozen.bills.map((b) => ({ invoiceId: b.invoiceId, filename: b.filename, documentId: b.documentId, sha256: b.sha256 })),
+      },
     });
   }
   return {

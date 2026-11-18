@@ -10,7 +10,7 @@ import { renderRepairRecord, type RepairRecordInput, type RepairRecordUnit } fro
 
 const unit = (n: number): RepairRecordUnit => ({
   name: `Trailer ${n}`, violations: [{ code: "393.75A3", description: "Tire-flat and/or audible air leak" }], settlement: "outside",
-  decidedBy: "Sam Shop", decidedAt: "2026-10-09T15:00:00Z", note: "TA Joliet, invoice 8812", workOrderRef: null, workOrder: null,
+  decidedBy: "Sam Shop", decidedAt: "2026-10-09T15:00:00Z", note: "TA Joliet, invoice 8812", workOrderRef: null, workOrder: null, bills: [],
 });
 const input = (units: RepairRecordUnit[]): RepairRecordInput => ({
   carrier: { name: "Silvi Transport Inc.", dotNumber: "1864495" },
@@ -37,5 +37,26 @@ describe("renderRepairRecord", () => {
       const signed = pages.findIndex((p) => p.includes("Signature of carrier official"));
       expect([n, heading]).toEqual([n, signed]);
     }
+  });
+
+  it("names each vendor bill filed with it by its fingerprint, and says which one it could not keep (F16c)", async () => {
+    const wo = {
+      fleetpalId: "fpwo1", reference: "WO-5436", status: "CLOSED", openedAt: null, completedAt: null, description: null, jobs: [],
+      invoices: [{ invoiceId: "inv1", purchaseOrder: "PO-1", invoiceNumber: "8812", invoiceDate: null, invoiceType: "STANDARD", amount: 120.5 }],
+    };
+    const accepted: RepairRecordUnit = {
+      ...unit(1), settlement: "accepted", note: null, workOrderRef: "WO-5436", workOrder: wo,
+      bills: [
+        { invoiceId: "inv1", filename: "WO_Priced_4011391635.PDF", documentId: "d-1", sha256: "ab".repeat(32) },
+        { invoiceId: "inv1", filename: "scan.tif", documentId: null, sha256: null },
+      ],
+    };
+    const text = (await pdfPageTexts(await renderRepairRecord(input([accepted])))).join(" ");
+    expect(text).toContain("Vendor bills filed with this record");
+    expect(text).toContain("Invoice 8812 — WO_Priced_4011391635.PDF");
+    expect(text).toContain(`SHA-256 ${"ab".repeat(32)}`);
+    expect(text).toContain("Not kept");
+    const none = (await pdfPageTexts(await renderRepairRecord(input([{ ...accepted, bills: [] }])))).join(" ");
+    expect(none).toContain("No scanned vendor bill is attached to these invoices in FleetPal.");
   });
 });

@@ -364,7 +364,8 @@ export function roadsideInspectionsRouter(): Router {
         res.status(400).json(apiError("bad_request", body.error.issues[0]?.message ?? "Invalid certification"));
         return;
       }
-      const out = await certifyRepairs(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id.data, req.auth!.userId, body.data);
+      const env = getAppLocals(req).env;
+      const out = await certifyRepairs(getSupabaseAdmin(env), env, req.auth!.orgId!, id.data, req.auth!.userId, body.data);
       if ("error" in out) {
         dbErrorResponse(res, "roadside-inspections.repair-certify", out.error, "Could not certify the repairs");
         return;

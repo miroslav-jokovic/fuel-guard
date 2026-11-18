@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fleetpalInvoiceFilesSchema, type FleetpalInvoiceFiles, type WorkOrderFile, type WorkOrderFilesDto } from "@silvicom/shared";
+import { fleetpalInvoiceFilesSchema, type FleetpalInvoiceAttachment, type FleetpalInvoiceFiles, type WorkOrderFile, type WorkOrderFilesDto } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { FleetpalClient } from "./client.js";
 import { getApiKey } from "./credentials.js";
@@ -111,6 +111,11 @@ export async function fetchInvoiceFile(
   }
   const file = invoice.attachments.find((a) => a.index === index);
   if (!file) return { kind: "missing" };
+  return followSignedLink(file, fetchImpl);
+}
+
+/** One signed link, fetched without our key, https only, size-capped. */
+async function followSignedLink(file: FleetpalInvoiceAttachment, fetchImpl: typeof fetch): Promise<InvoiceFileResult> {
   if (!file.url.startsWith("https://")) return { kind: "unreachable" };
   let res: Response;
   try {
@@ -124,4 +129,45 @@ export async function fetchInvoiceFile(
   if (bytes.length > MAX_FILE_BYTES) return { kind: "too_large" };
   const contentType = file.content_type ?? res.headers.get("content-type") ?? "application/octet-stream";
   return { kind: "file", filename: file.filename, contentType, bytes };
+}
+
+export interface DownloadedInvoiceFile {
+  invoiceId: string;
+  index: number;
+  filename: string;
+  contentType: string;
+  bytes: Buffer;
+}
+
+/**
+ * EVERY file on the given invoices, bytes and all — for freezing a copy when a roadside repair is certified
+ * (Q12 (a), F16c). All or nothing: a certification that copied some bills and silently missed one would
+ * certify paper it does not hold, so any failure answers the whole call. Read only at that moment; the
+ * drawer never calls this.
+ */
+export async function downloadInvoiceFiles(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  invoiceIds: readonly string[],
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ state: "read"; files: DownloadedInvoiceFile[] } | { state: "not_connected" | "unreachable" | "too_large" }> {
+  if (invoiceIds.length === 0) return { state: "read", files: [] };
+  const client = await clientFor(admin, env, orgId, fetchImpl);
+  if (!client) return { state: "not_connected" };
+  const files: DownloadedInvoiceFile[] = [];
+  for (const invoiceId of [...new Set(invoiceIds)]) {
+    let invoice: FleetpalInvoiceFiles;
+    try {
+      invoice = await client.get(invoicePath(invoiceId), fleetpalInvoiceFilesSchema);
+    } catch {
+      return { state: "unreachable" };
+    }
+    for (const a of invoice.attachments) {
+      const got = await followSignedLink(a, fetchImpl);
+      if (got.kind !== "file") return { state: got.kind === "too_large" ? "too_large" : "unreachable" };
+      files.push({ invoiceId, index: a.index, filename: got.filename, contentType: got.contentType, bytes: got.bytes });
+    }
+  }
+  return { state: "read", files };
 }
