@@ -45,6 +45,7 @@ import { attributeBacklog } from "../attribution/pass.js";
 import { checkReportBacklog } from "../report/check.js";
 import { readReportBacklog } from "../report/pass.js";
 import { proposeRepairs } from "../repair/pass.js";
+import { readComponentCodes } from "../../fleetpal/index.js";
 import { alertRepairsDue } from "../repair/dueAlert.js";
 
 const TICK_MS = 60 * 60_000;
@@ -134,7 +135,7 @@ export async function tickOrg(
   }
   // And the repair record: the FleetPal work orders proposed for each unit with a vehicle violation (IC11).
   try {
-    const tally = await proposeRepairs(admin, org.id, org.timeZone, Date.now());
+    const tally = await proposeRepairs(admin, org.id, org.timeZone, Date.now(), (ids) => readComponentCodes(admin, env, org.id, ids));
     const read = Object.entries(tally).map(([k, n]) => `${n} ${k}`).join(", ");
     if (read) console.log(`[inspection-repair] org ${org.id}: ${read}`);
   } catch (e) {

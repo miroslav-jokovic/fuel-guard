@@ -85,6 +85,7 @@ export { readWorkOrderDetail, readWorkOrderRecords, type WorkOrderKey, type Work
 export { downloadInvoiceFiles, fetchInvoiceFile, listWorkOrderFiles, readWorkOrderInvoiceIds, type DownloadedInvoiceFile, type InvoiceFileResult } from "./invoiceFiles.js";
 export { findPurchaseOrders, purchaseOrderRefs, PURCHASE_ORDER_CHOICES_MAX } from "./purchaseOrderRefs.js";
 export { describeComponents, clearComponentCache, type ComponentLabel } from "./vmrs.js";
+export { readComponentCodes } from "./componentCodes.js";
 export { labelRepairs } from "./componentLabels.js";
 export {
   sweepRepairRecord,

@@ -29,6 +29,8 @@ export interface UnitWorkOrder {
   completedAt: string | null;
   description: string | null;
   jobs: string[];
+  /** FleetPal's component id on each job (`fleetpal_jobs.component`, an opaque id — resolve to a VMRS code). */
+  jobComponents: string[];
 }
 
 export interface UnitWorkOrderIndex {
@@ -99,11 +101,15 @@ export async function readWorkOrdersOnUnits(
   }
 
   const jobsOf = new Map<string, string[]>();
+  const componentsOf = new Map<string, string[]>();
   for (const ids of chunks(orders.map((o) => o.fleetpal_id))) {
-    const jobs = await fetchAllPaged<{ work_order_fleetpal_id: string; name: string | null }>((from, to) =>
-      admin.from("fleetpal_jobs").select("work_order_fleetpal_id, name").eq("org_id", orgId).in("work_order_fleetpal_id", ids).order("id").range(from, to),
+    const jobs = await fetchAllPaged<{ work_order_fleetpal_id: string; name: string | null; component: string | null }>((from, to) =>
+      admin.from("fleetpal_jobs").select("work_order_fleetpal_id, name, component").eq("org_id", orgId).in("work_order_fleetpal_id", ids).order("id").range(from, to),
     );
-    for (const j of jobs) if (j.name) jobsOf.set(j.work_order_fleetpal_id, [...(jobsOf.get(j.work_order_fleetpal_id) ?? []), j.name]);
+    for (const j of jobs) {
+      if (j.name) jobsOf.set(j.work_order_fleetpal_id, [...(jobsOf.get(j.work_order_fleetpal_id) ?? []), j.name]);
+      if (j.component) componentsOf.set(j.work_order_fleetpal_id, [...(componentsOf.get(j.work_order_fleetpal_id) ?? []), j.component]);
+    }
   }
 
   for (const o of orders) {
@@ -118,6 +124,7 @@ export async function readWorkOrdersOnUnits(
       completedAt: o.completed,
       description: o.description,
       jobs: jobsOf.get(o.fleetpal_id) ?? [],
+      jobComponents: componentsOf.get(o.fleetpal_id) ?? [],
     });
   }
   return out;

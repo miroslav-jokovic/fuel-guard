@@ -49,7 +49,17 @@ const today = (nowMs: number, zone: string): string => {
   return `${w.year}-${String(w.month).padStart(2, "0")}-${String(w.day).padStart(2, "0")}`;
 };
 
-export async function proposeRepairs(admin: SupabaseClient, orgId: string, zone: string, nowMs: number): Promise<Tally> {
+/**
+ * `codesFor` resolves FleetPal component ids to VMRS codes (RR1). It THROWS on a FleetPal outage, which skips
+ * this tick: a proposal written with the codes missing would hash differently and churn a row per unit.
+ */
+export async function proposeRepairs(
+  admin: SupabaseClient,
+  orgId: string,
+  zone: string,
+  nowMs: number,
+  codesFor: (ids: string[]) => Promise<ReadonlyMap<string, string | null> | null>,
+): Promise<Tally> {
   const day = today(nowMs, zone);
   const inspections = await all<{ id: string; inspection_date: string }>(
     (f, t) =>
@@ -60,17 +70,18 @@ export async function proposeRepairs(admin: SupabaseClient, orgId: string, zone:
   if (inspections.length === 0) return {};
   const dateOf = new Map(inspections.map((i) => [i.id, i.inspection_date]));
 
-  const violations = await all<{ inspection_id: string; unit_id: string; defect_verification_id: string | null }>(
+  const violations = await all<{ inspection_id: string; unit_id: string; defect_verification_id: string | null; viol_code: string | null }>(
     (f, t) =>
-      admin.from("roadside_violations").select("inspection_id, unit_id, defect_verification_id").eq("org_id", orgId).is("vanished_at", null)
+      admin.from("roadside_violations").select("inspection_id, unit_id, defect_verification_id, viol_code").eq("org_id", orgId).is("vanished_at", null)
         .in("part_no", [...REPAIR_VIOLATION_PARTS]).not("unit_id", "is", null).order("id").range(f, t),
     "roadside_violations",
   );
-  const byUnit = new Map<string, { inspectionId: string; verifications: (string | null)[] }>();
+  const byUnit = new Map<string, { inspectionId: string; verifications: (string | null)[]; codes: (string | null)[] }>();
   for (const v of violations) {
     if (!dateOf.has(v.inspection_id)) continue;
-    const u = byUnit.get(v.unit_id) ?? { inspectionId: v.inspection_id, verifications: [] };
+    const u = byUnit.get(v.unit_id) ?? { inspectionId: v.inspection_id, verifications: [], codes: [] };
     u.verifications.push(v.defect_verification_id);
+    u.codes.push(v.viol_code);
     byUnit.set(v.unit_id, u);
   }
   if (byUnit.size === 0) return {};
@@ -108,11 +119,18 @@ export async function proposeRepairs(admin: SupabaseClient, orgId: string, zone:
     window.endExclusive,
   );
 
+  const codes = (await codesFor([...new Set(fleetpal.orders.flatMap((o) => o.jobComponents))])) ?? new Map<string, string | null>();
+
   const tally: Tally = {};
   const inserts = [];
   for (const u of due) {
-    const { inspectionId, verifications } = byUnit.get(u.id)!;
-    const p = proposeRepair({ inspectionDate: dateOf.get(inspectionId)!, vehicleId: u.vehicle_id, trailerId: u.trailer_id, defectVerifications: verifications }, fleetpal, zone);
+    const { inspectionId, verifications, codes: violationCodes } = byUnit.get(u.id)!;
+    const p = proposeRepair(
+      { inspectionDate: dateOf.get(inspectionId)!, vehicleId: u.vehicle_id, trailerId: u.trailer_id, defectVerifications: verifications, violationCodes },
+      fleetpal,
+      zone,
+      codes,
+    );
     if (lastHash.get(u.id) === p.sha256) continue;
     tally[p.outcome] = (tally[p.outcome] ?? 0) + 1;
     inserts.push({

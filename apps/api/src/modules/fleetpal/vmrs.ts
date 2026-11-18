@@ -78,6 +78,43 @@ export async function describeComponents(
   return out;
 }
 
+/**
+ * VMRS CODES only, for a writer that stores what it reads — the roadside repair pass (ROADSIDE-REPAIR-FLOW-PLAN
+ * RR1). Unlike `describeComponents`, a failure that is not a 404 THROWS: the pass hashes what it proposes and
+ * writes a row when the hash moves, so an hour of FleetPal blanks would write a row per unit and the next
+ * good hour another. Throwing skips the tick instead. Codes may be stored (D-FP8); descriptions never leave.
+ */
+export async function componentCodes(
+  client: FleetpalClient,
+  orgId: string,
+  ids: readonly string[],
+  now: () => number = Date.now,
+): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>();
+  const missing: string[] = [];
+  for (const id of new Set(ids)) {
+    const hit = cache.get(`${orgId}:${id}`);
+    if (hit && hit.expires > now()) out.set(id, hit.label?.code ?? null);
+    else missing.push(id);
+  }
+  for (let i = 0; i < missing.length; i += CONCURRENCY) {
+    await Promise.all(
+      missing.slice(i, i + CONCURRENCY).map(async (id) => {
+        try {
+          const c = await client.get(`/v1/vmrs-components/${encodeURIComponent(id)}/`, fleetpalVmrsComponentSchema);
+          remember(orgId, id, { code: c.code, description: c.description }, now());
+          out.set(id, c.code);
+        } catch (e) {
+          if (!(e instanceof FleetpalError && e.kind === "not_found")) throw e;
+          remember(orgId, id, null, now());
+          out.set(id, null);
+        }
+      }),
+    );
+  }
+  return out;
+}
+
 function remember(orgId: string, id: string, label: ComponentLabel | null, at: number): void {
   if (cache.size >= MAX_ENTRIES) cache.delete(cache.keys().next().value!);
   cache.set(`${orgId}:${id}`, { label, expires: at + TTL_MS });

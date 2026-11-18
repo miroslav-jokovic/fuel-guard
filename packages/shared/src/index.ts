@@ -342,6 +342,7 @@ export * from "./mvrReportFindings.js";
 export * from "./mvrCheckContract.js";
 export * from "./roadsideReportCheckContract.js";
 export * from "./roadsideRepairContract.js";
+export * from "./roadsideRepairMatch.js";
 export * from "./roadsideNextSteps.js";
 export * from "./roadsideCitationContract.js";
 export * from "./roadsideDataqsContract.js";

@@ -12,13 +12,13 @@ import { proposeRepair, type UnitToPropose } from "./propose.js";
 const ZONE = "America/Chicago";
 const order = (o: Partial<UnitWorkOrder>): UnitWorkOrder => ({
   vehicleId: "v-1", trailerId: null, fleetpalId: "wo", reference: "WO-1", status: "OPEN",
-  openedAt: "2026-10-03T15:00:00Z", completedAt: null, description: null, jobs: [], ...o,
+  openedAt: "2026-10-03T15:00:00Z", completedAt: null, description: null, jobs: [], jobComponents: [], ...o,
 });
 const fleet = (orders: UnitWorkOrder[], vehicles = ["v-1"], trailers: string[] = []) => ({
   vehiclesInFleetpal: new Set(vehicles), trailersInFleetpal: new Set(trailers), orders,
 });
 const unit = (u: Partial<UnitToPropose> = {}): UnitToPropose => ({
-  inspectionDate: "2026-10-01", vehicleId: "v-1", trailerId: null, defectVerifications: ["3"], ...u,
+  inspectionDate: "2026-10-01", vehicleId: "v-1", trailerId: null, defectVerifications: ["3"], violationCodes: ["393.47E"], ...u,
 });
 
 describe("proposeRepair", () => {
@@ -71,5 +71,42 @@ describe("proposeRepair", () => {
     const open = proposeRepair(unit(), fleet([order({ jobs: ["Brakes", "Tyre"] })]), ZONE);
     expect(proposeRepair(unit(), fleet([order({ jobs: ["Tyre", "Brakes"] })]), ZONE).sha256).toBe(open.sha256);
     expect(proposeRepair(unit(), fleet([order({ status: "CLOSED", completedAt: "2026-10-04T00:00:00Z" })]), ZONE).sha256).not.toBe(open.sha256);
+  });
+
+  // ── RR1 (ic11.2): the match mark and the ranking Q-IC14 ruled ──────────────────────────────────────────
+  const CODES = new Map<string, string | null>([["c-brake", "013-002-000"], ["c-oil", "OCH-001-000"], ["c-tire", "017-001-000"], ["c-404", null]]);
+
+  it("marks the order whose job answers the violation, and the one whose jobs do not", () => {
+    const p = proposeRepair(
+      unit({ violationCodes: ["393.45D-B"] }),
+      fleet([
+        order({ fleetpalId: "oil", openedAt: "2026-10-02T15:00:00Z", jobs: ["Oil change"], jobComponents: ["c-oil"] }),
+        order({ fleetpalId: "brakes", openedAt: "2026-10-05T15:00:00Z", jobs: ["Air leak"], jobComponents: ["c-brake"] }),
+      ]),
+      ZONE,
+      CODES,
+    );
+    expect(p.candidates.map((c) => [c.workOrderId, c.matches])).toEqual([["brakes", ["013"]], ["oil", []]]);
+  });
+
+  it("⚠ ranks a matching order before an earlier one that does not — and never accepts it", () => {
+    const p = proposeRepair(
+      unit({ violationCodes: ["393.75A3-TAOL"] }),
+      fleet([order({ fleetpalId: "early", openedAt: "2026-10-02T15:00:00Z", jobComponents: ["c-oil"] }), order({ fleetpalId: "tire", openedAt: "2026-10-08T15:00:00Z", jobComponents: ["c-tire"] })]),
+      ZONE,
+      CODES,
+    );
+    expect(p.candidates.map((c) => c.workOrderId)).toEqual(["tire", "early"]);
+    expect(p.outcome).toBe("several_candidates");
+  });
+
+  it("says nothing — null, not 'no match' — for a violation of a section nobody measured", () => {
+    const p = proposeRepair(unit({ violationCodes: ["393.95A4-EEUS"] }), fleet([order({ jobComponents: ["c-brake"] })]), ZONE, CODES);
+    expect(p.candidates[0]!.matches).toBeNull();
+  });
+
+  it("marks no match when a component's code is unknown (a 404), rather than guessing", () => {
+    const p = proposeRepair(unit({ violationCodes: ["393.47E"] }), fleet([order({ jobComponents: ["c-404", "c-unresolved"] })]), ZONE, CODES);
+    expect(p.candidates[0]!.matches).toEqual([]);
   });
 });
