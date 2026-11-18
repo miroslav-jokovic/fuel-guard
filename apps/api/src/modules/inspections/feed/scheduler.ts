@@ -143,7 +143,8 @@ export async function tickOrg(
   }
   // Then the bell for a repair nobody has named as its 396.9(d) day nears or passes (IC11 B2b) — after
   // the pass, so a work order opened this hour is already on the unit. It never throws.
-  await alertRepairsDue(admin, org.id, todayInZone(new Date(), org.timeZone));
+  const now = new Date();
+  await alertRepairsDue(admin, env, org.id, todayInZone(now, org.timeZone), { zone: org.timeZone, now });
 }
 
 /** One batch of the org's attribution backlog. An org with no Samsara token has nothing to ask. */

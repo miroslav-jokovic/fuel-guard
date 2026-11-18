@@ -48,7 +48,7 @@ describe("the catalogue", () => {
       expect(NOTIFICATION_CATEGORIES).toContain(a.key);
       expect(a.label).toBe(NOTIFICATION_CATEGORY_LABELS[a.key]);
     }
-    expect(ALERT_KEYS).toEqual(["home_time_return_due", "home_time_overdue", "home_time_truck_limit", "lumper_rc_waiting", "lumper_rc_missing_billed", "lumper_billing_gap"]);
+    expect(ALERT_KEYS).toEqual(["home_time_return_due", "home_time_overdue", "home_time_truck_limit", "lumper_rc_waiting", "lumper_rc_missing_billed", "lumper_billing_gap", "roadside_repair_due"]);
     expect(isAlertKey("home_time_overdue")).toBe(true);
     expect(isAlertKey("fuel_alert")).toBe(false);
   });

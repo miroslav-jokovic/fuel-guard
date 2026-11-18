@@ -1,7 +1,7 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { ALERT_CATALOGUE, HOME_TIME_DEFAULTS, alertDefinition, type AlertRoute, type AlertRoutingView, type AuthContext, type MyAlerts } from "@silvicom/shared";
+import { ALERT_CATALOGUE, HOME_TIME_DEFAULTS, alertDefinition, rolesThatCanView, rolesThatManage, type AlertRoute, type AlertRoutingView, type AuthContext, type MyAlerts } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
@@ -124,9 +124,16 @@ describe("GET /api/alert-routing", () => {
     for (const a of view.alerts) {
       expect(a.usesDefaults, a.key).toBe(true);
       expect(a.routes, a.key).toEqual(alertDefinition(a.key as "home_time_overdue").defaults);
-      expect(a.roles.map((x) => x.key)).toContain("dispatcher");
+      // Dispatch's and the Lumper fees screen's alerts are offered to dispatchers; the repair alert is not —
+      // a dispatcher cannot open Maintenance, so offering it would route an alert to a page they cannot see.
+      if (a.key !== "roadside_repair_due") expect(a.roles.map((x) => x.key)).toContain("dispatcher");
       expect(a.roles.map((x) => x.key)).not.toContain("recruiter");
     }
+    // RR5: the repair alert is offered to who can view Maintenance, defaulting to who manages it (the old audience).
+    const repair = view.alerts.find((a) => a.key === "roadside_repair_due")!;
+    expect(repair.roles.map((x) => x.key)).toEqual(expect.arrayContaining(rolesThatCanView("maintenance").filter((r) => r !== "driver")));
+    expect(repair.roles.map((x) => x.key)).not.toContain("dispatcher");
+    expect(repair.routes.map((r) => r.recipientKey).sort()).toEqual(rolesThatManage("maintenance").sort());
     const relationsOf = (key: string) => view.alerts.find((a) => a.key === key)!.relations.map((x) => x.label);
     expect(relationsOf("home_time_overdue")).toEqual(["Whoever marked the home time", "The truck's dispatcher"]);
     expect(relationsOf("lumper_rc_waiting")).toEqual(["The order's dispatcher"]);

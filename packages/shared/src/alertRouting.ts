@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EDITABLE_ROLES, effectiveSectionAccess, isEditableRole, resolveSectionAccess, rolesThatCanView, type AppSection, type SectionClaim, type SectionOverrides } from "./auth.js";
+import { EDITABLE_ROLES, effectiveSectionAccess, isEditableRole, resolveSectionAccess, rolesThatCanView, rolesThatManage, type AppSection, type SectionClaim, type SectionOverrides } from "./auth.js";
 import type { UserRole } from "./constants.js";
 import type { NotificationCategory } from "./notificationsContract.js";
 import { alertTextQuietSchema } from "./alertTexts.js";
@@ -117,6 +117,16 @@ const LUMPER_RELATIONS = ["order_dispatcher"] as const satisfies readonly AlertR
 const LUMPER_ACTION = "Open Dispatch > Lumper fees in Silvicom 360.";
 const LUMPER_SURFACE = "dispatch.lumper-cases";
 
+/**
+ * Roadside repairs due (INSPECTION-CHALLENGE-PLAN IC11 B2b; ROADSIDE-REPAIR-FLOW-PLAN RR5, Q-RR3 ruled (a)
+ * 2026-11-18). Moved here from its own audience (`usersWhoManage("maintenance")`) because production showed it
+ * reaching the wrong people: 197 alerts to 9 people, 27 read — all 7 admins, who manage every section, and a
+ * technician who read none. The carrier now names the people who decide repairs on Settings › Notifications.
+ * Until it does, the DEFAULT is exactly the old audience, derived from the section matrix rather than
+ * restated, so nobody stops hearing about a repair the day this ships.
+ */
+const ROADSIDE_REPAIR_DEFAULTS: readonly AlertRoute[] = rolesThatManage("maintenance").map((role) => on("role", role, "bell"));
+
 export const ALERT_CATALOGUE = [
   {
     key: "home_time_return_due",
@@ -183,6 +193,16 @@ export const ALERT_CATALOGUE = [
     plural: "loads",
     relations: LUMPER_RELATIONS,
     defaults: [on("role", "accountant", "bell"), on("role", "accountant", "email"), on("role", "admin", "bell"), on("role", "admin", "email")],
+  },
+  {
+    key: "roadside_repair_due",
+    label: "Roadside repairs due",
+    description: "A truck or trailer has roadside violations and no repair is recorded: three days before its 15-day due date, and again the day after it.",
+    action: "Open Shop > Roadside repairs due in Silvicom 360.",
+    section: "maintenance",
+    plural: "repairs",
+    relations: [],
+    defaults: ROADSIDE_REPAIR_DEFAULTS,
   },
 ] as const satisfies readonly AlertDefinition[];
 
