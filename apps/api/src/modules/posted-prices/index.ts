@@ -20,6 +20,7 @@ export { startPostedPriceScheduler, gatePostedBatch, runPostedPriceFetch, POSTED
 export { ingestPostedPrices } from "./postedPriceIngest.js";
 export { ingestPilotPrices } from "./pilotPriceIngest.js";
 export { ingestPilotLocations } from "./pilotLocationsIngest.js";
+export { startPilotPriceMailScheduler } from "./pilotPriceMailScheduler.js";
 export { runKwikTripSync } from "./kwikTripIngest.js";
 export { runRoadRangerFetch } from "./roadRangerIngest.js";
 export { ingestLovesExport, upsertLoves } from "./lovesIngest.js";

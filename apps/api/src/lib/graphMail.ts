@@ -77,7 +77,7 @@ export class GraphMailSource implements IngestSource {
 
 // ── Real Graph client (thin plumbing; untested like the Supabase storage adapter) ────────────────────
 
-interface GraphConfig {
+export interface GraphConfig {
   tenantId: string;
   clientId: string;
   clientSecret: string;
@@ -98,7 +98,22 @@ export function graphConfigFromEnv(env: Env): GraphConfig | null {
   };
 }
 
+/**
+ * App-only Graph access for one mailbox: a cached client-credentials token and an authorised request that
+ * throws on any non-2xx. Shared by every reader of the mailbox (the EFS report source below, and the Pilot
+ * price-quote folder reader in `graphFolder.ts`, PILOT-PRICE-MAIL-PLAN) so the sign-in is written once.
+ */
+export interface GraphRequester {
+  /** `/users/<mailbox>` — the prefix every mailbox path starts with. */
+  base: string;
+  graph(path: string, init?: RequestInit): Promise<Response>;
+}
+
 export function graphMailClient(cfg: GraphConfig): GraphMailClient {
+  return graphMailClientOver(cfg, graphRequester(cfg));
+}
+
+export function graphRequester(cfg: GraphConfig): GraphRequester {
   let cachedToken: { value: string; expiresAt: number } | null = null;
 
   async function token(): Promise<string> {
@@ -126,22 +141,35 @@ export function graphMailClient(cfg: GraphConfig): GraphMailClient {
   }
 
   const base = `/users/${encodeURIComponent(cfg.mailbox)}`;
+  return { base, graph };
+}
 
-  /** Look up a mail folder id by display name within a given collection (top-level or a parent's children). */
-  async function folderIdByName(name: string, collection: string): Promise<string | null> {
-    const res = await graph(`${base}${collection}?$filter=displayName eq '${name.replace(/'/g, "''")}'&$select=id&$top=1`);
-    const json = (await res.json()) as { value: { id: string }[] };
-    return json.value[0]?.id ?? null;
-  }
+/** Look up a mail folder id by display name within a given collection (top-level or a parent's children). */
+async function folderIdByName(rq: GraphRequester, name: string, collection: string): Promise<string | null> {
+  const res = await rq.graph(`${rq.base}${collection}?$filter=displayName eq '${name.replace(/'/g, "''")}'&$select=id&$top=1`);
+  const json = (await res.json()) as { value: { id: string }[] };
+  return json.value[0]?.id ?? null;
+}
 
-  /** Resolve the optional folder display name to a path segment; empty = whole mailbox. Checks top-level
-   *  folders first, then Inbox subfolders — so a folder created via right-click Inbox → New folder (the common
-   *  case, e.g. "Silvicom 360 EFS") resolves instead of failing as not-found. */
+/**
+ * A folder's id by its exact display name, or null. Checks top-level folders first, then Inbox subfolders —
+ * so a folder created via right-click Inbox → New folder (the common case, e.g. "Silvicom 360 EFS") resolves
+ * instead of failing as not-found.
+ */
+export async function graphFolderId(rq: GraphRequester, name: string): Promise<string | null> {
+  return (
+    (await folderIdByName(rq, name, "/mailFolders")) ?? //                       top-level (sibling of Inbox)
+    (await folderIdByName(rq, name, "/mailFolders/inbox/childFolders")) //        subfolder of Inbox
+  );
+}
+
+function graphMailClientOver(cfg: GraphConfig, rq: GraphRequester): GraphMailClient {
+  const { base, graph } = rq;
+
+  /** Resolve the optional folder display name to a path segment; empty = whole mailbox. */
   async function folderSegment(): Promise<string> {
     if (!cfg.folder) return "";
-    const id =
-      (await folderIdByName(cfg.folder, "/mailFolders")) ??                    // top-level (sibling of Inbox)
-      (await folderIdByName(cfg.folder, "/mailFolders/inbox/childFolders"));   // subfolder of Inbox
+    const id = await graphFolderId(rq, cfg.folder);
     if (!id) {
       throw new Error(`Graph mail folder not found: "${cfg.folder}" — create it at the mailbox root or under Inbox and set EFS_GRAPH_FOLDER to its exact name`);
     }
