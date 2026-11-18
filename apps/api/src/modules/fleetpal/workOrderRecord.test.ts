@@ -43,8 +43,8 @@ function recorder(sync = RESOURCES.map((resource, i) => ({ org_id: ORG, resource
         { org_id: ORG, fleetpal_id: "po-x", work_order_fleetpal_id: "wo-other", reference_number: "PO-OTHER" },
       ]),
       fleetpal_po_invoices: table([
-        { org_id: ORG, purchase_order_fleetpal_id: "po-1", invoice_number: "INV-88", invoice_date: "2026-10-09T00:00:00Z", invoice_type: "STANDARD", amount: "1288.125" },
-        { org_id: ORG, purchase_order_fleetpal_id: "po-x", invoice_number: "INV-NOT", invoice_date: null, invoice_type: "STANDARD", amount: "9" },
+        { org_id: ORG, fleetpal_id: "inv-88", purchase_order_fleetpal_id: "po-1", invoice_number: "INV-88", invoice_date: "2026-10-09T00:00:00Z", invoice_type: "STANDARD", amount: "1288.125" },
+        { org_id: ORG, fleetpal_id: "inv-not", purchase_order_fleetpal_id: "po-x", invoice_number: "INV-NOT", invoice_date: null, invoice_type: "STANDARD", amount: "9" },
       ]),
     },
   });
@@ -64,7 +64,7 @@ describe("readWorkOrderRecords", () => {
         { type: "PART", description: "Slack adjuster", partNumber: "HAL-1", quantity: 1, unitOfMeasure: "EA", total: 132.5 },
       ],
     }]);
-    expect(wo.invoices).toEqual([{ purchaseOrder: "PO-2201", invoiceNumber: "INV-88", invoiceDate: "2026-10-09T00:00:00Z", invoiceType: "STANDARD", amount: 1288.125 }]);
+    expect(wo.invoices).toEqual([{ invoiceId: "inv-88", purchaseOrder: "PO-2201", invoiceNumber: "INV-88", invoiceDate: "2026-10-09T00:00:00Z", invoiceType: "STANDARD", amount: 1288.125 }]);
     expectOrgScoped(rec, ORG);
   });
 
@@ -87,8 +87,8 @@ describe("readWorkOrderRecords", () => {
 describe("readWorkOrderDetail — the Shop's work order drawer (F14)", () => {
   it("finds the order by our row id and returns its jobs, invoices, unit number and as-of", async () => {
     const rec = recorder();
-    const d = await readWorkOrderDetail(rec.client, ORG, "row-1");
-    expect(d).toMatchObject({ unitNumber: "654", asOf: "2026-10-16T10:00:00Z", record: { reference: "WO-1" } });
+    const d = await readWorkOrderDetail(rec.client, ORG, { rowId: "row-1" });
+    expect(d).toMatchObject({ id: "row-1", unitNumber: "654", asOf: "2026-10-16T10:00:00Z", record: { reference: "WO-1" } });
     expect(d!.record.invoices.map((i) => i.invoiceNumber)).toEqual(["INV-88"]);
     expect(d!.record.jobs.map((j) => j.name)).toEqual(["Adjust brakes"]);
     expectOrgScoped(rec, ORG);
@@ -96,11 +96,20 @@ describe("readWorkOrderDetail — the Shop's work order drawer (F14)", () => {
 
   it("answers null for another carrier's row, and reads nothing further", async () => {
     const rec = recorder();
-    expect(await readWorkOrderDetail(rec.client, ORG, "row-theirs")).toBeNull();
+    expect(await readWorkOrderDetail(rec.client, ORG, { rowId: "row-theirs" })).toBeNull();
     expect(rec.queries.map((q) => q.table)).toEqual(["fleetpal_work_orders"]);
   });
 
   it("has no unit number for an order FleetPal sent without a unit", async () => {
-    expect((await readWorkOrderDetail(recorder().client, ORG, "row-2"))!.unitNumber).toBeNull();
+    expect((await readWorkOrderDetail(recorder().client, ORG, { rowId: "row-2" }))!.unitNumber).toBeNull();
+  });
+
+  it("finds the same order by FleetPal's id — the roadside repair's door (F16) — and only in this org", async () => {
+    const rec = recorder();
+    // org-2 holds a row with the same FleetPal id; the org filter is what keeps it out.
+    const d = await readWorkOrderDetail(rec.client, ORG, { fleetpalId: "wo-1" });
+    expect(d).toMatchObject({ id: "row-1", record: { reference: "WO-1" } });
+    expectOrgScoped(rec, ORG);
+    expect(await readWorkOrderDetail(recorder().client, "org-3", { fleetpalId: "wo-1" })).toBeNull();
   });
 });

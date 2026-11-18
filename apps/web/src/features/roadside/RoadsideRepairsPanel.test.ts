@@ -33,7 +33,7 @@ let inspectionOpens = true;
 vi.mock("@/composables/useOpens", () => ({
   useOpens: () => (to: { name?: string }) => (to.name === "roadside-inspection" ? inspectionOpens : true),
 }));
-vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: (s: string) => s === "maintenance" }) }));
+vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: (s: string) => s === "maintenance", canView: (s: string) => s === "maintenance" }) }));
 // The desktop table: jsdom has no `matchMedia`, and DataTable would otherwise draw its narrow cards.
 vi.mock("@vueuse/core", async (orig) => {
   const { ref: r } = await import("vue");

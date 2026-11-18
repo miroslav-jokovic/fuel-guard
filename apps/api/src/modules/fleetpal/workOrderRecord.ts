@@ -89,28 +89,35 @@ export async function readWorkOrderRecords(admin: SupabaseClient, orgId: string,
     admin.from("fleetpal_purchase_orders").select("fleetpal_id, work_order_fleetpal_id, reference_number")
       .eq("org_id", orgId).in("work_order_fleetpal_id", ids).order("id").range(from, to));
   const poOf = new Map(poRows.map((p) => [p.fleetpal_id, p]));
-  type InvoiceRow = { purchase_order_fleetpal_id: string; invoice_number: string | null; invoice_date: string | null; invoice_type: string | null; amount: unknown };
+  type InvoiceRow = { fleetpal_id: string; purchase_order_fleetpal_id: string; invoice_number: string | null; invoice_date: string | null; invoice_type: string | null; amount: unknown };
   const invoiceRows = await inChunks<InvoiceRow>([...poOf.keys()], (ids, from, to) =>
-    admin.from("fleetpal_po_invoices").select("purchase_order_fleetpal_id, invoice_number, invoice_date, invoice_type, amount")
+    admin.from("fleetpal_po_invoices").select("fleetpal_id, purchase_order_fleetpal_id, invoice_number, invoice_date, invoice_type, amount")
       .eq("org_id", orgId).in("purchase_order_fleetpal_id", ids).order("id").range(from, to));
   for (const inv of invoiceRows) {
     const po = poOf.get(inv.purchase_order_fleetpal_id)!;
     orders.get(po.work_order_fleetpal_id)?.invoices.push({
-      purchaseOrder: po.reference_number, invoiceNumber: inv.invoice_number, invoiceDate: inv.invoice_date, invoiceType: inv.invoice_type, amount: num(inv.amount),
+      invoiceId: inv.fleetpal_id, purchaseOrder: po.reference_number, invoiceNumber: inv.invoice_number, invoiceDate: inv.invoice_date, invoiceType: inv.invoice_type, amount: num(inv.amount),
     });
   }
   return { orders, asOf };
 }
 
 /**
- * One work order for the Shop's drawer (F14), found by OUR row id — the id every Shop list carries — and
- * scoped to the org before anything is read. Null when the org has no such row, which the route answers
- * 404: a work order of another carrier's is "not found", never "forbidden".
+ * Which work order the drawer is asking for: by OUR row id — the id every Shop list carries — or by
+ * FleetPal's own id, which is all a roadside repair holds (its candidates are snapshots taken when the
+ * proposal was made, 0606), so the inspection page can open the same drawer without a second reader (F16).
  */
-export async function readWorkOrderDetail(admin: SupabaseClient, orgId: string, id: string): Promise<WorkOrderDetailDto | null> {
-  const row = await admin.from("fleetpal_work_orders").select("fleetpal_id, unit_fleetpal_id").eq("org_id", orgId).eq("id", id).maybeSingle();
+export type WorkOrderKey = { rowId: string } | { fleetpalId: string };
+
+/**
+ * One work order for the drawer (F14), scoped to the org before anything is read. Null when the org has no
+ * such row, which the route answers 404: a work order of another carrier's is "not found", never "forbidden".
+ */
+export async function readWorkOrderDetail(admin: SupabaseClient, orgId: string, key: WorkOrderKey): Promise<WorkOrderDetailDto | null> {
+  const q = admin.from("fleetpal_work_orders").select("id, fleetpal_id, unit_fleetpal_id").eq("org_id", orgId);
+  const row = await ("rowId" in key ? q.eq("id", key.rowId) : q.eq("fleetpal_id", key.fleetpalId)).maybeSingle();
   if (row.error) throw new Error(`fleetpal_work_orders: ${row.error.message}`);
-  const wo = row.data as { fleetpal_id: string; unit_fleetpal_id: string | null } | null;
+  const wo = row.data as { id: string; fleetpal_id: string; unit_fleetpal_id: string | null } | null;
   if (!wo) return null;
   const { orders, asOf } = await readWorkOrderRecords(admin, orgId, [wo.fleetpal_id]);
   const record = orders.get(wo.fleetpal_id);
@@ -121,5 +128,5 @@ export async function readWorkOrderDetail(admin: SupabaseClient, orgId: string, 
     if (unit.error) throw new Error(`fleetpal_units: ${unit.error.message}`);
     unitNumber = (unit.data as { number: string | null } | null)?.number ?? null;
   }
-  return { record, unitNumber, asOf };
+  return { id: wo.id, record, unitNumber, asOf };
 }

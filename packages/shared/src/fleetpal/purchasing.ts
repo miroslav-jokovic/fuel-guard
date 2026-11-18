@@ -205,6 +205,36 @@ export const fleetpalPoInvoiceSchema = z.looseObject({
 export type FleetpalPoInvoice = z.infer<typeof fleetpalPoInvoiceSchema>;
 
 /**
+ * A file attached to a vendor invoice — the scanned bill a shop uploads in FleetPal (F16, D-FP28).
+ * `url` is a PRE-SIGNED storage link that expires in an hour (`X-Amz-Expires=3600`, measured 2026-11-18)
+ * and that the vendor says must be fetched WITHOUT our API key. It is followed once, server-side, and is
+ * never stored or sent to a browser.
+ */
+export const fleetpalInvoiceAttachmentSchema = z.looseObject({
+  index: z.number().int().nonnegative(),
+  filename: z.string(),
+  content_type: z.string().nullable().optional(),
+  url: z.string(),
+});
+export type FleetpalInvoiceAttachment = z.infer<typeof fleetpalInvoiceAttachmentSchema>;
+
+/**
+ * The one slice of a `POInvoice` the file read asks for: its id and its files.
+ *
+ * ⚠ WHY THIS IS NOT A FIELD ON `fleetpalPoInvoiceSchema`: `attachments` is in FleetPal's LIVE spec
+ * (`/v1/openapi.json`, 174 paths, read 2026-11-18) and not in the September copy the field manifest is
+ * generated from, so adding it there fails `lint:fleetpal-contract` — and regenerating the manifest
+ * surfaces 27 other new vendor fields the sweep schemas would have to model first. That refresh is its
+ * own step (FLEETPAL-INTEGRATION-PLAN F16b). Until it lands this schema is outside the gate's map, which
+ * is the gap: the gate cannot see a vendor rename of `attachments`. The sweep never stores this field.
+ */
+export const fleetpalInvoiceFilesSchema = z.looseObject({
+  id: fleetpalId,
+  attachments: z.array(fleetpalInvoiceAttachmentSchema).default([]),
+});
+export type FleetpalInvoiceFiles = z.infer<typeof fleetpalInvoiceFilesSchema>;
+
+/**
  * A delivery against a purchase order. **No `updated` field** — the bounded-re-read tier again, and
  * `created_after` is the filter that stands in for a watermark.
  */

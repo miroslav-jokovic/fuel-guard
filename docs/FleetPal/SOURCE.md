@@ -41,3 +41,13 @@ what your working tree holds, the document has moved and
   cents, not a string. Parse to a decimal type, never a binary float.
 - **Distances** on meter readings are canonical **metres**, never the company's display units.
   Divide by 1609.344 for miles.
+
+## ⚠ 2026-11-18 — this copy is 100 endpoints behind the vendor
+
+FleetPal serves its current document at **`GET https://openapi.fleetpal.io/v1/openapi.json`** (with the
+API key). Read 2026-11-18: **174 paths, 961,701 bytes** — against the 71 paths above. Among the
+differences, `POInvoice.attachments` (the shop's scanned bill, pre-signed link, 1 h) — which this copy
+lacks, and which is why Q-IC12 and D-FP27 were ruled believing FleetPal serves no files. F16 reads it
+(FLEETPAL-INTEGRATION-PLAN D-FP28) through a schema the gate does not yet map. Replacing this file and
+regenerating the manifest surfaces 28 unmodelled fields: plan Q13 / F16b. Until then, **check the live
+document before concluding FleetPal cannot do something.**

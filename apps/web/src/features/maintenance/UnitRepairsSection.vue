@@ -4,7 +4,7 @@ import { AppCard as BaseCard, DataTable, TablePagination, useQueryState, type Da
 import type { UnitShopFileDto, UnitWorkOrderHistoryDto } from "@silvicom/shared";
 import { formatDate } from "@/lib/format";
 import WorkOrderRows from "./WorkOrderRows.vue";
-import WorkOrderDrawer from "./WorkOrderDrawer.vue";
+import WorkOrderDrawer from "@/components/WorkOrderDrawer.vue";
 
 /**
  * In the shop, and the repair history — one truck's repair RECORD from FleetPal
