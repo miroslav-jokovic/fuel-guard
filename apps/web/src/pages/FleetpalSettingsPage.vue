@@ -83,7 +83,9 @@ async function onToggle(enabled: boolean) {
 async function onInstant(on: boolean) {
   try {
     const r = await setInstant.mutateAsync(on);
-    if (r.failed.length) toast.error("Some updates were not registered", r.failed.map((f) => f.event).join(", "));
+    // FleetPal's reason, once per distinct reason — eight events refused for one cause is one sentence,
+    // not eight names with the cause dropped (2026-11-18: the role's 403 was invisible on this page).
+    if (r.failed.length) toast.error(r.activated.length ? "Some updates were not registered" : "No update was registered", [...new Set(r.failed.map((f) => f.error))].join(" "));
     else toast.success(on ? "Instant updates on" : "Instant updates off");
   } catch (e) {
     if (holdForStepUp(e, () => onInstant(on))) return;

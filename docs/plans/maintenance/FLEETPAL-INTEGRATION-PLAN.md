@@ -1977,3 +1977,13 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   an upload beside the record (Q-IC12 (b)'s) is the owner's call. Six mutations each turned a test red:
   the detail read losing its org filter, a credit printed positive, labour not in hours, the read running
   while closed, a row opening by reference instead of id, and a non-id reaching the database.
+- **2026-11-18 · F15 go-live blocked by FleetPal's role policy, not by us.** PUBLIC_API_URL was set on
+  production (2026-11-17 17:35Z, redeployed 18:01Z). The admin's "Turn instant updates on" registered none of
+  the 8 events; nothing was stored and FleetPal lists 0 subscriptions. Measured with the carrier's key: the
+  event catalogue lists all 8 keys and `GET /v1/webhook-subscriptions/` answers 200, but any POST — even a
+  body that cannot validate — answers **403 "Access denied by policy \"webhook-subscriptions\""**. FleetPal
+  keys carry their user's role, and that role may read but not write subscriptions. **Owner action: ask
+  FleetPal support to allow webhook subscriptions for the key's user (or issue a key from a user who may),
+  store it under Settings → FleetPal, and turn instant updates on again.** The page had dropped FleetPal's
+  reason and printed only the event names; it now prints the reason once, and a 403 says who to ask
+  (`subscribeFailure`). Mutation: matching 401 instead of 403 turned `webhooks.test.ts` red.

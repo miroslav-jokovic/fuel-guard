@@ -10,6 +10,7 @@ import type { Env } from "../../env.js";
 import { isSecretBoxConfigured, open, seal, secretAad } from "../../lib/secretBox.js";
 import type { FleetpalClient } from "./client.js";
 import { claimDelivery, finishDelivery } from "./deliveries.js";
+import { FleetpalError } from "./errors.js";
 
 /**
  * FleetPal webhooks (FLEETPAL-INTEGRATION-PLAN.md F15; D-FP10, §2.8).
@@ -178,10 +179,24 @@ export async function subscribeAll(admin: SupabaseClient, env: Env, orgId: strin
       }
       result.activated.push(event);
     } catch (e) {
-      result.failed.push({ event, error: e instanceof Error ? e.message : String(e) });
+      result.failed.push({ event, error: subscribeFailure(e) });
     }
   }
   return result;
+}
+
+/**
+ * The sentence an admin reads when FleetPal refuses a subscription. A 403 is FleetPal's role policy, not
+ * ours: measured 2026-11-18, the carrier's key reads every collection the sweep needs and is refused
+ * `POST /v1/webhook-subscriptions/` with "Access denied by policy \"webhook-subscriptions\"" — keys
+ * carry their FleetPal user's role, and that role may not write subscriptions. Only FleetPal support
+ * can change it, so the sentence says who to ask and keeps FleetPal's own words beside it.
+ */
+export function subscribeFailure(e: unknown): string {
+  if (e instanceof FleetpalError && e.status === 403) {
+    return `FleetPal does not let this API key register updates (FleetPal said: ${e.message}). Ask FleetPal support to allow webhook subscriptions for the key's user, or to issue a key from a user who may, then store it here and try again.`;
+  }
+  return e instanceof Error ? e.message : String(e);
 }
 
 /** Turn instant updates off: pause every active subscription; keep the sealed secrets for the way back on. */
