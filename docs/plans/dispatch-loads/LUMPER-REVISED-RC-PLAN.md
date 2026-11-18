@@ -342,13 +342,12 @@ which closes the RC reminders exactly as a hand-filed one does, and a dispatcher
   McLeod change, but it is a second source beside the one billing uses, it misses an RC that came any
   other way, and it puts the document reader in the path of a money decision.
 
-What IT is asked, ONCE, together with the finance grants still missing on LME: Part 6 of
-`tools/mcleod-agent/review/SILVICOM-GRANTS.sql` (a `dta` user for `silvicom_dispatch_ro` and SELECT
-on the four tables), and read-only access for the connector VM to the imaging folder(s) `media`
-names. The finance part is the SAME request as Part 4, not a new one: measured 2026-11-18 with
-HAS_PERMS_BY_NAME, 13 of Part 4's 15 tables are still refused on LME (`billing_history` and
-`drs_deduct_hist` were granted on 11-17). The category names are not asked: `imapcats` answers them
-once the grant is run.
+What IT is asked: Part 6 of `tools/mcleod-agent/review/SILVICOM-GRANTS.sql` (a `dta` user for
+`silvicom_dispatch_ro` and SELECT on the four tables), and read-only access for the connector VM to
+the imaging folder(s) `media` names. Owner, 2026-11-18: this goes to IT ON ITS OWN, without the
+finance grants, which are taken up later (13 of Part 4's 15 tables still refused on LME, measured
+the same day with HAS_PERMS_BY_NAME). The category names are not asked: `imapcats` answers them once
+the grant is run.
 
 **Ruled 2026-11-18 (owner: "proceed as proposed"): Q-LRC10 is (b), with the rule below.** New fact
 from the owner the same day: Imaging has NO separate category for a revised RC. A dispatcher files
@@ -614,4 +613,5 @@ VM runs it. Q-LRC8 (EFS money codes) and Q-LRC9 are open.
   D-LRC16 (revised RC = RC scanned on or after the lumper; the Unknown mark confirms, never
   triggers) and D-LRC17 (amount checked by lumper line or by the increase over the old RC, against
   what we paid; an unread amount never matches). Part 6 added to `SILVICOM-GRANTS.sql`. Grants
-  re-measured: 13 of Part 4's 15 finance tables still refused on LME; no `dta` access.
+  re-measured: 13 of Part 4's 15 finance tables still refused on LME; no `dta` access. The owner
+  sends the Imaging request alone; finance is a later, separate request.
