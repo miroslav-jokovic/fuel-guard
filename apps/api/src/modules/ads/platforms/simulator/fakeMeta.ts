@@ -42,6 +42,11 @@ export type { FakeMetaFault } from "./fakeMetaFaults.js";
  *   GET  /{v}/me?fields=id,name        the token's user (a system user, for Connect). (B1b)
  *   GET  /{v}/me/permissions           `{ data: [{ permission, status }] }`, status ∈ granted, declined,
  *                                       expired. https://developers.facebook.com/docs/graph-api/reference/user/permissions/
+ *   GET  /{v}/debug_token?input_token  asked with the APP token `{app id}|{app secret}` (A-8, 2026-11-18): `{ data:
+ *                                       { app_id, is_valid, expires_at, data_access_expires_at, scopes } }`, unixtime.
+ *                                       https://developers.facebook.com/docs/graph-api/reference/debug_token/ — what
+ *                                       `expires_at` holds for a token that never expires is NOT on that page: the fake
+ *                                       answers 0 by default, which is OUR reading (`AdsTokenExpiry`), set by `tokenExpiresAt`.
  *   GET  /{v}/me/accounts              the Pages the token may act for: `{ data: [{ id, name, access_token,
  *                                       tasks }] }`, `tasks` e.g. ADVERTISE. https://developers.facebook.com/docs/pages-api/getting-started
  *
@@ -106,6 +111,10 @@ export interface FakeMetaOptions {
   pages?: FakeMetaPage[];
   /** The app secret leadgen deliveries are signed with (B4b). */
   appSecret?: string;
+  /** Our app's id: with the secret, the app token `debug_token` answers (A-8). */
+  appId?: string;
+  /** `debug_token`'s `expires_at` for the user token, unixtime; 0 (the default) = OUR reading of "never expires". */
+  tokenExpiresAt?: number;
   /** The fake's clock, for the Conversions API's 7-day rule (B6); default the real one. */
   now?: () => Date;
 }
@@ -154,8 +163,14 @@ export class FakeMeta {
   readonly permissions: Record<string, "granted" | "declined" | "expired">;
   readonly pages: FakeMetaPage[];
 
+  /** `{app id}|{app secret}`: the only token `debug_token` answers. */
+  private readonly appToken: string;
+  private readonly tokenExpiresAt: number;
+
   constructor(opts: FakeMetaOptions) {
     this.token = opts.token;
+    this.appToken = `${opts.appId ?? "100000000000001"}|${opts.appSecret ?? "fake-meta-app-secret"}`;
+    this.tokenExpiresAt = opts.tokenExpiresAt ?? 0;
     this.accounts = new Map(opts.accounts.map((a) => [a.id, { ...a }]));
     this.businessId = opts.businessId ?? "1000000000001";
     this.user = opts.user ?? { id: "61550000000001", name: "Silvicom ads system user" };
@@ -272,6 +287,7 @@ export class FakeMeta {
 
   /** A Page's edges and its forms answer only that Page's token (Lead Ads guide); everything else the user's. */
   private expectedToken(path: string): string | undefined {
+    if (path === "debug_token") return this.appToken;
     const [head, edge] = path.split("/");
     const pageId = edge === "leadgen_forms" || edge === "subscribed_apps" ? head
       : edge === "leads" ? this.forms.pageOf(head ?? "")
@@ -283,6 +299,13 @@ export class FakeMeta {
 
   private route(method: string, path: string, body: Record<string, string>): { status: number; body: unknown } {
     if (method === "GET" && path === "me") return { status: 200, body: pick({ ...this.user }, body.fields, ["id"]) };
+    if (method === "GET" && path === "debug_token") {
+      const valid = body.input_token === this.token && !this.revoked;
+      return { status: 200, body: { data: {
+        app_id: this.appToken.split("|")[0], is_valid: valid, expires_at: valid ? this.tokenExpiresAt : 0, data_access_expires_at: 0,
+        scopes: valid ? Object.entries(this.permissions).filter(([, st]) => st === "granted").map(([p]) => p) : [],
+      } } };
+    }
     if (method === "GET" && path === "me/permissions") {
       return { status: 200, body: { data: Object.entries(this.permissions).map(([permission, status]) => ({ permission, status })) } };
     }
@@ -371,7 +394,9 @@ function bearer(req: IncomingMessage): string | undefined {
 
 /** A recorded request never holds the token — a test that prints `requests` must not print a secret. */
 function redact(body: Record<string, string>): Record<string, string> {
-  return "access_token" in body ? { ...body, access_token: "[redacted]" } : body;
+  const out = { ...body };
+  for (const k of ["access_token", "input_token"]) if (k in out) out[k] = "[redacted]";
+  return out;
 }
 
 function send(res: ServerResponse, status: number, body: unknown): void {

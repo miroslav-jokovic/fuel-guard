@@ -12,6 +12,9 @@ import { z } from "zod";
 export const adsEnvFields = {
   // Meta leadgen webhook (ads B4b): unset = that half answers 503; why in `modules/ads/leads/leadgenWebhook.ts`.
   META_APP_SECRET: z.string().min(1).optional(),
+  // Our Meta app's id (audit A-8): with the secret it makes the app access token `debug_token` must be asked with, to
+  // read when a connection's token expires. Unset = the expiry is reported as not read, with that reason.
+  META_APP_ID: z.string().regex(/^\d{5,20}$/).optional(),
   META_WEBHOOK_VERIFY_TOKEN: z.string().min(1).optional(),
   ADS_ENABLED: z.enum(["true", "false"]).default("false").transform((v) => v === "true"), // the ads orchestrator's tick (A6); off until Stage 1's exit — docs/WORKER-DEPLOYMENT.md § Ads
   // D-AD8 (Q-AD42 (b)): the Meta ad accounts a NON-production host may use — its sandbox accounts, comma-separated,

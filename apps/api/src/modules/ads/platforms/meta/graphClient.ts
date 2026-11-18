@@ -153,6 +153,16 @@ export class MetaGraph {
     return new MetaGraph({ ...this.o, token });
   }
 
+  /**
+   * Meta's `debug_token` for THIS client's own token, asked with our app's access token (audit A-8). The token
+   * never leaves the client: it rides as `input_token` and both tokens are scrubbed from any error message.
+   */
+  async inspectOwnToken<T>(appToken: string): Promise<GraphResult<T>> {
+    const r = await this.withToken(appToken).get<T>("debug_token", { input_token: this.o.token });
+    if (!r.ok) r.error.message = this.scrub(r.error.message);
+    return r;
+  }
+
   /** `idempotent: true` only for a write that sets a value (status, budget); never for a create. */
   post<T>(path: string, params: Params, opts: { idempotent: boolean }): Promise<GraphResult<T>> {
     return this.request<T>("POST", path, params, opts.idempotent);

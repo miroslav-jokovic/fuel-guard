@@ -35,7 +35,8 @@ this section is what is true today and what comes next. When the two disagree, t
 | V2 planning stage | done; V2r (2026-11-18): market pay from BLS, the swipe file's API, the Researcher and the Swipe reader at L2. The swipe file's screen comes with V6 | simulator; BLS read live once |
 | V3 design quality | done, except the story frame, Meta's own preview and the reference set | simulator |
 | V4 video (motion ad) | done; driver clip not started | simulator (FakeMeta, the simulated video model) |
-| V5 modes · V6 workspace · V7 lead engine · V8 health page | not built | — |
+| V8 health read (API) and token expiry (A-8, A-9) | built 2026-11-18: `GET /api/ads/health`; the token read daily with the reconcile, admins told 14 days before it lapses. The page comes with V6 | FakeMeta's `debug_token` |
+| V5 modes · V6 workspace · V7 lead engine | not built | — |
 
 Scorecard (`pnpm ads:readiness`): nine workers at L3, six at L2 (Copywriter, Art director, Craft judge,
 Finished-ad judge, Checker, Strategist), **none at L4**. `scripts/ads-certifications.json` is empty, so Launch
@@ -51,7 +52,8 @@ setting exists anywhere.
 3. **No agent's judgement has been compared with a person's.** The L2 agents wait on the owner's rating of the
    60 copy sets and on approvals and rejections of real ads and plans (Q-APX3).
 
-All three wait on the owner: the Meta app, a system-user token, a sandbox ad account id, the Higgsfield key, and
+All three wait on the owner: the Meta app (its id, `META_APP_ID`, and secret — the id is what reads a token's expiry,
+A-8), a system-user token, a sandbox ad account id, the Higgsfield key, and
 the rating page (https://claude.ai/artifact/KG1h65doetP92nctQvSvnx).
 
 ### 0.3 The order from here — proposed 2026-11-18, replaces §4's "V6 → V5 → V7"
@@ -942,7 +944,7 @@ is 100%."*** Taken as:
 | Q-APX17 | Our video is 1080 wide; Meta's video-ads page says 1,200 at least | **ruled (a) 2026-11-18, §5a**: paint the motion ad at 1440 × 1800 | — |
 | Q-APX18 | Where the Ads workspace sits, and whether Leads and Openings move into it | **ruled (a) 2026-11-18, §5a**: its own sidebar section; Leads and Openings stay Recruitment's and are linked | — |
 | Q-APX19 | What the next three days hold | **ruled (a) 2026-11-18, §5a**: sandbox when credentials arrive, the research (V2r), then the health read | — |
-| — | Meta app, system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
+| — | Meta app (id `META_APP_ID` and secret), system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 **2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want
 this to be high grade and really good quality, modern and in trending."*** Taken as:

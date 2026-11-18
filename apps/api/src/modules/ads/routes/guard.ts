@@ -13,6 +13,7 @@ import { mountBrandKitRoutes } from "./brandKits.js";
 import { mountCampaignRoutes, type CampaignRouteDeps } from "./campaigns.js";
 import { mountPlanRoutes } from "./plans.js";
 import { mountSwipeRoutes } from "./swipe.js";
+import { adsHealthView } from "../health/healthView.js";
 import { adsSpendView } from "../spend/spendView.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
 import { saveSettingsVersion, settingsInForce, type Actor } from "../settings/settingsVersions.js";
@@ -123,6 +124,16 @@ export function adsRouter(deps: AdsRouterDeps): Router {
     requireSection(BRIEF_SECTION, "view"),
     asyncHandler(async (req, res) => {
       res.json(await adsSpendView(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, new Date()));
+    }),
+  );
+
+  // V8 (audit A-9): the health read — connections and their tokens, the lead webhook, the ads jobs, the agents. A
+  // read of what we already hold, gated as the spend read is.
+  router.get(
+    "/health",
+    requireSection(BRIEF_SECTION, "view"),
+    asyncHandler(async (req, res) => {
+      res.json(await adsHealthView(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, new Date()));
     }),
   );
 
