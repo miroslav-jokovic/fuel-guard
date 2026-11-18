@@ -6,6 +6,7 @@ import {
   type AdBrief, type AdHourFact, type ConceptPerformance, type EvidenceItem, type EvidencePack, type LeadQuality, type LeadQualityCounts,
 } from "@silvicom/shared";
 import { CONCEPT_WINDOW_DAYS } from "../monitor/conceptPerformance.js";
+import type { MarketReader } from "./marketWages.js";
 
 /**
  * The evidence a campaign's plan is written from (ADS-PLATFORM-V2-PLAN V2c; owner 2026-11-14: decisions "based
@@ -22,7 +23,10 @@ import { CONCEPT_WINDOW_DAYS } from "../monitor/conceptPerformance.js";
  *                 e-mail can arrive through it: the interface carries none (Q-APX2).
  *   our_result    what each concept did — the SAME fold the Campaigns tab shows (`foldConcepts`), keyed by
  *                 hook and scene instead of by preset, because hook and scene are what an angle names.
- * Not built: `swipe` (ads a recruiter saved) and `market` (what the Researcher reads) — later V2 steps.
+ *   market        what heavy and tractor-trailer truck drivers earn, in the nation and in the state the ad's
+ *                 area is centred in: BLS figures read by code, never by a model (`marketWages.ts`, D-AD35).
+ *                 Context for choosing an angle; the plan may still write no figure the job does not hold.
+ * Not built: `swipe` (ads a recruiter saved) and the Researcher's `market` items — V2r's next steps.
  *
  * ── WHY THE CARRIER'S WHOLE BOOK AND NOT THIS CAMPAIGN'S ───────────────────────────────────────────────
  * A campaign being planned has run nothing. Its evidence is what the carrier's OTHER campaigns did in the
@@ -43,6 +47,8 @@ export interface EvidenceDeps {
   admin: SupabaseClient;
   now: () => Date;
   quality: LeadQuality;
+  /** The market items for the campaign's area (`blsMarketReader`). */
+  market: MarketReader;
 }
 
 export type EvidenceOutcome =
@@ -63,15 +69,17 @@ export async function buildEvidencePack(deps: EvidenceDeps, campaign: { id: stri
   const now = deps.now();
   const since = new Date(now.getTime() - CONCEPT_WINDOW_DAYS * 86_400_000);
   since.setUTCMinutes(0, 0, 0);
-  const [quality, concepts] = await Promise.all([
+  const [quality, concepts, market] = await Promise.all([
     deps.quality.qualitySince(campaign.org_id, since.toISOString()),
     conceptResults(deps.admin, campaign.org_id, since),
+    deps.market.itemsFor(brief.data.area),
   ]);
   const pack = evidencePackSchema.safeParse([
     ...jobEvidence(brief.data),
     benchmarkEvidence(),
     ...leadEvidence(quality),
     ...resultEvidence(concepts),
+    ...market,
   ]);
   // An item this file built that the contract refuses is our fault, and the reason is the planner's failure line.
   if (!pack.success) return { ok: false, error: `the evidence pack does not hold: ${pack.error.issues[0]?.message ?? "invalid"}` };

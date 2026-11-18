@@ -4,6 +4,7 @@ import type { WorkerResult } from "../orchestrator/workers.js";
 import { findingWords, writePlan, type WritePlanOutcome } from "../workers/strategist/strategist.js";
 import { planOffer } from "./concepts.js";
 import { buildEvidencePack } from "./evidencePack.js";
+import type { MarketReader } from "./marketWages.js";
 import { storeAgentPlan } from "./planStore.js";
 
 /**
@@ -24,6 +25,7 @@ import { storeAgentPlan } from "./planStore.js";
 
 export interface PlanCampaignDeps extends ClaudeGenerationDeps {
   quality: LeadQuality;
+  market: MarketReader;
 }
 
 /** How many findings a failure names; the rest are counted. `last_error` is read on a card, not in a log. */

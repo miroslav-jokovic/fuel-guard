@@ -17,6 +17,8 @@ import { renderChoiceFor } from "../creative/higgsfield/simulatedRender.js";
 import { renderStatus, type RenderInput, type RenderOutcome } from "../creative/higgsfield/render.js";
 import { pgQueueDriver } from "../../../queue/pgDriver.js";
 import { planCampaign } from "../plan/planCampaign.js";
+import { blsMarketReader } from "../plan/marketWages.js";
+import { hereReverseGeocodeState } from "../../../lib/hereGeocode.js";
 import type { QueueDriver } from "../../../queue/types.js";
 
 /**
@@ -82,7 +84,12 @@ export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
     // The Strategist starts switched off like every agent (D-RA9): a campaign then stops at planning with
     // "the Strategist is switched off in the ads settings", as it would stop at composing with the Copywriter
     // off, and a person switches it on and presses "Try planning again" (Q-APX6 (b)).
-    plan: quality ? (campaign, key) => planCampaign({ admin: deps.admin, client: anthropicClient(deps.env), now: deps.now, quality }, campaign, key) : null,
+    // V2r (2026-11-18): the pack also carries BLS market pay for the area's state (D-AD35), the state found by
+    // the HERE reverse geocoder the fuel planner uses; with no HERE key it answers null and the nation stands alone.
+    plan: quality ? (campaign, key) => planCampaign({
+      admin: deps.admin, client: anthropicClient(deps.env), now: deps.now, quality,
+      market: blsMarketReader({ admin: deps.admin, now: deps.now, stateOf: (lat, lng) => hereReverseGeocodeState(deps.env, lat, lng) }),
+    }, campaign, key) : null,
     // C5b2: the presets drawn, one creative per preset in the batch, each through copy → art → render →
     // overlay → the three checks (`compose/`). The render itself is NOT done here: see `queuedRender`.
     // Which model draws it follows the campaign's connection: a simulator campaign draws in the simulator.

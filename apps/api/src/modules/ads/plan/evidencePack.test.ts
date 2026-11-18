@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ADS_BENCHMARK_SUGGESTIONS, evidencePackSchema, jobEvidence, type LeadQuality, type LeadQualityCounts } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { COPYWRITER_EVAL, loadFixtures } from "../workers/agentFixtures.js";
+import type { MarketReader } from "./marketWages.js";
 import { benchmarkEvidence, buildEvidencePack, conceptResults, leadEvidence, resultEvidence } from "./evidencePack.js";
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -11,6 +12,9 @@ const brief = loadFixtures(COPYWRITER_EVAL).find((f) => f.fixture.name === "age-
 const counts = (over: Partial<LeadQualityCounts>): LeadQualityCounts => ({
   campaign_id: "meta-1", leads: 0, attempted: 0, wrong_number: 0, reached: 0, not_qualified: 0, median_first_attempt_minutes: null, closed: {}, ...over,
 });
+/** A market reader that answers nothing — what the pack holds when BLS was not reached and nothing was kept. */
+const noMarket: MarketReader = { itemsFor: async () => [] };
+
 function quality(rows: LeadQualityCounts[] = []): LeadQuality & { asked: Array<[string, string]> } {
   const asked: Array<[string, string]> = [];
   return { asked, qualitySince: async (org, since) => { asked.push([org, since]); return rows; } };
@@ -35,7 +39,7 @@ describe("buildEvidencePack", () => {
   it("a carrier whose ads never ran is planned from the job and the benchmark alone", async () => {
     const rec = world();
     const q = quality();
-    const out = await buildEvidencePack({ admin: rec.client, now: () => NOW, quality: q }, { id: "c-1", org_id: ORG });
+    const out = await buildEvidencePack({ admin: rec.client, now: () => NOW, quality: q, market: noMarket }, { id: "c-1", org_id: ORG });
     if (!out.ok) throw new Error(out.error);
     expect(out.evidence).toEqual([...jobEvidence(brief), benchmarkEvidence()]);
     expect(out.brief).toEqual(brief);
@@ -47,7 +51,7 @@ describe("buildEvidencePack", () => {
   it("reads the last 28 days from the top of the hour, for this org only, in both readers", async () => {
     const rec = world();
     const q = quality();
-    await buildEvidencePack({ admin: rec.client, now: () => NOW, quality: q }, { id: "c-1", org_id: ORG });
+    await buildEvidencePack({ admin: rec.client, now: () => NOW, quality: q, market: noMarket }, { id: "c-1", org_id: ORG });
     expect(q.asked).toEqual([[ORG, "2026-10-18T18:00:00.000Z"]]);
     expect(rec.forTable("ads_ad_spend_hourly")[0]!.ops).toContainEqual({ method: "gte", args: ["hour", "2026-10-18T18:00:00.000Z"] });
     expect(rec.forTable("ads_campaigns")[0]!.ops).toContainEqual({ method: "eq", args: ["id", "c-1"] });
@@ -57,7 +61,7 @@ describe("buildEvidencePack", () => {
   it("holds the job, the benchmark, the lead counts and each concept's result, every id unique and of its kind", async () => {
     const rec = world({ hours: [hour("cr-1", 9_000, 3), hour("cr-2", 4_000, 0)] });
     const q = quality([counts({ leads: 10, attempted: 8, reached: 5, closed: { out_of_area: 4 } })]);
-    const out = await buildEvidencePack({ admin: rec.client, now: () => NOW, quality: q }, { id: "c-1", org_id: ORG });
+    const out = await buildEvidencePack({ admin: rec.client, now: () => NOW, quality: q, market: noMarket }, { id: "c-1", org_id: ORG });
     if (!out.ok) throw new Error(out.error);
     expect(evidencePackSchema.safeParse(out.evidence).success).toBe(true);
     expect(out.evidence.filter((e) => e.kind !== "job").map((e) => e.id)).toEqual([
@@ -67,15 +71,25 @@ describe("buildEvidencePack", () => {
     expectOrgScoped(rec, ORG);
   });
 
+  it("adds the market items its reader finds for the brief's area, after what we hold", async () => {
+    const asked: unknown[] = [];
+    const item = { id: "market:oews_us", kind: "market" as const, text: "BLS wage survey, 2025: a median.", source: "https://data.bls.gov/timeseries/OEUN000000000000053303213" };
+    const market: MarketReader = { itemsFor: async (area) => { asked.push(area); return [item]; } };
+    const out = await buildEvidencePack({ admin: world().client, now: () => NOW, quality: quality(), market }, { id: "c-1", org_id: ORG });
+    if (!out.ok) throw new Error(out.error);
+    expect(asked).toEqual([brief.area]);
+    expect(out.evidence).toEqual([...jobEvidence(brief), benchmarkEvidence(), item]);
+  });
+
   it("fails with its reason when the campaign is missing or its brief does not parse", async () => {
-    const deps = (rec: ReturnType<typeof world>) => ({ admin: rec.client, now: () => NOW, quality: quality() });
+    const deps = (rec: ReturnType<typeof world>) => ({ admin: rec.client, now: () => NOW, quality: quality(), market: noMarket });
     expect(await buildEvidencePack(deps(world({ campaign: false })), { id: "c-1", org_id: ORG })).toEqual({ ok: false, error: "the campaign was not found" });
     expect(await buildEvidencePack(deps(world({ snapshot: { subject: 7 } })), { id: "c-1", org_id: ORG })).toEqual({ ok: false, error: "the campaign's brief does not parse" });
   });
 
   it("refuses the pack, rather than hand on an item the contract does not allow, when a closed reason is not a plain key", async () => {
     const q = quality([counts({ leads: 2, closed: { "Not Interested!": 1 } })]);
-    const out = await buildEvidencePack({ admin: world().client, now: () => NOW, quality: q }, { id: "c-1", org_id: ORG });
+    const out = await buildEvidencePack({ admin: world().client, now: () => NOW, quality: q, market: noMarket }, { id: "c-1", org_id: ORG });
     expect(out.ok).toBe(false);
     expect(!out.ok && out.error).toMatch(/^the evidence pack does not hold: /);
   });
