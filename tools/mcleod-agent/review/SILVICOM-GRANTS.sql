@@ -192,6 +192,28 @@ GO
 
 
 -- ----------------------------------------------------------------------------------------
+-- PART 6 - REVISED RATE CONFIRMATIONS IN MCLEOD IMAGING (added 2026-11-18, NOT YET RUN)
+-- "Print to Billing" files a broker's RC in McLeod Imaging, whose index is the dta database
+-- (host MCLEODIMAGING). Read only, four tables:
+-- bolimgh   one row per load: load number, bill-to, number of images
+-- bolimgd   one row per image: load number, category, scan date, who scanned it, file name, volume
+-- imapcats  the category names (which one is "Rate Confirmation", which one is "Unknown")
+-- media     which volume and folder each image file sits in
+-- The login has no user in dta yet, so the first line creates one (no role, no write).
+-- Also needed, outside SQL: read-only access for the connector VM's service account to the
+-- imaging folder(s) the media rows name, so the connector can copy the RC PDF onto the case.
+-- ----------------------------------------------------------------------------------------
+USE dta;
+GO
+
+CREATE USER silvicom_dispatch_ro FOR LOGIN silvicom_dispatch_ro;
+GRANT SELECT ON dbo.bolimgh  TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.bolimgd  TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.imapcats TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.media    TO silvicom_dispatch_ro;
+GO
+
+-- ----------------------------------------------------------------------------------------
 -- CHECK (optional) - run in each database after its part. Each table from that part should
 -- show 1 (the finance tables show 0 on LME until Part 2 is run there), and the last line 0:
 -- the login can read, and cannot write.
