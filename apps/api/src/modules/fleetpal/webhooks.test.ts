@@ -5,6 +5,7 @@ import { testEnv } from "../../testing/testEnv.js";
 import { seal, secretAad } from "../../lib/secretBox.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { receiveDelivery, signedAtMs, subscribeAll, unsubscribeAll, verifyFleetpalSignature } from "./webhooks.js";
+import { FleetpalError } from "./errors.js";
 
 /**
  * F15's three done-whens, each a test here: a forged signature is rejected, a replayed
@@ -159,6 +160,17 @@ describe("subscribeAll / unsubscribeAll", () => {
     const r = await subscribeAll(rec.client, env, ORG, fp.client);
     expect((r as { failed: unknown[] }).failed).toHaveLength(FLEETPAL_WEBHOOK_EVENTS.length);
     expect(fp.calls.filter((c) => c.method === "PATCH" && c.body.is_active === false)).toHaveLength(FLEETPAL_WEBHOOK_EVENTS.length);
+  });
+
+  it("says who to ask when FleetPal's role policy refuses the key (403), with FleetPal's own words", async () => {
+    const rec = createSupabaseRecorder({ tables: { fleetpal_webhook_subscriptions: [] } });
+    const refused = { send: vi.fn(async () => { throw new FleetpalError('Access denied by policy "webhook-subscriptions"', "forbidden", 403); }) } as never;
+    const r = (await subscribeAll(rec.client, env, ORG, refused)) as { activated: string[]; failed: Array<{ event: string; error: string }> };
+    expect(r.activated).toEqual([]);
+    expect(r.failed).toHaveLength(FLEETPAL_WEBHOOK_EVENTS.length);
+    expect(r.failed[0]!.error).toContain("Ask FleetPal support to allow webhook subscriptions");
+    expect(r.failed[0]!.error).toContain('Access denied by policy "webhook-subscriptions"');
+    expect(rec.writtenRows("fleetpal_webhook_subscriptions")).toEqual([]);
   });
 
   it("refuses to subscribe without a public address", async () => {
