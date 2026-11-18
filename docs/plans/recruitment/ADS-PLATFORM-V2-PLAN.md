@@ -59,7 +59,7 @@ the rating page (https://claude.ai/artifact/KG1h65doetP92nctQvSvnx).
 | # | Work | Waits on | Why here |
 |---|---|---|---|
 | 1 | **L4 on Meta's sandbox** (`pnpm ads:certify`) and **the model sitting** (Q-APX12, Q-AD20). Fix what the sandbox refuses; move `META_GRAPH_VERSION` to v27.0 after reading its changelog | credentials | Everything else is built on readings only this can confirm |
-| 2 | **The Researcher and the swipe file** (V2's remainder) | nothing | The owner's first complaint was ads made "without any research"; a first campaign's plan today rests on the job and one benchmark |
+| 2 | **The research (V2r): market pay from BLS, the swipe file, the Researcher** (V2's remainder; D-AD35, D-AD36) | nothing — started 2026-11-18 | The owner's first complaint was ads made "without any research"; a first campaign's plan today rests on the job and one benchmark |
 | 3 | **V8 health page and the Overview's read** (API), then **V6 screens** | Q-APX18 for the screens | Running a real campaign needs somewhere to see it |
 | 4 | **Q-APX16 and Q-APX17** (budget in dollars; video at 1440 × 1800) | their rulings; the sandbox answers Q-APX17 | A real video cannot be bought or sent without them |
 | 5 | **The canary (L5):** one real campaign, small cap, launched by the owner, 72 hours | 1 and 4 | The gate to any automatic launch (Q-APX1 Level B) |
@@ -172,6 +172,51 @@ The campaign machine gains a state `planning` before `composing`.
 
 **Done when:** on the simulator a campaign cannot reach `composing` without a plan, and every angle in a stored
 plan cites evidence that exists.
+
+### V2r · The research: market pay, the swipe file, the Researcher (~2 days; designed 2026-11-18)
+
+V2 built the pack from what we hold (the job, our results, our leads, one benchmark). Audit A-5: two of its six
+kinds, `market` and `swipe`, have no builder, so a first campaign is planned from the job and one benchmark. This
+step builds both.
+
+**What was read (2026-11-18).** `bls.gov` answers **403** to a server's request for its occupation pages (the
+Occupational Outlook page and the OEWS page for 53-3032, both measured). The BLS public data API
+(`api.bls.gov/publicAPI/v1/timeseries/data/`, no key: 25 requests a day, 25 series a request) answered the OEWS
+series for heavy and tractor-trailer truck drivers (SOC 53-3032) for 2025: the nation's annual median $58,640,
+hourly median $28.19, lowest tenth $40,140, highest tenth $79,380; Illinois's median $60,320; Texas's $56,290.
+O*NET's local-wages page (`onetonline.org`, which states BLS as its source) shows the same figures, which is how
+the datatype codes 13 (annual median), 08 (hourly median), 11 (10th percentile) and 15 (90th percentile) were
+confirmed. CareerOneStop answers 403 as well.
+
+- **D-AD35 · Market pay is read by code from the BLS API, never by a model and never by a web search.** A wage
+  is a number in a published series; a model reading a wage page can misread it, an API row cannot. The state is
+  the one the ad's area is centred in (`hereReverseGeocodeState`, the reader the fuel planner already uses); the
+  items say so, because a 300-mile circle can cross states. Each answer is kept in `ads_market_wages` (one row a
+  series and year, global, public data) and asked again after 30 days, so a hundred campaigns do not spend the
+  keyless day's 25 requests. A failed read yields no market item and the plan is made without one — what the pack
+  does not hold is said by its absence, as for leads — and the failure is logged.
+- **D-AD36 · The Researcher reads only pages a person saved; it never searches and never follows a link.** V2's
+  "web search held to an allow-list of sites" becomes: the list is the carrier's swipe file, and each entry is a
+  page a recruiter chose. A page a model found by searching is a source nobody approved, and its ranking is not
+  ours to cite. The fetch is code's: https on port 443 only, every address the host resolves to must be public
+  (no private, loopback or link-local range), redirects followed at most three times with each hop checked the
+  same way, HTML or plain text only, 2 MB and 10 seconds at most. The page's text is handed to the model as data
+  in a field, never as instruction (the rule Ask AI keeps).
+- **Every item the Researcher writes carries a verbatim quote, and code holds it to the page.** The quote must be
+  found in the text that was fetched (spacing normalised, nothing else); every figure in the item's sentence must
+  appear in its quote. An item that fails either is dropped and counted; a page with none left is "nothing could
+  be read from it", shown on the entry. So an instruction planted in a page can at most produce a true quote of
+  that page, attributed to it.
+- **The swipe file holds pictures and pages.** A picture (a competitor's ad, saved with a note) is described by a
+  vision call into what it leads with and what it shows, in the closed hook and scene lists the plan uses; a page
+  is read by the Researcher. Both become evidence items with the entry's date, and items older than 180 days
+  stay out of the pack.
+- New workers (Researcher, Swipe reader) enter the readiness registry at L0 and are recorded on fixture pages and
+  pictures, the size said before each recording.
+
+**Done when:** a campaign whose area is centred in a US state carries market items from BLS with the year; a
+saved page yields items whose quotes are found in it and a planted page (a quote not on it, a figure not in the
+quote, an instruction in its text) yields none of the planted ones; a saved picture yields one swipe item.
 
 ### V3 · Design quality (~6 days)
 
@@ -486,7 +531,7 @@ video against stills (cheaper impressions for stills, more engagement for video)
 follow when counsel's release and Q-APX5 are settled. `ads_ad_spend_hourly` already holds per-ad figures, so the
 answer for this carrier is measured in its first month instead of taken from a vendor.
 
-### Q-APX5 · Speech-to-text for driver clips — read 2026-11-17, open
+### Q-APX5 · Speech-to-text for driver clips — RULED (a), 2026-11-18
 
 A driver clip (V4) needs its speech as text with the time of every word, in English and Spanish, to draw captions.
 
@@ -740,7 +785,7 @@ finished ad should stay on screen at the end, or for the shortest time a line ma
 - (b) The model's sound, listened to by a person at review. One more thing to approve on every ad, with no check
   behind it.
 
-### Q-APX16 · The picture budget is in a unit Higgsfield does not have — open
+### Q-APX16 · The picture budget is in a unit Higgsfield does not have — RULED (a), 2026-11-18
 
 **What was read (2026-11-17).** Four of Higgsfield's pages: pricing, "Billing and retention", "Requests", and
 "Usage and billing". The word "credits" is on none of them. Prices are dollars a second; the account holds funds
@@ -770,7 +815,7 @@ is nothing to convert to. (Credits are the unit of Higgsfield's consumer plans, 
 
 Until this is ruled no video model has a price and a clip on a real key is refused before any call.
 
-### Q-APX17 · Our video is 1080 pixels wide; Meta's video-ads page says 1,200 at least — open
+### Q-APX17 · Our video is 1080 pixels wide; Meta's video-ads page says 1,200 at least — RULED (a), 2026-11-18
 
 **What was read (2026-11-17).** Meta's "FB Video Ads" guide (Marketing API), which the pages read on 2026-11-16
 did not include. It gives, for a video uploaded to an ad account: "MP4 (recommended)"; aspect ratio "16:9
@@ -796,7 +841,7 @@ Whether Meta REFUSES a 1080-wide video or only advises against it is not on eith
 Nothing is changed until this is ruled. It must be settled before the publisher's video road is certified (L4).
 
 
-### Q-APX18 · Where the Ads workspace sits, and what moves into it — open
+### Q-APX18 · Where the Ads workspace sits, and what moves into it — RULED (a), 2026-11-18
 
 **What was read (2026-11-17), in the code and the earlier rulings.** Ads live in two places today:
 `/recruitment/campaigns`, the seventh tab of the Recruitment page (`RecruitmentTabs.vue`), and
@@ -822,7 +867,7 @@ to the `recruitment` section; spend, launch and ad accounts are admin-only on to
 **What does not wait on this:** the Overview's read (running, spent, leads, what needs a person, the ledger as a
 timeline) and V8's health read are API work with the same content under any of the three.
 
-### Q-APX19 · What the next three days hold — open
+### Q-APX19 · What the next three days hold — RULED (a), 2026-11-18
 
 **What was read (2026-11-18).** §0.3's order and this plan's estimates; the audit of the same day.
 
@@ -887,13 +932,13 @@ is 100%."*** Taken as:
 | Id | Question | Recommendation | Who |
 |---|---|---|---|
 | Q-APX1–4 | — | **ruled 2026-11-14, §5a** | — |
-| Q-APX5 | Speech-to-text provider | **read 2026-11-17: (a) Amazon Transcribe** | owner |
+| Q-APX5 | Speech-to-text provider | **ruled (a) Amazon Transcribe, 2026-11-18, §5a** | — |
 | Q-APX6 | Planning mandatory, or the carrier's choice | **ruled (b) 2026-11-15, §5a** | — |
 | Q-APX7–15 | — | **ruled 2026-11-16 as proposed, §5a**; Q-APX12's sitting still waits on the Higgsfield key | — |
-| Q-APX16 | The picture budget is in "credits"; Higgsfield's API bills dollars and has a price call | (a) budget in dollars, price asked from `/estimate` | owner |
-| Q-APX17 | Our video is 1080 wide; Meta's video-ads page says 1,200 at least | (a) paint the motion ad at 1440 × 1800 | owner |
-| Q-APX18 | Where the Ads workspace sits, and whether Leads and Openings move into it | (a) its own sidebar section; Leads and Openings stay Recruitment's and are linked | owner |
-| Q-APX19 | What the next three days hold | (a) prove what is built on the sandbox, add the Researcher, then the health page | owner |
+| Q-APX16 | The picture budget is in "credits"; Higgsfield's API bills dollars and has a price call | **ruled (a) 2026-11-18, §5a**: budget in dollars, price asked from `/estimate` | — |
+| Q-APX17 | Our video is 1080 wide; Meta's video-ads page says 1,200 at least | **ruled (a) 2026-11-18, §5a**: paint the motion ad at 1440 × 1800 | — |
+| Q-APX18 | Where the Ads workspace sits, and whether Leads and Openings move into it | **ruled (a) 2026-11-18, §5a**: its own sidebar section; Leads and Openings stay Recruitment's and are linked | — |
+| Q-APX19 | What the next three days hold | **ruled (a) 2026-11-18, §5a**: sandbox when credentials arrive, the research (V2r), then the health read | — |
 | — | Meta app, system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 **2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want
@@ -911,6 +956,22 @@ this to be high grade and really good quality, modern and in trending."*** Taken
 - **"Modern and trending" is a goal, not a measurement.** What it changes in the order of work: the motion's
   entrance and settle were added to the join now rather than later, and the comparison of real clips (Q-APX12) is
   the first thing to do when the key exists, because no rule of ours can make a poor clip look good.
+
+**2026-11-18, the owner, to Q-APX5, Q-APX16 to Q-APX19 and the open reading on a video that cannot be made, as
+asked in one message: *"Ok proceed as recommended and proposed."*** Taken as:
+
+- **Q-APX19 RULED (a).** The sandbox run and the sitting when the credentials arrive; until then the research
+  (V2r below), then the health read and the Overview's read. No credentials came with the ruling, so V2r is first.
+- **Q-APX18 RULED (a).** Ads is its own sidebar section (Overview, Campaigns, Creative studio, Automation,
+  Settings); Leads and Openings stay Recruitment's tabs and are linked; the two old addresses redirect.
+- **Q-APX16 RULED (a).** The picture and video budget becomes US cents a month, each price asked from Higgsfield's
+  `/estimate` and written on the row. Built after the health read (§0.3 row 4).
+- **Q-APX17 RULED (a).** The motion ad is painted at 1440 × 1800; the still stays 1080 × 1350.
+- **Q-APX5 RULED (a).** Amazon Transcribe, its "used to improve the service" default switched off by an AWS
+  Organizations opt-out policy before the first clip. Waits on the driver clip, which waits on counsel (A-14).
+- **A video that cannot be made leaves the ad in review as its still.** This is what `compose/composeCreative.ts`
+  `motionOf` already does (the creative goes to review as the still, and `checks.motion` says why there is no
+  video); the ruling confirms it, and nothing changes.
 
 ## Sources (read 2026-11-14)
 
