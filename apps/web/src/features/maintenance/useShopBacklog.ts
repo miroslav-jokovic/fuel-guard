@@ -1,4 +1,3 @@
-import { computed, type Ref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
 import type { AnnualDisagreementDto, AnnualDueDto, ShopDefectDto, ShopSummary, ShopWorkOrderDto } from "@silvicom/shared";
