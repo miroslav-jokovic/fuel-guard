@@ -1,5 +1,22 @@
 import { describe, it, expect } from "vitest";
-import { describeDriverEdit, formatDate, formatDateTime, formatPhone } from "./format";
+import { describeDriverEdit, formatDate, formatDateTime, formatPhone, phoneDialString } from "./format";
+
+describe("phoneDialString", () => {
+  it("dials every US shape Samsara stores as +1 and ten digits", () => {
+    for (const raw of ["5125550134", "+15125550134", "15125550134", "512-555-0134", "(512) 555-0134"]) {
+      expect(phoneDialString(raw)).toBe("+15125550134");
+    }
+  });
+  it("keeps an international number as stored, with its plus", () => {
+    expect(phoneDialString("+44 20 7946 0958")).toBe("+442079460958");
+  });
+  it("gives no number for a blank or a value no phone could dial", () => {
+    expect(phoneDialString(null)).toBeNull();
+    expect(phoneDialString("   ")).toBeNull();
+    expect(phoneDialString("n/a")).toBeNull();
+    expect(phoneDialString("ext 42")).toBeNull();
+  });
+});
 
 describe("formatDate", () => {
   it("formats a calendar date without timezone shifting", () => {
