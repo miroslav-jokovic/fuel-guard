@@ -24,6 +24,26 @@ export function formatPhone(raw: string | null | undefined): string {
 }
 
 /**
+ * The number a device dials or texts for a stored phone — the body of a `tel:`/`sms:` link — or null
+ * when there is nothing a phone could dial.
+ *
+ * Reads the same mixed Samsara shapes `formatPhone` does, and agrees with it on what a US number is:
+ * a clean 10-digit (or leading-1 11-digit) number dials as `+1XXXXXXXXXX`, so a phone roaming abroad
+ * or set to another region still reaches it. Anything else keeps its own `+` and digits — an
+ * international number is dialled as stored rather than guessed at — and fewer than seven digits is
+ * not a phone number at all ("ext. 4", "n/a"), so it gets no link rather than a link that dials junk.
+ */
+export function phoneDialString(raw: string | null | undefined): string | null {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  if (digits.length < 7) return null;
+  return trimmed.startsWith("+") ? `+${digits}` : digits;
+}
+
+/**
  * The product's date, `MM/DD/YYYY`, defined once in `@silvicom/shared` (D-DS17, extended from the
  * picker to the whole product on 2026-09-20).
  *

@@ -19,7 +19,8 @@ import StatusBadge from "@/components/StatusBadge.vue";
 import NotesCell from "@/components/notes/NotesCell.vue";
 import { useUnitNoteSummary } from "@/components/notes/useUnitNotes";
 import { useDriversQuery } from "@/composables/useDrivers";
-import { formatPhone, formatDate } from "@/lib/format";
+import PhoneContact from "@/components/PhoneContact.vue";
+import { formatDate } from "@/lib/format";
 import { BADGE_BASE, appAccessBadge, dqExpiryBadge, hosStatusBadge, toneClass } from "@/lib/badges";
 
 /**
@@ -162,7 +163,7 @@ const notes = useUnitNoteSummary("driver", useDriversQuery().dataUpdatedAt);
     @retry="emit('retry')"
   >
     <template #cell-samsara_username="{ row }">{{ row.samsara_username || "—" }}</template>
-    <template #cell-phone="{ row }">{{ formatPhone(row.phone) }}</template>
+    <template #cell-phone="{ row }"><PhoneContact :phone="row.phone" :name="row.full_name" /></template>
     <template #cell-current_hos_status="{ row }">
       <span
         v-if="row.current_hos_status"

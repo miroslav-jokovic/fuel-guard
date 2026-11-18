@@ -123,6 +123,8 @@ export {
   ArrowUp02Icon               as ArrowUpIcon,
   ArrowExpand01Icon           as ArrowsPointingOutIcon,
   PencilEdit02Icon            as PencilSquareIcon,
+  Call02Icon                  as PhoneIcon,                      // call a driver from a touched device
+  Message01Icon               as ChatBubbleIcon,                 // text a driver from a touched device
   SmartPhone01Icon            as DevicePhoneMobileIcon,          // Driver App settings card
 
   // ── Time / calendar ─────────────────────────────────────────────────────
