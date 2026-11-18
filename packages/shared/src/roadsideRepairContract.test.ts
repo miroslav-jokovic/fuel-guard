@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { byRepairUrgency, repairAlertStage, repairClock, repairDueOn } from "./roadsideRepairContract.js";
+import { byRepairUrgency, repairAlertStage, repairClock, repairDueOn, repairOpen } from "./roadsideRepairContract.js";
 
 describe("the 396.9(d) clock", () => {
   it("is due fifteen calendar days after the inspection, across a month end", () => {
@@ -14,7 +14,7 @@ describe("the 396.9(d) clock", () => {
 });
 
 describe("when a repair rings the bell", () => {
-  const open = { decision: null, proposal: { outcome: "no_candidate" as const, candidates: [], readAt: "x" }, dueOn: "2026-10-21" };
+  const open = { decision: null, proposal: { outcome: "no_candidate" as const, candidates: [], readAt: "x" }, dueOn: "2026-10-21", beforeRecord: false };
   it("rings from three days before the due day, then for the week after it, and never once settled", () => {
     expect(repairAlertStage(open, "2026-10-17")).toBeNull();
     expect(repairAlertStage(open, "2026-10-18")).toBe("due_soon");
@@ -23,6 +23,12 @@ describe("when a repair rings the bell", () => {
     expect(repairAlertStage(open, "2026-10-28")).toBe("overdue");
     expect(repairAlertStage(open, "2026-10-29")).toBeNull();
     expect(repairAlertStage({ ...open, proposal: { ...open.proposal, outcome: "repaired_at_scene" } }, "2026-10-21")).toBeNull();
+  });
+
+  it("⚠ never rings for a unit inspected before the repair record began (RR4)", () => {
+    expect(repairAlertStage({ ...open, beforeRecord: true }, "2026-10-21")).toBeNull();
+    expect(repairOpen({ ...open, beforeRecord: true })).toBe(false);
+    expect(repairOpen(open)).toBe(true);
   });
 });
 

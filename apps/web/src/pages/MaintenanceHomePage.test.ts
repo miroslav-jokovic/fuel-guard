@@ -129,7 +129,12 @@ describe("the tabs", () => {
   });
 
   it("counts only the roadside repairs still open", () => {
-    repairs.value = [repair, { ...repair, unitId: "u2", decision: { decidedAt: "2026-10-01" } } as unknown as RoadsideRepairDueDto];
+    repairs.value = [
+      repair,
+      { ...repair, unitId: "u2", decision: { decidedAt: "2026-10-01" } } as unknown as RoadsideRepairDueDto,
+      // RR4: from before the repair record — on its own list, never in the count.
+      { ...repair, unitId: "u3", beforeRecord: true } as unknown as RoadsideRepairDueDto,
+    ];
     expect(tabLabels(page())[0]).toBe("Roadside repairs 1");
   });
 

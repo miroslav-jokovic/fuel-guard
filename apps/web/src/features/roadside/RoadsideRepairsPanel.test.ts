@@ -45,7 +45,7 @@ const RepairUnitDecision = (await import("@/features/roadside/RepairUnitDecision
 
 const unit = (unitId: string, dueOn: string, o: Partial<RoadsideRepairDueDto> = {}): RoadsideRepairDueDto => ({
   unitId, unit: { seq: 1, kind: "tractor", companyNumber: unitId }, violations: [{ code: "393.47D", description: "Brakes" }], dueOn,
-  proposal: { outcome: "no_candidate", candidates: [], readAt: "x" }, decision: null, basedOn: `r-${unitId}`, invoiceCounts: {},
+  proposal: { outcome: "no_candidate", candidates: [], readAt: "x" }, decision: null, basedOn: `r-${unitId}`, invoiceCounts: {}, beforeRecord: false,
   inspection: { id: `insp-${unitId}`, reportNumber: `IL${unitId}`, reportState: "IL", inspectionDate: "2026-10-06", locationDesc: "I-55" },
   ...o,
 });
@@ -110,6 +110,23 @@ describe("roadside repairs due", () => {
 
   it("says so when nothing is open", async () => {
     due.value = [unit("700", "2026-10-10", { decision: recorded })];
-    expect((await page()).w.text()).toContain("Every roadside repair of the last year is recorded.");
+    expect((await page()).w.text()).toContain("Every roadside repair since the repair record began is recorded.");
+  });
+
+  it("keeps a unit from before the repair record out of Open, under its own Show, past due without the alarm (RR4)", async () => {
+    due.value = [unit("612", "2026-10-21"), unit("400", "2026-09-20", { beforeRecord: true })];
+    expect(unitsListed((await page()).w)).toEqual(["Truck 612"]);
+    const { w } = await page("?show=history");
+    expect(unitsListed(w)).toEqual(["Truck 400"]);
+    expect(w.get("[data-test='repair-due-badge']").text()).toBe("29 days past due");
+    expect(w.get("[data-test='repair-due-badge']").classes().join(" ")).not.toContain("danger");
+  });
+
+  it("arriving from the bell on an old inspection, opens the list that holds it", async () => {
+    due.value = [unit("400", "2026-09-20", { beforeRecord: true })];
+    const { router } = await page("?inspection=insp-400");
+    await flushPromises();
+    expect(router.currentRoute.value.query.show).toBe("history");
+    expect(router.currentRoute.value.query.unit).toBe("400");
   });
 });

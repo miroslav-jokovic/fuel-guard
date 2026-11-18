@@ -13,7 +13,7 @@ import {
   TablePagination,
   sortRows,
 } from "@silvicom/ui";
-import { repairSettled, type RoadsideRepairDueDto, type UnitAttentionDto, type UnitKitDto } from "@silvicom/shared";
+import { repairOpen, type RoadsideRepairDueDto, type UnitAttentionDto, type UnitKitDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
@@ -84,7 +84,7 @@ const reasonsOf = computed(() => new Map((attentionQ.data.value ?? []).map((a: U
 const roadsideOf = computed(() => {
   const m = new Map<string, RoadsideRepairDueDto>();
   for (const r of roadsideQ.data.value ?? []) {
-    if (repairSettled(r) || !r.unit.companyNumber) continue;
+    if (!repairOpen(r) || !r.unit.companyNumber) continue;
     const key = `${r.unit.kind}:${r.unit.companyNumber}`;
     if (!m.has(key)) m.set(key, r);
   }

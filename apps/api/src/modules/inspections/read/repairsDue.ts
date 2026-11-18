@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { countWorkOrderInvoices } from "../../fleetpal/index.js";
-import { REPAIR_LOOKBACK_DAYS, REPAIR_VIOLATION_PARTS, shiftDay, type CalendarDay, type RoadsideRepairDueDto } from "@silvicom/shared";
+import { REPAIR_LOOKBACK_DAYS, REPAIR_VIOLATION_PARTS, shiftDay, todayInZone, type CalendarDay, type RoadsideRepairDueDto } from "@silvicom/shared";
+import { orgTimezone } from "../../org/index.js";
 import { mapPool } from "../../../lib/mapPool.js";
 import { readRoadsideInspections, type DbError } from "./inspectionsList.js";
 import {
@@ -56,6 +57,19 @@ async function repairRows(admin: SupabaseClient, orgId: string, ids: readonly st
   }
 }
 
+/**
+ * The carrier's calendar day its repair record began: the day, on its own clock, of its first engine reading
+ * (ROADSIDE-REPAIR-FLOW-PLAN RR4, Q-RR2 (a)). Read from the record rather than written down as 2026-10-16, so a
+ * carrier connected later is split at its own first day. Null before the engine has read anything.
+ */
+async function recordStartedOn(admin: SupabaseClient, orgId: string): Promise<{ day: CalendarDay | null } | { error: DbError }> {
+  const first = await admin.from("inspection_repairs").select("created_at").eq("org_id", orgId).eq("source", "engine")
+    .order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (first.error) return { error: first.error };
+  const at = (first.data as { created_at: string } | null)?.created_at;
+  return { day: at ? todayInZone(new Date(at), await orgTimezone(admin, orgId)) : null };
+}
+
 export async function readRepairsDue(
   admin: SupabaseClient,
   orgId: string,
@@ -98,13 +112,19 @@ export async function readRepairsDue(
 
   const head = new Map(inspections.map((i) => [i.id, i]));
   const out: RoadsideRepairDueDto[] = [];
-  const [labels, invoices] = await Promise.all([deciderLabels(admin, orgId, rows), countWorkOrderInvoices(admin, orgId, workOrderIdsOf(rows))]);
+  const [labels, invoices, startedOn] = await Promise.all([
+    deciderLabels(admin, orgId, rows),
+    countWorkOrderInvoices(admin, orgId, workOrderIdsOf(rows)),
+    recordStartedOn(admin, orgId),
+  ]);
+  if ("error" in startedOn) return startedOn;
   for (const repair of buildRepairs(rows, units, violations, labels, invoices)) {
     const i = head.get(inspectionOf.get(repair.unitId) ?? "");
     if (!i?.inspectionDate) continue;
     out.push({
       ...repair,
       inspection: { id: i.id, reportNumber: i.reportNumber, reportState: i.reportState, inspectionDate: i.inspectionDate, locationDesc: i.locationDesc },
+      beforeRecord: startedOn.day !== null && i.inspectionDate.slice(0, 10) < startedOn.day,
     });
   }
   // Soonest due first; the page and the Shop home's preview cut from the top.

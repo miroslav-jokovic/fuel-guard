@@ -212,6 +212,23 @@ export function repairClock(dueOn: CalendarDay, today: CalendarDay): { overdue: 
  */
 export interface RoadsideRepairDueDto extends RoadsideRepairDto {
   inspection: { id: string; reportNumber: string | null; reportState: string | null; inspectionDate: string; locationDesc: string | null };
+  /**
+   * Inspected before this carrier's repair record began (ROADSIDE-REPAIR-FLOW-PLAN RR4, Q-RR2 ruled (a)
+   * 2026-11-18): the inspection's day is earlier than the carrier's first engine reading, on its own clock.
+   * Such a unit is kept and decidable, on its own "Before the repair record" list, but it is not counted as
+   * open or overdue and never rings — measured: 142 of the 147 waiting units were history nobody could
+   * have recorded in time, and they hid the live ones (15 of 18 recent units undecided).
+   */
+  beforeRecord: boolean;
+}
+
+/**
+ * A repair still waiting on a person, for every count, list and bell that means "to do now" (RR4). Not the
+ * certification's question — that is `repairSettled`, and a unit before the record still has to be settled
+ * before its inspection can be certified.
+ */
+export function repairOpen(r: Pick<RoadsideRepairDueDto, "decision" | "proposal" | "beforeRecord">): boolean {
+  return !repairSettled(r) && !r.beforeRecord;
 }
 
 /** How close to its due day a unit must be before the bell speaks: three days, the Repair card's warning tone. */
@@ -229,8 +246,8 @@ export const REPAIR_ALERT_DAYS_AFTER = 7;
  * days before its due day, `overdue` for the week after it; never once settled. Each stage rings once per
  * unit (the alert's dedupe key carries it), so a unit is announced at most twice.
  */
-export function repairAlertStage(r: Pick<RoadsideRepairDto, "decision" | "proposal" | "dueOn">, today: CalendarDay): "due_soon" | "overdue" | null {
-  if (repairSettled(r)) return null;
+export function repairAlertStage(r: Pick<RoadsideRepairDueDto, "decision" | "proposal" | "dueOn" | "beforeRecord">, today: CalendarDay): "due_soon" | "overdue" | null {
+  if (!repairOpen(r)) return null;
   const c = repairClock(r.dueOn, today);
   if (!c.overdue) return c.days <= REPAIR_ALERT_DAYS_BEFORE ? "due_soon" : null;
   return c.days <= REPAIR_ALERT_DAYS_AFTER ? "overdue" : null;

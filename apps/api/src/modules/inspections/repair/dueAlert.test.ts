@@ -23,7 +23,7 @@ const { alertRepairsDue, repairDueNotice } = await import("./dueAlert.js");
 
 const unit = (o: Partial<RoadsideRepairDueDto> = {}): RoadsideRepairDueDto => ({
   unitId: "u-1", unit: { seq: 1, kind: "tractor", companyNumber: "612" }, violations: [], dueOn: "2026-10-21",
-  proposal: { outcome: "no_candidate", candidates: [], readAt: "x" }, decision: null, basedOn: "r-1", invoiceCounts: {},
+  proposal: { outcome: "no_candidate", candidates: [], readAt: "x" }, decision: null, basedOn: "r-1", invoiceCounts: {}, beforeRecord: false,
   inspection: { id: "insp-1", reportNumber: "IL0912", reportState: "IL", inspectionDate: "2026-10-06", locationDesc: null },
   ...o,
 });

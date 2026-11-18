@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { AppTabs, useQueryState } from "@silvicom/ui";
-import { repairSettled, SHOP_ANNUAL_DUE_TAB, SHOP_QUERY_KEYS } from "@silvicom/shared";
+import { repairOpen, SHOP_ANNUAL_DUE_TAB, SHOP_QUERY_KEYS } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import WalkActions, { type WalkAction } from "@/components/WalkActions.vue";
 import { useAnnualDueQuery, useOpenWorkOrdersQuery, useUnresolvedDefectsQuery } from "@/features/maintenance/useShopBacklog";
@@ -51,7 +51,7 @@ const roadsideOpen = computed(() => opens("/shop/roadside-repairs"));
 const roadsideQ = useRoadsideRepairsDueQuery(roadsideOpen);
 
 const count = (rows: unknown[] | undefined) => (rows ? rows.length || undefined : undefined);
-const roadsideDue = computed(() => (roadsideQ.data.value ? roadsideQ.data.value.filter((r) => !repairSettled(r)) : undefined));
+const roadsideDue = computed(() => (roadsideQ.data.value ? roadsideQ.data.value.filter(repairOpen) : undefined));
 
 /** Deadline order, which is also the order a quiet-day fallback walks. */
 const ALL_TABS = [
