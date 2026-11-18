@@ -1,6 +1,6 @@
 # Finance — toll expenses per truck, from the toll providers' own statements
 
-**Status:** IN BUILD — TL1–TL3, TL2b and TL4a built; TL4b and TL5 wait on the sample files (§6 Q-TL1). **Owner:**
+**Status:** IN BUILD — TL1–TL3, TL2b and TL4a built; sample files in (§1.3), TL5 next, then TL4b, TL4c, TL8a–b, TL6. **Owner:**
 Miki. **Written:** 2026-11-16, from the owner's request that day and a read-only measurement of
 production Supabase taken the same afternoon.
 
@@ -63,6 +63,63 @@ Production `mcleod_gl_totals`, accounts `40790000 Tolls` and `40790002 Tolls OO`
 So "support PDF, CSV, XLSX and XLS" is mostly a matter of routing through what exists. One thing
 genuinely new is needed: a reader per provider that turns those grids or words into toll lines.
 
+### 1.3 Measured 2026-11-18, from the real statements (Q-TL1 answered)
+
+The owner downloaded 18 statements and two lists into a local folder (never the repo: they carry
+account numbers). Read on the owner's machine only. Production held 0 statements and 0 tags that day.
+
+**The statements.** Every file is a PDF with a text layer, so none needs OCR (D-TL7). Each one prints
+totals that the lines can be held to:
+
+| Provider | Files | Billed on | Lines a month | Printed control the lines tie to |
+|---|---|---|---:|---|
+| **E-ZPass**, NJ service centre (answers Q-TL2) | 5 monthly, 04/27 → 09/26 | 11-digit tag (97% of $), `ILP<plate>` pay-by-plate (3%) | 2,300–3,130 | "Tolls, Non-Tolls and Fees" plus a running BALANCE on every line. The April file: $45,489.91 tolls + $1.00 fee = $45,490.91 printed |
+| **K-TAG**, DriveKS / Kansas Turnpike | 7 monthly, Apr → Oct | `KTA.<8 digits>` transponder (99.8%), `IL-P<plate>` | 1,570–2,130 | "Tolls" in the Billing Period Summary. All seven months tie to the cent |
+| **ExpressToll**, Colorado | 6 monthly, 04/28 → 10/27 | Device + plate, but 98% of lines are camera (`VTOLL`/`IOPVTOLL`) by **plate** | 100–160 | "Grand Total" and "Total Tolls". The per-device "Total:" lines sum to twice the tolls, because the grand total is printed in the same form |
+
+E-ZPass also prints lines that are not tolls: `Prepaid Payment` (account top-ups, $208,000 over 5
+months), `Tagsale`, `Service Fee`, `Adjustment`. Tolls ran $33k–$45k a month on E-ZPass, ~$12k on
+K-TAG and $1.3k–$1.8k on ExpressToll.
+
+**The identifiers.** No VIN appears in any statement. The owner supplied two lists: the
+"truck physical list" (230 truck → E-ZPass tag lines, a "for sale" section of 37 trucks, no dates)
+and a DriveKS vehicle inventory export (215 vehicles, 206 K-TAGs, as of 2026-11-18). The second is an
+`.xlsx` that ExcelJS cannot open (`reading 'sheets'`): a non-standard package that only a
+tolerant reader handles.
+
+**Matched by the lists alone.** E-ZPass matches 90.1–95.6% of each month's dollars. K-TAG matches 96.6%
+in October, falling to 62.7% in April. ExpressToll matches 88% by plate. The lists are today's
+snapshot, and the statements reach back to April.
+
+**Why the rest does not match.** Each unmatched line was put to Samsara's location history, which
+reaches back to April 2026 and still carries sold trucks (`556 - SOLD`). Plaza positions were learned
+from the tolls whose truck the list already knew: 236 plazas, 172 placed within 3 km. Each unmatched
+tag's tolls were checked against the truck within ~2 km of the plaza at that minute, with a majority
+over up to 8 tolls on different days.
+
+- **Control first:** 40 tags the lists do know were put through the same check. 38 agreed, 1 had too
+  few tolls, and 1 disagreed. The disagreement was the list being stale: tag `02210699936` is listed
+  on for-sale truck 604, and GPS puts it on new truck 842.
+- **K-TAG:** $21,597.62 not matched by the list. GPS names one truck for $19,864.44 (67 tags), and
+  $1,733.18 (12 tags, most with 1–2 tolls) is left open.
+- **E-ZPass** (after the list's typos are corrected): $10,598.56 not matched. GPS names the truck for
+  $10,288.39 (11 tags), and $310.17 (2 tags) is left open.
+- **The causes, in order of dollars:** (1) **sold trucks.** None of the 37 for-sale trucks is on the
+  K-TAG list, yet they drove through the summer. (2) **Tags moved or replaced.** About 20 current trucks
+  carried a different K-TAG earlier in the year. (3) **Typos in the truck list:** a dropped `2`
+  (`00216433472` for `02216433472`), extra digits (`003300025570`, `022164430651`), and one tag
+  entered on two trucks (802/803, 552/833). (4) **Plates change too.** Truck 763 went from P1334063 to
+  P1372671, so an E-ZPass plate toll on the old plate matched nothing. (5) **Trailer plates.**
+  ExpressToll's camera read a trailer's `…ST` plate on 18 devices (~$900), and those trailer plates are
+  in `trailers.plate`.
+- **The DriveKS account carries placeholder plates:** about 60 `IL-TEMP…`/`IL-SPG…` plates, a typo
+  (707 shows `P123799` for `P1273799`), and 7 trucks listed twice. So a K-TAG is matched on the
+  transponder number only, never on the plate the account shows.
+
+The scripts that did this live outside the repo (session scratchpad). The rules they used are
+D-TL14–D-TL16 below, and the product re-derives everything from the uploaded files and Samsara. Nothing
+in the product depends on a figure in this section.
+
 ---
 
 ## 2. Decisions
@@ -107,6 +164,56 @@ genuinely new is needed: a reader per provider that turns those grids or words i
   `equipment` section, the one that gates Vehicles. Uploading statements and reading per-truck tolls
   uses the `accounting` section. No role list is written by hand.
 
+**Added 2026-11-18, from §1.3. The owner asked for "100% results and precision".** That phrase is
+held to the two definitions below, so that it can be checked, not just claimed.
+
+- **D-TL12 — "100%" means four checks, each of which can be run.** (1) **Complete:** every line of
+  every statement is read, and the lines tie to the statement's printed total to the cent (D-TL6).
+  (2) **Classified:** every line is a toll, or one of the named non-toll kinds (account payment, tag
+  purchase, service fee, adjustment), so a $49,000 top-up is never charged to a truck. (3)
+  **Attributed:** every toll names one truck, or sits in review with its reason in words. A month is
+  **closed** only when review holds $0.00 for that month. (4) **Verified:** every attributed toll
+  carries a GPS verdict (D-TL14). "100% precise" means no toll in a closed month has a *contradicted*
+  verdict. A closed month's per-truck tolls therefore add up to the statements to the cent, and each
+  one was checked against where the truck actually was. Nothing short of that is called 100%.
+- **D-TL13 — Every toll on a truck states its evidence.** One of `tag` (the tag's dated history),
+  `plate` (the plate's dated history, D-TL16), `trailer` (a trailer plate, resolved to the truck
+  pulling it, D-TL16), or `office` (a person's decision recorded with a reason). The evidence is
+  derived at read time like the truck (D-TL3). The page shows it, and an `office` attribution is
+  counted separately so it can never pass for measured evidence.
+- **D-TL14 — GPS checks the attribution and never makes it.** Each plaza (provider, agency, plaza code)
+  gets a position and its own time zone in `toll_plazas`. The position is learned from tolls whose
+  truck is already known: median of the truck's Samsara positions at those minutes, kept only when
+  the spread is under 3 km over at least 3 tolls. Each attributed toll is then given a verdict:
+  `confirmed` (the truck was within 2 km of the plaza within ±3 minutes), `contradicted` (the truck
+  was elsewhere and another truck was at the plaza), or `no_evidence` (the plaza is not placed yet, no
+  Samsara points, or a parked truck). Only the verdict, the distance and the point's time are stored,
+  never breadcrumbs (the database is small). A contradicted toll goes to review. The plaza's own zone
+  replaces D-TL4's "org zone ± 2 hours", so `SWAP_MARGIN_MS` can narrow to the ±3 minutes the GPS
+  check uses.
+- **D-TL15 — Tag history from GPS is proposed, then recorded by a person.** When a tag's tolls reach no
+  truck, or reach the wrong one, the system proposes "tag X on truck Y from <first toll> to <last
+  toll>". It does so only when at least 3 tolls on 2 different days were checked, at least 90% of
+  them name the same truck, and none names another truck. The office accepts it, which writes the
+  assignment through 0622's functions with `source: gps` and the evidence attached, or rejects it with
+  a reason. GPS never writes history unseen. A proposal that fails the bar stays in review, labelled
+  "not enough evidence" and showing the tolls it has.
+- **D-TL16 — Plates have a dated history, and a trailer plate goes to the truck pulling it.** Plates
+  change (763), so `vehicles.plate` (today only) is not evidence for April. Plate history is
+  recorded the way tag history is: from today's plate going forward, plus GPS-proposed earlier plates
+  under D-TL15's bar. A plate that belongs to a trailer (`trailers.plate`) is attributed to the truck
+  GPS puts at the plaza at that minute, with evidence `trailer`. It is never attributed through a
+  trailer↔truck link table, whose history is not precise.
+- **D-TL17 — The lists are inputs to tag history, never to tolls.** The E-ZPass truck list and the
+  DriveKS export are loaded through the TL2b import with the earliest provable start: the first toll
+  the tag paid on that truck, confirmed by GPS. A list entry that GPS contradicts (604 → 842) is
+  refused with that sentence. Typos are refused by the import, not corrected silently, and the
+  statement's number is the one kept.
+- **D-TL18 — Non-toll lines are kept, classified, and charged to no truck.** Account payments are cash
+  movement, not cost. Tag purchases and service fees are fleet overhead. Q-TL8 asks whether a tag
+  purchase should instead go to the truck that received the tag. Adjustments keep the sign and words
+  the provider printed.
+
 ---
 
 ## 3. Build order
@@ -118,11 +225,14 @@ genuinely new is needed: a reader per provider that turns those grids or words i
 | **TL2b** | Tolls page "Toll tags" tab (every tag, its truck and since when, a drawer with its history and the card's acts) and an Excel import: download a sheet of the trucks in service with the tags on file, fill it in, drop it back, see each line's act (add, move, start earlier, already right, fix) before anything is saved. `POST /api/tolls/transponders/import` re-plans on what is on file with the same shared planner | — |
 | **TL3** | Format layer: `.ods` routed to SheetJS, EFS `readFile` reads real `.xls`/`.ods`/HTML-as-xls (tests, mutation-checked) | — **done in PR 1** |
 | **TL4a** | Migration 0627 `toll_statements`: one row per uploaded file (provider, file, format read from the bytes, size, SHA-256, uploader), private bucket `toll-statements`, kept as uploaded before any reader exists. Read columns (period, printed total, read at) nullable, filled by TL5. Tolls page under Finance: upload drawer, statements list, open file, remove with reason | — |
-| **TL4b** | `toll_statement_lines` (D-TL8 key, tag, plate, local time, plaza in/out, class, amount, posted date) and the D-TL6 tie, run over the files TL4a kept | column set confirmed against Q-TL1 files |
-| **TL5** | One reader per provider in `@silvicom/shared/tolls/readers/`, each tested on the real file in every format that provider offers. E-ZPass per issuing agency | **Q-TL1, Q-TL2** |
-| **TL6** | Toll review page under Finance: unassigned, near-swap and plate-only lines; a provider × week grid of uploaded statements, so a missing week is visible; the monthly GL tie (D-TL10) | TL4 |
+| **TL5** | Three pure readers in `@silvicom/shared/tolls/readers/`, run on words from `readPdfWords`: NJ E-ZPass (tag and `ILP` plate lines, the non-toll kinds, the running-balance check line by line, the printed "Tolls, Non-Tolls and Fees"), DriveKS K-TAG (transponder/plate groups, the "Tolls" summary), ExpressToll (device and plate groups, status codes, "Grand Total"). Each returns lines, period, account and printed totals, or refuses with the sentence. CI fixtures are word lists with the layout of the real files and every account, tag and plate replaced. A local-only check (`pnpm tolls:check-real <folder>`, not in CI, files outside the repo) runs the readers on the owner's 18 statements and must tie every one to the cent before TL5 merges | — (Q-TL1, Q-TL2 answered 11-18) |
+| **TL4b** | Migration: `toll_statement_lines` (D-TL8 key, kind (D-TL18), tag or plate as printed, agency, plaza in/out, local entry/exit times, class, amount, posted date, line number in the file) + the statement's read columns. API `POST /api/tolls/statements/:id/lines`: the browser reads the kept file and sends lines, and the API re-runs the tie (D-TL6) before storing anything. Web: "Read" on each kept statement, and new uploads are read straight away | TL5 |
+| **TL4c** | The DriveKS-style `.xlsx` that ExcelJS cannot open goes through SheetJS in `reportGrid.ts`, so the owner's K-TAG export loads in the TL2b import as it is | — |
+| **TL8a** | `toll_plazas` (D-TL14: position, spread, sample count, zone) learned in the worker from Samsara for tolls with a known truck. Per-toll GPS verdict stored on a side table keyed by line, recomputed when the line's truck changes | TL4b |
+| **TL8b** | Attribution per line with evidence (D-TL13), plate history (D-TL16), trailer plates via GPS. GPS proposals for unmatched or contradicted tags (D-TL15), accepted or rejected by the office | TL8a |
+| **TL6** | Toll review page under Finance: per month and provider, the four D-TL12 checks as numbers (read and tied, classified, attributed, verified), the review queue with each line's reason, proposals to accept, a provider × month grid of statements so a missing month shows, and the monthly GL tie (D-TL10). "Closed" only when review holds $0.00 | TL8b |
 | **TL7** | P&L: tolls per truck per month and per mile in `computeTruckPnl` (TRUCK-DRIVER-PNL-PLAN P3), with the GL remainder as a labelled spread | TL6, P3 |
-| **TL8** | Cross-checks: a toll whose plaza is far from where Samsara had the truck (a tag on the wrong truck); the same truck charged twice at one plaza within minutes | TL6 |
+| **TL8c** | Ongoing: each new statement is verified on read, and a tag whose tolls stop matching its truck is raised the same day (a moved tag is caught before month end). The same truck charged twice at one plaza within minutes is flagged | TL8b |
 
 ---
 
@@ -140,15 +250,22 @@ June 2026 statements from all three providers are uploaded. Each June toll is at
 listed in review with a reason. The June total ties to GL `40790000` ($72,644.54 AP − $31.35 DRS), with
 the remainder stated. The P&L shows tolls per mile for every truck that ran in June.
 
+**Raised 2026-11-18 (D-TL12):** every statement from April to October is read and tied to the cent.
+Each month from May to October is **closed** (review $0.00), and no toll in a closed month has a
+contradicted GPS verdict. The share of tolls `confirmed` by GPS is printed per month, along with
+the count of `office` attributions.
+
 ---
 
 ## 6. Open questions — each names the step it blocks, with a recommendation
 
 - **Q-TL1 (blocks TL4's column set and TL5)** — One recent statement from **each** provider, in every
   format that provider offers (PDF and CSV/Excel). Recommend: export June 2026, so the first
-  reconciliation has a known answer.
+  reconciliation has a known answer. **Answered 2026-11-18:** 18 monthly PDFs, April to October, all
+  with a text layer (§1.3).
 - **Q-TL2 (blocks TL5 for E-ZPass)** — Which E-ZPass agency issues the account (NJ, PA, NY, IL I-PASS,
   …)? Each agency's statement layout differs, and a fleet can hold tags from more than one.
+  **Answered 2026-11-18 by the statements:** one account, New Jersey service centre.
 - **Q-TL3 (blocks TL7's scope)** — Do owner-operator trucks carry company tags? Tolls OO is $100–$280 a
   month, so recommend: register company tags only. Owner-operator tolls stay out of company cost
   per mile, as their fuel does.
@@ -158,7 +275,24 @@ the remainder stated. The P&L shows tolls per mile for every truck that ran in J
 - **Q-TL5 (blocks nothing; sharpens TL6)** — Video / pay-by-plate tolls carry a plate, not a tag.
   Recommend: match by plate only when exactly one active truck has that plate (`vehicles.plate`, from
   the sync); otherwise send it to review. The plate's history is not tracked, so an old plate on a new
-  truck must not be matched silently.
+  truck must not be matched silently. **Superseded 2026-11-18 by D-TL16:** plates get a dated history,
+  and every plate toll is GPS-checked like a tag toll.
+- **Q-TL7 (blocks TL6's "closed")** — Who closes a month that still holds review lines that GPS cannot
+  settle (§1.3: $2,043 over 14 tags, mostly 1–2 tolls each)? Candidates: (a) the office attributes each
+  one with a reason (`office` evidence, counted separately); (b) they stay in the month as a labelled
+  "unattributed" line in the P&L spread. Recommend (a) for any line over $25, (b) below it. The
+  candidates are listed with their tolls, so the decision takes minutes.
+- **Q-TL8 (blocks nothing; D-TL18)** — Is a tag purchase (`Tagsale`, $360 over 5 months) fleet
+  overhead, or a cost of the truck that received the tag? Recommend overhead: it is small and
+  one-off.
+- **Q-TL9 (blocks nothing; data hygiene)** — The DriveKS account carries ~60 placeholder plates and 7
+  duplicate vehicles (§1.3). K-TAG falls back to the plate when a sticker is not read, so wrong plates
+  there can turn into violations. Recommend the office update them in DriveKS. The product does not
+  depend on them.
+- **Q-TL10 (blocks TL8a's history)** — Does Samsara keep location history long enough for every
+  statement we load? It reached April 2026 on 11-18. Recommend the worker fetch and store verdicts
+  for every toll as soon as its statement is read, so a later retention cut cannot erase the
+  evidence.
 - **Q-TL6 (blocks nothing; who keeps the tags)** — The Toll tags tab lives on the Tolls page, which is a Finance screen gated on `accounting`, while tags gate on `equipment` (D-TL11). An admin has both. A fleet manager without accounting cannot reach the page, so cannot use the Excel import (the truck page card still works); an accountant without equipment sees statements only. A surface gate has no "either section" form today (`SurfaceGate` in `packages/shared/src/surfaces.ts`). Candidates: (a) leave it: whoever has both sections loads the fleet once; (b) grant the fleet managers who keep the tags `accounting: view` per person on the Permissions page; (c) add an any-of gate kind to the surface catalogue so `finance.tolls` admits `accounting` OR `equipment` (the tab rules already split per section). Recommend (a) until someone other than the owner needs to import; (c) if fleet managers will.
 
 ## 7. Progress log — append one dated line per step
@@ -169,3 +303,4 @@ the remainder stated. The P&L shows tolls per mile for every truck that ran in J
 - 2026-11-17 TL2 built. API `apps/api/src/modules/tolls/` mounted at `/api/tolls`: `GET /transponders` (whole fleet, or `?vehicleId=` for every tag that truck ever carried), `POST /transponders`, `/transponders/:id/move`, `/transponders/:id/retire`, `/assignments/:id/void`. Reads gate on `equipment: view`, writes on `equipment: manage`, and every write is audited (`tolls.*`). Each write is one of 0622's functions; TL001–TL005 come back as the office's sentence under 409 or 422, and a tag already on file comes back as 409 `already_registered` with that tag attached. Web: a "Toll tags" column on Vehicles, and the list search now matches tag numbers. On the truck page, a Toll tags card in the File section shows the tag on the truck since when, tags it carried before, and the full history with voided entries crossed out; it can add, move or take off, retire, and void a wrong entry. Times are typed on the company's clock and sent as instants (`fieldValueToInstant` in `calendarDay.ts`). `traced` was promoted to `apps/api/src/lib/serviceError.ts` so a second module could use it without crossing a module boundary. The `tolls` dirs belong to the Finance release area.
 - 2026-11-17 · TL4a built. The owner wanted to hand the statements over through the product rather than by file share, so TL4 split: TL4a keeps each file as uploaded, TL4b reads lines from the kept files once Q-TL1's samples settle the columns. Migration 0627 `toll_statements` + private bucket `toll-statements` (25 MB a file); a file is never changed or deleted (TS001–TS003), a wrong one is removed with who and why, and the same bytes count once per org while kept. API `/api/tolls/statements` (accounting: view to list and open, manage to upload and remove; both audited `tolls.statement_*`): signed upload, then the stored bytes are held to the declared size and SHA-256 and their format read from the bytes (`tollStatementFormatOf`: PDF, xlsx, ods, xls, HTML table, CSV), refused bytes deleted. Web: Finance › Tolls page (statements list, "Not read yet" in words until TL5, an explainer on back-dating tag history) with an upload drawer (provider chosen, never defaulted; many files, one outcome line each) and a statement drawer (open file, remove with reason). Found on the way: 0601's `lumper_case_files_removed_together` admits a removal with a NULL reason, because `length(btrim(NULL)) between 3 and 300` is NULL and a CHECK passes NULL; 0627 spells out `remove_reason is not null`. The lumper API always sends a reason, so nothing wrong is stored today; a later lumper migration should close it.
 - 2026-11-17 · TL2b built. The owner asked for the fleet's tags on the Tolls page and a bulk add from Excel. The page is two tabs (`?view=tags`): Statements, and Toll tags, which shows to `equipment` viewers only, with Add tag and Import from Excel for `equipment` managers; the statements list moved into `TollStatementsList.vue` unchanged. The tag list derives the truck and the start day from the open entry, hides retired tags until asked, and searches by number with or without leading zeros. Its drawer shares `TollTagHistory.vue` with the truck card. The dialog asks for a truck when opened off a truck page. The import: `downloadTollTagSheet` writes an .xlsx of the trucks in service with their tags on file (the tag column is text so leading zeros survive; the provider column is a list); `readTollTagSheet` finds the columns by name in the first ten rows and refuses a line with no start day rather than defaulting it to today, which would lose the six months Q-TL4 loads; `planTollTagImport` (shared, run by the browser for the preview and again by the API on what is on file) turns each line into add, move, backdate (on this truck already, but from a later day: void that entry with the reason in words and put the tag on again from the sheet's day; if that is refused, the tag goes back on from its old start), unchanged, or refused with the sentence to fix it. A tag twice in a sheet is refused on both lines. Lines go 50 a request, each answered on its own and audited `via: "import"`. No migration. Q-TL6 records who can reach the import.
+- 2026-11-18 · Samples measured (§1.3) and the plan raised to the owner's "100% results and precision" (D-TL12–D-TL18, Q-TL7–Q-TL10). Each list matches only today's tags: K-TAG reaches 62.7% of April's dollars and E-ZPass 90–96%. Samsara GPS names the truck for 92% of K-TAG's and 97% of E-ZPass's unmatched dollars, and agreed with the list on every tag in a 40-tag control except one, where the list was stale. So GPS became the check on every toll (D-TL14), and the source of proposed tag and plate history that the office accepts (D-TL15–16). The build order is re-cut: TL5 readers first, against the real files on the owner's machine, then TL4b, TL4c, TL8a–b, TL6.
