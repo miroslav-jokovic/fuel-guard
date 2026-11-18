@@ -12,30 +12,31 @@ import { proposeRepairs } from "./pass.js";
 const ORG = "11111111-1111-1111-1111-111111111111";
 const ZONE = "America/Chicago";
 const NOW = Date.parse("2026-10-16T17:00:00Z");
+const NO_CODES = async () => null;
 
 const recorder = (repairs: Record<string, unknown>[] = [], inspectionDate = "2026-10-06") =>
   createSupabaseRecorder({
     tables: {
       roadside_inspections: () => ({ data: [{ id: "i-1", inspection_date: inspectionDate }] }),
-      roadside_violations: () => ({ data: [{ inspection_id: "i-1", unit_id: "u-1", defect_verification_id: "3" }] }),
+      roadside_violations: () => ({ data: [{ inspection_id: "i-1", unit_id: "u-1", defect_verification_id: "3", viol_code: "393.47E" }] }),
       roadside_inspection_units: () => ({ data: [{ id: "u-1", vehicle_id: "v-1", trailer_id: null }, { id: "u-2", vehicle_id: "v-2", trailer_id: null }] }),
       inspection_repairs: (q) => (q.write ? { data: [] } : { data: repairs }),
       fleetpal_units: () => ({ data: [{ fleetpal_id: "fu-1", vehicle_id: "v-1", trailer_id: null }] }),
       fleetpal_work_orders: () => ({
         data: [{ fleetpal_id: "wo-1", reference_number: "WO-1", status: "OPEN", unit_fleetpal_id: "fu-1", vendor_created_at: "2026-10-07T15:00:00Z", completed: null, description: "DOT" }],
       }),
-      fleetpal_jobs: () => ({ data: [{ work_order_fleetpal_id: "wo-1", name: "Brake chamber" }] }),
+      fleetpal_jobs: () => ({ data: [{ work_order_fleetpal_id: "wo-1", name: "Brake chamber", component: "c-brake" }] }),
     },
   });
 
 /** The hash the pass will compute for the fixture's unit, from the same pure rule. */
 const fixtureHash = () =>
   proposeRepair(
-    { inspectionDate: "2026-10-06", vehicleId: "v-1", trailerId: null, defectVerifications: ["3"] },
+    { inspectionDate: "2026-10-06", vehicleId: "v-1", trailerId: null, defectVerifications: ["3"], violationCodes: ["393.47E"] },
     {
       vehiclesInFleetpal: new Set(["v-1"]),
       trailersInFleetpal: new Set(),
-      orders: [{ vehicleId: "v-1", trailerId: null, fleetpalId: "wo-1", reference: "WO-1", status: "OPEN", openedAt: "2026-10-07T15:00:00Z", completedAt: null, description: "DOT", jobs: ["Brake chamber"] }],
+      orders: [{ vehicleId: "v-1", trailerId: null, fleetpalId: "wo-1", reference: "WO-1", status: "OPEN", openedAt: "2026-10-07T15:00:00Z", completedAt: null, description: "DOT", jobs: ["Brake chamber"], jobComponents: ["c-brake"] }],
     },
     ZONE,
   ).sha256;
@@ -43,7 +44,7 @@ const fixtureHash = () =>
 describe("proposeRepairs", () => {
   it("proposes the unit's work order, org-scoped, only for the unit with a vehicle violation", async () => {
     const rec = recorder();
-    expect(await proposeRepairs(rec.client, ORG, ZONE, NOW)).toEqual({ one_candidate: 1 });
+    expect(await proposeRepairs(rec.client, ORG, ZONE, NOW, NO_CODES)).toEqual({ one_candidate: 1 });
     const [row] = rec.writtenRows("inspection_repairs");
     expect(row).toMatchObject({
       org_id: ORG, inspection_id: "i-1", inspection_unit_id: "u-1", source: "engine", engine_version: REPAIR_ENGINE_VERSION,
@@ -56,26 +57,44 @@ describe("proposeRepairs", () => {
 
   it("⚠ never proposes after a person decided", async () => {
     const rec = recorder([{ inspection_unit_id: "u-1", source: "person", engine_version: REPAIR_ENGINE_VERSION, candidates_sha256: null }]);
-    expect(await proposeRepairs(rec.client, ORG, ZONE, NOW)).toEqual({});
+    expect(await proposeRepairs(rec.client, ORG, ZONE, NOW, NO_CODES)).toEqual({});
     expect(rec.writtenRows("inspection_repairs")).toHaveLength(0);
   });
 
   it("⚠ writes nothing when the reading has not changed", async () => {
     const rec = recorder([{ inspection_unit_id: "u-1", source: "engine", engine_version: REPAIR_ENGINE_VERSION, candidates_sha256: fixtureHash() }]);
-    expect(await proposeRepairs(rec.client, ORG, ZONE, NOW)).toEqual({});
+    expect(await proposeRepairs(rec.client, ORG, ZONE, NOW, NO_CODES)).toEqual({});
     expect(rec.writtenRows("inspection_repairs")).toHaveLength(0);
   });
 
   it("writes the change when the unit's last reading differs", async () => {
     const rec = recorder([{ inspection_unit_id: "u-1", source: "engine", engine_version: REPAIR_ENGINE_VERSION, candidates_sha256: "b".repeat(64) }]);
-    expect(await proposeRepairs(rec.client, ORG, ZONE, NOW)).toEqual({ one_candidate: 1 });
+    expect(await proposeRepairs(rec.client, ORG, ZONE, NOW, NO_CODES)).toEqual({ one_candidate: 1 });
   });
 
   it("leaves a unit past its follow window on its last reading, but reads one that has none", async () => {
     const old = [{ inspection_unit_id: "u-1", source: "engine", engine_version: REPAIR_ENGINE_VERSION, candidates_sha256: "b".repeat(64) }];
     const stale = recorder(old, "2026-07-01");
-    expect(await proposeRepairs(stale.client, ORG, ZONE, NOW)).toEqual({});
+    expect(await proposeRepairs(stale.client, ORG, ZONE, NOW, NO_CODES)).toEqual({});
     const fresh = recorder([], "2026-07-01");
-    expect(await proposeRepairs(fresh.client, ORG, ZONE, NOW)).toEqual({ no_candidate: 1 });
+    expect(await proposeRepairs(fresh.client, ORG, ZONE, NOW, NO_CODES)).toEqual({ no_candidate: 1 });
+  });
+
+  it("hands the jobs' component ids to the resolver and stores the match on the candidate (RR1)", async () => {
+    const rec = recorder();
+    let asked: string[] = [];
+    const codes = async (ids: string[]) => {
+      asked = ids;
+      return new Map([["c-brake", "013-002-000"]]);
+    };
+    await proposeRepairs(rec.client, ORG, ZONE, NOW, codes);
+    expect(asked).toEqual(["c-brake"]);
+    expect((rec.writtenRows("inspection_repairs")[0]!.candidates as { matches: string[] }[])[0]!.matches).toEqual(["013"]);
+  });
+
+  it("⚠ writes nothing when FleetPal cannot resolve the codes — the tick is skipped, not recorded blank", async () => {
+    const rec = recorder();
+    await expect(proposeRepairs(rec.client, ORG, ZONE, NOW, async () => { throw new Error("FleetPal 503"); })).rejects.toThrow();
+    expect(rec.writtenRows("inspection_repairs")).toHaveLength(0);
   });
 });

@@ -178,6 +178,29 @@ describe("opening a work order (F16)", () => {
   });
 });
 
+describe("whether a proposed work order matches the violation (RR1)", () => {
+  it("names the matching kind, warns on an order whose jobs do not match, and says nothing when it cannot tell", async () => {
+    repairs.value = [repair({
+      proposal: {
+        outcome: "several_candidates",
+        candidates: [
+          { ...candidate("wo-1", "WO-101"), matches: ["013"] },
+          { ...candidate("wo-2", "WO-102"), matches: [] },
+          { ...candidate("wo-3", "WO-103"), matches: null },
+        ],
+        readAt: "2026-10-16T12:00:00Z",
+      },
+    })];
+    const w = await card();
+    const marks = w.findAll("[data-test='repair-candidate']").map((c) => c.find("[data-test='repair-match']"));
+    expect(marks[0]!.text()).toBe("Matches the violation: brakes");
+    expect(marks[1]!.text()).toBe("No job on this work order matches the violation");
+    expect(marks[2]!.exists()).toBe(false);
+    // A mark, never a choice: nothing is accepted until a person presses the button.
+    expect(mutate).not.toHaveBeenCalled();
+  });
+});
+
 describe("certifying (IC11 B2, Q-IC13)", () => {
   const decided = (unitId: string, basedOn: string) =>
     repair({ unitId, basedOn, decision: { outcome: "repaired_outside_fleetpal", workOrder: null, note: "TA Joliet", decidedBy: "Pat Shop", decidedAt: "2026-10-16T15:00:00Z" } });

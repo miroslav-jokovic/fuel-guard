@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from "vue";
 import { AppButton as BaseButton, AppFormField as FormField, AppTextarea as BaseTextarea } from "@silvicom/ui";
-import { REPAIR_OUTCOME_TEXT, repairClock, repairUnitName, type CalendarDay, type RepairCandidate, type RoadsideRepairDto } from "@silvicom/shared";
+import { REPAIR_OUTCOME_TEXT, VMRS_SYSTEM_WORDS, repairClock, repairUnitName, type CalendarDay, type MatchedSystem, type RepairCandidate, type RoadsideRepairDto } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import WorkOrderDrawer from "@/components/WorkOrderDrawer.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -57,6 +57,17 @@ const failure = computed(() => {
     : e.message;
 });
 
+/**
+ * Whether a proposed order's jobs answer the violations (ROADSIDE-REPAIR-FLOW-PLAN RR1, measured mapping).
+ * Three states, three sentences: a match names the kind; `[]` says plainly that nothing here fixes it; null
+ * (an unmeasured kind of violation, or a row from before ic11.2) says nothing rather than guess.
+ */
+function matchText(c: RepairCandidate): { text: string; tone: string } | null {
+  if (!c.matches) return null;
+  if (c.matches.length === 0) return { text: "No job on this work order matches the violation", tone: "warning" };
+  return { text: `Matches the violation: ${c.matches.map((m) => VMRS_SYSTEM_WORDS[m as MatchedSystem] ?? m).join(", ")}`, tone: "success" };
+}
+
 function accept(c: RepairCandidate) {
   decide.mutate({ action: "accept", unitId: r.value.unitId, basedOn: r.value.basedOn, workOrderId: c.workOrderId });
 }
@@ -104,6 +115,7 @@ function saveOutside() {
           </p>
           <p v-if="c.jobs.length" class="text-ink-muted">{{ c.jobs.join(", ") }}</p>
           <p v-else-if="c.description" class="text-ink-muted">{{ c.description }}</p>
+          <span v-if="matchText(c)" :class="[BADGE_BASE, toneClass(matchText(c)!.tone), 'mt-1']" data-test="repair-match">{{ matchText(c)!.text }}</span>
         </div>
         <div class="flex flex-wrap items-center gap-2">
         <BaseButton v-if="canOpen" variant="link" size="sm" data-test="repair-open-candidate" @click="openFleetpalId = c.workOrderId">

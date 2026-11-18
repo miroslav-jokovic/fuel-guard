@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
 import { FleetpalClient } from "./client.js";
-import { clearComponentCache, describeComponents } from "./vmrs.js";
+import { clearComponentCache, componentCodes, describeComponents } from "./vmrs.js";
 
 /**
  * F9c — component ids resolved to words, live, and forgotten (D-FP8).
@@ -82,5 +82,18 @@ describe("describeComponents", () => {
       .filter((l) => l.startsWith("import "));
     expect(imports.length).toBeGreaterThan(0);
     for (const l of imports) expect(l).not.toMatch(/supabase|lib\/|store|syncState|credentials/i);
+  });
+});
+
+describe("componentCodes — for the roadside repair pass, which stores what it reads (RR1)", () => {
+  it("answers the code, and null for a 404", async () => {
+    const { client } = vendor({ hovDtcRc: { status: 200, body: node("hovDtcRc", "013-002-000", "BRAKES") } });
+    const out = await componentCodes(client, "org-1", ["hovDtcRc", "gone1"]);
+    expect([...out]).toEqual([["hovDtcRc", "013-002-000"], ["gone1", null]]);
+  });
+
+  it("⚠ THROWS on an outage, where describeComponents answers null — a blank would be written as a reading", async () => {
+    const { client } = vendor({ hovDtcRc: { status: 503 } });
+    await expect(componentCodes(client, "org-1", ["hovDtcRc"])).rejects.toThrow();
   });
 });

@@ -1241,3 +1241,14 @@ about three merges.
   refuses the certification (503) and nothing is filed — it is retried, never signed without its paper. The
   audit row carries every bill's document id and hash. Three mutations each turned a test red: certifying
   through a FleetPal failure, trusting FleetPal's guessed type, and a record that omits the bills.
+- **2026-11-18 · Q-IC14's ranking, built at last (ROADSIDE-REPAIR-FLOW-PLAN RR1, engine ic11.2).** Q-IC14 ruled
+  "ranked: VMRS component agreeing with the violation, then the nearest date"; ic11.1 sorted by date only.
+  Measured on production first (plan §1.4): every FleetPal job carries a component, and four violation
+  families clearly map to a VMRS system (393.75 → 017, 393.45/.47/.48/.53 → 013, 393.9 → 034, 393.205 → 018) —
+  only those four are in `roadsideRepairMatch.ts`. Each candidate carries `matches` (systems matched, `[]` for
+  none, null when no violation is of a mapped kind), matching orders sort first, and the Repair card says
+  "Matches the violation: brakes" or "No job on this work order matches the violation". Of 90 units with
+  candidates, 35 become a one-glance match and 14 are flagged as no match. The pass resolves codes with a
+  strict resolver that skips the tick on a FleetPal outage instead of writing blank rows. The version bump
+  re-proposes every open unit once. Mutations: no ranking, an unmapped section read as "no match", and a
+  wrong table row each turned a test red.

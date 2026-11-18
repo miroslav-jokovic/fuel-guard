@@ -16,8 +16,11 @@ import type { RoadsideInspectionUnitDto } from "./roadsideInspectionsContract.js
  * Maintenance accepts, safety certifies (Q-IC13); those are person rows, written by the next merge.
  */
 
-/** The proposal's rule version (D-IC5): a change is a new version, and every open unit is proposed again. */
-export const REPAIR_ENGINE_VERSION = "ic11.1";
+/**
+ * The proposal's rule version (D-IC5): a change is a new version, and every open unit is proposed again.
+ * ic11.2 (2026-11-18, ROADSIDE-REPAIR-FLOW-PLAN RR1): candidates carry `matches` and are ranked by it.
+ */
+export const REPAIR_ENGINE_VERSION = "ic11.2";
 
 /** Parts and Accessories (393) and Inspection, Repair and Maintenance (396): the violations a repair closes. */
 export const REPAIR_VIOLATION_PARTS = ["393", "396"] as const;
@@ -78,6 +81,13 @@ export interface RepairCandidate {
   description: string | null;
   /** The work order's job names, as the shop wrote them — what a person reads to decide. */
   jobs: string[];
+  /**
+   * The VMRS systems (`013`, `017`, …) on this order's jobs that answer the unit's violations
+   * (`roadsideRepairMatch.ts`, measured). `[]`: the violations are of a mapped kind and no job here is.
+   * `null`: no violation on the unit is of a mapped kind, so nothing can be said. Absent on rows written
+   * before ic11.2 — read as `null`. A mark for the person deciding, never a decision (Q-IC14).
+   */
+  matches?: string[] | null;
 }
 
 /** The day the certification is due: the inspection's calendar day plus 15 (both YYYY-MM-DD). */
