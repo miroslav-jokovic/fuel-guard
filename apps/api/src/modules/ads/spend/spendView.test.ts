@@ -101,9 +101,18 @@ describe("adsSpendView", () => {
     const v = await adsSpendView(db().client, ORG, NOW);
     expect(v.campaigns.find((c) => c.id === LIVE)).toEqual({
       id: LIVE, name: "CDL-A Dallas", state: "live", platform: "meta", daily_budget_cents: 5_000, lifetime_cap_cents: 150_000,
-      today_spend_cents: 1_500, lifetime_spend_cents: 14_800, lifetime_leads: 4, lifetime_cost_per_lead_cents: 3_700,
+      today_spend_cents: 1_500, month_spend_cents: 5_800, month_leads: 3, lifetime_spend_cents: 14_800, lifetime_leads: 4, lifetime_cost_per_lead_cents: 3_700,
     });
     expect(v.campaigns.find((c) => c.id === PAUSED)).toMatchObject({ today_spend_cents: 0, lifetime_leads: 0, lifetime_cost_per_lead_cents: null });
+  });
+
+  it("the month is the carrier's, compared as instants: PostgREST's +00:00 hours on either side of 1 November in Central", async () => {
+    const edge = [
+      hour(PAUSED, "2026-11-01T04:00:00+00:00", 111, 1), // 11 pm on 31 October in Central: last month
+      hour(PAUSED, "2026-11-01T05:00:00+00:00", 222, 1), // midnight on 1 November in Central (CDT): this month
+    ];
+    const c = (await adsSpendView(db({ hours: { [PAUSED]: edge } }).client, ORG, NOW)).campaigns.find((x) => x.id === PAUSED)!;
+    expect([c.month_spend_cents, c.month_leads, c.lifetime_spend_cents]).toEqual([222, 1, 333]);
   });
 
   it("a campaign's lifetime reads every page of its hours, not the first thousand", async () => {

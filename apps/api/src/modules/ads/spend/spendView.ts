@@ -26,7 +26,7 @@ import { settingsInForce } from "../settings/settingsVersions.js";
  *
  *   per platform   `platformSpend` (the guard's own month and live budgets, B5b's "one fold"), the cap from
  *                  `monthlyCapFor`, the forecast from `forecastMonthCents` (the launch check's formula);
- *   per campaign   `foldCampaignSpend` over the campaign's hourly rows, for today and for its lifetime;
+ *   per campaign   `foldCampaignSpend` over the campaign's hourly rows, for today, this month and its lifetime;
  *   AI             the generation ledger's month folds, the numbers `aiGate` / `creditGate` refuse on;
  *   reconcile      the last finished `ads_reconcile` job per connection, and the `external_change` rows since.
  *
@@ -89,11 +89,15 @@ export async function adsSpendView(admin: SupabaseClient, orgId: string, now: Da
     const rows = await hourlyRows(admin, orgId, c.id);
     const life = foldCampaignSpend(rows)[0];
     const today = foldCampaignSpend(rows.filter((r) => Date.parse(r.hour) >= todayStart))[0];
+    // Compared as instants, never as strings: PostgREST writes `+00:00` and `monthContext` writes `Z`.
+    const inMonth = foldCampaignSpend(rows.filter((r) => Date.parse(r.hour) >= Date.parse(month.start) && Date.parse(r.hour) < Date.parse(month.end)))[0];
     campaigns.push({
       id: c.id, name: c.name, state: c.state, platform,
       daily_budget_cents: c.daily_budget_cents === null ? null : Number(c.daily_budget_cents),
       lifetime_cap_cents: c.lifetime_cap_cents === null ? null : Number(c.lifetime_cap_cents),
       today_spend_cents: today?.spend_cents ?? 0,
+      month_spend_cents: inMonth?.spend_cents ?? 0,
+      month_leads: inMonth?.leads ?? 0,
       lifetime_spend_cents: life?.spend_cents ?? 0,
       lifetime_leads: life?.leads ?? 0,
       lifetime_cost_per_lead_cents: life?.cost_per_lead_cents ?? null,

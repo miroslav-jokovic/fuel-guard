@@ -15,7 +15,7 @@ const VIEW: AdsSpendView = {
   platforms: [{ platform: "meta", month_to_date_cents: 8_000, cap_cents: 300_000, live_daily_cents: 5_000, forecast_cents: 88_000 }],
   campaigns: [{
     id: "c1", name: "CDL-A Dallas", state: "live", platform: "meta", daily_budget_cents: 5_000, lifetime_cap_cents: 150_000,
-    today_spend_cents: 1_500, lifetime_spend_cents: 14_500, lifetime_leads: 4, lifetime_cost_per_lead_cents: 3_625,
+    today_spend_cents: 1_500, month_spend_cents: 5_500, month_leads: 2, lifetime_spend_cents: 14_500, lifetime_leads: 4, lifetime_cost_per_lead_cents: 3_625,
   }],
   ai: { tokens_used: 15_000, tokens_budget: 1_000_000, credits_used: 40, credits_budget: null },
   reconcile: [{ connection_id: "m", provider: "meta", last_run_at: null, late: true, changes_since: 0 }],

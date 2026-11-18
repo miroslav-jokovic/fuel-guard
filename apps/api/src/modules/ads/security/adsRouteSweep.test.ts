@@ -176,6 +176,7 @@ const SWEEP: Array<[string, string, unknown?]> = [
   ["POST /api/ads/campaigns/:campaignId/approvals", `campaigns/${MINE.campaign}/approvals`, { kind: "launch", daily_budget_cents: 5_000, lifetime_cap_cents: 50_000 }],
   ["GET /api/ads/spend", "spend"],
   ["GET /api/ads/health", "health"],
+  ["GET /api/ads/overview", "overview"],
   ["GET /api/ads/connections", "connections"],
   ["POST /api/ads/connections/meta", "connections/meta", { token: TOKEN, account_id: "act_100100", page_id: "200200", sandbox: false }],
   ["POST /api/ads/connections/simulator", "connections/simulator", {}],
@@ -280,6 +281,12 @@ describe("Security L3 — the sweep reaches every ads route", () => {
     expect(health.status).toBe(200);
     expect(health.text).toContain(MINE.conn);
     expect(health.text).not.toContain(THEIRS.conn);
+    const overview = answers.get("GET /api/ads/overview")!;
+    expect(overview.status).toBe(200);
+    expect(overview.text).toContain(MINE.campaign);
+    expect(overview.text).toContain(MINE.action);
+    expect(overview.text).not.toContain(THEIRS.campaign);
+    expect(overview.text).not.toContain(THEIRS.action);
     const swipe = answers.get("GET /api/ads/swipe")!;
     expect(swipe.status).toBe(200);
     expect(swipe.text).toContain("Our own saved page");

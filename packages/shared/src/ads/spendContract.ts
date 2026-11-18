@@ -32,6 +32,10 @@ export interface AdsSpendCampaign {
   daily_budget_cents: number | null;
   lifetime_cap_cents: number | null;
   today_spend_cents: number;
+  /** This month in the carrier's zone (`monthContext`), the window the caps and the Overview use. */
+  month_spend_cents: number;
+  /** The platform's lead count on this month's hourly rows. */
+  month_leads: number;
   lifetime_spend_cents: number;
   lifetime_leads: number;
   /** Null with no lead, as the fold gives it. */
