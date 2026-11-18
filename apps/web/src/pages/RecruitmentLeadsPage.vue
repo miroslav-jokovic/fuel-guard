@@ -4,10 +4,11 @@ import { useRoute } from "vue-router";
 import { AppButton as BaseButton, DataTable, DataWorkspace, FilterBar, TablePagination, useQueryState, type DataTableColumn } from "@silvicom/ui";
 import { LEAD_STATUSES, LEAD_STATUS_LABELS, leadChannelLabel, type LeadQueueRow } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import PhoneContact from "@/components/PhoneContact.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { leadMatchBadge, leadStatusTone } from "@/lib/badges.recruiting";
-import { formatDateTime, formatPhone } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import AddLeadDrawer from "@/features/recruitment/AddLeadDrawer.vue";
 import LeadDrawer from "@/features/recruitment/LeadDrawer.vue";
 import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";
@@ -125,7 +126,10 @@ const personName = (row: LeadQueueRow) => row.full_name ?? (row.phone_e164 || ro
       >
         <template #cell-person="{ row }">
           <RouterLink :to="linkTo(row.id)" class="font-medium text-ink hover:underline">{{ personName(row) }}</RouterLink>
-          <p class="text-xs text-ink-muted">{{ row.phone_e164 ? formatPhone(row.phone_e164) : row.email_lower }}</p>
+          <p class="text-xs text-ink-muted">
+            <PhoneContact v-if="row.phone_e164" :phone="row.phone_e164" :name="personName(row)" :contactable="!row.do_not_contact" />
+            <template v-else>{{ row.email_lower }}</template>
+          </p>
         </template>
         <template #cell-source="{ row }">
           {{ leadChannelLabel(row.channel) }}
@@ -163,7 +167,10 @@ const personName = (row: LeadQueueRow) => row.full_name ?? (row.phone_e164 || ro
         <DataTable :columns="columns" :rows="disqualifiedRows" embedded row-key="id" class="mt-2">
           <template #cell-person="{ row }">
             <RouterLink :to="linkTo(row.id)" class="font-medium text-ink hover:underline">{{ personName(row) }}</RouterLink>
-            <p class="text-xs text-ink-muted">{{ row.phone_e164 ? formatPhone(row.phone_e164) : row.email_lower }}</p>
+            <p class="text-xs text-ink-muted">
+            <PhoneContact v-if="row.phone_e164" :phone="row.phone_e164" :name="personName(row)" :contactable="!row.do_not_contact" />
+            <template v-else>{{ row.email_lower }}</template>
+          </p>
           </template>
           <template #cell-source="{ row }">{{ leadChannelLabel(row.channel) }}</template>
           <template #cell-match="{ row }">

@@ -12,6 +12,13 @@ import RecruitmentLeadsPage from "@/pages/RecruitmentLeadsPage.vue";
  */
 const session = vi.hoisted(() => ({ role: "recruiter", can: (_s: string): boolean => false }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => session }));
+// Whether the window is touched (a phone, a tablet, the installed app). Off by default so every other
+// test reads the desk page; the call/text tests turn it on.
+const touch = vi.hoisted(() => ({ on: false }));
+vi.mock("@/composables/usePhoneFirst", async () => {
+  const { computed } = await import("vue");
+  return { useTouchedWindow: () => computed(() => touch.on) };
+});
 const api = vi.hoisted(() => ({ calls: [] as string[], answer: null as null | ((path: string) => unknown) }));
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (path: string) => {
@@ -69,6 +76,7 @@ async function render(at: string) {
 }
 
 beforeEach(() => {
+  touch.on = false;
   setActivePinia(createPinia());
   api.calls = [];
   api.answer = world;
@@ -103,6 +111,27 @@ describe("the lead queue", () => {
     expect(text).toContain("No details on file");
     expect(text).toContain("Not matched");
     expect(text).not.toContain("deleted");
+  });
+
+  it("on a phone, a lead's number can be called or texted from the list", async () => {
+    touch.on = true;
+    const { w } = await render("/recruitment/leads");
+    expect(w.get('a[aria-label="Call Ray Driver"]').attributes("href")).toBe("tel:+17082365732");
+    expect(w.get('a[aria-label="Text Ray Driver"]').attributes("href")).toBe("sms:+17082365732");
+  });
+
+  it("a lead marked Do not contact shows its number but offers no call or text, on the list or in the drawer", async () => {
+    touch.on = true;
+    api.answer = (path) =>
+      path.endsWith("/lead-1")
+        ? ok({ ...FAR, id: "lead-1", phone_e164: "+17082365732", do_not_contact: true })
+        : path.includes("/leads?")
+          ? ok({ leads: [{ ...ROW, do_not_contact: true }], next: null })
+          : world(path);
+    const { w } = await render("/recruitment/leads?lead=lead-1");
+    expect(w.text()).toContain("(708) 236-5732");
+    expect(w.find('a[href^="tel:"]').exists()).toBe(false);
+    expect(w.find('a[href^="sms:"]').exists()).toBe(false);
   });
 
   it("a lead whose own answer fails a hard requirement sits in a collapsed lane under the list, still linked (LQ6)", async () => {

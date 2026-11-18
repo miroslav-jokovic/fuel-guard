@@ -23,8 +23,16 @@ import { formatPhone, phoneDialString } from "@/lib/format";
  * The desk branch is bare text, with no wrapping element and no template comment, so at a desk the
  * cell is byte-for-byte what it was before this component — "renders the roster table unchanged by
  * the R2 extraction" in `DriversPage.test.ts` snapshots that cell.
+ *
+ * `contactable: false` shows the number with no links. A recruiting lead marked "Do not contact"
+ * (`do_not_contact`) still has a number on file, and the office still needs to see it, but a
+ * one-tap Call or Text beside it would invite exactly the contact the person asked us not to make.
+ * The caller passes the flag; this component does not know what a lead is.
  */
-const props = defineProps<{ phone: string | null | undefined; name?: string | null }>();
+const props = withDefaults(
+  defineProps<{ phone: string | null | undefined; name?: string | null; contactable?: boolean }>(),
+  { name: null, contactable: true },
+);
 
 const touched = useTouchedWindow();
 const dial = computed(() => phoneDialString(props.phone));
@@ -33,7 +41,7 @@ const who = computed(() => props.name?.trim() || shown.value);
 </script>
 
 <template>
-  <span v-if="touched && dial" class="inline-flex items-center gap-1">
+  <span v-if="contactable && touched && dial" class="inline-flex items-center gap-1">
     <a :href="`tel:${dial}`" class="text-ink-secondary underline-offset-2 hover:underline tabular-nums">{{ shown }}</a>
     <a
       :href="`tel:${dial}`"
