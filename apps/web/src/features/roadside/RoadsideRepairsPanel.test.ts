@@ -45,7 +45,7 @@ const RepairUnitDecision = (await import("@/features/roadside/RepairUnitDecision
 
 const unit = (unitId: string, dueOn: string, o: Partial<RoadsideRepairDueDto> = {}): RoadsideRepairDueDto => ({
   unitId, unit: { seq: 1, kind: "tractor", companyNumber: unitId }, violations: [{ code: "393.47D", description: "Brakes" }], dueOn,
-  proposal: { outcome: "no_candidate", candidates: [], readAt: "x" }, decision: null, basedOn: `r-${unitId}`,
+  proposal: { outcome: "no_candidate", candidates: [], readAt: "x" }, decision: null, basedOn: `r-${unitId}`, invoiceCounts: {},
   inspection: { id: `insp-${unitId}`, reportNumber: `IL${unitId}`, reportState: "IL", inspectionDate: "2026-10-06", locationDesc: "I-55" },
   ...o,
 });

@@ -58,6 +58,7 @@ const repair = (o: Partial<RoadsideRepairDto> = {}): RoadsideRepairDto => ({
   proposal: { outcome: "several_candidates", candidates: [candidate("wo-1", "WO-101"), candidate("wo-2", "WO-102")], readAt: "2026-10-16T12:00:00Z" },
   decision: null,
   basedOn: "row-7",
+  invoiceCounts: {},
   ...o,
 });
 
@@ -198,6 +199,15 @@ describe("whether a proposed work order matches the violation (RR1)", () => {
     expect(marks[2]!.exists()).toBe(false);
     // A mark, never a choice: nothing is accepted until a person presses the button.
     expect(mutate).not.toHaveBeenCalled();
+  });
+});
+
+describe("where the paper is (RR2)", () => {
+  it("says how many vendor invoices each proposed work order has — a count, never a total", async () => {
+    repairs.value = [repair({ invoiceCounts: { "wo-1": 2 } })];
+    const lines = (await card()).findAll("[data-test='repair-invoices']").map((e) => e.text());
+    expect(lines).toEqual(["2 vendor invoices", "No vendor invoice in FleetPal yet"]);
+    expect(lines.join(" ")).not.toContain("$");
   });
 });
 

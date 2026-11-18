@@ -132,6 +132,12 @@ export interface RoadsideRepairDto {
   } | null;
   /** The row a decision is made over — the newest — sent back as the decision's `basedOn`. */
   basedOn: string;
+  /**
+   * Vendor invoices FleetPal records against each proposed or accepted work order, by FleetPal work-order id
+   * (ROADSIDE-REPAIR-FLOW-PLAN RR2). Read live, not frozen with the candidates: an invoice entered after the
+   * proposal still shows. A count, never a total (D-FP27). An id absent from the map has none.
+   */
+  invoiceCounts: Record<string, number>;
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { countWorkOrderInvoices } from "../../fleetpal/index.js";
 import { REPAIR_LOOKBACK_DAYS, REPAIR_VIOLATION_PARTS, shiftDay, type CalendarDay, type RoadsideRepairDueDto } from "@silvicom/shared";
 import { mapPool } from "../../../lib/mapPool.js";
 import { readRoadsideInspections, type DbError } from "./inspectionsList.js";
@@ -7,6 +8,7 @@ import {
   REPAIR_UNIT_COLS,
   REPAIR_VIOLATION_COLS,
   buildRepairs,
+  workOrderIdsOf,
   deciderLabels,
   type RepairRow,
   type RepairUnitRow,
@@ -96,7 +98,8 @@ export async function readRepairsDue(
 
   const head = new Map(inspections.map((i) => [i.id, i]));
   const out: RoadsideRepairDueDto[] = [];
-  for (const repair of buildRepairs(rows, units, violations, await deciderLabels(admin, orgId, rows))) {
+  const [labels, invoices] = await Promise.all([deciderLabels(admin, orgId, rows), countWorkOrderInvoices(admin, orgId, workOrderIdsOf(rows))]);
+  for (const repair of buildRepairs(rows, units, violations, labels, invoices)) {
     const i = head.get(inspectionOf.get(repair.unitId) ?? "");
     if (!i?.inspectionDate) continue;
     out.push({
