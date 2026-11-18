@@ -22,6 +22,7 @@ import {
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
+import PhoneContact from "@/components/PhoneContact.vue";
 import { useStepUpRetry } from "@/composables/useStepUpRetry";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { leadStatusTone, leadVerdictTone } from "@/lib/badges.recruiting";
@@ -274,7 +275,13 @@ const runPurge = (): Promise<void> =>
           <FactList :facts="facts" layout="rows">
             <template v-for="fact in facts" :key="fact.key" #[`value-${fact.key}`]>
               <template v-if="fact.value">
-                {{ fact.value }}
+                <PhoneContact
+                  v-if="fact.key === 'phone'"
+                  :phone="lead.phone_e164"
+                  :name="lead.full_name"
+                  :contactable="!lead.do_not_contact"
+                />
+                <template v-else>{{ fact.value }}</template>
                 <span class="ml-2 whitespace-nowrap text-xs font-normal text-ink-muted" data-test="source">{{ source }}</span>
               </template>
               <span v-else class="text-ink-tertiary">Not given</span>

@@ -26,6 +26,12 @@ describe("PhoneContact", () => {
     expect(w.findAll("a")).toHaveLength(0);
   });
 
+  it("shows the number but no links when the caller says the person is not to be contacted", () => {
+    const w = mount(PhoneContact, { props: { phone: "5125550134", name: "Ana Diaz", contactable: false } });
+    expect(w.text()).toBe("(512) 555-0134");
+    expect(w.findAll("a")).toHaveLength(0);
+  });
+
   it("gives no links for a missing number or one no phone could dial", () => {
     expect(mount(PhoneContact, { props: { phone: null } }).findAll("a")).toHaveLength(0);
     const junk = mount(PhoneContact, { props: { phone: "n/a" } });
