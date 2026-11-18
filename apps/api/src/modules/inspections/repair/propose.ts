@@ -81,13 +81,9 @@ export function proposeRepair(
     .map((o) => ({ o, openedOn: dayIn(o.openedAt, zone) }))
     .filter(({ openedOn }) => openedOn >= inspDay && openedOn <= lastDay)
     .map((x) => ({ ...x, matches: matchesOf(x.o), late: x.openedOn > dueOn }))
-    .sort(
-      (a, b) =>
-        Number((b.matches?.length ?? 0) > 0) - Number((a.matches?.length ?? 0) > 0) ||
-        Number(a.late) - Number(b.late) ||
-        a.o.openedAt.localeCompare(b.o.openedAt) ||
-        a.o.fleetpalId.localeCompare(b.o.fleetpalId),
-    )
+    // Matching first, then by date — which also puts late orders after on-time ones, since a late order was
+    // by definition opened after every on-time one; no separate "late" key is needed.
+    .sort((a, b) => Number((b.matches?.length ?? 0) > 0) - Number((a.matches?.length ?? 0) > 0) || a.o.openedAt.localeCompare(b.o.openedAt) || a.o.fleetpalId.localeCompare(b.o.fleetpalId))
     .map(
       ({ o, openedOn, matches, late }): RepairCandidate => ({
         workOrderId: o.fleetpalId,
