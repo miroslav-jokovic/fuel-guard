@@ -1,11 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ADS_CONNECTION_VIEW_COLUMNS, type AdsConnectionView, type AdsMetaConnect } from "@silvicom/shared";
+import { ADS_CONNECTION_VIEW_COLUMNS, type AdsConnectionView, type AdsMetaConnect, type AdsTokenExpiry } from "@silvicom/shared";
 import { writeAudit } from "../../../lib/audit.js";
 import { seal, secretAad } from "../../../lib/secretBox.js";
 import { recordFinished } from "../actions/actionLedger.js";
 import { sandboxOnlyVerdict } from "../guard/sandboxOnly.js";
 import { testMetaConnection, type ConnectionReport, type ConnectionTarget } from "../platforms/meta/connectionTest.js";
 import { MetaGraph } from "../platforms/meta/graphClient.js";
+import { appAccessToken, expiresOn, readTokenExpiry } from "../platforms/meta/tokenExpiry.js";
 import {
   graphForConnection,
   metaPageTokenPurpose,
@@ -80,6 +81,7 @@ export async function connectMeta(deps: ConnectionDeps, orgId: string, actor: Co
   const target: ConnectionTarget = { accountId, pageId: ask.page_id };
   const { report, pageToken, tokenRefused } = await testMetaConnection(graph, target);
   if (tokenRefused) return { kind: "token_refused", report };
+  report.token_expiry = await readTokenExpiry(graph, appAccessToken(deps.env), deps.now());
   // D-AD8 (Q-AD42): on a non-production host only a listed sandbox account Meta says cannot be billed. Asked after the
   // token is known good (so a bad token is reported as such) and before anything is sealed or stored.
   const sandbox = await sandboxOnlyVerdict(deps, "meta", accountId, async () => graph);
@@ -106,6 +108,7 @@ export async function connectSimulator(deps: ConnectionDeps, orgId: string, acto
   if (!opened.ok) return { kind: "refused", error_code: opened.error_code, reason: opened.reason };
   const target: ConnectionTarget = { accountId: SIMULATOR_ACCOUNT_ID, pageId: SIMULATOR_PAGE_ID };
   const { report } = await testMetaConnection(opened.graph, target);
+  report.token_expiry = { read: false, why: "simulator", error_code: null, checked_at: deps.now().toISOString() };
   const connection = await saveRow(deps, orgId, "simulator", true, {
     account_ref: SIMULATOR_ACCOUNT_ID, page_ref: SIMULATOR_PAGE_ID, token_sealed: null, page_token_sealed: null, connected_by: actor.id,
     ...testColumns(report, deps.now()),
@@ -137,6 +140,9 @@ export async function testConnection(deps: ConnectionDeps, orgId: string, actor:
   if (!opened.ok) return { kind: "refused", error_code: opened.error_code, reason: opened.reason };
   const target: ConnectionTarget = { accountId: row.account_ref ?? "", pageId: row.page_ref ?? "" };
   const { report, pageToken } = await testMetaConnection(opened.graph, target);
+  report.token_expiry = opened.simulated
+    ? { read: false, why: "simulator", error_code: null, checked_at: deps.now().toISOString() }
+    : await readTokenExpiry(opened.graph, appAccessToken(deps.env), deps.now());
   const patch: Record<string, unknown> = testColumns(report, deps.now());
   // A Page token Meta hands out again replaces the stored one (it changes when the Page's roles do).
   if (pageToken && row.provider === "meta") patch.page_token_sealed = seal(deps.env, pageToken, secretAad(orgId, metaPageTokenPurpose(row.is_sandbox)));
@@ -213,6 +219,7 @@ function testColumns(report: ConnectionReport, at: Date): Record<string, unknown
     scopes: report.scopes_granted,
     last_test_at: at.toISOString(),
     last_test: report,
+    token_expires_on: expiresOn(report.token_expiry),
     last_error: failed ? `${failed.key}: ${failed.detail}`.slice(0, 1000) : null,
     updated_at: at.toISOString(),
   };
@@ -241,6 +248,17 @@ async function updateRow(admin: SupabaseClient, orgId: string, id: string, value
   const { data, error } = await admin.from("ads_platform_connections").update(values).eq("org_id", orgId).eq("id", id).select(ADS_CONNECTION_VIEW_COLUMNS).single();
   if (error) throw new Error(`ads_platform_connections: ${error.message}`);
   return data as unknown as AdsConnectionView;
+}
+
+/**
+ * The daily token read's write (A-8, `tokenWatch.ts`): the expiry day on the row, and the reading on the last test's
+ * report, so the health read and Settings show the newest answer. Here, because this file owns the table's writes.
+ */
+export async function recordTokenExpiry(admin: SupabaseClient, orgId: string, id: string, expiry: AdsTokenExpiry, lastTest: ConnectionReport | null): Promise<void> {
+  const { error } = await admin.from("ads_platform_connections")
+    .update({ token_expires_on: expiresOn(expiry), ...(lastTest ? { last_test: { ...lastTest, token_expiry: expiry } } : {}) })
+    .eq("org_id", orgId).eq("id", id);
+  if (error) throw new Error(`ads_platform_connections: ${error.message}`);
 }
 
 async function recordTest(deps: ConnectionDeps, orgId: string, connectionId: string, actor: ConnectionActor, target: ConnectionTarget, report: ConnectionReport): Promise<void> {
