@@ -18,14 +18,17 @@
   row at all are all listed. The list also carries: the kill switch, a platform with no monthly cap, and a failing
   connection or a token in warn or bad (the health read's `foldConnections`). A state the machine newly hands to a
   person is listed as "waiting", never dropped.
-- **Ledger.** `ads_actions` newest first, 50 a page, keyset on (started_at, id). A kill writes several rows in one
-  instant, so started_at alone would skip or repeat rows. The cursor keeps the timestamp exactly as Postgres wrote it,
-  because a JS Date would cut microseconds and move the boundary. The route refuses (400) any cursor that isn't a
-  timestamp and a uuid before it reaches the filter string.
+- **Ledger.** `ads_actions` newest first, 50 a page, addressed the way the Audit log is (D-US12): `?before=` is the
+  page's `older`, `?after=` its `newer`, and there are no page numbers. The keyset is (started_at, id), because a kill
+  writes several rows in one instant and started_at alone would skip or repeat rows. A newer read walks up from the
+  cursor in ascending order and is turned back to newest first. The cursor keeps the timestamp exactly as Postgres
+  wrote it, because a JS Date would cut microseconds and move the boundary. The route refuses (400) a malformed
+  cursor, or both directions at once, before any read.
 - Route sweep (cross-carrier) and gate table carry the new route.
 - Mutations, each alone, each red: the derived rule, the person check, the cursor's timestamp check, the
   instant compare, the org filter on the ledger, on the paused transitions and on the ready count, the next-page
-  cursor, and the name read for an archived campaign.
+  cursor, the name read for an archived campaign; then the ascending newer read, its reversal, the both-directions
+  refusal, and each side of the page's two cursors.
 
 **Not built:** the screens (V6 next). The web's `isWorking` set in `adsCampaignFlow.ts` is still a hand list beside
 the machine. The Overview doesn't use it, but V6 should derive it the way this read derives "Needs you".

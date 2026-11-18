@@ -107,23 +107,39 @@ describe("adsOverviewView", () => {
     const rec = db();
     const v = await adsOverviewView(rec.client, ORG, NOW);
     expect(v.ledger.entries.map((e) => [e.campaign_name, e.event])).toEqual([["CDL-A Dallas", "launched"], ["Archived in October", "launched"]]);
-    expect(v.ledger.next_before).toBeNull();
+    expect(v.ledger).toMatchObject({ older: null, newer: null });
     expect(rec.forTable("ads_campaigns").find((q) => val(q, "id"))!.filters()).toContainEqual(expect.objectContaining({ col: "org_id", val: ORG }));
   });
 
-  it("a full ledger page hands back the cursor of its last row; the next read starts after it", async () => {
+  it("a full newest page hands back its last row as `older`; the older read starts below it, newest first", async () => {
     const many = Array.from({ length: OVERVIEW_LEDGER_PAGE + 1 }, (_, i) => action(i + 1));
-    const rec = db(many);
-    const v = await adsOverviewView(rec.client, ORG, NOW);
+    const v = await adsOverviewView(db(many).client, ORG, NOW);
     expect(v.ledger.entries).toHaveLength(OVERVIEW_LEDGER_PAGE);
-    const cursor = parseLedgerCursor(v.ledger.next_before!)!;
+    expect(v.ledger.newer).toBeNull();
+    const cursor = parseLedgerCursor(v.ledger.older!)!;
     expect(cursor).toEqual({ started_at: T, id: many[OVERVIEW_LEDGER_PAGE - 1]!.id });
 
     const next = db(many);
-    await adsOverviewView(next.client, ORG, NOW, cursor);
+    const older = await adsOverviewView(next.client, ORG, NOW, { kind: "before", at: cursor });
     const page = next.forTable("ads_actions").find((q) => has(q, "or"))!;
     expect(page.ops.find((o) => o.method === "or")!.args[0]).toBe(`started_at.lt."${T}",and(started_at.eq."${T}",id.lt.${cursor.id})`);
-    expect(page.ops.filter((o) => o.method === "order").map((o) => o.args[0])).toEqual(["started_at", "id"]);
+    expect(page.ops.filter((o) => o.method === "order").map((o) => [o.args[0], (o.args[1] as { ascending: boolean }).ascending])).toEqual([["started_at", false], ["id", false]]);
+    // Reading older, the newer side always exists: the cursor's own row is there.
+    expect(older.ledger.newer).not.toBeNull();
+  });
+
+  it("a newer read walks up from the cursor, keeps the rows nearest it, and answers them newest first", async () => {
+    const cursor = { started_at: T, id: "00000000-0000-4000-8000-000000000000" };
+    // Ascending from the cursor, as the database answers the read: 51 rows, the 51st the farthest from the cursor.
+    const ascending = Array.from({ length: OVERVIEW_LEDGER_PAGE + 1 }, (_, i) => action(i + 1));
+    const rec = db(ascending);
+    const v = await adsOverviewView(rec.client, ORG, NOW, { kind: "after", at: cursor });
+    const page = rec.forTable("ads_actions").find((q) => has(q, "or"))!;
+    expect(page.ops.find((o) => o.method === "or")!.args[0]).toBe(`started_at.gt."${T}",and(started_at.eq."${T}",id.gt.${cursor.id})`);
+    expect(page.ops.filter((o) => o.method === "order").map((o) => (o.args[1] as { ascending: boolean }).ascending)).toEqual([true, true]);
+    expect(v.ledger.entries.map((e) => e.id)).toEqual(ascending.slice(0, OVERVIEW_LEDGER_PAGE).map((a) => a.id).reverse());
+    expect(v.ledger.newer).toBe(`${T}|${ascending[OVERVIEW_LEDGER_PAGE - 1]!.id}`);
+    expect(v.ledger.older).toBe(`${T}|${ascending[0]!.id}`);
   });
 
   it("every read is scoped to the caller's org, and nothing is written", async () => {

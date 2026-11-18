@@ -106,8 +106,12 @@ export interface AdsOverviewView {
   };
   campaigns: AdsOverviewCampaign[];
   needs_you: NeedsYouItem[];
-  /** `next_before` is the cursor of the page after this one (`ledgerCursor`), null on the last page. */
-  ledger: { entries: AdsLedgerEntry[]; next_before: string | null };
+  /**
+   * A page of the log addressed by its cursor, as the Audit log is (D-US12): `older` is the `?before=` of the page
+   * after this one, `newer` the `?after=` of the page before it; null where there is none. No page numbers: a log
+   * grows at its newest end, so "page 3" names different rows every hour and a link to it would not reopen them.
+   */
+  ledger: { entries: AdsLedgerEntry[]; older: string | null; newer: string | null };
 }
 
 export const OVERVIEW_LEDGER_PAGE = 50;
@@ -209,6 +213,24 @@ export function ledgerCursor(e: Pick<AdsLedgerEntry, "started_at" | "id">): stri
 
 /** A timestamp as PostgREST writes one; nothing else may reach the filter string the cursor is spliced into. */
 const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$/;
+
+/** Where a ledger page starts: the newest rows, the rows older than a cursor, or the rows newer than one. */
+export type LedgerPosition = { kind: "newest" } | { kind: "before"; at: { started_at: string; id: string } } | { kind: "after"; at: { started_at: string; id: string } };
+
+/**
+ * The page's two cursors, from the rows read (ONE more than a page, newest first, so whether another page lies
+ * beyond in the direction read is known without a count). Reading older, the newer side always exists — the cursor's
+ * own row is there — and the same holds the other way; the ledger is append-only (AX010), so no row it named is gone.
+ */
+export function ledgerPageCursors(position: LedgerPosition, page: readonly Pick<AdsLedgerEntry, "started_at" | "id">[], more: boolean): { older: string | null; newer: string | null } {
+  const first = page[0];
+  const last = page.at(-1);
+  if (!first || !last) return { older: null, newer: null };
+  return {
+    older: position.kind === "after" || more ? ledgerCursor(last) : null,
+    newer: position.kind === "newest" ? null : position.kind === "before" || more ? ledgerCursor(first) : null,
+  };
+}
 
 /** The cursor read back; null for anything that is not one (the route answers 400 rather than guess). */
 export function parseLedgerCursor(s: string): { started_at: string; id: string } | null {

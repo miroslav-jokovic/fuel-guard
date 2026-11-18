@@ -1,8 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   CAMPAIGN_STATES_AWAITING_PERSON, OVERVIEW_LEDGER_PAGE, RUNNING_CAMPAIGN_STATES,
-  foldConnections, foldNeedsYou, ledgerCursor, ledgerEntry, monthContext, pausedReading,
-  type AdsOverviewCampaign, type AdsOverviewView, type CampaignState, type HealthConnectionRow, type LedgerRow, type TransitionRow,
+  foldConnections, foldNeedsYou, ledgerEntry, ledgerPageCursors, monthContext, pausedReading,
+  type AdsOverviewCampaign, type AdsOverviewView, type CampaignState, type HealthConnectionRow, type LedgerPosition, type LedgerRow, type TransitionRow,
 } from "@silvicom/shared";
 import { settingsInForce } from "../settings/settingsVersions.js";
 import { adsSpendView } from "../spend/spendView.js";
@@ -23,17 +23,27 @@ const PAUSED_ROWS = 2;
 interface CampaignRow { id: string; name: string; state: CampaignState; state_changed_at: string; connection_id: string; daily_budget_cents: number | null }
 
 /**
- * The ledger page. `before` is a parsed cursor (`parseLedgerCursor`); its timestamp is quoted into the filter, and it
- * reaches here only after that parser accepted it, so nothing a caller typed is spliced in unchecked.
+ * One ledger page, newest first, and one row more than a page (whether another lies beyond). The cursor's timestamp
+ * is quoted into the filter; it reaches here only after `parseLedgerCursor` accepted it, so nothing a caller typed is
+ * spliced in unchecked. Reading newer (`after`) walks up the log ascending and is turned back to newest first.
  */
-async function ledgerPage(admin: SupabaseClient, orgId: string, before: { started_at: string; id: string } | null): Promise<LedgerRow[]> {
+async function ledgerPage(admin: SupabaseClient, orgId: string, position: LedgerPosition): Promise<LedgerRow[]> {
   let q = admin.from("ads_actions")
     .select("id, kind, status, actor_kind, actor_name, campaign_id, cause, error_code, request, started_at, finished_at")
     .eq("org_id", orgId);
-  if (before) q = q.or(`started_at.lt."${before.started_at}",and(started_at.eq."${before.started_at}",id.lt.${before.id})`);
-  const { data, error } = await q.order("started_at", { ascending: false }).order("id", { ascending: false }).limit(OVERVIEW_LEDGER_PAGE + 1);
+  if (position.kind !== "newest") {
+    const { started_at: t, id } = position.at;
+    const [cmp, asc] = position.kind === "before" ? ["lt", false] : ["gt", true];
+    q = q.or(`started_at.${cmp}."${t}",and(started_at.eq."${t}",id.${cmp}.${id})`);
+    q = q.order("started_at", { ascending: asc }).order("id", { ascending: asc });
+  } else {
+    q = q.order("started_at", { ascending: false }).order("id", { ascending: false });
+  }
+  const { data, error } = await q.limit(OVERVIEW_LEDGER_PAGE + 1);
   if (error) throw new Error(`ads_actions: ${error.message}`);
-  return (data ?? []) as LedgerRow[];
+  const rows = (data ?? []) as LedgerRow[];
+  // Newer pages were read oldest first so the LIMIT keeps the rows nearest the cursor; the extra row is the far one.
+  return position.kind === "after" ? [...rows.slice(0, OVERVIEW_LEDGER_PAGE).reverse(), ...rows.slice(OVERVIEW_LEDGER_PAGE)] : rows;
 }
 
 async function pausedTransitions(admin: SupabaseClient, orgId: string, campaignId: string): Promise<TransitionRow[]> {
@@ -58,7 +68,7 @@ async function readyAds(admin: SupabaseClient, orgId: string, campaignIds: strin
 }
 
 export async function adsOverviewView(
-  admin: SupabaseClient, orgId: string, now: Date, before: { started_at: string; id: string } | null = null,
+  admin: SupabaseClient, orgId: string, now: Date, position: LedgerPosition = { kind: "newest" },
 ): Promise<AdsOverviewView> {
   const month = monthContext(now);
   const [settings, spend, conns, camps, ledgerRows] = await Promise.all([
@@ -67,7 +77,7 @@ export async function adsOverviewView(
     admin.from("ads_platform_connections").select("id, provider, is_sandbox, status, last_test_at, last_error, last_test").eq("org_id", orgId).order("created_at"),
     admin.from("ads_campaigns").select("id, name, state, state_changed_at, connection_id, daily_budget_cents")
       .eq("org_id", orgId).neq("state", "archived").order("created_at", { ascending: false }).limit(PAGE),
-    ledgerPage(admin, orgId, before),
+    ledgerPage(admin, orgId, position),
   ]);
   if (conns.error) throw new Error(`ads_platform_connections: ${conns.error.message}`);
   if (camps.error) throw new Error(`ads_campaigns: ${camps.error.message}`);
@@ -126,6 +136,6 @@ export async function adsOverviewView(
       ready_ads: ready,
       paused: new Map(pausedReads),
     }),
-    ledger: { entries, next_before: ledgerRows.length > OVERVIEW_LEDGER_PAGE ? ledgerCursor(page.at(-1)!) : null },
+    ledger: { entries, ...ledgerPageCursors(position, page, ledgerRows.length > OVERVIEW_LEDGER_PAGE) },
   };
 }

@@ -138,19 +138,26 @@ export function adsRouter(deps: AdsRouterDeps): Router {
     }),
   );
 
-  // V6 Overview (plan §0.3 step 3): running, spent, leads, "Needs you", and the action ledger a page at a time
-  // (`?before=` is the previous page's `next_before`). A read of what we already hold, gated as the spend read is.
+  // V6 Overview (plan §0.3 step 3): running, spent, leads, "Needs you", and the action ledger a page at a time,
+  // addressed as the Audit log is (D-US12): `?before=` the page's `older`, `?after=` its `newer`. A read of what we
+  // already hold, gated as the spend read is.
   router.get(
     "/overview",
     requireSection(BRIEF_SECTION, "view"),
     asyncHandler(async (req, res) => {
-      const raw = req.query.before;
-      const before = raw === undefined ? null : typeof raw === "string" ? parseLedgerCursor(raw) : null;
-      if (raw !== undefined && before === null) {
-        res.status(400).json(apiError("bad_request", "before is not a ledger cursor"));
+      const { before, after } = req.query;
+      if (before !== undefined && after !== undefined) {
+        res.status(400).json(apiError("bad_request", "Give before or after, not both."));
         return;
       }
-      res.json(await adsOverviewView(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, new Date(), before));
+      const raw = before ?? after;
+      const at = raw === undefined ? null : typeof raw === "string" ? parseLedgerCursor(raw) : null;
+      if (raw !== undefined && at === null) {
+        res.status(400).json(apiError("bad_request", "That is not a ledger cursor."));
+        return;
+      }
+      const position = at === null ? { kind: "newest" as const } : { kind: before !== undefined ? "before" as const : "after" as const, at };
+      res.json(await adsOverviewView(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, new Date(), position));
     }),
   );
 

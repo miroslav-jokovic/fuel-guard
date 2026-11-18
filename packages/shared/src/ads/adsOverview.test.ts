@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  CAMPAIGN_STATES_AWAITING_PERSON, foldNeedsYou, ledgerCursor, ledgerEntry, parseLedgerCursor, pausedReading,
+  CAMPAIGN_STATES_AWAITING_PERSON, foldNeedsYou, ledgerCursor, ledgerEntry, ledgerPageCursors, parseLedgerCursor, pausedReading,
   type NeedsYouInput, type TransitionRow,
 } from "./adsOverview.js";
 import type { AdsHealthConnection } from "./adsHealth.js";
@@ -107,5 +107,16 @@ describe("the ledger", () => {
       "", "x", `${T}`, `${T}|not-a-uuid`, `${T}|${id}|extra`,
       `2026-11-18T15:00:00Z",id.gt.0|${id}`, `2026-11-18|${id}`, `${T}|${id}),or(org_id.neq.x`,
     ]) expect(parseLedgerCursor(bad), bad).toBeNull();
+  });
+
+  it("a page's cursors: the newest page has no newer; a last page has no older; the side read from always exists", () => {
+    const rows = [{ started_at: "2026-11-18T15:00:02Z", id: "b" }, { started_at: "2026-11-18T15:00:01Z", id: "a" }];
+    const at = { started_at: "2026-11-18T15:00:03Z", id: "c" };
+    expect(ledgerPageCursors({ kind: "newest" }, rows, true)).toEqual({ older: "2026-11-18T15:00:01Z|a", newer: null });
+    expect(ledgerPageCursors({ kind: "newest" }, rows, false)).toEqual({ older: null, newer: null });
+    expect(ledgerPageCursors({ kind: "before", at }, rows, false)).toEqual({ older: null, newer: "2026-11-18T15:00:02Z|b" });
+    expect(ledgerPageCursors({ kind: "after", at }, rows, false)).toEqual({ older: "2026-11-18T15:00:01Z|a", newer: null });
+    expect(ledgerPageCursors({ kind: "after", at }, rows, true)).toEqual({ older: "2026-11-18T15:00:01Z|a", newer: "2026-11-18T15:00:02Z|b" });
+    expect(ledgerPageCursors({ kind: "before", at }, [], false)).toEqual({ older: null, newer: null });
   });
 });
