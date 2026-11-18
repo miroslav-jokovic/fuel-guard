@@ -299,33 +299,55 @@ none is built around it.** Measured:
   `parent_row_type = 'O'` are not orders: every key is 9 digits, `orders.id` is 7 characters on all
   136,414 orders, and 0 match an order (any company, trimmed) or a movement (lme_analytics,
   restore 2026-10-09, counts only, measured 2026-11-18).
-- The best candidate for the index is one of `dta`..`dta6` (created 2023-02-03, backed up with lme
-  every hour), which neither login can open; McLeod's documented ImagingService lists a row's images
-  (order or movement) and returns one by id. Neither is confirmed for this install.
+- **Found, 2026-11-18: `dta`..`dta6` ARE McLeod Imaging (DocumentPower), and `dta` holds a per-load
+  image index.** Measured with server metadata only, no row of `dta` read (neither login can open it):
+  every session on `dta`..`dta6` is the login `imagingsql` from a separate host `MCLEODIMAGING`,
+  running the imaging programs `dplogix`, `getimgd`, `javaimgd`, `ImgLicServer` and `wdp-wflogix`
+  (`dplogix` also connects to lme as `lmeadm`, and LME's own `Javaimgd` runs on APPNEW). The plan
+  cache since the 2026-11-17 19:45Z server start names the tables:
+  - `bolimgh` (one row per load: `bimh_load_no`, `bimh_bill_to`, `bimh_blnum`, `bimh_noimgs`) and
+    `bolimgd` (one row per image: `bimd_load_no`, `bimd_imgcat`, `bimd_scandt`, `bimd_user`,
+    `bimd_imgnm`, `bimd_volid`, `bimd_ext`). 304 `bolimgd` inserts and 812 updates in those ~18 hours,
+    which is a working store, not a relic. LME's billing side runs
+    `select * from bolimgd where bimd_load_no = ? and bimd_imgcat = 1`, so the key is the order.
+  - `imapcats` (`icat_appid`, `icat_catid`, `icat_catdesc`) names the categories; which `catid` is the
+    rate confirmation is the one fact metadata cannot give.
+  - `media` (`med_volid`, `med_volhost`, `med_mntpnt`) says where each volume lives. The image itself
+    is a FILE on the imaging host's volume, not a column: `dta` is 2.2 GB and grows ~20 MB a month.
+  - Also there: `renbill` (`renb_load_no`, `renb_invno`, `renb_printdt`, `renb_done`) — billing's
+    image packet per invoice; `dpfdimgh` (driver scans: `dpfh_loadno`, `dpfh_driver`, `dpfh_tractor`);
+    `dxlimgd` (generic projects, `dxld_index0..8`).
+  So "is a revised RC on this order, since when, keyed by whom" is a read of three tables, and the
+  PDF is one file read on the imaging volume (or one call to its image service).
 
 Whatever the route, the matching rule is ours and needs nothing new from McLeod: a case already has
 the order and the lumper's date, so an RC-type document on that order dated on or after the lumper
 charge is the revised RC. It is downloaded into the case's files (0601) with McLeod as its source,
 which closes the RC reminders exactly as a hand-filed one does, and a dispatcher never files it twice.
 
-- **(a) Recommended: McLeod's own API (DocumentPower / ImagingService), with a read-only API user.**
-  The supported route, it returns the file itself, and it survives the 26.2 upgrade the office is
-  weighing, where a table read may not. It also answers the 2026-11-11 meeting's open "send BOL and
-  POD scans into DocumentPower" question, and the BOL reader's corpus. Cost: an API user and possibly
-  a licence, through McLeod and Alex, and one new outbound connection from the VM.
-- (b) A read grant on DocumentPower's index tables, once Alex names them (probably in `dta`..`dta6`).
-  Fits the connector as it is (SQL on the VM), but it is an undocumented schema, and the file
-  itself may still live on a share or behind the service, so it may answer "is an RC there" without
-  the PDF.
+- (a) McLeod's own API (DocumentPower / ImagingService), with a read-only API user. The supported
+  route and it returns the file, but it is still unconfirmed for this install, costs an API user and
+  possibly a licence through McLeod, and one new outbound connection from the VM.
+- **(b) Recommended since 2026-11-18: a read grant on `dta.dbo.bolimgh`, `bolimgd`, `imapcats` and
+  `media` for `silvicom_dispatch_ro`, plus read-only access for the VM to the imaging volume the
+  `media` rows name.** No longer a guess: the tables are measured above, the connector already reads
+  SQL on the same server from the VM, and it needs no licence. The grant alone already closes the RC
+  reminders ("an RC-category image on the order, scanned on or after the lumper charge"); the file
+  read adds the PDF onto the case. The risk is an undocumented schema across the 26.2 upgrade — so the
+  read must fail loudly (a missing column is an error, never an empty answer), and (a) stays the
+  fallback. It also answers the 2026-11-11 meeting's "BOL and POD scans in DocumentPower" question
+  and the BOL reader's corpus from the same four tables.
 - (c) Read the broker emails where the RC arrives (Microsoft Graph, already used for the Pilot
   mailbox), limited to the dispatchers' mailboxes, and read the order number off the PDF. Needs no
   McLeod change, but it is a second source beside the one billing uses, it misses an RC that came any
   other way, and it puts the document reader in the path of a money decision.
 
-What IT has to answer for (a) or (b), asked ONCE, together with the finance grants still missing on
-LME (15 tables, measured 2026-11-17): what "Print to Billing" writes to and where its index lives;
-whether this install has McLeod's web services and an API user can be read-only; the document type
-the dispatchers pick for a rate confirmation, and whether "revised" is recorded at all.
+What IT has to answer, asked ONCE, together with the finance grants still missing on LME (15 tables,
+measured 2026-11-17): SELECT on the four `dta` tables above for `silvicom_dispatch_ro`; how the VM
+may read the imaging volume (a read-only share of `med_mntpnt` on `MCLEODIMAGING`, or the image
+service's address); which `imapcats` category "Print to Billing" files a rate confirmation under,
+and whether a revised one gets its own category. (The first two replace the earlier "where does
+its index live" — measured now, so not asked.)
 
 **Rulings, 2026-11-13.** The owner answered "proceed as recommended": Q-LRC3 (every `LUM` row),
 Q-LRC5 (the order's `operations_user`), Q-LRC7 (lumper only, case keyed by charge code) and Q-LRC2
@@ -531,3 +553,9 @@ VM runs it. Q-LRC8 (EFS money codes) and Q-LRC9 are open.
   logins' reach, and the `comments` route the unit-papers export uses does not hold it (the 78 'O'
   attachments of 2026 match no order). Nothing built around it; one request to IT, with the finance
   grants, decides between (a) the API and (b) an index grant.
+- 2026-11-18 — Q-LRC10's store found. With the sandbox login's server metadata (sessions, plan
+  cache, backup history; no `dta` row read, the login cannot open it): `dta`..`dta6` belong to McLeod
+  Imaging on host `MCLEODIMAGING` (login `imagingsql`, programs `dplogix`/`getimgd`/`javaimgd`), and
+  `dta.dbo.bolimgh`/`bolimgd` index images by `load_no` with category, scan date and user; the files
+  sit on the volume `media` names. 304 new image rows in ~18 h. Q-LRC10's recommendation moves from
+  (a) to (b), and the IT question shrinks to four grants, volume access and one category name.
