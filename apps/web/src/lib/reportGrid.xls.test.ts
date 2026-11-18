@@ -91,3 +91,55 @@ describe("readReportGrid on an OpenDocument .ods (Google Sheets, LibreOffice)", 
     expect(isOpenDocument(await biff8([["a"]], "xlsx"))).toBe(false);
   });
 });
+
+/**
+ * An `.xlsx` whose parts bind the spreadsheet namespace to a prefix (`<x:workbook>`), as Microsoft's
+ * Open XML SDK writes them — the shape of the owner's DriveKS K-TAG export (TOLLS-PER-TRUCK-PLAN TL4c).
+ * Rebuilt in memory from a SheetJS workbook so no real export, which carries account data, is committed.
+ */
+async function prefixedXlsx(rows: unknown[][]): Promise<ArrayBuffer> {
+  const XLSX = (await import("@vendor/sheetjs/xlsx.mjs")) as unknown as {
+    CFB: {
+      read(d: Uint8Array, o: { type: string }): unknown;
+      find(c: unknown, path: string): { content: Uint8Array; size: number } | null;
+      write(c: unknown, o: { fileType: string; type: string }): unknown;
+    };
+  };
+  const plain = await biff8(rows, "xlsx");
+  const zip = XLSX.CFB.read(new Uint8Array(plain), { type: "array" });
+  const part = XLSX.CFB.find(zip, "/xl/workbook.xml");
+  if (!part) throw new Error("fixture: no workbook part");
+  const xml = new TextDecoder()
+    .decode(part.content)
+    .replace(/<(\/?)(?![?])([A-Za-z]+)/g, (_m, slash: string, name: string) => `<${slash}x:${name}`)
+    .replace(" xmlns=", " xmlns:x=");
+  part.content = new TextEncoder().encode(xml);
+  part.size = part.content.length;
+  // Copied into an ArrayBuffer made here: CFB returns a plain array-like, and `readReportGrid` tells a
+  // buffer from a File with `instanceof ArrayBuffer`.
+  const bytes = new Uint8Array(XLSX.CFB.write(zip, { fileType: "zip", type: "array" }) as ArrayLike<number>);
+  const out = new ArrayBuffer(bytes.length);
+  new Uint8Array(out).set(bytes);
+  return out;
+}
+
+describe("readReportGrid on an .xlsx with a prefixed namespace", () => {
+  it("reads the DriveKS-style export that ExcelJS refuses", async () => {
+    const buf = await prefixedXlsx([
+      ["Unit", "License plate", "KTAG ID"],
+      ["679", "IL-P973221", "KTA.03853749"],
+    ]);
+    // The fixture must really be one ExcelJS refuses, or this proves nothing about the fallback.
+    const ExcelJSMod = await import("exceljs");
+    await expect(new ExcelJSMod.Workbook().xlsx.load(buf)).rejects.toThrow(/sheets/);
+
+    const grid = await readReportGrid(buf);
+    expect(grid[0]).toEqual(["Unit", "License plate", "KTAG ID"]);
+    expect(grid[1]).toEqual(["679", "IL-P973221", "KTA.03853749"]);
+  });
+
+  it("still shows ExcelJS's own error for a zip that neither decoder can read", async () => {
+    const notAWorkbook = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]).buffer;
+    await expect(readReportGrid(notAWorkbook)).rejects.toThrow();
+  });
+});
