@@ -150,3 +150,7 @@ is attached stays in the drawer until Q-RR4.
 ## 4. Progress log
 - **2026-11-18 · Plan written from the measurements in §1.** RR1 and RR2 build next (both already ruled);
   Q-RR1–Q-RR4 wait on the owner.
+- **2026-11-18 · Owner ruled Q-RR1 (a), Q-RR2 (a), Q-RR3 (a)** ("proceed as recommended"). Q-RR4 (a) is the
+  owner's own act — attach any file to one existing invoice in FleetPal and say which — and waits on it; no
+  write to FleetPal is made from here. Build order: RR3 late work orders (engine, after RR1), RR4 the history
+  split, RR5 the named repair-alert recipients.
