@@ -58,6 +58,15 @@ export const fleetpalUnitSchema = z.looseObject({
   archived: timestamp.nullable(),
   created: timestamp,
   updated: timestamp,
+  // ── Added 2026-11-18 from FleetPal's live spec (plan Q13 / F16b). Optional, because a payload from
+  // before the vendor added them still parses and nothing here stores them yet. ──
+  division: fleetpalId.nullable().optional(),
+  division_data: z.looseObject({ id: z.string().optional(), name: z.string().nullable().optional() }).nullable().optional(),
+  domicile: z.string().nullable().optional(),
+  /** FleetPal's own unit status name (their configurable list) — NOT our `vehicles.status`. */
+  status: z.string().nullable().optional(),
+  tracked_meters: z.looseObject({}).nullable().optional(),
+  vmrs_equipment_category_data: z.looseObject({}).nullable().optional(),
 });
 export type FleetpalUnit = z.infer<typeof fleetpalUnitSchema>;
 
@@ -111,6 +120,15 @@ export const fleetpalIntervalSchema = z.looseObject({
   last_done_meter_value: canonicalMeter.nullable(),
   /** Display position. Carries no scheduling meaning — do not sort due-dates by it. */
   order: z.number().int(),
+  // ── Added 2026-11-18 (Q13): FleetPal's computed due point per interval. Not read yet. ──
+  current_meter: z.number().nullable().optional(),
+  due_int: z.number().nullable().optional(),
+  due_time: timestamp.nullable().optional(),
+  overdue_int: z.number().nullable().optional(),
+  overdue_time: timestamp.nullable().optional(),
+  passed_percent_till_overdue: z.number().nullable().optional(),
+  remaining_till_overdue: z.unknown().optional(),
+  status: z.string().nullable().optional(),
 });
 export type FleetpalInterval = z.infer<typeof fleetpalIntervalSchema>;
 
@@ -128,6 +146,13 @@ export const fleetpalPmScheduleSchema = z.looseObject({
   intervals: z.array(fleetpalIntervalSchema),
   created: timestamp,
   updated: timestamp,
+  // ── Added 2026-11-18 (Q13). FleetPal's own due verdict; ours stays `pmVerdict` (Q11 (d)). ──
+  is_dependent: z.boolean().optional(),
+  most_urgent_percent: z.number().nullable().optional(),
+  most_urgent_status: z.string().nullable().optional(),
+  most_urgent_type: z.string().nullable().optional(),
+  parent: fleetpalId.nullable().optional(),
+  rank: z.number().int().nullable().optional(),
 });
 export type FleetpalPmSchedule = z.infer<typeof fleetpalPmScheduleSchema>;
 

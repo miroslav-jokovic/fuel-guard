@@ -60,6 +60,8 @@ export const fleetpalWorkOrderSchema = z.looseObject({
   cancellation_reason: z.string(),
   created: timestamp,
   updated: timestamp,
+  /** Added 2026-11-18 (Q13). FleetPal's own total; not used for money — per-unit cost stays service history's (D-FP18). */
+  total: money.nullable().optional(),
 });
 export type FleetpalWorkOrder = z.infer<typeof fleetpalWorkOrderSchema>;
 
@@ -132,6 +134,8 @@ export const fleetpalJobItemSchema = z.looseObject({
   total: money,
   created: timestamp,
   updated: timestamp,
+  /** Added 2026-11-18 (Q13): the member who did the line. */
+  technician: fleetpalId.nullable().optional(),
 });
 export type FleetpalJobItem = z.infer<typeof fleetpalJobItemSchema>;
 

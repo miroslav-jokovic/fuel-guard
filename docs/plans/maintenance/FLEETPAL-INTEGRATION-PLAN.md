@@ -842,13 +842,13 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 | **Q9** | With `Vendor.code` populated on 1 of 761 vendors (F4), how does the coverage ratio join FleetPal invoices to `mcleod_ap_vouchers`? | **(a), stated as a bound** — ruled by the owner on **2026-09-21**. The join is on the invoice number ALONE and the answer is reported as "at least X%", said in those words on the page and not only in a tooltip. (b)'s normalised vendor-name comparison is the same class of guess D-FS5 bans for McLeod's free-text units, and (c) is right but waits on somebody outside this repo — nothing stops it happening later, and a populated `code` upgrades this to an exact figure with no code change beyond the join. **Unblocks F9.** | D-FP4, D-FP15 |
 | **Q10** | A weekly bucket has no coverage bound of its own — the GL is monthly. What does a weekly row print? | **(a)** — the containing month's bound, labelled as the month's. Taken on **2026-11-16** when the owner said to proceed with building the plan's remaining steps; (a) was the plan's recommendation and the text of F9d already. | F9d |
 | **Q11** | The Vehicles list's "Next PM due" column needs `pmStatus`'s verdict, but `vehicles` held only the due point, and "can't tell" was written NULL like "no schedule". What does the column read? | **(d)** — a `vehicles.next_pm_verdict` column (`overdue`/`due`/`ok`/`unknown`, NULL = no schedule), written by F11's `projectPmDue` from the same judged schedules (`truckPmVerdict`, shared), read by the list. Three merges' worth of order in two PRs: migration 0628 + the shared rule, then the writer and the column once staging reports 0628 current. Owner, **2026-11-17** ("proceed as recommended"). | Q11 |
+| **Q12** | D-FP28 reads a work order's scanned bills live. Should certifying a roadside repair freeze a copy, so the certified 396.9(d) record cannot change under it? | **(a)** — ruled by the owner on **2026-11-18**: at certification, copy each file on the accepted work order's invoices into document storage beside the rendered record (append-only, evidence rules). Not (c), a nightly copy of every bill. Step F16c. |
+| **Q13** | Our spec copy (71 paths) was 100 endpoints behind FleetPal's live one. Refresh it, and model the 28 fields that surfaces? | **(a)** — ruled by the owner on **2026-11-18**. Done in F16b: all 28 optional, none stored. |
 
 ### 6.2 Open
 
 | # | Question | Candidates | Recommendation |
 |---|---|---|---|
-| **Q12** (2026-11-18) | Should a roadside repair's certification FREEZE a copy of the vendor's scanned bill? D-FP28 reads files live; a certified 396.9(d) record that points at a file FleetPal may later replace or delete is weaker evidence than one that holds it (a filed document is frozen). | (a) At certification, copy each file of the accepted work order's invoices into document storage beside the rendered record (append-only, evidence table). (b) Keep live-only; the rendered record names the invoice numbers. (c) Copy every file for every work order nightly. | **(a)** — the certified record is the one moment the paper must not move; (c) duplicates ~2,400 PDFs a year nobody asked to keep, onto storage that has no backup yet. Needs a migration and the evidence-table rules. |
-| **Q13** (2026-11-18) | Refresh our spec copy to the live one (F16b)? Regenerating the field manifest from `/v1/openapi.json` surfaces 28 vendor fields the sweep schemas do not model (`Unit.status`/`division`, `WorkOrder.total`, `JobItem.technician`, PM `most_urgent_*`, `POInvoice.attachments`, …), and `lint:fleetpal-contract` is two-way. | (a) One PR: replace the spec, regenerate, model all 28 (optional fields, nothing stored yet), then move `fleetpalInvoiceFilesSchema` under the gate. (b) Leave the old copy. | **(a)** — until it lands the gate checks a document 100 endpoints out of date, which is exactly how the attachments went unseen for two months. |
 
 ### 6.3 Assumptions — each retired by the step that needs it
 
@@ -2005,3 +2005,14 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   `canView("maintenance")`. Four mutations each turned a test red: dropping the invoice-on-this-order check,
   sending a key to the signed link, listing no files whatever FleetPal said, and showing the button to a
   reader without maintenance view. Open: Q12 (freeze a copy at certification), Q13 (spec refresh, F16b).
+- **2026-11-18 · Owner ruled Q12 (a) and Q13 (a)** ("proceed as recommended"). Q12: at certification, a
+  roadside repair copies each file on the accepted work order's invoices into document storage beside the
+  rendered record — append-only, evidence rules, its own migration (F16c). Q13: the spec copy is refreshed
+  (F16b, below).
+- **2026-11-18 · F16b — the spec copy is FleetPal's live document (Q13 (a)).** `docs/FleetPal/Fleetpal API.json`
+  replaced from `/v1/openapi.json` (174 paths, 961,701 bytes), manifest regenerated; the 28 new fields on
+  Unit, WorkOrder, JobItem, PMSchedule, Interval, Part, Vendor, Shop, POInvoice and POPayment are modelled
+  as optional and stored nowhere (no enum moved). `fleetpalInvoiceFilesSchema` now builds on the gated
+  `fleetpalPoInvoiceSchema`, so a vendor rename of `attachments` fails `lint:fleetpal-contract`. A new test
+  pins that the invoice sweep never carries a signed link into a row; mutation: mapping `attachments` into
+  the staged row turned it red.
