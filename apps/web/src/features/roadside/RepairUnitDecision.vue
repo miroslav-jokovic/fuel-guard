@@ -106,7 +106,7 @@ function saveOutside() {
     <div v-if="repair.decision" class="mt-3 text-ink" data-test="repair-decision">
       <p v-if="repair.decision.workOrder">
         Repaired under FleetPal work order <span class="font-medium">{{ repair.decision.workOrder.reference ?? repair.decision.workOrder.workOrderId }}</span>
-        (opened {{ formatDate(repair.decision.workOrder.openedOn) }}; {{ invoiceText(repair.decision.workOrder.workOrderId).toLowerCase() }}).
+        (opened {{ formatDate(repair.decision.workOrder.openedOn) }}<template v-if="repair.decision.workOrder.late">, after the due date</template>; {{ invoiceText(repair.decision.workOrder.workOrderId).toLowerCase() }}).
         <BaseButton v-if="canOpen" variant="link" size="sm" data-test="repair-open-decided" @click="openFleetpalId = repair.decision.workOrder.workOrderId">
           Open work order and bill
         </BaseButton>
@@ -126,6 +126,7 @@ function saveOutside() {
           <p v-if="c.jobs.length" class="text-ink-muted">{{ c.jobs.join(", ") }}</p>
           <p v-else-if="c.description" class="text-ink-muted">{{ c.description }}</p>
           <span v-if="matchText(c)" :class="[BADGE_BASE, toneClass(matchText(c)!.tone), 'mt-1']" data-test="repair-match">{{ matchText(c)!.text }}</span>
+          <span v-if="c.late" :class="[BADGE_BASE, toneClass('caution'), 'mt-1 ml-1']" data-test="repair-late">Opened after the due date</span>
           <p class="text-xs text-ink-tertiary" data-test="repair-invoices">{{ invoiceText(c.workOrderId) }}</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">

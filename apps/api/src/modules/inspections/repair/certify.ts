@@ -117,6 +117,7 @@ export async function certifyRepairs(
     decidedAt: r.decision?.decidedAt ?? null,
     note: r.decision?.note ?? null,
     workOrderRef: r.decision?.workOrder?.reference ?? r.decision?.workOrder?.workOrderId ?? null,
+    workOrderLate: r.decision?.workOrder?.late === true,
     workOrder: r.decision?.workOrder ? records.orders.get(r.decision.workOrder.workOrderId) ?? null : null,
     bills: frozen.bills.filter((b) => {
       const wo = r.decision?.workOrder ? records.orders.get(r.decision.workOrder.workOrderId) : undefined;

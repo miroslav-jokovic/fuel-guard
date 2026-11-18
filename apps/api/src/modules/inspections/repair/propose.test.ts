@@ -57,7 +57,8 @@ describe("proposeRepair", () => {
       ]),
       ZONE,
     );
-    expect(p.candidates.map((c) => [c.workOrderId, c.openedOn])).toEqual([["first-day", "2026-10-01"], ["due-day", "2026-10-16"]]);
+    // 06:00 UTC on 10-17 is the day after the due day: proposed since ic11.3, as late, after the on-time ones.
+    expect(p.candidates.map((c) => [c.workOrderId, c.openedOn, c.late])).toEqual([["first-day", "2026-10-01", false], ["due-day", "2026-10-16", false], ["after", "2026-10-17", true]]);
     expect(p.outcome).toBe("several_candidates");
   });
 
@@ -108,5 +109,35 @@ describe("proposeRepair", () => {
   it("marks no match when a component's code is unknown (a 404), rather than guessing", () => {
     const p = proposeRepair(unit({ violationCodes: ["393.47E"] }), fleet([order({ jobComponents: ["c-404", "c-unresolved"] })]), ZONE, CODES);
     expect(p.candidates[0]!.matches).toEqual([]);
+  });
+
+  // ── RR3 (ic11.3): work orders opened after the due day ─────────────────────────────────────────────────
+  it("⚠ proposes an order opened after the due day as late, up to REPAIR_FOLLOW_DAYS past it and not beyond", () => {
+    const p = proposeRepair(
+      unit(),
+      fleet([
+        // Due 10-16; the follow window ends 11-15 (Chicago).
+        order({ fleetpalId: "late", openedAt: "2026-11-15T18:00:00Z" }),
+        order({ fleetpalId: "too-late", openedAt: "2026-11-16T18:00:00Z" }),
+      ]),
+      ZONE,
+    );
+    expect(p.candidates.map((c) => [c.workOrderId, c.late])).toEqual([["late", true]]);
+    expect(p.outcome).toBe("one_candidate");
+  });
+
+  it("lists on-time orders before late ones, but a matching late order before a non-matching on-time one", () => {
+    const CODES = new Map<string, string | null>([["c-brake", "013-002-000"], ["c-oil", "OCH-001-000"]]);
+    const p = proposeRepair(
+      unit({ violationCodes: ["393.47E"] }),
+      fleet([
+        order({ fleetpalId: "late-brake", openedAt: "2026-10-20T15:00:00Z", jobComponents: ["c-brake"] }),
+        order({ fleetpalId: "ontime-oil", openedAt: "2026-10-02T15:00:00Z", jobComponents: ["c-oil"] }),
+        order({ fleetpalId: "late-oil", openedAt: "2026-10-19T15:00:00Z", jobComponents: ["c-oil"] }),
+      ]),
+      ZONE,
+      CODES,
+    );
+    expect(p.candidates.map((c) => c.workOrderId)).toEqual(["late-brake", "ontime-oil", "late-oil"]);
   });
 });
