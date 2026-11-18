@@ -1,6 +1,6 @@
 # Ads and leads, second version — four parts, a planning stage, video, and automation a carrier can set
 
-**Started:** 2026-11-14. **Status:** plan; nothing in it is built. **Read from:** `origin/main` at `0d8113f`.
+**Started:** 2026-11-14. **Status (2026-11-18):** V1 to V4 built and merged, on simulators only; V5 to V8 not built. **Where it stands, what is left and the order from here: §0.** The audit behind §0 is [`ADS-PLATFORM-AUDIT-2026-11-18.md`](ADS-PLATFORM-AUDIT-2026-11-18.md).
 
 **Authority.** The owner, 2026-11-14, after the audit of the same day: *"we are at really low level regarding
 this agents, and design and automatization"*; *"we have only image ads and no videos, we have design that will
@@ -19,6 +19,66 @@ decisions: *"proposals based on real research and analysis and not on some assum
 
 Decision and question ids here are **D-APX*n*** / **Q-APX*n*** (ads platform), a series of their own, so they
 cannot race the D-AD / Q-AD numbers a parallel chat is taking.
+
+---
+
+## 0. Where it stands, and the order from here (2026-11-18)
+
+Read this section first. §4's step texts are the record of what each step was meant to be and what was built;
+this section is what is true today and what comes next. When the two disagree, this one is newer.
+
+### 0.1 Built
+
+| Step | State | Proven on |
+|---|---|---|
+| V1 any current model per agent | done | recorded fixtures, each agent's baseline met twice |
+| V2 planning stage | done, except the Researcher and the swipe file | simulator |
+| V3 design quality | done, except the story frame, Meta's own preview and the reference set | simulator |
+| V4 video (motion ad) | done; driver clip not started | simulator (FakeMeta, the simulated video model) |
+| V5 modes · V6 workspace · V7 lead engine · V8 health page | not built | — |
+
+Scorecard (`pnpm ads:readiness`): nine workers at L3, six at L2 (Copywriter, Art director, Craft judge,
+Finished-ad judge, Checker, Strategist), **none at L4**. `scripts/ads-certifications.json` is empty, so Launch
+refuses every real campaign. Ads are off on staging and production; no `ADS_*`, `META_*` or `HIGGSFIELD_*`
+setting exists anywhere.
+
+### 0.2 The three things no further building fixes
+
+1. **Nothing has met a real vendor.** FakeMeta and the client were written by the same reader from the same
+   pages; a misreading passes every test. Only the sandbox run (L4) finds it.
+2. **No picture or video model is chosen** (`HIGGSFIELD_STILL_MODEL`, `HIGGSFIELD_VIDEO_MODEL` are `null`). How
+   good an ad looks cannot be judged from the simulator's placeholder pictures.
+3. **No agent's judgement has been compared with a person's.** The L2 agents wait on the owner's rating of the
+   60 copy sets and on approvals and rejections of real ads and plans (Q-APX3).
+
+All three wait on the owner: the Meta app, a system-user token, a sandbox ad account id, the Higgsfield key, and
+the rating page (https://claude.ai/artifact/KG1h65doetP92nctQvSvnx).
+
+### 0.3 The order from here — proposed 2026-11-18, replaces §4's "V6 → V5 → V7"
+
+| # | Work | Waits on | Why here |
+|---|---|---|---|
+| 1 | **L4 on Meta's sandbox** (`pnpm ads:certify`) and **the model sitting** (Q-APX12, Q-AD20). Fix what the sandbox refuses; move `META_GRAPH_VERSION` to v27.0 after reading its changelog | credentials | Everything else is built on readings only this can confirm |
+| 2 | **The Researcher and the swipe file** (V2's remainder) | nothing | The owner's first complaint was ads made "without any research"; a first campaign's plan today rests on the job and one benchmark |
+| 3 | **V8 health page and the Overview's read** (API), then **V6 screens** | Q-APX18 for the screens | Running a real campaign needs somewhere to see it |
+| 4 | **Q-APX16 and Q-APX17** (budget in dollars; video at 1440 × 1800) | their rulings; the sandbox answers Q-APX17 | A real video cannot be bought or sent without them |
+| 5 | **The canary (L5):** one real campaign, small cap, launched by the owner, 72 hours | 1 and 4 | The gate to any automatic launch (Q-APX1 Level B) |
+| 6 | **V5 modes** — Manual and Assisted first; Level B after the canary; Level C stays locked | 5 for Level B | A mode switch for something not yet run once by hand has nothing to stand on |
+| 7 | **V7 lead engine** — Tenstreet, the apply page, the score, the 15-minute alert, the report; Indeed when approved | Indeed's approval for Indeed | Independent of the ads; can run beside 3 to 6 |
+
+### 0.4 What "finished" means, and what it cannot mean yet
+
+The owner's goal (2026-11-18): a "100% production ready automated ads and leads system that will be reliable,
+precise and secure", in two to three more days, with no assumptions, workarounds or shortcuts.
+
+**The remaining steps do not fit in three days.** By this plan's own estimates V5, V6 and V7 are about 21 working
+days, before the Researcher and the sandbox fixes; and three items are elapsed time nobody can shorten: the
+canary's 72 hours, Indeed's approval of the employer, and the 50 real decisions that unlock Level C. Cutting a
+step to make the date would be the shortcut the owner ruled out. What three days CAN hold is **Q-APX19** (§5).
+
+"Automated" is reached by evidence, in the levels of Q-APX1: A (pause, lower, retire) is built; B (launch what a
+person approved) opens after the canary; C (publish what nobody saw) opens only at 50 real decisions with the
+judge agreeing at κ ≥ 0.8 and counsel's wording list complete.
 
 ---
 
@@ -68,7 +128,7 @@ Parts 3 and 4 exist and are sound; they are extended. Part 2 gains its missing f
 
 ## 4. The steps
 
-Days are estimates, not measurements. **Order: V1 → V2 → V3 → V4 → V6 → V5 → V7; V8 rides with V6.**
+Days are estimates, not measurements. **Order: V1 → V2 → V3 → V4 → V6 → V5 → V7; V8 rides with V6.** **Superseded 2026-11-18 by §0.3.**
 
 ### V1 · The AI rail takes any current model (~3 days + recordings)
 
@@ -83,6 +143,9 @@ Days are estimates, not measurements. **Order: V1 → V2 → V3 → V4 → V6 �
 - Starting assignment, to be confirmed by those evals and not before: Strategist and Researcher on
   `claude-fable-5-2`; Copywriter, Art director, Video director and Checker on `claude-opus-5-5`; the judges on a
   model other than the writer's (F-AG7: today writer and judge are the same model); Analyst on `claude-sonnet-5-5`.
+  **As measured (V1b, `agentModels.ts`):** the Analyst scored 13 of 14 on Sonnet 5.5, below its baseline, and stayed
+  on Opus 5.5; the two judges are on Fable 5.2, the writers on Opus 5.5. The Checker is on the writers' model
+  (audit 2026-11-18, finding A-7).
 - Prices per million tokens (in/out): Sonnet 4.6 $3/$15 · Sonnet 5.5 $2/$10 · Opus 5.5 $4/$20 · Fable 5.2 $8/$40.
 
 **Done when:** every existing worker's eval passes twice on its new model, and `lint:agent-fixtures` holds the
@@ -353,7 +416,7 @@ sandbox, which wait on the owner's Meta app, sandbox account and Higgsfield key.
 
 ## 5. The decisions, with what was read for each
 
-### Q-APX1 · May anything run with no person in between?
+### Q-APX1 · May anything run with no person in between? — RULED (b), 2026-11-14
 
 **What is ruled today:** Q-AD2 (2026-10-31) — a person launches; the agent may pause and lower on its own. D-AD12 —
 a person sees every ad.
@@ -386,7 +449,7 @@ Every automatic act writes a ledger row, appears in the morning brief and has an
 rejection or a lead-quality alert returns the carrier to Assisted. Rejected: (a) no Autopilot ever — leaves the
 owner's "automated and manual to be options" unmet; (c) full Autopilot now — no evidence yet supports it.
 
-### Q-APX2 · Fable 5.2 keeps requests for 30 days
+### Q-APX2 · Fable 5.2 keeps requests for 30 days — RULED (a), 2026-11-14
 
 **What was read.** Fable and Mythos are Covered Models: Anthropic keeps their requests 30 days and does not offer
 them under zero retention without its authorization. Thirty days is also Anthropic's standard for API traffic;
@@ -398,7 +461,7 @@ lead's name, phone or e-mail (§1): the Strategist would be sent a job's facts, 
 carries a lead contact field, so the answer stays true as agents are added. Driver clips are different: a face and
 a voice go to a video and a speech provider, so that lane waits on a written release (counsel).
 
-### Q-APX3 · Whose judgement the judge is held to
+### Q-APX3 · Whose judgement the judge is held to — RULED (a), 2026-11-14
 
 **What was read.** Practice for a model used as a judge: a set labelled by people, 50 to 200 items, 50 the floor
 (Arize; Galtea accepts 30 well-chosen); agreement reported as Cohen's κ beside raw agreement, > 0.6 usable and
@@ -413,7 +476,7 @@ that number. Two raters where there are two (owner and one recruiter). The ten r
 the swipe file say what "top class" looks like; they are learned from, never copied. The 60-set copy sheet is
 still owed — it is the only copy ground truth.
 
-### Q-APX4 · Which video first
+### Q-APX4 · Which video first — RULED (c), 2026-11-14
 
 **What was read.** No measured comparison exists for driver recruiting. Vendors say a phone clip from the cab
 beats polished video (O Trucking, CDL Jobs Linker, Leadgamp — claims without data); general sources disagree on
@@ -473,7 +536,7 @@ The owner's words — "looks like AI is in rush to create ad without any researc
 end state. (a) is the safe way to get there: it is one line to reverse (`plansFor` in `orchestrator/workers.ts`),
 and the `draft → compose` row leaves the machine in the same merge.
 
-### Q-APX7 · How many pictures and words per ad, and which pairings the judge ranks — open
+### Q-APX7 · How many pictures and words per ad, and which pairings the judge ranks — RULED (b), 2026-11-16
 
 **What was measured (2026-11-16, fixture data, the owner's key, nothing recorded).**
 
@@ -539,7 +602,7 @@ becomes the ad and is then judged in its other formats. A picture that cannot be
 the ad is chosen from the rest; the creative stops only when none can be used. All renders are queued before the
 step waits. Q-APX9 is built as (a): one image per pairing.
 
-### Q-APX8 · What makes the three pictures of one ad differ — open
+### Q-APX8 · What makes the three pictures of one ad differ — RULED (a), 2026-11-16
 
 **What was read.** `artDirector.ts` and `composeCreative.ts`: one direction is asked per ad, keyed by ad and attempt.
 Asked three times with the same input the Art director would give three near-copies — same kit photo, same
@@ -561,7 +624,7 @@ passes: 24 of 24 both times (19 fixtures from before, 5 new). In the new ones th
 third pictures from kit photos no earlier picture had used; with one photo it kept it and changed the hour and the
 side the cab is seen from; on a flatbed job with a flatbed photo and a reefer photo it stayed on the flatbed.
 
-### Q-APX9 · What is kept of the pairings that did not win — open
+### Q-APX9 · What is kept of the pairings that did not win — RULED (a), 2026-11-16
 
 **What was read.** A finished ad is stored as one PNG per format and language (`CreativeAsset`): four files for a
 two-format preset. Nine pairings kept the same way are 36 files per ad and 180 per campaign of five, in the same
@@ -573,7 +636,7 @@ bucket whose size and backup are already a recorded concern.
   "Use these words" already rebuilds an ad on its kept picture). 4 files + 8 small ones per ad.
 - (b) Everything for every pairing. Nothing is redrawn on a pick; nine times the storage for ads nobody opens.
 
-### Q-APX10 · The text above the picture is longer than Meta recommends — open
+### Q-APX10 · The text above the picture is longer than Meta recommends — RULED (a), 2026-11-16
 
 **What was read (2026-11-16).** Meta's own page for a Facebook feed image ad: "Primary Text: 50-150 characters",
 "Headline: 27 characters". For Instagram Stories: "Primary Text: 125 characters". These are recommendations: Meta
@@ -608,7 +671,7 @@ texts per language: English median 101, longest 120; Spanish median 106, longest
 and not 150. The rating page was rebuilt from these recordings (60 sets, 173 candidates shown, 7 refused by the
 checks and not shown); both of its stores read empty before it was replaced.
 
-### Q-APX11 · The Instagram story frame, and Meta's own preview — open
+### Q-APX11 · The Instagram story frame, and Meta's own preview — RULED (a), 2026-11-16
 
 **What was read.** We send each ad with one image, the feed image (4:5, else 1:1): a lead ad takes one image, and
 giving each placement its own waits on Q-AD29. Meta's Stories page gives the margins for a 9:16 image (14 % top,
@@ -623,7 +686,7 @@ sandbox" cannot be met without the sandbox.
   shows that beside ours, and the story frame is Meta's, exact. No story frame is drawn until then.
 - (b) Draw a story frame now from the 9:16 margins. It would show an image we do not send.
 
-### Q-APX12 · Which model sets the picture moving — open
+### Q-APX12 · Which model sets the picture moving — RULED (a), 2026-11-16; the sitting waits on the Higgsfield key
 
 **What was read.** The table in V4. Ten image-to-video models, $0.038 to $0.315 a second. The pages give the request
 fields and not the result: none says how far the model keeps the first frame's truck, its paint or its lettering.
@@ -637,7 +700,7 @@ fields and not the result: none says how far the model keeps the first frame's t
 
 Waits on the Higgsfield key.
 
-### Q-APX13 · What a motion ad is, second by second — open
+### Q-APX13 · What a motion ad is, second by second — RULED (a), 2026-11-16
 
 **What was read.** Meta's page (4:5; captions recommended; nothing on length beyond 1 second to 241 minutes); the
 models' default of five seconds; Netflix's 20 characters a second. No published figure was found for how long a
@@ -655,7 +718,7 @@ finished ad should stay on screen at the end, or for the shortest time a line ma
 **The one second and the two seconds are ours, with nothing published behind them.** They are settings of the rule
 (`MOTION_MIN_CUE_MS`, `MOTION_HOLD_MS`), to be looked at on a real clip before they are believed.
 
-### Q-APX14 · How ffmpeg reaches the server — open
+### Q-APX14 · How ffmpeg reaches the server — RULED (a), 2026-11-16
 
 - **(a) Debian's own package in the image (`apt-get install --no-install-recommends ffmpeg` in
   `infra/image/Dockerfile`) — recommended.** The distribution's build, patched with the base image; it carries the
@@ -666,7 +729,7 @@ finished ad should stay on screen at the end, or for the shortest time a line ma
   release page, fetched by an install script, on a server that holds ad tokens.
 - (c) Encode elsewhere (a hosted service). A second vendor and the picture leaves our storage again.
 
-### Q-APX15 · Sound — open
+### Q-APX15 · Sound — RULED (a), 2026-11-16
 
 **What was read.** Both models make sound unless told not to (`generate_audio` defaults to true). Meta: sound is
 "optional, but recommended"; a feed video starts muted.
@@ -759,6 +822,22 @@ to the `recruitment` section; spend, launch and ad accounts are admin-only on to
 **What does not wait on this:** the Overview's read (running, spent, leads, what needs a person, the ledger as a
 timeline) and V8's health read are API work with the same content under any of the three.
 
+### Q-APX19 · What the next three days hold — open
+
+**What was read (2026-11-18).** §0.3's order and this plan's estimates; the audit of the same day.
+
+- **(a) Prove what is built, and add the research — recommended.** Day 1: the sandbox run and the sitting if the
+  credentials are in hand, each refusal fixed at its cause; otherwise the Researcher. Day 2: the Researcher and
+  the swipe file, recorded and at L2. Day 3: the health page and the Overview's read. At the end the system can
+  run one real campaign by hand (a person approves the plan, each ad and the launch), with stills and motion ads,
+  leads from Meta — and the canary can start. Modes, the workspace's screens and the other lead sources follow.
+- (b) Build the workspace screens first (V6 as written). The feature looks finished sooner; it is still unproven
+  against Meta, and a screen built on a reading the sandbox overturns is built twice.
+- (c) Hold the three days for the credentials and do nothing until they arrive. Loses the Researcher, which
+  waits on nothing.
+
+Whichever is ruled, the full plan is not done in three days (§0.4).
+
 ## 5a. Ruled
 
 **2026-11-14, the owner, to the four proposals above and to the request to record the agents on his Anthropic
@@ -814,6 +893,7 @@ is 100%."*** Taken as:
 | Q-APX16 | The picture budget is in "credits"; Higgsfield's API bills dollars and has a price call | (a) budget in dollars, price asked from `/estimate` | owner |
 | Q-APX17 | Our video is 1080 wide; Meta's video-ads page says 1,200 at least | (a) paint the motion ad at 1440 × 1800 | owner |
 | Q-APX18 | Where the Ads workspace sits, and whether Leads and Openings move into it | (a) its own sidebar section; Leads and Openings stay Recruitment's and are linked | owner |
+| Q-APX19 | What the next three days hold | (a) prove what is built on the sandbox, add the Researcher, then the health page | owner |
 | — | Meta app, system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 **2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want
