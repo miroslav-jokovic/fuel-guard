@@ -48,6 +48,7 @@ const NO_ORG_COLUMN = {
     "global reference data — what a VIN body code, a VIN manufacturer code or a spelling names — " +
     "shared across organizations; RLS on, zero policies, read only by the vehicles trigger (0399, D-FL1)",
   weather_cache: "global weather cache shared across organizations, service-role only (0049)",
+  ads_market_wages: "global cache of public BLS wage series for the ads planner's market evidence, the same for every carrier; service-role only (0630, D-AD35)",
 };
 
 const q = (s) => `"${String(s).replace(/"/g, '""')}"`;
