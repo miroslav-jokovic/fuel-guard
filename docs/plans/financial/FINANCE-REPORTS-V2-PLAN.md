@@ -43,6 +43,7 @@ landed 2026-10-09 18:59Z, before any of them was released. In production today:
 | `mcleod_gl_control` | 0 rows | no month can be called closed or open from McLeod's own period |
 | `mcleod_gl_key_lines` | 0 rows | the per-posting check has nothing to check |
 | `mcleod_tractor_periods` | 0 rows | no truck-days, so nothing can be shared per truck |
+| `mcleod_gl_days` for January–May | 0 rows (June–October only) | a date range inside those months has no daily ledger to read |
 
 Size of it, July 2026: the Per truck, Contractors, Per dispatcher and Week by week tabs add up to
 **$5,201,876.04** of revenue. The ledger's BILL postings to receivables for July are **$4,815,320.41**. The tabs are
@@ -185,7 +186,7 @@ family names on screen do not change.
 | # | Step | Blocked on |
 |---|---|---|
 | **F0** | Re-read 2026 from the copy so October's fixes take effect (§1.2). Then re-measure July: the tabs must equal the ledger's BILL revenue. | **owner runs one command** (below) |
-| **F1** | Ledger readers at daily grain for any date range (the fleet plan's W1c) | nothing |
+| **F1** | Ledger readers at daily grain for any date range (the fleet plan's W1c) | F0 — January–May have no day rows until the re-read, and a reader moved first would blank them |
 | **F2** | The page: `/finance`, three tabs, the calendar range, Overview rebuilt (D-FR1, D-FR2); old addresses redirect | F1 |
 | **F3** | Key lines for every module (collector + ingest), joined to voucher and check for the vendor or payee; the Other expenses tab | a migration only if the vendor name needs a column; agent re-read |
 | **F4** | `computeTruckPnl` (PNL plan P3): measured rows, truck-days, the signed bases; refuses when Σ ≠ ledger | F0 (truck-days), F3 (DRS by payee) |
@@ -226,3 +227,5 @@ It reads the copy and posts to production's ingest, about one minute. Re-sending
   40 days old. The re-read was dry-run clean and its real run refused to the assistant (F0, owner).
   Found: `voucher_dist` has no history, so AP expense accounts come from the ledger's own key lines
   (F3); `gl_summary` exists and is unread (F7).
+- 2026-11-18 · every build step waits on F0: production holds daily ledger rows for June–October
+  only, so F1 cannot ship before the re-read without blanking January–May.
