@@ -3,6 +3,7 @@ import { computed, ref, toRef } from "vue";
 import { AppButton as BaseButton, AppFormField as FormField, AppTextarea as BaseTextarea } from "@silvicom/ui";
 import { REPAIR_OUTCOME_TEXT, repairClock, repairUnitName, type CalendarDay, type RepairCandidate, type RoadsideRepairDto } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
+import WorkOrderDrawer from "@/components/WorkOrderDrawer.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { RepairDecisionError, useDecideRepair } from "./useRoadsideInspections";
@@ -17,6 +18,11 @@ import { RepairDecisionError, useDecideRepair } from "./useRoadsideInspections";
  * time): a person accepts the work order whose jobs answer the violations, or says where the repair was
  * done instead. Deciding needs maintenance's manage level, which the API checks; the buttons only follow it.
  * Each unit holds its own mutation, so a refusal is said under the unit it is about.
+ *
+ * Every work order named here opens in full — jobs, invoices and the scanned bill behind each (F16,
+ * D-FP28) — in the Shop's own drawer, by FleetPal's id, because a candidate is a snapshot holding no row
+ * of ours. The owner, 2026-11-18: "we can see work order numbers but we are not able to see the work
+ * order itself". The button follows the drawer's own gate, `maintenance: view`, asked of the same matrix.
  */
 
 const props = defineProps<{ inspectionId: string; repair: RoadsideRepairDto; today: CalendarDay }>();
@@ -37,6 +43,9 @@ const badge = computed((): { text: string; tone: string } => {
 
 /** What may be decided on a unit: anything the engine could not close by itself. */
 const decidable = computed(() => session.can("maintenance") && r.value.proposal.outcome !== "repaired_at_scene");
+/** Who may open a work order: the drawer's read is `maintenance: view`, the same level asked here. */
+const canOpen = computed(() => session.canView("maintenance"));
+const openFleetpalId = ref<string | null>(null);
 
 const writing = ref(false);
 const note = ref("");
@@ -77,6 +86,9 @@ function saveOutside() {
       <p v-if="repair.decision.workOrder">
         Repaired under FleetPal work order <span class="font-medium">{{ repair.decision.workOrder.reference ?? repair.decision.workOrder.workOrderId }}</span>
         (opened {{ formatDate(repair.decision.workOrder.openedOn) }}).
+        <BaseButton v-if="canOpen" variant="link" size="sm" data-test="repair-open-decided" @click="openFleetpalId = repair.decision.workOrder.workOrderId">
+          Open work order and bill
+        </BaseButton>
       </p>
       <p v-else>Repaired outside FleetPal: “{{ repair.decision.note }}”</p>
       <p class="text-ink-muted">Recorded by {{ repair.decision.decidedBy ?? "a former user" }} on {{ formatDateTime(repair.decision.decidedAt) }}.</p>
@@ -93,6 +105,10 @@ function saveOutside() {
           <p v-if="c.jobs.length" class="text-ink-muted">{{ c.jobs.join(", ") }}</p>
           <p v-else-if="c.description" class="text-ink-muted">{{ c.description }}</p>
         </div>
+        <div class="flex flex-wrap items-center gap-2">
+        <BaseButton v-if="canOpen" variant="link" size="sm" data-test="repair-open-candidate" @click="openFleetpalId = c.workOrderId">
+          Open work order
+        </BaseButton>
         <BaseButton
           v-if="decidable && repair.decision?.workOrder?.workOrderId !== c.workOrderId"
           :disabled="decide.isPending.value"
@@ -101,6 +117,7 @@ function saveOutside() {
         >
           This is the repair
         </BaseButton>
+        </div>
       </li>
     </ul>
 
@@ -118,5 +135,7 @@ function saveOutside() {
     </form>
 
     <p v-if="failure" class="mt-3 text-sm text-danger-700" role="alert" data-test="repair-error">{{ failure }}</p>
+    <!-- Mounted only while open: closed, it would hold two idle queries per violated unit. -->
+    <WorkOrderDrawer v-if="openFleetpalId" :fleetpal-id="openFleetpalId" @close="openFleetpalId = null" />
   </section>
 </template>

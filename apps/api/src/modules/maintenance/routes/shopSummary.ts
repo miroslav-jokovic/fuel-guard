@@ -89,7 +89,7 @@ export function shopSummaryRouter(): Router {
         res.status(400).json(apiError("bad_request", "That is not a work order id."));
         return;
       }
-      const data = await readWorkOrderDetail(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id);
+      const data = await readWorkOrderDetail(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, { rowId: id });
       if (!data) {
         res.status(404).json(apiError("not_found", "That work order is not in FleetPal's record for this fleet."));
         return;

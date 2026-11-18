@@ -23,6 +23,7 @@ import { scannersRouter } from "./scanners.js";
 import { fleetpalCostRouter } from "./fleetpalCost.js";
 import { fleetpalUnitsRouter } from "./fleetpalUnits.js";
 import { shopSummaryRouter } from "./shopSummary.js";
+import { workOrderFilesRouter } from "./workOrderFiles.js";
 import { unitHubRouter } from "./unitHub.js";
 
 const spendSchema = z.object({
@@ -117,6 +118,10 @@ router.use("/inventory/purchases", inventoryPurchasesRouter());
   // The Operations tab's Shop card (FLEET-MANAGER-HOME-PLAN.md FM3): FleetPal's backlog and the
   // shelf's shortages as counts, each from the reader that owns it.
   router.use(shopSummaryRouter());
+
+  // A work order's vendor paper, read live from FleetPal (F16, D-FP28), and the drawer by FleetPal's id
+  // for the roadside inspection page.
+  router.use(workOrderFilesRouter());
 
   router.get(
     "/spend",

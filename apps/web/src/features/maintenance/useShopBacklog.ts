@@ -1,7 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
-import type { AnnualDisagreementDto, AnnualDueDto, ShopDefectDto, ShopSummary, ShopWorkOrderDto, WorkOrderDetailDto } from "@silvicom/shared";
+import type { AnnualDisagreementDto, AnnualDueDto, ShopDefectDto, ShopSummary, ShopWorkOrderDto } from "@silvicom/shared";
 
 /**
  * What is waiting on the shop (FLEET-MANAGER-HOME-PLAN FM3, Q-FM6 (a)): the four counts the Operations
@@ -50,17 +50,5 @@ export function useAnnualDueQuery() {
   return useQuery({
     queryKey: ["maintenance", "annual-due"],
     queryFn: () => read<AnnualDueDto[]>("/api/maintenance/annual-due", "the annual inspections due"),
-  });
-}
-
-/**
- * One work order in full for the Shop's drawer (F14): jobs, lines and the vendor invoices billed against
- * it. `id` is our row's id; null keeps the query off while the drawer is closed.
- */
-export function useWorkOrderDetailQuery(id: Ref<string | null>) {
-  return useQuery({
-    queryKey: computed(() => ["maintenance", "work-order", id.value] as const),
-    queryFn: () => read<WorkOrderDetailDto>(`/api/maintenance/work-orders/${encodeURIComponent(id.value!)}`, "the work order"),
-    enabled: computed(() => id.value !== null),
   });
 }

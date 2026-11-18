@@ -1220,3 +1220,10 @@ about three merges.
   while parallel PRs took 0491–0493) is merged (f2ecbcc); production's database has 0495. The pre-fill reader's measurement came back empty: no court
   paper, and no roadside document of any kind, has been filed on production. Recorded as Q-IC18 with a
   recommendation: build the reader against the first five real papers; IC12 next.
+- **2026-11-18 · Q-IC12's premise was wrong; the repair now opens its work order and the vendor's bill.**
+  Q-IC12 was ruled on "FleetPal's API serves no files" — true of our September spec copy only. The live
+  API attaches the shop's scanned PDF to ~95% of purchase-order invoices (FLEETPAL-INTEGRATION-PLAN
+  D-FP28, F16). The Repair card's candidates and recorded decision now open the Shop's work order drawer
+  (jobs, lines, invoices, "Open bill (PDF)") for anyone with maintenance view. The ruling's (a) stands —
+  the rendered record is still what certification files; whether certification should also FREEZE a copy
+  of the bill is FleetPal plan Q12, recommended (a).

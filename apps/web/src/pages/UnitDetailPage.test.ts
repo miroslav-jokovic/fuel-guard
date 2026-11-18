@@ -79,9 +79,10 @@ vi.mock("@/features/maintenance/useUnitShop", async () => {
   };
 });
 // F14's drawer is closed on every page these mount, so its read stays off; it needs no query client.
-vi.mock("@/features/maintenance/useShopBacklog", async () => {
+vi.mock("@/composables/useWorkOrder", async () => {
   const { ref } = await import("vue");
-  return { useWorkOrderDetailQuery: () => ({ data: ref(null), isPending: ref(false), isError: ref(false), isFetching: ref(false), refetch: () => {} }) };
+  const q = () => ({ data: ref(null), isPending: ref(false), isError: ref(false), isFetching: ref(false), refetch: () => {} });
+  return { useWorkOrderDetailQuery: q, useWorkOrderFilesQuery: q, workOrderFilePath: () => "" };
 });
 vi.mock("@/features/maintenance/useAnnualInspections", async () => {
   const { ref: r } = await import("vue");

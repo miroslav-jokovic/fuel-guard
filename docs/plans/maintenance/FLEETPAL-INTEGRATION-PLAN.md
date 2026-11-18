@@ -439,6 +439,7 @@ This is also what finally feeds `vehicles.next_pm_due_odometer` / `next_pm_due_a
 | **D-FP25** | **A FleetPal line the shelf cannot take is reported and retried, never forced.** D-INV26 holds for FleetPal: a consumption against an empty shelf is IV010. The sweep re-offers every receipt and part line from the last **7 days** (bounded by `fleetpal_from`) each hour — the derived movement id makes a re-offer free — so a part used before its receipt was swept lands once the receipt does. Older refusals are a counting problem, and a count fixes them. | F13, 2026-11-16 |
 | **D-FP26** | **What F13 does not write, measured 2026-11-16.** A fractional quantity (592 of 16,240 part lines, gallons) — the shelf is whole units. A part line with no catalogue part (24 of 661 in 30 days: the VENDOR_HIDDEN quote lines F12 skips). A receipt's supplier: `vendor_location` joins **0 of 4,416** purchase orders to `fleetpal_vendors` and the API has no vendor-location endpoint, so `supplier` stays null and the note carries the PO reference. With no location carrying `fleetpal_from`, nothing moves and the sweep says so. | F13, 2026-11-16 |
 | **D-FP27** | **One work order's own bill shows in full; a total still needs its bound.** The Shop's work order drawer (F14) prints FleetPal's line, job and invoice amounts for that ONE order — the vendor's receipt as FleetPal records it, the same figures the roadside repair record already prints (Q-IC12 (a)). Nothing is summed across orders or invoices on it. Narrows D-FP4 the way D-SPU10 did for unit prices; D-FP4 still governs every total. | Owner 2026-11-17 ("we don't see receipts anywhere" → proceed as recommended) |
+| **D-FP28** | **A work order's scanned bills are read from FleetPal live, on request, and never stored.** Every purchase-order invoice carries `attachments` (index, filename, content type, a pre-signed link that expires in an hour) in FleetPal's LIVE spec (`/v1/openapi.json`, 174 paths) — not in our September copy (71 paths), which is why Q-IC12 and D-FP27 were ruled believing "the API serves no files". The drawer asks `GET /api/maintenance/work-orders/:id/files` when it opens (one FleetPal call per invoice); a file's bytes pass through `…/files/:invoiceId/:index` — the invoice checked against the org's own staged rows first, the signed link fetched without our key and never sent to a browser. "No bill attached" is said only after FleetPal answered. A frozen copy for the certified roadside record is Q12, not this. | Owner 2026-11-18 ("we can see work order numbers but not the work order, and not whether a receipt is attached… this should be done") | F16 |
 
 ---
 
@@ -846,6 +847,8 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 
 | # | Question | Candidates | Recommendation |
 |---|---|---|---|
+| **Q12** (2026-11-18) | Should a roadside repair's certification FREEZE a copy of the vendor's scanned bill? D-FP28 reads files live; a certified 396.9(d) record that points at a file FleetPal may later replace or delete is weaker evidence than one that holds it (a filed document is frozen). | (a) At certification, copy each file of the accepted work order's invoices into document storage beside the rendered record (append-only, evidence table). (b) Keep live-only; the rendered record names the invoice numbers. (c) Copy every file for every work order nightly. | **(a)** — the certified record is the one moment the paper must not move; (c) duplicates ~2,400 PDFs a year nobody asked to keep, onto storage that has no backup yet. Needs a migration and the evidence-table rules. |
+| **Q13** (2026-11-18) | Refresh our spec copy to the live one (F16b)? Regenerating the field manifest from `/v1/openapi.json` surfaces 28 vendor fields the sweep schemas do not model (`Unit.status`/`division`, `WorkOrder.total`, `JobItem.technician`, PM `most_urgent_*`, `POInvoice.attachments`, …), and `lint:fleetpal-contract` is two-way. | (a) One PR: replace the spec, regenerate, model all 28 (optional fields, nothing stored yet), then move `fleetpalInvoiceFilesSchema` under the gate. (b) Leave the old copy. | **(a)** — until it lands the gate checks a document 100 endpoints out of date, which is exactly how the attachments went unseen for two months. |
 
 ### 6.3 Assumptions — each retired by the step that needs it
 
@@ -1987,3 +1990,18 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   store it under Settings → FleetPal, and turn instant updates on again.** The page had dropped FleetPal's
   reason and printed only the event names; it now prints the reason once, and a 403 says who to ask
   (`subscribeFailure`). Mutation: matching 401 instead of 403 turned `webhooks.test.ts` red.
+- **2026-11-18 · F16 — a work order's scanned bills, and the roadside page opens the work order.** The owner:
+  on the roadside inspection page "we can see work order numbers but we are not able to see the work order
+  itself, and we can't see whether a receipt is attached". Measured against FleetPal's LIVE spec
+  (`GET /v1/openapi.json`, 174 paths — our copy has 71): `POInvoice.attachments` exists, each a PDF with a
+  pre-signed DigitalOcean Spaces link (`X-Amz-Expires=3600`). 358 of 365 invoices updated since 10-01 carry
+  one; by invoice month, 85–100% since 2025-04 (Jan–Feb 2025 ~30%). Work orders themselves carry no files;
+  `/v1/purchase-orders/{id}/pdf` is the PO, not the bill, and is not used. Built (D-FP28, no migration):
+  `invoiceId` on `WorkOrderInvoice`, `id` on `WorkOrderDetailDto`; `GET /work-orders/:id/files`,
+  `GET /work-orders/:id/files/:invoiceId/:index`, `GET /fleetpal-work-orders/:fleetpalId` (all
+  `maintenance: view`); the drawer moved to `apps/web/src/components/` (the roadside feature may not import
+  maintenance's), lists "Open bill (PDF)" under each invoice, and says not-connected / unreachable instead of
+  "no bill". `RepairUnitDecision` opens it from every candidate and from the recorded decision, shown to
+  `canView("maintenance")`. Four mutations each turned a test red: dropping the invoice-on-this-order check,
+  sending a key to the signed link, listing no files whatever FleetPal said, and showing the button to a
+  reader without maintenance view. Open: Q12 (freeze a copy at certification), Q13 (spec refresh, F16b).

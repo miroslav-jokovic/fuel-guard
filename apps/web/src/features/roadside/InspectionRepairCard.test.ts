@@ -15,6 +15,8 @@ import type { RoadsideRepairCertificationDto, RoadsideRepairDto } from "@silvico
  *   5. **The card shows for an inspection with no vehicle violation**, as an empty box.
  *   6. **Certify shows before every unit is settled**, or to a reader without safety's manage level, or over a
  *      certification that still stands; or it sends a record other than the one shown (IC11 B2).
+ *   7. **A named work order cannot be opened** (F16 — the owner, 2026-11-18: "we can see work order numbers
+ *      but not the work order"), or opens to a reader the drawer's own `maintenance: view` would refuse.
  */
 
 const mutate = vi.fn();
@@ -35,7 +37,13 @@ vi.mock("./useRoadsideInspections", () => ({
     }
   },
 }));
-vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: (s: string) => sections.has(s) }) }));
+let viewable = new Set(["safety", "maintenance"]);
+vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: (s: string) => sections.has(s), canView: (s: string) => viewable.has(s) }) }));
+// The drawer is the Shop's own (its tests are WorkOrderDrawer.test.ts); here only WHICH work order it is opened on matters.
+vi.mock("@/components/WorkOrderDrawer.vue", async () => {
+  const { defineComponent, h } = await import("vue");
+  return { default: defineComponent({ props: { fleetpalId: String }, setup: (p) => () => h("div", { "data-test": "drawer-stub" }, p.fleetpalId) }) };
+});
 // The org is in Los Angeles; the test runs at 2026-10-17 04:00 UTC, which is still 10-16 there.
 vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: ref("America/Los_Angeles") }) }));
 
@@ -69,6 +77,7 @@ beforeEach(() => {
   certifyMutate.mockReset();
   certification.value = null;
   sections = new Set(["safety", "maintenance"]);
+  viewable = new Set(["safety", "maintenance"]);
 });
 
 describe("the clock", () => {
@@ -143,6 +152,30 @@ describe("deciding", () => {
 it("is not shown for an inspection with no vehicle violation", async () => {
   repairs.value = [];
   expect((await card()).find("[data-test='repair-card']").exists()).toBe(false);
+});
+
+describe("opening a work order (F16)", () => {
+  it("opens each proposed work order in the Shop's drawer, by FleetPal's id", async () => {
+    const w = await card();
+    expect(w.findAll("[data-test='repair-open-candidate']")).toHaveLength(2);
+    expect(w.find("[data-test='drawer-stub']").exists()).toBe(false);
+    await w.findAll("[data-test='repair-open-candidate']")[1]!.trigger("click");
+    expect(w.get("[data-test='drawer-stub']").text()).toBe("wo-2");
+  });
+
+  it("opens the work order a decision recorded", async () => {
+    repairs.value = [repair({ decision: { outcome: "accepted", workOrder: candidate("wo-2", "WO-102"), note: null, decidedBy: "Pat Shop", decidedAt: "2026-10-16T15:00:00Z" } })];
+    const w = await card();
+    await w.get("[data-test='repair-open-decided']").trigger("click");
+    expect(w.get("[data-test='drawer-stub']").text()).toBe("wo-2");
+  });
+
+  it("⚠ offers no work order to a reader who cannot view maintenance — the drawer's read would refuse them", async () => {
+    viewable = new Set(["safety"]);
+    sections = new Set(["safety"]);
+    const w = await card();
+    expect(w.find("[data-test='repair-open-candidate']").exists()).toBe(false);
+  });
 });
 
 describe("certifying (IC11 B2, Q-IC13)", () => {

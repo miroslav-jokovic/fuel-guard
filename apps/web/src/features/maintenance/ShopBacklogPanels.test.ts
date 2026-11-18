@@ -25,7 +25,12 @@ const annual = ref<AnnualDueDto[]>([]);
 vi.mock("@/features/maintenance/useShopBacklog", async () => {
   const { ref: r } = await import("vue");
   const q = (data: unknown) => ({ data, isLoading: r(false), isError: r(false), refetch: vi.fn() });
-  return { useOpenWorkOrdersQuery: () => q(orders), useUnresolvedDefectsQuery: () => q(defects), useAnnualDueQuery: () => q(annual), useWorkOrderDetailQuery: () => ({ ...q(r(null)), isPending: r(false), isFetching: r(false) }) };
+  return { useOpenWorkOrdersQuery: () => q(orders), useUnresolvedDefectsQuery: () => q(defects), useAnnualDueQuery: () => q(annual) };
+});
+vi.mock("@/composables/useWorkOrder", async () => {
+  const { ref: r } = await import("vue");
+  const q = () => ({ data: r(null), isLoading: r(false), isError: r(false), isPending: r(false), isFetching: r(false), refetch: vi.fn() });
+  return { useWorkOrderDetailQuery: q, useWorkOrderFilesQuery: q, workOrderFilePath: () => "" };
 });
 vi.mock("@/composables/useOrgTimezone", () => ({
   useOrgTimezone: () => ({ zone: computed(() => "America/Chicago"), isResolved: computed(() => true) }),

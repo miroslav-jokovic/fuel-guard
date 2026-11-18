@@ -16,7 +16,7 @@ import { daysSince, shopDayOf, todayInZone, type ShopWorkOrderDto } from "@silvi
 import { useOpenWorkOrdersQuery } from "@/features/maintenance/useShopBacklog";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { formatDate } from "@/lib/format";
-import WorkOrderDrawer from "./WorkOrderDrawer.vue";
+import WorkOrderDrawer from "@/components/WorkOrderDrawer.vue";
 
 /**
  * Open work orders — FleetPal's in-flight repairs (FLEET-MANAGER-HOME-PLAN Q-FM6 (a)).
