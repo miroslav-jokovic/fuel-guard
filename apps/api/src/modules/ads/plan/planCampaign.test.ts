@@ -52,7 +52,7 @@ function answering(...outputs: unknown[]) {
   return { client: { messages: { create } } as unknown as MessagesClient, create };
 }
 afterEach(() => vi.unstubAllEnvs());
-const run = (rec: ReturnType<typeof world>, client: MessagesClient) => planCampaign({ admin: rec.client, client, now: () => NOW, quality }, { id: CAMPAIGN, org_id: ORG, connection_id: CONNECTION }, KEY);
+const run = (rec: ReturnType<typeof world>, client: MessagesClient) => planCampaign({ admin: rec.client, client, now: () => NOW, quality, market: { itemsFor: async () => [] } }, { id: CAMPAIGN, org_id: ORG, connection_id: CONNECTION }, KEY);
 
 describe("planCampaign", () => {
   it("builds the pack, asks the Strategist once and stores its plan as version 1 with that pack and that generation", async () => {

@@ -39,6 +39,9 @@
     "apps/api/src/modules/ads/compose/refreshCampaign.ts",
     "apps/api/src/modules/ads/monitor/retireTired.ts"
   ],
+  "ads_market_wages": [
+    "apps/api/src/modules/ads/plan/marketWages.ts"
+  ],
   "ads_outcome_events": [
     "apps/api/src/modules/ads/outcomes/outcomeLedger.ts"
   ],
