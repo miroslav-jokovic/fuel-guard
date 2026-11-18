@@ -39,7 +39,7 @@ const strong: RoadsideAttributionDto = {
 };
 const repair = (o: Partial<RoadsideRepairDto> = {}): RoadsideRepairDto => ({
   unitId: "u-1", unit: { seq: 1, kind: "tractor", companyNumber: "612" }, violations: [], dueOn: "2026-10-19",
-  proposal: { outcome: "no_candidate", candidates: [], readAt: "x" }, decision: null, basedOn: "r-1", ...o,
+  proposal: { outcome: "no_candidate", candidates: [], readAt: "x" }, decision: null, basedOn: "r-1", invoiceCounts: {}, ...o,
 });
 
 async function strip(attribution: RoadsideAttributionDto = strong) {

@@ -69,6 +69,8 @@ function recorder(extra: Record<string, unknown>[] = []) {
       memberships: () => ({ data: [] }),
       profiles: () => ({ data: [] }),
       audit_logs: () => ({ data: [] }),
+      fleetpal_purchase_orders: (q) => ({ data: filtered([{ org_id: ORG, fleetpal_id: "po-1", work_order_fleetpal_id: "wo-1" }], q, ["org_id"]) }),
+      fleetpal_po_invoices: (q) => ({ data: filtered([{ org_id: ORG, purchase_order_fleetpal_id: "po-1" }, { org_id: ORG, purchase_order_fleetpal_id: "po-1" }], q, ["org_id"]) }),
     },
   });
 }
@@ -110,6 +112,8 @@ describe("the repair record", () => {
       violations: [{ code: "393.47D", description: "Brakes out of adjustment" }],
     });
     expect(unit!.proposal.outcome).toBe("several_candidates");
+    // RR2: each proposed work order's vendor invoices, counted live through its purchase orders.
+    expect(unit!.invoiceCounts).toEqual({ "wo-1": 2 });
     expectOrgScoped(rec, ORG, { exempt: ["memberships", "profiles"] });
   });
 

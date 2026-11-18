@@ -68,6 +68,16 @@ function matchText(c: RepairCandidate): { text: string; tone: string } | null {
   return { text: `Matches the violation: ${c.matches.map((m) => VMRS_SYSTEM_WORDS[m as MatchedSystem] ?? m).join(", ")}`, tone: "success" };
 }
 
+/**
+ * Where the paper is, before anything is opened (ROADSIDE-REPAIR-FLOW-PLAN RR2): how many vendor invoices
+ * FleetPal records against the work order. A count, never a total (D-FP27); the drawer shows each one and
+ * its scanned bill. "None yet" is literal — an outside shop's bill can still be entered in FleetPal.
+ */
+function invoiceText(workOrderId: string): string {
+  const n = r.value.invoiceCounts[workOrderId] ?? 0;
+  return n === 0 ? "No vendor invoice in FleetPal yet" : n === 1 ? "1 vendor invoice" : `${n} vendor invoices`;
+}
+
 function accept(c: RepairCandidate) {
   decide.mutate({ action: "accept", unitId: r.value.unitId, basedOn: r.value.basedOn, workOrderId: c.workOrderId });
 }
@@ -96,7 +106,7 @@ function saveOutside() {
     <div v-if="repair.decision" class="mt-3 text-ink" data-test="repair-decision">
       <p v-if="repair.decision.workOrder">
         Repaired under FleetPal work order <span class="font-medium">{{ repair.decision.workOrder.reference ?? repair.decision.workOrder.workOrderId }}</span>
-        (opened {{ formatDate(repair.decision.workOrder.openedOn) }}).
+        (opened {{ formatDate(repair.decision.workOrder.openedOn) }}; {{ invoiceText(repair.decision.workOrder.workOrderId).toLowerCase() }}).
         <BaseButton v-if="canOpen" variant="link" size="sm" data-test="repair-open-decided" @click="openFleetpalId = repair.decision.workOrder.workOrderId">
           Open work order and bill
         </BaseButton>
@@ -116,6 +126,7 @@ function saveOutside() {
           <p v-if="c.jobs.length" class="text-ink-muted">{{ c.jobs.join(", ") }}</p>
           <p v-else-if="c.description" class="text-ink-muted">{{ c.description }}</p>
           <span v-if="matchText(c)" :class="[BADGE_BASE, toneClass(matchText(c)!.tone), 'mt-1']" data-test="repair-match">{{ matchText(c)!.text }}</span>
+          <p class="text-xs text-ink-tertiary" data-test="repair-invoices">{{ invoiceText(c.workOrderId) }}</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
         <BaseButton v-if="canOpen" variant="link" size="sm" data-test="repair-open-candidate" @click="openFleetpalId = c.workOrderId">

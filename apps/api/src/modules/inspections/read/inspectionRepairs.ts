@@ -8,6 +8,7 @@ import {
   type RoadsideRepairDto,
 } from "@silvicom/shared";
 import { labelOf, memberLabels } from "../../../lib/memberLabels.js";
+import { countWorkOrderInvoices } from "../../fleetpal/index.js";
 import { kindOf, type DbError } from "./inspectionsList.js";
 
 /**
@@ -60,6 +61,8 @@ export function buildRepairs(
   units: readonly RepairUnitRow[],
   violations: readonly RepairViolationRow[],
   labels: Awaited<ReturnType<typeof memberLabels>>,
+  /** `countWorkOrderInvoices` over every work order these rows name (`workOrderIdsOf`). */
+  invoiceCounts: ReadonlyMap<string, number>,
 ): RoadsideRepairDto[] {
   const unitOf = new Map(units.map((u) => [u.id, u]));
   const violationsOf = new Map<string, { code: string | null; description: string | null }[]>();
@@ -87,10 +90,19 @@ export function buildRepairs(
           }
         : null,
       basedOn: newest.id,
+      invoiceCounts: Object.fromEntries(
+        [...new Set([...engine.candidates, ...(person?.candidates ?? [])].map((c) => c.workOrderId))].flatMap((id) => {
+          const n = invoiceCounts.get(id);
+          return n ? [[id, n]] : [];
+        }),
+      ),
     });
   }
   return out.sort((a, b) => (a.unit.seq ?? 99) - (b.unit.seq ?? 99));
 }
+
+/** Every FleetPal work order the rows name — what `countWorkOrderInvoices` is asked about. */
+export const workOrderIdsOf = (rows: readonly RepairRow[]): string[] => [...new Set(rows.flatMap((r) => r.candidates.map((c) => c.workOrderId)))];
 
 /** The people who decided any of `rows`, named once. */
 export const deciderLabels = (admin: SupabaseClient, orgId: string, rows: readonly RepairRow[]) =>
@@ -115,7 +127,8 @@ export async function readInspectionRepairs(
   for (const r of [repairs, units, violations]) if (r.error) return { error: r.error };
   const rows = (repairs.data ?? []) as RepairRow[];
   if (rows.length === 0) return [];
-  return buildRepairs(rows, (units.data ?? []) as RepairUnitRow[], (violations.data ?? []) as RepairViolationRow[], await deciderLabels(admin, orgId, rows));
+  const [labels, invoices] = await Promise.all([deciderLabels(admin, orgId, rows), countWorkOrderInvoices(admin, orgId, workOrderIdsOf(rows))]);
+  return buildRepairs(rows, (units.data ?? []) as RepairUnitRow[], (violations.data ?? []) as RepairViolationRow[], labels, invoices);
 }
 
 /**

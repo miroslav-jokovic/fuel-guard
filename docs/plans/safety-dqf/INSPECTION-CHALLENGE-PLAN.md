@@ -1260,3 +1260,10 @@ about three merges.
   that reach nobody fall back to the same set, so nobody stops hearing the day it ships. The bell keeps its
   dedupe keys, so nothing already sent is sent again. Offered only to roles that can view Maintenance.
   Mutations: defaults restated as admins only, and new dedupe keys, each turned a test red.
+- **2026-11-18 · Where the paper is, on the Repair card (ROADSIDE-REPAIR-FLOW-PLAN RR2).** Every proposed and
+  accepted work order says how many vendor invoices FleetPal records against it ("2 vendor invoices", or "No
+  vendor invoice in FleetPal yet"), counted live through its purchase orders by `countWorkOrderInvoices`
+  (fleetpal's tables, its own read) and carried on the DTO as `invoiceCounts` — not frozen with the
+  candidates, so an invoice entered after the proposal shows. A count, never a total (D-FP27). Both the
+  inspection page and the Shop's repairs-due list get it from the one builder. Mutations: dropping the org
+  filter on invoices, and a wrong count source, each turned a test red.

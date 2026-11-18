@@ -45,6 +45,7 @@ const report = (over: Partial<RoadsideReportCheckDto> = {}): RoadsideReportCheck
 });
 function repair(over: Partial<RoadsideRepairDto> = {}): RoadsideRepairDto {
   return {
+    invoiceCounts: {},
     unitId: "u-1",
     unit: { seq: 1, kind: "tractor", companyNumber: "612" },
     violations: [{ code: "39375A3", description: "Tire" }],
