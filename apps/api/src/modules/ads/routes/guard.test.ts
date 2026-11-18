@@ -137,3 +137,25 @@ describe("/api/ads — who may do what", () => {
     ]);
   });
 });
+
+describe("GET /api/ads/overview — the ledger's cursor", () => {
+  const AT = "2026-11-18T15:00:00.123456+00:00|0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+
+  it("refuses a cursor that is not a timestamp and an id, and both directions at once, before any read", async () => {
+    for (const q of ["before=nope", `after=${encodeURIComponent("2026-11-18|x")}`, `before=${encodeURIComponent(AT)}&after=${encodeURIComponent(AT)}`]) {
+      const res = await call("GET", `overview?${q}`);
+      expect(res.status, q).toBe(400);
+    }
+    expect(db.forTable("ads_actions")).toEqual([]);
+  });
+
+  it("reads older below a `before` cursor and newer above an `after` one", async () => {
+    for (const [q, cmp] of [["before", "lt"], ["after", "gt"]] as const) {
+      db = createSupabaseRecorder({ tables: { ads_settings_versions: [{ id: "v1", version: 1, settings: ADS_SETTINGS_UNSET, kill_switch: false, kill_reason: null, created_at: "2026-11-01T00:00:00Z", created_by_name: "Owner" }] } });
+      holder.client = db.client;
+      expect((await call("GET", `overview?${q}=${encodeURIComponent(AT)}`)).status).toBe(200);
+      const read = db.forTable("ads_actions").find((r) => r.ops.some((o) => o.method === "or"))!;
+      expect(String(read.ops.find((o) => o.method === "or")!.args[0])).toContain(`started_at.${cmp}."2026-11-18T15:00:00.123456+00:00"`);
+    }
+  });
+});
