@@ -82,7 +82,7 @@ export { readPartUsageList, readPartUsageDetail, type PartUsageListQuery } from 
 export { projectPmDue } from "./projectPmDue.js";
 export { readWorkOrdersOnUnits, type UnitWorkOrder, type UnitWorkOrderIndex } from "./unitWorkOrders.js";
 export { readWorkOrderDetail, readWorkOrderRecords, type WorkOrderKey, type WorkOrderRecord, type WorkOrderRecords } from "./workOrderRecord.js";
-export { fetchInvoiceFile, listWorkOrderFiles, readWorkOrderInvoiceIds, type InvoiceFileResult } from "./invoiceFiles.js";
+export { downloadInvoiceFiles, fetchInvoiceFile, listWorkOrderFiles, readWorkOrderInvoiceIds, type DownloadedInvoiceFile, type InvoiceFileResult } from "./invoiceFiles.js";
 export { findPurchaseOrders, purchaseOrderRefs, PURCHASE_ORDER_CHOICES_MAX } from "./purchaseOrderRefs.js";
 export { describeComponents, clearComponentCache, type ComponentLabel } from "./vmrs.js";
 export { labelRepairs } from "./componentLabels.js";

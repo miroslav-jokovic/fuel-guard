@@ -1232,3 +1232,12 @@ about three merges.
   PLAN Q12, F16c). `documents.kind` gains `roadside_repair_bill` ("Vendor bill (from FleetPal)"), widened one
   merge before its writer as 0484 was; `ROADSIDE_DOCUMENT_KINDS` mirrors it and `unit-file-kinds` holds the
   two equal. Part 2 — the certification copying the bills — follows once 0631 is on staging.
+- **2026-11-18 · FleetPal Q12 (a) — part 2, certification freezes the vendor's bills (F16c).** Before the
+  record is rendered, `repair/freezeBills.ts` copies every file on the accepted work orders' invoices from
+  FleetPal (`downloadInvoiceFiles`, all or nothing) and files each on the inspection as
+  `roadside_repair_bill` (0631), type decided from the bytes, id derived from the certification and the file
+  so a retried click lands on the same rows. The record then lists each bill under its work order with its
+  SHA-256, or says it was not kept (a type `documents` refuses). FleetPal not connected or not answering
+  refuses the certification (503) and nothing is filed — it is retried, never signed without its paper. The
+  audit row carries every bill's document id and hash. Three mutations each turned a test red: certifying
+  through a FleetPal failure, trusting FleetPal's guessed type, and a record that omits the bills.
