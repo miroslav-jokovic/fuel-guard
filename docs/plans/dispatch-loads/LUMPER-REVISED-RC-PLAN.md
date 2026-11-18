@@ -328,7 +328,7 @@ which closes the RC reminders exactly as a hand-filed one does, and a dispatcher
 - (a) McLeod's own API (DocumentPower / ImagingService), with a read-only API user. The supported
   route and it returns the file, but it is still unconfirmed for this install, costs an API user and
   possibly a licence through McLeod, and one new outbound connection from the VM.
-- **(b) Recommended since 2026-11-18: a read grant on `dta.dbo.bolimgh`, `bolimgd`, `imapcats` and
+- **(b) Ruled 2026-11-18: a read grant on `dta.dbo.bolimgh`, `bolimgd`, `imapcats` and
   `media` for `silvicom_dispatch_ro`, plus read-only access for the VM to the imaging volume the
   `media` rows name.** No longer a guess: the tables are measured above, the connector already reads
   SQL on the same server from the VM, and it needs no licence. The grant alone already closes the RC
@@ -342,12 +342,62 @@ which closes the RC reminders exactly as a hand-filed one does, and a dispatcher
   McLeod change, but it is a second source beside the one billing uses, it misses an RC that came any
   other way, and it puts the document reader in the path of a money decision.
 
-What IT has to answer, asked ONCE, together with the finance grants still missing on LME (15 tables,
-measured 2026-11-17): SELECT on the four `dta` tables above for `silvicom_dispatch_ro`; how the VM
-may read the imaging volume (a read-only share of `med_mntpnt` on `MCLEODIMAGING`, or the image
-service's address); which `imapcats` category "Print to Billing" files a rate confirmation under,
-and whether a revised one gets its own category. (The first two replace the earlier "where does
-its index live" — measured now, so not asked.)
+What IT is asked, ONCE, together with the finance grants still missing on LME: Part 6 of
+`tools/mcleod-agent/review/SILVICOM-GRANTS.sql` (a `dta` user for `silvicom_dispatch_ro` and SELECT
+on the four tables), and read-only access for the connector VM to the imaging folder(s) `media`
+names. The finance part is the SAME request as Part 4, not a new one: measured 2026-11-18 with
+HAS_PERMS_BY_NAME, 13 of Part 4's 15 tables are still refused on LME (`billing_history` and
+`drs_deduct_hist` were granted on 11-17). The category names are not asked: `imapcats` answers them
+once the grant is run.
+
+**Ruled 2026-11-18 (owner: "proceed as proposed"): Q-LRC10 is (b), with the rule below.** New fact
+from the owner the same day: Imaging has NO separate category for a revised RC. A dispatcher files
+the revised RC as an ordinary RC, and billing, when it checks the load, re-marks the previous RC as
+"Unknown". So a revision is visible as an order with an RC image AND an older image now "Unknown".
+
+- **D-LRC16 — what counts as the revised RC.** On the case's order, the RC-category image scanned on
+  or after the lumper's date is the revised RC; 360 attaches it as soon as the connector sees it.
+  Billing's "Unknown" mark is NOT the trigger: it comes when billing reviews the load, days later,
+  and until then the dispatcher would be reminded about an RC already filed. It is the
+  confirmation — an older image on the same order re-marked "Unknown" shows billing accepted the
+  new one as the replacement, and it is the old RC the amount check below compares against.
+  Caution to measure first: "Unknown" may also be the default for any scan nobody categorised
+  (McLeod's own reads filter `bimd_imgcat > 0`), so a stray Unknown image proves nothing on its own;
+  only an Unknown image scanned BEFORE the current RC counts as the replaced RC.
+- **D-LRC17 — the amount is checked against what we paid (EFS money code / payroll), by the
+  INCREASE, not the total.** The RC total includes the line-haul and often detention, so it never
+  equals the lumper. The broker approved the lumper when the revised RC carries a lumper line ≥ what
+  we paid, or, failing a line, when new total − old ("Unknown") total ≥ what we paid. The amounts are
+  only inside the PDFs, so the document reader reads both. Outcomes:
+
+  | Read result | Case |
+  |---|---|
+  | lumper line or increase ≥ paid | closes: "Broker approved $X" |
+  | lumper line or increase < paid | stays open, flagged: "Broker approved $X, we paid $Y" — a short pay to chase |
+  | amount not read with confidence | stays open: "RC on file, amount unchecked", a person confirms with one click |
+
+  An unread amount never counts as a match: a wrong guess would hide money owed to the carrier,
+  which is the thing this feature exists to catch.
+- **Before any reminder depends on it**, measured on 2026's 256 lumper orders once the grant runs:
+  (1) the `imapcats` id of "Rate Confirmation" and of "Unknown"; (2) that `bimd_load_no` is
+  `orders.id` (not a movement id) — share of LUM orders that join; (3) file extensions (`bimd_ext`)
+  — TIFF is likely (LME's printer setup uses `tiff2ps`) and case files accept PDF/JPEG/PNG only, so
+  the connector converts TIFF to PDF; (4) how often the reader gets the amount right, against a hand
+  check of a sample.
+
+**What changes in 360 (build, after the grant and the measurements):**
+- connector `lumper.mjs`: read `bolimgh`/`bolimgd`/`imapcats` for the orders of open cases only, and
+  copy a newly matched RC (and its "Unknown" predecessor) from the imaging folder, TIFF → PDF;
+- migration: `lumper_case_files` gains `source` (`upload` | `mcleod`), the McLeod image id (unique
+  per case, so a file is never imported twice) and a role (`revised_rc` | `previous_rc`);
+  `uploaded_by` nullable for McLeod files; the append-only guard stays;
+- API: `POST /api/tms/lumper` carries the image-index lines (so the case can say "RC in McLeod" before
+  the file lands) and a connector-only endpoint receives the file;
+- case page: source, scan date and scanner; the D-LRC17 amount line; manual upload stays as the
+  fallback;
+- reminders: no new logic — a McLeod file closes them as a hand-filed one does; the amount flag is a
+  new line on the case, not a new reminder, until the silent weeks show its rate;
+- the daily silent-weeks check adds "revised RC in McLeod but not on the case" (must be 0).
 
 **Rulings, 2026-11-13.** The owner answered "proceed as recommended": Q-LRC3 (every `LUM` row),
 Q-LRC5 (the order's `operations_user`), Q-LRC7 (lumper only, case keyed by charge code) and Q-LRC2
@@ -559,3 +609,9 @@ VM runs it. Q-LRC8 (EFS money codes) and Q-LRC9 are open.
   `dta.dbo.bolimgh`/`bolimgd` index images by `load_no` with category, scan date and user; the files
   sit on the volume `media` names. 304 new image rows in ~18 h. Q-LRC10's recommendation moves from
   (a) to (b), and the IT question shrinks to four grants, volume access and one category name.
+- 2026-11-18 — Owner: Imaging has no "revised RC" category; the dispatcher files the new RC and
+  billing re-marks the previous one "Unknown". Owner ruled "proceed as proposed": Q-LRC10 is (b),
+  D-LRC16 (revised RC = RC scanned on or after the lumper; the Unknown mark confirms, never
+  triggers) and D-LRC17 (amount checked by lumper line or by the increase over the old RC, against
+  what we paid; an unread amount never matches). Part 6 added to `SILVICOM-GRANTS.sql`. Grants
+  re-measured: 13 of Part 4's 15 finance tables still refused on LME; no `dta` access.
