@@ -1227,3 +1227,8 @@ about three merges.
   (jobs, lines, invoices, "Open bill (PDF)") for anyone with maintenance view. The ruling's (a) stands —
   the rendered record is still what certification files; whether certification should also FREEZE a copy
   of the bill is FleetPal plan Q12, recommended (a).
+- **2026-11-18 · FleetPal Q12 (a) ruled — part 1, the document kind (0631).** The owner ruled that a
+  repair's certification freezes a copy of each vendor bill on the accepted work order (FLEETPAL-INTEGRATION-
+  PLAN Q12, F16c). `documents.kind` gains `roadside_repair_bill` ("Vendor bill (from FleetPal)"), widened one
+  merge before its writer as 0484 was; `ROADSIDE_DOCUMENT_KINDS` mirrors it and `unit-file-kinds` holds the
+  two equal. Part 2 — the certification copying the bills — follows once 0631 is on staging.

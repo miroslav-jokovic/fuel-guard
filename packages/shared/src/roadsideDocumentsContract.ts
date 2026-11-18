@@ -19,7 +19,7 @@ import { documentRegisterSchema, type RoadsideDocumentKind } from "./complianceC
 export const ROADSIDE_UPLOAD_KINDS = ["citation", "court_disposition", "roadside_inspection_report"] as const satisfies readonly RoadsideDocumentKind[];
 export type RoadsideUploadKind = (typeof ROADSIDE_UPLOAD_KINDS)[number];
 
-/** Every kind's name on the page — all six, since a filed DataQs packet will be listed with the rest. */
+/** Every kind's name on the page — all of them, since a filed DataQs packet will be listed with the rest. */
 export const ROADSIDE_DOCUMENT_KIND_TEXT: Record<RoadsideDocumentKind, string> = {
   citation: "Citation (ticket)",
   court_disposition: "Court result",
@@ -27,6 +27,7 @@ export const ROADSIDE_DOCUMENT_KIND_TEXT: Record<RoadsideDocumentKind, string> =
   dataqs_packet: "DataQs packet",
   dataqs_correspondence: "DataQs correspondence",
   roadside_repair_record: "Repair record (from FleetPal)",
+  roadside_repair_bill: "Vendor bill (from FleetPal)",
 };
 
 /**

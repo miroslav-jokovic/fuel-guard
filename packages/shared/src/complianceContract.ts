@@ -166,6 +166,8 @@ export const ROADSIDE_DOCUMENT_KINDS = [
   "roadside_inspection_report", "citation", "court_disposition", "dataqs_packet", "dataqs_correspondence",
   // 0483 (IC11, Q-IC12 (a)): our rendering of FleetPal's repair record, filed with the certification.
   "roadside_repair_record",
+  // 0631 (FLEETPAL Q12 (a), F16c): each vendor bill on the accepted work order, frozen at certification.
+  "roadside_repair_bill",
 ] as const;
 export type RoadsideDocumentKind = (typeof ROADSIDE_DOCUMENT_KINDS)[number];
 /** An equipment bill's scan or PDF (0530, M10a), filed only against an `equipment_purchase` subject. */
@@ -177,7 +179,7 @@ export const EQUIPMENT_PURCHASE_DOCUMENT_KINDS = ["equipment_invoice"] as const;
  * (§391.51), so no qualification record cites it and the driver file lists it on its own.
  */
 export const CARRIER_POLICY_DOCUMENT_KINDS = ["drug_alcohol_policy"] as const;
-/** Every kind `documents` admits — mirrors the SQL check constraint exactly (0476, 0484, 0490, 0530, 0534, 0565). */
+/** Every kind `documents` admits — mirrors the SQL check constraint exactly (0476, 0484, 0490, 0530, 0534, 0565, 0631). */
 export const DOCUMENT_KINDS = [
   ...COMPLIANCE_DOCUMENT_KINDS, ...ROADSIDE_DOCUMENT_KINDS, ...EQUIPMENT_PURCHASE_DOCUMENT_KINDS,
   ...CARRIER_POLICY_DOCUMENT_KINDS,
