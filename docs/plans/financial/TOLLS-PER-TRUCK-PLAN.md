@@ -125,6 +125,48 @@ The scripts that did this live outside the repo (session scratchpad). The rules 
 D-TL14–D-TL16 below, and the product re-derives everything from the uploaded files and Samsara. Nothing
 in the product depends on a figure in this section.
 
+
+### 1.4 Measured 2026-11-18: what McLeod books for tolls, and whether every toll is ours
+
+The owner's requirement: per-truck tolls must agree with the toll amounts entered into McLeod, every
+mismatch must be caught and recorded, and no transaction that is not ours may be counted.
+
+**McLeod side** (`lme_analytics`, restore 2026-10-09, `gl_ledger` + `gl_ledger_hist`, accounts 40790000 /
+40790002, March–October: 216 lines, $343,141.02):
+
+- **No McLeod toll line names a truck.** `tractor` is empty on 216 of 216. McLeod cannot give a per-truck
+  toll figure to compare against. The only comparison is by account and by period.
+- **McLeod books payments, not tolls.** The AP lines are card charges keyed from card statements
+  (`AMER`, `CAPONE`, `CHASCHIL` batches): E-ZPass top-ups in $8,000–$10,000 amounts, K-TAG autopays
+  (`KTA Autopay 11000.95` is exactly the April DriveKS statement's Previous Balance; `KTA toll 11371.28`
+  is exactly the April statement's total), and ExpressToll replenishments ($494–$627). The
+  `transaction_date` is the card statement's date, and posting runs 1–2 months behind it.
+- **The toll account also holds what is not on our three statements:** PrePass ($11,728.58
+  over three names, booked as tolls although it is weigh-station bypass; the owner ruled it is not
+  tolls, 2026-11-16), other agencies paid by card (HCTRA, NTTA, FasTrak, SunPass, PlatePay OK, EZ TAG,
+  E-ZPass OH/NY bills), toll violations by state, and driver deductions and reimbursements (DRS; some
+  name a truck in free text, e.g. `ErrolWright725`).
+- So **per-truck usage for a month will never equal McLeod's toll account for that month.** The
+  difference is not an error but four things: top-ups versus usage (the prepaid balance moves), the
+  card lag, PrePass, and tolls billed outside our three accounts. D-TL19 makes each of those a recorded,
+  explained line, so that what is left over is a real mismatch.
+
+**Statement side: is every toll ours?** All 18 statements, $299,701.38 of tolls over 28,226 toll
+lines:
+
+| Identified as ours by | Lines | Dollars |
+|---|---:|---:|
+| Tag on a list (E-ZPass truck list, DriveKS export) | 22,775 | $253,058.50 |
+| Tag on one of our trucks by GPS (§1.3) | 3,888 | $30,152.83 |
+| Plate of one of our trucks | 1,110 | $13,460.47 |
+| Plate of one of our trailers | 58 | $670.99 |
+| **Not identified** | **412** | **$2,360.93** |
+
+The 412 lines are 20 identifiers, none above $559. Two are already explained: P1334063 is truck 763's
+earlier plate (Samsara still holds it), and P848932 is a plate DriveKS bills for. The rest are tags GPS
+could not settle (too few tolls, or two trucks at the plaza) and three plates that are on no truck or
+trailer we hold (P973445, P1297493, P1358597), which may be sold units or not ours at all.
+
 ---
 
 ## 2. Decisions
@@ -243,6 +285,28 @@ held to the two definitions below, so that it can be checked, not just claimed.
   Office decisions (accept or reject a proposal, attribute by hand) go to an append-only decision
   table: who, when, the reason, and a snapshot of the evidence shown.
 
+- **D-TL19 — The McLeod tie is a matching of lines, recorded both ways, never a single difference.**
+  Each McLeod toll line (40790000 / 40790002, every module) gets exactly one outcome, stored and shown:
+  `payment` matched to a statement's payment line (provider, amount, date within the card lag; K-TAG
+  autopay = a statement's Previous Balance or total), `prepass` (not tolls, owner 2026-11-16, flagged to
+  be reclassed in McLeod), `other_agency` (a toll bill outside our three accounts, kept with its words;
+  per truck only when the office names the truck), `violation`, `driver` (DRS/OFF), or **`unmatched`**.
+  Each statement payment line likewise is `booked` (matched to a McLeod line) or **`not_in_mcleod`**. Then
+  per account and period, the balance roll is checked: McLeod payments − statement tolls = the
+  statement's own change in prepaid balance. A difference there is a recorded mismatch with its amount.
+  Mismatches are kept as rows (`toll_reconciliation_findings`: what, the amount, both sides' references,
+  first seen, resolved by whom and how), not recomputed into a single number that silently changes.
+  The month view shows: statement tolls per truck (sum = statements to the cent) → + prepaid balance
+  change → + other agencies, violations and driver lines → = McLeod's toll account, with every
+  unexplained cent listed.
+- **D-TL20 — A toll is counted only when it is ours.** Every toll line must be identified as one of our
+  units by tag history, plate history, trailer plate, or a GPS-confirmed proposal accepted by the office.
+  A line identified by none is **`not_ours_or_unknown`**: it stays out of every truck's total, out of the
+  fleet's usage, and in a list of its own with the dollars, so a stranger's toll can be disputed with
+  the provider and is never absorbed. The office's decision on each one (ours: which truck; not ours:
+  disputed on a date) is an append-only row. A tag or plate seen on a statement that is in none of our
+  records triggers that list the day the statement is read, not at month end.
+
 ---
 
 ## 3. Build order
@@ -259,7 +323,7 @@ held to the two definitions below, so that it can be checked, not just claimed.
 | **TL4b** | Migration: `toll_statement_lines` (D-TL8 key with occurrence, kind (D-TL18, incl. violation/admin fee), tag or plate as printed, agency, plaza in/out with direction, local entry/exit times, class, signed amount, balance where printed, posted date, page and line in the file). 0627 already holds the statement's read columns. API `POST /api/tolls/statements/:id/lines`: the browser reads the kept file and sends lines, and the API re-runs every D-TL6 tie before storing anything, org-scoped (`expectOrgScoped`). Web: "Read" on each kept statement, and new uploads are read straight away | TL5 |
 | **TL8a** | `toll_plazas` (org-scoped, RLS: position, spread, samples, zone from position, per-agency clock offset, version) and `toll_line_observations` (D-TL14: trucks and trailer gateways near the plaza at the toll minute). The worker groups tolls into ~10-minute windows and makes one paginated `/fleet/vehicles/stats/history` (and trailers) call per window for all assets, with 429 backoff, on the general lane. The backfill from April runs as soon as TL4b lands (Q-TL10: April sits at the edge of retention) | TL4b |
 | **TL8b** | Verdicts derived at read time (D-TL14). Evidence per line (D-TL13). Plate history table with 0622-style guards, and trailer plates by trailer gateway (D-TL16). GPS proposals for unmatched, absent and contradicted tags and plates (D-TL15). An append-only decision table for accept, reject and office attribution | TL8a |
-| **TL6** | Toll review page under Finance: per month and provider, the four D-TL12 checks as numbers, the "closed — N% confirmed" line, the review queue with each line's reason, proposals to accept, the same truck charged twice at one plaza within minutes, a provider × month grid of statements so a missing month shows, and the GL tie on the side Q-TL11 measured. A month closes only at 60 days and $0.00 review | TL8b, Q-TL11 |
+| **TL6** | Toll review page under Finance: per month and provider, the four D-TL12 checks as numbers, the D-TL19 McLeod tie with every finding listed, the D-TL20 not-ours list, the "closed — N% confirmed" line, the review queue with each line's reason, proposals to accept, the same truck charged twice at one plaza within minutes, a provider × month grid of statements so a missing month shows, and the GL tie on the side Q-TL11 measured. A month closes only at 60 days and $0.00 review | TL8b, Q-TL11 |
 | **TL7** | P&L: tolls per truck per month and per mile in `computeTruckPnl` (TRUCK-DRIVER-PNL-PLAN P3), with the GL remainder as a labelled spread | TL6, P3 |
 | **TL8c** | Ongoing: each new statement is verified on read, and a tag whose tolls stop matching its truck is raised the same day (a moved tag is caught before month end) | TL8b |
 
@@ -315,7 +379,14 @@ reopens it, with that line named.
   (E-ZPass prepaid; K-TAG and ExpressToll auto-pay)? Measure by matching each month's GL AP lines to
   the statements' payment lines (E-ZPass `Prepaid Payment`, ExpressToll `PAYMENT`, K-TAG's previous
   balance paid). Recommend measuring before TL6 is built. Owner question only if the measurement is
-  mixed.
+  mixed. **Measured 2026-11-18 (§1.4): payments, by card statement, 1–2 months late, with PrePass and
+  other agencies in the same account.** The tie is D-TL19.
+- **Q-TL12 (blocks nothing; the books)** — PrePass is booked into 40790000 Tolls ($11,728.58,
+  March–October). Should accounting reclass it to its own account? Recommend yes. Until then, D-TL19
+  labels it rather than counting it as a toll mismatch.
+- **Q-TL13 (blocks D-TL20's list)** — Who disputes a toll that is not ours with the provider, and
+  within what window? E-ZPass NJ and DriveKS accept disputes for a limited time after the statement.
+  Recommend the office reviews the list weekly.
 - **Q-TL7 (blocks TL6's "closed")** — Who closes a month that still holds review lines that GPS cannot
   settle (§1.3: $2,043 over 14 tags, mostly 1–2 tolls each)? Candidates: (a) the office attributes each
   one with a reason (`office` evidence, counted separately); (b) they stay in the month as a labelled
@@ -344,3 +415,4 @@ reopens it, with that line named.
 - 2026-11-17 · TL2b built. The owner asked for the fleet's tags on the Tolls page and a bulk add from Excel. The page is two tabs (`?view=tags`): Statements, and Toll tags, which shows to `equipment` viewers only, with Add tag and Import from Excel for `equipment` managers; the statements list moved into `TollStatementsList.vue` unchanged. The tag list derives the truck and the start day from the open entry, hides retired tags until asked, and searches by number with or without leading zeros. Its drawer shares `TollTagHistory.vue` with the truck card. The dialog asks for a truck when opened off a truck page. The import: `downloadTollTagSheet` writes an .xlsx of the trucks in service with their tags on file (the tag column is text so leading zeros survive; the provider column is a list); `readTollTagSheet` finds the columns by name in the first ten rows and refuses a line with no start day rather than defaulting it to today, which would lose the six months Q-TL4 loads; `planTollTagImport` (shared, run by the browser for the preview and again by the API on what is on file) turns each line into add, move, backdate (on this truck already, but from a later day: void that entry with the reason in words and put the tag on again from the sheet's day; if that is refused, the tag goes back on from its old start), unchanged, or refused with the sentence to fix it. A tag twice in a sheet is refused on both lines. Lines go 50 a request, each answered on its own and audited `via: "import"`. No migration. Q-TL6 records who can reach the import.
 - 2026-11-18 · Samples measured (§1.3) and the plan raised to the owner's "100% results and precision" (D-TL12–D-TL18, Q-TL7–Q-TL10). Each list matches only today's tags: K-TAG reaches 62.7% of April's dollars and E-ZPass 90–96%. Samsara GPS names the truck for 92% of K-TAG's and 97% of E-ZPass's unmatched dollars, and agreed with the list on every tag in a 40-tag control except one, where the list was stale. So GPS became the check on every toll (D-TL14), and the source of proposed tag and plate history that the office accepts (D-TL15–16). The build order is re-cut: TL5 readers first, against the real files on the owner's machine, then TL4b, TL4c, TL8a–b, TL6.
 - 2026-11-18 · Plan reviewed by an independent pass before any code, against the owner's "100%". Taken in: a verdict `absent`/`ambiguous` besides `contradicted`, and "100%" only when every toll is confirmed (else "closed — N% confirmed"); observations stored, verdicts derived (D-TL3, and retention-proof); convoy uniqueness for votes; trailer plates by trailer gateway; leave-one-tag-out plaza learning, per-agency clock offset, zone from position; per-kind and running-balance ties; occurrence in the dedupe key; reversals to the toll's truck; 60-day close; the GL may book top-ups not usage (Q-TL11); batched Samsara windows and an immediate backfill; TL4c first. Found while reading the words: ExpressToll's line plate differs from its group's plate on 118 camera lines, so the line's plate is the identity.
+- 2026-11-18 · Owner: per-truck tolls must agree with what is entered in McLeod, every mismatch caught and recorded, and no transaction counted that is not ours. Measured (§1.4): McLeod's toll lines name no truck (0 of 216) and book card payments 1–2 months late, plus PrePass ($11.7k), other agencies, violations and driver lines, so the tie is line-to-line plus a balance roll (D-TL19), with findings stored as rows. Of $299,701.38 of statement tolls, 99.2% is identified as ours by list, GPS, truck plate or trailer plate; $2,360.93 on 20 identifiers is not yet, and is held out of every total until decided (D-TL20). Q-TL11 answered, Q-TL12 (PrePass in the toll account) and Q-TL13 (disputes) opened.
