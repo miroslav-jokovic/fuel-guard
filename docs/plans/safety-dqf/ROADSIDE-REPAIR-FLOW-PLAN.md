@@ -118,9 +118,11 @@ sweep-kept "bill attached" flag cannot yet be proven fresh. See Q-RR4.
 - Test against the 25-sample shapes above; mutation: dropping the match from the sort / the mark.
 
 ### RR2 — receipts on each candidate, from our own tables
-Each candidate shows its invoice count and total as FleetPal records them ("2 invoices · $1,288.13"), read
-from `fleetpal_purchase_orders` + `fleetpal_po_invoices` in one org-scoped query for the whole list. One
-order's own figures, so D-FP27 allows it. Whether a scan is attached stays in the drawer until Q-RR4.
+Each candidate shows how many vendor invoices FleetPal records against it ("2 vendor invoices"), read from
+`fleetpal_purchase_orders` + `fleetpal_po_invoices` once for the whole list. **A count, never a total**:
+adding several invoices up is what D-FP27 forbids (corrected while building, 2026-11-18 — this step first
+said "count and total"). Each invoice's own amount and its scanned bill stay in the drawer. Whether a scan
+is attached stays in the drawer until Q-RR4.
 
 ## 3. Open questions — each needs the owner
 
