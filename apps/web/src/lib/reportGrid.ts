@@ -42,10 +42,33 @@ function sheetToGrid(ws: ExcelJS.Worksheet): Grid {
   return grid;
 }
 
+/**
+ * A real `.xlsx` — and, when ExcelJS cannot open it, the same file through SheetJS.
+ *
+ * ── WHY A SECOND DECODER FOR A VALID .xlsx ─────────────────────────────────────────────────────────
+ * Open XML allows the spreadsheet namespace to be bound to a prefix (`<x:workbook xmlns:x="…">`)
+ * instead of the default namespace, and files written by Microsoft's Open XML SDK do exactly that.
+ * ExcelJS's parser only recognises the unprefixed element names, never finds `<sheets>`, and throws
+ * `Cannot read properties of undefined (reading 'sheets')`. Measured 2026-11-18 on the owner's
+ * DriveKS K-TAG vehicle inventory export (TOLLS-PER-TRUCK-PLAN TL4c), which Excel and SheetJS both open;
+ * the test rebuilds the same prefixing in memory and shows ExcelJS failing on it.
+ *
+ * ExcelJS stays first because every existing reader is built on its cell shapes (rich text, formula
+ * results, dates as Dates). SheetJS is tried only when ExcelJS refuses the file; if SheetJS refuses it
+ * too, ExcelJS's error is the one shown, as before.
+ */
 async function readXlsxGrid(buf: ArrayBuffer): Promise<Grid> {
   const ExcelJSMod = await import("exceljs");
   const wb = new ExcelJSMod.Workbook();
-  await wb.xlsx.load(buf);
+  try {
+    await wb.xlsx.load(buf);
+  } catch (excelJsError) {
+    try {
+      return await readLegacyXlsGrid(buf);
+    } catch {
+      throw excelJsError;
+    }
+  }
   const ws = wb.worksheets[0];
   if (!ws) throw new Error("The workbook has no sheets.");
   return sheetToGrid(ws);
