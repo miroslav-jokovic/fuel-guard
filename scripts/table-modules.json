@@ -3104,6 +3104,28 @@
       "why": "TOLLS-PER-TRUCK-PLAN TL4a (0627): one row per statement file the office uploads, three providers sending one a week each, plus a six-month backfill once (owner 2026-11-17). Never deleted: every per-truck toll traces to a line of one of these files (D-TL8); a wrong file is marked removed."
     }
   },
+  "toll_statement_lines": {
+    "module": "tolls",
+    "layer": "core",
+    "lifecycle": {
+      "growth": "time",
+      "retention_days": null,
+      "partition": null,
+      "budget_rows_per_day": 600,
+      "why": "TOLLS-PER-TRUCK-PLAN TL4b (0633): every line of every read statement, as printed. Measured 2026-11-18 on the owner's 18 statements: ~4,000 lines a month across the three providers (E-ZPass ~2,800, K-TAG ~1,900, ExpressToll ~140), plus a one-off backfill of ~28,000. Every per-truck toll traces to one of these lines (D-TL8), so they are kept with their statement."
+    }
+  },
+  "toll_statement_reads": {
+    "module": "tolls",
+    "layer": "core",
+    "lifecycle": {
+      "growth": "time",
+      "retention_days": null,
+      "partition": null,
+      "budget_rows_per_day": 5,
+      "why": "TOLLS-PER-TRUCK-PLAN TL4b (0633): one row per attempt to read a kept statement, read or refused with the reader's sentence; at most one read per statement. Evidence: never changed or deleted (TS101/TS102)."
+    }
+  },
   "toll_transponder_assignments": {
       "module": "tolls",
       "layer": "core",

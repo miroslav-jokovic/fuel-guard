@@ -120,4 +120,25 @@ export interface TollStatementDto {
   removedAt: string | null;
   removedByName: string | null;
   removeReason: string | null;
+  /** The latest attempt to read it (TL4b, 0633); null when nobody has tried yet. */
+  lastRead: TollStatementReadDto | null;
+}
+
+/**
+ * What one attempt to read a statement found. A refusal carries the reader's sentence; a read carries
+ * the counts and every printed total it tied, so the page can show "read and tied" with the figures
+ * rather than a bare tick.
+ */
+export interface TollStatementReadDto {
+  outcome: "read" | "refused";
+  message: string | null;
+  readAt: string;
+  readByName: string | null;
+  /** The provider's account number, last four characters only: enough to tell two accounts apart. */
+  accountEnding: string | null;
+  lineCount: number | null;
+  /** Toll lines and their sum in cents (credits included, payments and fees not). */
+  tollLineCount: number | null;
+  tollCents: number | null;
+  ties: { label: string; printedCents: number; readCents: number }[];
 }

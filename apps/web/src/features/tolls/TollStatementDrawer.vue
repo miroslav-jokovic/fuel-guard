@@ -7,8 +7,8 @@ import { formatDateTime } from "@/lib/format";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
-import { openTollStatement, useRemoveTollStatement } from "./useTollStatements";
-import { STATEMENT_STATUS_LABEL, STATEMENT_STATUS_TONE, fileKind, statementPeriod, statementStatus } from "./tollStatementRows";
+import { openTollStatement, useReadTollStatement, useRemoveTollStatement } from "./useTollStatements";
+import { STATEMENT_STATUS_LABEL, STATEMENT_STATUS_TONE, centsToDollars, fileKind, readSummary, statementPeriod, statementStatus } from "./tollStatementRows";
 
 /**
  * One toll statement (TOLLS-PER-TRUCK-PLAN.md TL4a): what was uploaded, by whom, whether it has been
@@ -25,6 +25,7 @@ const session = useSessionStore();
 const canManage = computed(() => session.can("accounting"));
 const toast = useToastStore();
 const remove = useRemoveTollStatement();
+const readNow = useReadTollStatement();
 const { zone } = useOrgTimezone();
 const at = (iso: string) => formatDateTime(iso, "—", zone.value);
 
@@ -44,8 +45,34 @@ const facts = computed<Fact[]>(() => {
       value: x.printedTotal == null ? "Not read yet" : x.printedTotal.toLocaleString(undefined, { style: "currency", currency: "USD" }),
       numeric: x.printedTotal != null,
     },
+    ...(readSummary(x) ? [{ label: "Tolls read", value: readSummary(x)!, numeric: true }] : []),
+    ...(x.lastRead ? [{ label: x.lastRead.outcome === "read" ? "Read" : "Last tried", value: `${at(x.lastRead.readAt)}${x.lastRead.readByName ? ` by ${x.lastRead.readByName}` : ""}` }] : []),
   ];
 });
+
+/**
+ * Every printed total the reader tied, for a read statement. K-TAG prints one Sub-Total per
+ * transponder (~130 a month), so the list shows the statement-level totals first and counts the rest:
+ * the point is that each one was checked, not to reprint the statement.
+ */
+const ties = computed(() => {
+  const r = s.value?.lastRead;
+  if (!r || r.outcome !== "read") return null;
+  const groups = r.ties.filter((t) => /^(Sub-Total for|Total for device)/.test(t.label));
+  return { main: r.ties.filter((t) => !groups.includes(t)), groupCount: groups.length };
+});
+
+async function readStatement(): Promise<void> {
+  const x = s.value;
+  if (!x) return;
+  try {
+    const after = await readNow.mutateAsync(x.id);
+    if (after.readAt) toast.success(`${x.fileName} read`, readSummary(after) ?? undefined);
+    else toast.error(`${x.fileName} could not be read`, after.lastRead?.message ?? undefined);
+  } catch (e) {
+    toast.error("Could not read the statement", e instanceof Error ? e.message : undefined);
+  }
+}
 
 const removing = ref(false);
 const reason = ref("");
@@ -85,7 +112,11 @@ async function confirmRemove(): Promise<void> {
       <div class="space-y-3">
         <AppBadge :tone="STATEMENT_STATUS_TONE[status]" data-test="statement-status">{{ STATEMENT_STATUS_LABEL[status] }}</AppBadge>
         <AppCallout v-if="status === 'unread'" tone="info" data-test="statement-unread">
-          The file is kept as uploaded. Its tolls are not counted yet; they are read from this file once the {{ TOLL_PROVIDER_LABEL[s.provider] }} reader is built.
+          The file is kept as uploaded and has not been read. Its tolls do not count until it is read and adds up to every total it prints.
+        </AppCallout>
+        <AppCallout v-if="status === 'refused'" tone="danger" data-test="statement-refused">
+          <p class="font-medium">Nothing was taken from this file.</p>
+          <p class="mt-1">{{ s.lastRead?.message }}</p>
         </AppCallout>
         <p v-if="s.removedAt" class="text-sm text-ink-secondary" data-test="statement-removed">
           Removed {{ at(s.removedAt) }}{{ s.removedByName ? ` by ${s.removedByName}` : "" }}: {{ s.removeReason }}. Its tolls do not count.
@@ -95,6 +126,19 @@ async function confirmRemove(): Promise<void> {
       <section aria-labelledby="statement-facts-heading" class="space-y-2">
         <h3 id="statement-facts-heading" class="text-sm font-semibold text-ink">The statement</h3>
         <FactList :facts="facts" layout="rows" />
+      </section>
+
+      <section v-if="ties" aria-labelledby="statement-ties-heading" class="space-y-2" data-test="statement-ties">
+        <h3 id="statement-ties-heading" class="text-sm font-semibold text-ink">Checked against the statement's own totals</h3>
+        <ul class="divide-y divide-line text-sm">
+          <li v-for="t in ties.main" :key="t.label" class="flex justify-between gap-4 py-1.5">
+            <span class="text-ink-secondary">{{ t.label }}</span>
+            <span class="tabular-nums text-ink">{{ centsToDollars(t.printedCents) }} printed · {{ centsToDollars(t.readCents) }} read</span>
+          </li>
+        </ul>
+        <p v-if="ties.groupCount" class="text-xs text-ink-muted">
+          And {{ ties.groupCount }} {{ s.provider === "ktag" ? "transponder sub-totals" : "device totals" }}, each equal to the lines under it.
+        </p>
       </section>
 
       <div v-if="removing" class="space-y-2" data-test="statement-remove-form">
@@ -112,6 +156,14 @@ async function confirmRemove(): Promise<void> {
     </div>
     <template #footer>
       <AppButton v-if="s && canManage && !s.removedAt && !removing" variant="ghost" data-test="statement-remove" @click="removing = true">Remove from the list…</AppButton>
+      <AppButton
+        v-if="s && canManage && !s.removedAt && !s.readAt"
+        :disabled="readNow.isPending.value"
+        data-test="statement-read"
+        @click="readStatement"
+      >
+        {{ readNow.isPending.value ? "Reading…" : status === "refused" ? "Read again" : "Read" }}
+      </AppButton>
       <AppButton variant="primary" data-test="statement-open" @click="open">Open file</AppButton>
     </template>
   </SlideOver>

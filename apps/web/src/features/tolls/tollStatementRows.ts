@@ -13,24 +13,47 @@ type BadgeTone = NonNullable<InstanceType<typeof AppBadge>["$props"]["tone"]>;
  * a full list for per-truck tolls that exist.
  */
 
-export type StatementStatus = "removed" | "read" | "unread";
+export type StatementStatus = "removed" | "read" | "refused" | "unread";
 
-export function statementStatus(s: Pick<TollStatementDto, "removedAt" | "readAt">): StatementStatus {
+/**
+ * TL4b: a statement the reader REFUSED is not "not read yet" — someone tried, and the statement did
+ * not add up or could not be opened. The row says so in its own words, and the drawer shows why.
+ */
+export function statementStatus(s: Pick<TollStatementDto, "removedAt" | "readAt" | "lastRead">): StatementStatus {
   if (s.removedAt) return "removed";
-  return s.readAt ? "read" : "unread";
+  if (s.readAt) return "read";
+  return s.lastRead?.outcome === "refused" ? "refused" : "unread";
 }
 
 export const STATEMENT_STATUS_LABEL: Record<StatementStatus, string> = {
   unread: "Not read yet",
-  read: "Read",
+  read: "Read, adds up",
+  refused: "Could not be read",
   removed: "Removed",
 };
 
 export const STATEMENT_STATUS_TONE: Record<StatementStatus, BadgeTone> = {
   unread: "info",
   read: "success",
+  refused: "danger",
   removed: "neutral",
 };
+
+/** `$1,234.56` from integer cents. */
+export const centsToDollars = (c: number): string =>
+  `${c < 0 ? "-" : ""}$${(Math.abs(c) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/**
+ * "2,651 tolls · $40,143.28 · account …4126" for a read statement; null otherwise. The account ending
+ * is shown so a statement from an account that is not ours stands out next to the others (D-TL20).
+ */
+export function readSummary(s: Pick<TollStatementDto, "readAt" | "lastRead">): string | null {
+  const r = s.lastRead;
+  if (!s.readAt || !r || r.outcome !== "read" || r.tollLineCount == null || r.tollCents == null) return null;
+  const parts = [`${r.tollLineCount.toLocaleString("en-US")} ${r.tollLineCount === 1 ? "toll" : "tolls"}`, centsToDollars(r.tollCents)];
+  if (r.accountEnding) parts.push(`account …${r.accountEnding}`);
+  return parts.join(" · ");
+}
 
 /** `2.4 MB`, `310 KB`, `900 bytes`: enough to tell a statement from an empty export. */
 export function fileSize(bytes: number): string {

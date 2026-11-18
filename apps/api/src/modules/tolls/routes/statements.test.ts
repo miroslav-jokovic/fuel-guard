@@ -132,8 +132,14 @@ describe("keeping a statement", () => {
     expect(rec.writtenRows("toll_statements")).toEqual([
       { id: NEW_ID, org_id: ORG, provider: "ezpass", file_name: "june.xlsx", format: "csv", byte_size: CSV.length, sha256: sha(CSV), storage_path: `${ORG}/${NEW_ID}`, uploaded_by: USER },
     ]);
-    expect(audit.writeAudit).toHaveBeenCalledTimes(1);
+    // Kept, then read at once (TL4b): a CSV is refused in words — only PDF layouts are proven — and
+    // that refusal is recorded and audited like a read would be.
+    expect(audit.writeAudit).toHaveBeenCalledTimes(2);
     expect(audit.writeAudit.mock.calls[0]![1]).toMatchObject({ orgId: ORG, actorId: USER, action: "tolls.statement_uploaded", entityId: NEW_ID });
+    expect(audit.writeAudit.mock.calls[1]![1]).toMatchObject({ action: "tolls.statement_read", entityId: NEW_ID, meta: { outcome: "refused" } });
+    expect(rec.rpcs()).toEqual([
+      expect.objectContaining({ fn: "record_toll_statement_read", args: expect.objectContaining({ p_org_id: ORG, p_statement_id: NEW_ID, p_lines: [], p_read: expect.objectContaining({ outcome: "refused", message: expect.stringMatching(/CSV file, and only PDF statements are read so far/) }) }) }),
+    ]);
     expect(removedBytes()).toEqual([]);
     expectOrgScoped(rec, ORG, EXEMPT);
   });

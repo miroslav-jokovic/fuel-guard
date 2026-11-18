@@ -13,6 +13,7 @@ import {
   STATEMENT_STATUS_TONE,
   fileKind,
   matchesStatementSearch,
+  readSummary,
   statementPeriod,
   statementStatus,
 } from "./tollStatementRows";
@@ -101,7 +102,8 @@ const columns: DataTableColumn[] = [
         <span class="block text-xs text-ink-tertiary">{{ fileKind(row) }}</span>
       </template>
       <template #cell-period="{ row }">
-        <span :class="statementPeriod(row) ? 'text-ink-secondary' : 'text-ink-tertiary'">{{ statementPeriod(row) ?? "—" }}</span>
+        <span class="block" :class="statementPeriod(row) ? 'text-ink-secondary' : 'text-ink-tertiary'">{{ statementPeriod(row) ?? "—" }}</span>
+        <span v-if="readSummary(row)" class="block text-xs text-ink-tertiary tabular-nums" data-test="read-summary">{{ readSummary(row) }}</span>
       </template>
       <template #cell-uploadedByName="{ value }">
         <span class="text-ink-secondary">{{ value ?? "—" }}</span>
