@@ -384,25 +384,31 @@ reopens it, with that line named.
 - **Q-TL12 (blocks nothing; the books)** — PrePass is booked into 40790000 Tolls ($11,728.58,
   March–October). Should accounting reclass it to its own account? Recommend yes. Until then, D-TL19
   labels it rather than counting it as a toll mismatch.
+  **Ruled 2026-11-18 (owner: "proceed as recommended"):** accounting reclasses PrePass. Until it does, D-TL19 labels each PrePass line, so none is counted as a toll mismatch.
 - **Q-TL13 (blocks D-TL20's list)** — Who disputes a toll that is not ours with the provider, and
   within what window? E-ZPass NJ and DriveKS accept disputes for a limited time after the statement.
   Recommend the office reviews the list weekly.
+  **Ruled 2026-11-18 (owner: "proceed as recommended"):** the office reviews the not-ours list weekly. Still open: which person does it, which the page must not assume: it shows the list to everyone with `accounting: manage`.
 - **Q-TL7 (blocks TL6's "closed")** — Who closes a month that still holds review lines that GPS cannot
   settle (§1.3: $2,043 over 14 tags, mostly 1–2 tolls each)? Candidates: (a) the office attributes each
   one with a reason (`office` evidence, counted separately); (b) they stay in the month as a labelled
   "unattributed" line in the P&L spread. Recommend (a) for any line over $25, (b) below it. The
   candidates are listed with their tolls, so the decision takes minutes.
+  **Ruled 2026-11-18 (owner: "proceed as recommended"):** (a) for a line over $25, (b) at or below it.
 - **Q-TL8 (blocks nothing; D-TL18)** — Is a tag purchase (`Tagsale`, $360 over 5 months) fleet
   overhead, or a cost of the truck that received the tag? Recommend overhead: it is small and
   one-off.
+  **Ruled 2026-11-18 (owner: "proceed as recommended"):** overhead.
 - **Q-TL9 (blocks nothing; data hygiene)** — The DriveKS account carries ~60 placeholder plates and 7
   duplicate vehicles (§1.3). K-TAG falls back to the plate when a sticker is not read, so wrong plates
   there can turn into violations. Recommend the office update them in DriveKS. The product does not
   depend on them.
+  **Ruled 2026-11-18 (owner: "proceed as recommended"):** the office updates the DriveKS plates; the product does not wait for it.
 - **Q-TL10 (blocks TL8a's history)** — Does Samsara keep location history long enough for every
   statement we load? It reached April 2026 on 11-18. Recommend the worker fetch and store verdicts
   for every toll as soon as its statement is read, so a later retention cut cannot erase the
   evidence.
+  **Ruled 2026-11-18 (owner: "proceed as recommended"):** verdicts are fetched and stored as soon as a statement is read, and the April backfill runs when TL8a lands.
 - **Q-TL6 (blocks nothing; who keeps the tags)** — The Toll tags tab lives on the Tolls page, which is a Finance screen gated on `accounting`, while tags gate on `equipment` (D-TL11). An admin has both. A fleet manager without accounting cannot reach the page, so cannot use the Excel import (the truck page card still works); an accountant without equipment sees statements only. A surface gate has no "either section" form today (`SurfaceGate` in `packages/shared/src/surfaces.ts`). Candidates: (a) leave it: whoever has both sections loads the fleet once; (b) grant the fleet managers who keep the tags `accounting: view` per person on the Permissions page; (c) add an any-of gate kind to the surface catalogue so `finance.tolls` admits `accounting` OR `equipment` (the tab rules already split per section). Recommend (a) until someone other than the owner needs to import; (c) if fleet managers will.
 
 ## 7. Progress log — append one dated line per step
@@ -416,3 +422,4 @@ reopens it, with that line named.
 - 2026-11-18 · Samples measured (§1.3) and the plan raised to the owner's "100% results and precision" (D-TL12–D-TL18, Q-TL7–Q-TL10). Each list matches only today's tags: K-TAG reaches 62.7% of April's dollars and E-ZPass 90–96%. Samsara GPS names the truck for 92% of K-TAG's and 97% of E-ZPass's unmatched dollars, and agreed with the list on every tag in a 40-tag control except one, where the list was stale. So GPS became the check on every toll (D-TL14), and the source of proposed tag and plate history that the office accepts (D-TL15–16). The build order is re-cut: TL5 readers first, against the real files on the owner's machine, then TL4b, TL4c, TL8a–b, TL6.
 - 2026-11-18 · Plan reviewed by an independent pass before any code, against the owner's "100%". Taken in: a verdict `absent`/`ambiguous` besides `contradicted`, and "100%" only when every toll is confirmed (else "closed — N% confirmed"); observations stored, verdicts derived (D-TL3, and retention-proof); convoy uniqueness for votes; trailer plates by trailer gateway; leave-one-tag-out plaza learning, per-agency clock offset, zone from position; per-kind and running-balance ties; occurrence in the dedupe key; reversals to the toll's truck; 60-day close; the GL may book top-ups not usage (Q-TL11); batched Samsara windows and an immediate backfill; TL4c first. Found while reading the words: ExpressToll's line plate differs from its group's plate on 118 camera lines, so the line's plate is the identity.
 - 2026-11-18 · Owner: per-truck tolls must agree with what is entered in McLeod, every mismatch caught and recorded, and no transaction counted that is not ours. Measured (§1.4): McLeod's toll lines name no truck (0 of 216) and book card payments 1–2 months late, plus PrePass ($11.7k), other agencies, violations and driver lines, so the tie is line-to-line plus a balance roll (D-TL19), with findings stored as rows. Of $299,703.72 of statement tolls, 99.2% is identified as ours by list, GPS, truck plate or trailer plate; $2,360.93 on 20 identifiers is not yet, and is held out of every total until decided (D-TL20). Q-TL11 answered, Q-TL12 (PrePass in the toll account) and Q-TL13 (disputes) opened.
+- 2026-11-18 · Owner: "proceed as recommended and proposed … without any assumptions". Q-TL7, Q-TL8, Q-TL9, Q-TL10, Q-TL12 and Q-TL13 ruled as recommended. Three plates (P973445, P1297493, P1358597) are still undecided, so under D-TL20 they stay `not_ours_or_unknown` until the office decides them.
