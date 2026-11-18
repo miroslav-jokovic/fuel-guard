@@ -1,15 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatDisplayDate, repairAlertStage, repairClock, repairUnitName, type CalendarDay, type RoadsideRepairDueDto } from "@silvicom/shared";
-import { notify } from "../../messaging/index.js";
-import { usersWhoManage } from "../../org/index.js";
+import type { Env } from "../../../env.js";
+import { sendAlerts, type AlertEvent, type AlertTextClock } from "../../messaging/index.js";
 import { readRepairsDue } from "../read/repairsDue.js";
 
 /**
  * The `roadside_repair_due` alert (INSPECTION-CHALLENGE-PLAN IC11 B2b, D-IC14; category from 0483).
  *
  * ── TO WHOM, AND WHERE IT OPENS ────────────────────────────────────────────────────────────────
- * The MAINTENANCE section's managers (`usersWhoManage`, derived from the section matrix): they name the
- * repair (Q-IC13). It opens the Shop's "Roadside repairs due" page, which they can open — not the
+ * The people the carrier names for "Roadside repair due" on Settings › Notifications (ROADSIDE-REPAIR-FLOW-
+ * PLAN RR5, Q-RR3 (a)), by bell, email or text — routed through `sendAlerts` like every catalogued alert.
+ * The default, and the fallback when the routes reach nobody, is the maintenance section's managers: the
+ * people who name the repair (Q-IC13) and this alert's only audience before RR5. It opens the Shop's "Roadside repairs due" page, which they can open — not the
  * inspection page, which is safety's (Q-IC16 (a); the web's `notificationRoute` chooses by reader).
  *
  * ── HOW OFTEN ──────────────────────────────────────────────────────────────────────────────────
@@ -40,34 +42,28 @@ export function repairDueNotice(r: RoadsideRepairDueDto, stage: "due_soon" | "ov
   };
 }
 
-export async function alertRepairsDue(admin: SupabaseClient, orgId: string, today: CalendarDay): Promise<number> {
+export async function alertRepairsDue(admin: SupabaseClient, env: Env, orgId: string, today: CalendarDay, clock: AlertTextClock): Promise<number> {
   try {
     const repairs = await readRepairsDue(admin, orgId, today);
     if ("error" in repairs) throw new Error(repairs.error.message);
-    const due = repairs.flatMap((r) => {
+    const events: AlertEvent[] = repairs.flatMap((r) => {
       const stage = repairAlertStage(r, today);
-      return stage ? [{ r, stage }] : [];
+      if (!stage) return [];
+      return [{
+        // The keys the bell has used since IC11 B2b, so moving to routing re-sends nothing already sent.
+        dedupeKey: `roadside-repair-due:${r.unitId}:${stage}`,
+        line: repairDueNotice(r, stage, today).title,
+        severity: stage === "overdue" ? "critical" : "warning",
+        entityType: "roadside_inspection",
+        entityId: r.inspection.id,
+        relations: {},
+      }];
     });
-    if (due.length === 0) return 0;
-    const managers = await usersWhoManage(admin, orgId, "maintenance");
-    let sent = 0;
-    for (const { r, stage } of due) {
-      const notice = repairDueNotice(r, stage, today);
-      for (const userId of managers) {
-        const id = await notify(admin, {
-          orgId,
-          userId,
-          category: "roadside_repair_due",
-          severity: stage === "overdue" ? "critical" : "warning",
-          ...notice,
-          entityType: "roadside_inspection",
-          entityId: r.inspection.id,
-          dedupeKey: `roadside-repair-due:${r.unitId}:${stage}`,
-        });
-        if (id) sent++;
-      }
-    }
-    return sent;
+    if (events.length === 0) return 0;
+    // Routed (RR5): the people the carrier named for "Roadside repair due", by bell, email or text; nobody
+    // named falls back to whoever manages maintenance — the old audience — inside `sendAlerts`.
+    const sent = await sendAlerts(admin, env, orgId, "roadside_repair_due", events, clock);
+    return sent.bells + sent.emails + sent.texts + sent.textsHeld;
   } catch (e) {
     console.error(`[inspection-repair] org ${orgId}: repair-due alert failed —`, e instanceof Error ? e.message : e);
     return 0;

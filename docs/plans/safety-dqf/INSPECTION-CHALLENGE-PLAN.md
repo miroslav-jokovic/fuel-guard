@@ -1252,3 +1252,11 @@ about three merges.
   strict resolver that skips the tick on a FleetPal outage instead of writing blank rows. The version bump
   re-proposes every open unit once. Mutations: no ranking, an unmapped section read as "no match", and a
   wrong table row each turned a test red.
+- **2026-11-18 · The repair-due alert is routed (ROADSIDE-REPAIR-FLOW-PLAN RR5, Q-RR3 (a)).** Measured: 197
+  alerts to 9 people since 10-19, 27 read — every admin (who manages every section) and a technician who
+  read none. `roadside_repair_due` joins the alert catalogue (`alertRouting.ts`), so the carrier names who
+  decides repairs on Settings › Notifications, by dashboard, email or text, like home time and lumper fees.
+  Its DEFAULT is the old audience, derived — `rolesThatManage("maintenance")` on the dashboard — and routes
+  that reach nobody fall back to the same set, so nobody stops hearing the day it ships. The bell keeps its
+  dedupe keys, so nothing already sent is sent again. Offered only to roles that can view Maintenance.
+  Mutations: defaults restated as admins only, and new dedupe keys, each turned a test red.

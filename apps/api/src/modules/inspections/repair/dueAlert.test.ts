@@ -2,23 +2,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RoadsideRepairDueDto } from "@silvicom/shared";
 
 /**
- * The `roadside_repair_due` alert (IC11 B2b). What it can get wrong: ring for a settled unit, ring the
- * whole year's backlog on its first run, ring every hour instead of once per stage, ring safety instead of
- * maintenance, or point at something other than the inspection (the bell routes by reader from it).
+ * The `roadside_repair_due` alert (IC11 B2b; routed since RR5). What it can get wrong: ring for a settled unit,
+ * ring the whole year's backlog on its first run, ring every hour instead of once per stage, change the keys
+ * the bell already used (re-sending everything once), go around the carrier's routes, or point at something
+ * other than the inspection (the bell routes by reader from it).
  */
 
-const sent: Record<string, unknown>[] = [];
+/** What `sendAlerts` was handed — routing itself (who, which channel, fallback) is alertRouting.test.ts's. */
+const calls: { alert: string; events: Record<string, unknown>[]; clock: unknown }[] = [];
 vi.mock("../../messaging/index.js", () => ({
-  notify: vi.fn(async (_admin: unknown, input: Record<string, unknown>) => {
-    sent.push(input);
-    return `n-${sent.length}`;
-  }),
-}));
-const asked: string[] = [];
-vi.mock("../../org/index.js", () => ({
-  usersWhoManage: vi.fn(async (_admin: unknown, _org: string, section: string) => {
-    asked.push(section);
-    return ["u-shop", "u-admin"];
+  sendAlerts: vi.fn(async (_admin: unknown, _env: unknown, _org: string, alert: string, events: Record<string, unknown>[], clock: unknown) => {
+    calls.push({ alert, events, clock });
+    return { bells: events.length * 2, emails: 0, texts: 0, textsHeld: 0, fellBack: 0 };
   }),
 }));
 let due: RoadsideRepairDueDto[] | { error: { message: string } } = [];
@@ -33,45 +28,45 @@ const unit = (o: Partial<RoadsideRepairDueDto> = {}): RoadsideRepairDueDto => ({
   ...o,
 });
 
+const CLOCK = { zone: "America/Chicago", now: new Date("2026-10-18T14:00:00Z") };
+const send = (today: string) => alertRepairsDue({} as never, {} as never, "org-1", today, CLOCK);
+
 beforeEach(() => {
-  sent.length = 0;
-  asked.length = 0;
+  calls.length = 0;
 });
 
 describe("the repair-due alert", () => {
-  it("rings maintenance's managers three days out, about the inspection, once per unit and stage", async () => {
+  it("hands the carrier's routing one event per unit three days out, on the keys the bell already used", async () => {
     due = [unit()];
-    expect(await alertRepairsDue({} as never, "org-1", "2026-10-18")).toBe(2);
-    expect(asked).toEqual(["maintenance"]);
-    expect(sent.map((s) => s.userId)).toEqual(["u-shop", "u-admin"]);
-    expect(sent[0]).toMatchObject({
-      category: "roadside_repair_due", severity: "warning", entityType: "roadside_inspection", entityId: "insp-1",
-      dedupeKey: "roadside-repair-due:u-1:due_soon", title: "Truck 612: roadside repair due 10/21/2026",
-    });
+    expect(await send("2026-10-18")).toBe(2);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ alert: "roadside_repair_due", clock: CLOCK });
+    expect(calls[0]!.events).toEqual([{
+      dedupeKey: "roadside-repair-due:u-1:due_soon", line: "Truck 612: roadside repair due 10/21/2026", severity: "warning",
+      entityType: "roadside_inspection", entityId: "insp-1", relations: {},
+    }]);
   });
 
   it("rings again, as critical, once the due day has passed", async () => {
     due = [unit()];
-    await alertRepairsDue({} as never, "org-1", "2026-10-23");
-    expect(sent[0]).toMatchObject({ severity: "critical", dedupeKey: "roadside-repair-due:u-1:overdue", title: "Truck 612: roadside repair overdue" });
-    expect(sent[0]!.body).toContain("(2 days ago)");
+    await send("2026-10-23");
+    expect(calls[0]!.events[0]).toMatchObject({ severity: "critical", dedupeKey: "roadside-repair-due:u-1:overdue", line: "Truck 612: roadside repair overdue" });
   });
 
-  it("is quiet for a settled unit, one not yet near its day, and the old backlog — and asks nobody", async () => {
+  it("is quiet for a settled unit, one not yet near its day, and the old backlog — and sends nothing", async () => {
     due = [
       unit({ decision: { outcome: "accepted", workOrder: null, note: null, decidedBy: "Pat", decidedAt: "x" } }),
       unit({ unitId: "u-2", dueOn: "2026-10-30" }),
       unit({ unitId: "u-3", dueOn: "2026-09-01" }),
     ];
-    expect(await alertRepairsDue({} as never, "org-1", "2026-10-19")).toBe(0);
-    expect(sent).toEqual([]);
-    expect(asked).toEqual([]);
+    expect(await send("2026-10-19")).toBe(0);
+    expect(calls).toEqual([]);
   });
 
   it("never throws into the scheduler when the read fails", async () => {
     due = { error: { message: "boom" } };
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    await expect(alertRepairsDue({} as never, "org-1", "2026-10-19")).resolves.toBe(0);
+    await expect(send("2026-10-19")).resolves.toBe(0);
     expect(log).toHaveBeenCalled();
     log.mockRestore();
   });
