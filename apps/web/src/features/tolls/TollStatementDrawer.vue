@@ -130,7 +130,7 @@ async function confirmRemove(): Promise<void> {
 
       <section v-if="ties" aria-labelledby="statement-ties-heading" class="space-y-2" data-test="statement-ties">
         <h3 id="statement-ties-heading" class="text-sm font-semibold text-ink">Checked against the statement's own totals</h3>
-        <ul class="divide-y divide-line text-sm">
+        <ul class="divide-y divide-edge-subtle text-sm">
           <li v-for="t in ties.main" :key="t.label" class="flex justify-between gap-4 py-1.5">
             <span class="text-ink-secondary">{{ t.label }}</span>
             <span class="tabular-nums text-ink">{{ centsToDollars(t.printedCents) }} printed · {{ centsToDollars(t.readCents) }} read</span>

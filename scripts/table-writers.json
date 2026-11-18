@@ -830,11 +830,5 @@
   ],
   "web_push_subscriptions": [
     "apps/api/src/modules/messaging/chatPush.ts"
-  ],
-  "toll_statement_reads": [
-    "apps/api/src/modules/tolls/statementRead.ts"
-  ],
-  "toll_statement_lines": [
-    "apps/api/src/modules/tolls/statementRead.ts"
   ]
 }
