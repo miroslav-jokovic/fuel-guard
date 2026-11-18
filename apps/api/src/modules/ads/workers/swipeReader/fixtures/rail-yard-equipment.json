@@ -1,0 +1,40 @@
+{
+  "name": "rail-yard-equipment",
+  "about": "The same night-yard ad in the rail look, in capitals. Hook accepted as straight talk or equipment first, for the reason the plain-look case gives.",
+  "input": {
+    "image": "finishedAdJudge/fixtures/images/rail-yard-equipment.jpg",
+    "note": "competitor near Joliet"
+  },
+  "expect": "ready",
+  "truth": {
+    "hook_family": [
+      "straight_talk",
+      "equipment_first"
+    ],
+    "scene_family": [
+      "equipment_at_rest"
+    ],
+    "words": [
+      "Class A OTR drivers, apply.",
+      "Apply now",
+      "Equal Opportunity Employer"
+    ]
+  },
+  "recorded": {
+    "source": "model",
+    "prompt_version": "swipeReader@1",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-18T18:13:59.374Z",
+    "output": {
+      "hook_family": "straight_talk",
+      "scene_family": "equipment_at_rest",
+      "words": [
+        "CLASS A OTR",
+        "DRIVERS, APPLY.",
+        "APPLY NOW",
+        "Equal Opportunity Employer"
+      ],
+      "summary": "A recruiting ad calling Class A OTR drivers to apply, with no other offer stated, showing a white day cab parked at a fuel island at night."
+    }
+  }
+}

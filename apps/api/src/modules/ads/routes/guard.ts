@@ -12,6 +12,7 @@ import { mountConnectionRoutes } from "./connections.js";
 import { mountBrandKitRoutes } from "./brandKits.js";
 import { mountCampaignRoutes, type CampaignRouteDeps } from "./campaigns.js";
 import { mountPlanRoutes } from "./plans.js";
+import { mountSwipeRoutes } from "./swipe.js";
 import { adsSpendView } from "../spend/spendView.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
 import { saveSettingsVersion, settingsInForce, type Actor } from "../settings/settingsVersions.js";
@@ -129,6 +130,7 @@ export function adsRouter(deps: AdsRouterDeps): Router {
   mountBrandKitRoutes(router, { section: BRIEF_SECTION, actorOf });
   mountCampaignRoutes(router, { section: BRIEF_SECTION, briefSourcesFor: deps.briefSourcesFor, actorOf });
   mountPlanRoutes(router, { section: BRIEF_SECTION, actorOf });
+  mountSwipeRoutes(router, { section: BRIEF_SECTION, actorOf });
   return router;
 }
 

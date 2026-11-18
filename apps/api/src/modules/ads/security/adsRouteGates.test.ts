@@ -72,6 +72,14 @@ const LEDGER: Record<string, string> = {
   "GET /api/ads/campaigns/:campaignId/plan": VIEW,
   "POST /api/ads/campaigns/:campaignId/plan/versions": MANAGE,
   "POST /api/ads/campaigns/:campaignId/plan/approval": MANAGE,
+  // V2r: the swipe file. Saving what a recruiter saw spends nothing and reaches no vendor (`save_to_swipe_file: person`);
+  // removing is an archive.
+  "GET /api/ads/swipe": VIEW,
+  "POST /api/ads/swipe/pages": MANAGE,
+  "POST /api/ads/swipe/pictures/upload-url": MANAGE,
+  "POST /api/ads/swipe/pictures": MANAGE,
+  "POST /api/ads/swipe/:entryId/read": MANAGE,
+  "POST /api/ads/swipe/:entryId/archive": MANAGE,
 };
 
 /** The doors §4R names, and the two siblings that also move money or an account: each with a body that would pass. */

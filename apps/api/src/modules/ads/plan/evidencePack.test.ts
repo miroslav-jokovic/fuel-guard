@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADS_BENCHMARK_SUGGESTIONS, evidencePackSchema, jobEvidence, type LeadQuality, type LeadQualityCounts } from "@silvicom/shared";
+import { ADS_BENCHMARK_SUGGESTIONS, EVIDENCE_PACK_MAX, evidencePackSchema, jobEvidence, type LeadQuality, type LeadQualityCounts } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { COPYWRITER_EVAL, loadFixtures } from "../workers/agentFixtures.js";
 import type { MarketReader } from "./marketWages.js";
@@ -79,6 +79,22 @@ describe("buildEvidencePack", () => {
     if (!out.ok) throw new Error(out.error);
     expect(asked).toEqual([brief.area]);
     expect(out.evidence).toEqual([...jobEvidence(brief), benchmarkEvidence(), item]);
+  });
+
+  it("adds the swipe file's readings after our own items, newest first, only into the room the pack has left", async () => {
+    const page = { id: "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", kind: "page", url: "https://jobs.example.com/otr", asset: null, note: null, state: "read", read_attempt: 1,
+      reading: [1, 2, 3].map((n) => ({ topic: "pay", sentence: `Fact number ${n} of the page.`, quote: `Fact number ${n}` })), dropped: [], last_error: null,
+      read_at: NOW.toISOString(), created_at: NOW.toISOString(), created_by_name: "Koni", archived_at: null };
+    const rec = createSupabaseRecorder({ tables: { ads_campaigns: [{ brief_snapshot: brief }], ads_ad_spend_hourly: [], ads_swipe_entries: [page] } });
+    const ours = jobEvidence(brief).length + 1;
+    // Our own items leave room for two of the page's three facts.
+    const filler = Array.from({ length: EVIDENCE_PACK_MAX - ours - 2 }, (_, i) => ({ id: `market:x${i}`, kind: "market" as const, text: "A market figure.", source: "https://data.bls.gov/x" }));
+    const out = await buildEvidencePack({ admin: rec.client, now: () => NOW, quality: quality(), market: { itemsFor: async () => filler } }, { id: "c-1", org_id: ORG });
+    if (!out.ok) throw new Error(out.error);
+    expect(out.evidence).toHaveLength(EVIDENCE_PACK_MAX);
+    expect(out.evidence.slice(-2).map((e) => e.id)).toEqual(["market:page_7a1b2c3d4e5f_1", "market:page_7a1b2c3d4e5f_2"]);
+    expect(out.evidence.slice(0, ours)).toEqual([...jobEvidence(brief), benchmarkEvidence()]);
+    expectOrgScoped(rec, ORG);
   });
 
   it("fails with its reason when the campaign is missing or its brief does not parse", async () => {

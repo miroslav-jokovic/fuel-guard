@@ -3555,6 +3555,17 @@
         "why": "new in 0630 (2026-11-18, ADS-PLATFORM-V2-PLAN D-AD35): a cache of BLS wage series, one row per series updated in place at most every 30 days; four measures for the nation and for each of 52 FIPS areas, so never more than 212 rows."
       }
     },
+    "ads_swipe_entries": {
+      "module": "ads",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 20,
+        "why": "new in 0632 (2026-11-18, ADS-PLATFORM-V2-PLAN V2r, D-AD36): one row per page or ad picture a recruiter saves to the swipe file, read in place; a handful a week per carrier. Removed by archive, never deleted (delete_anything is never)."
+      }
+    },
     "ads_campaign_plans": {
       "module": "ads",
       "layer": "core",

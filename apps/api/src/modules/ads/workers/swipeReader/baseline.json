@@ -1,0 +1,11 @@
+{
+  "worker": "swipeReader",
+  "prompt_version": "swipeReader@1",
+  "model": "claude-opus-5-5",
+  "fixtures": 8,
+  "asked": 7,
+  "agreed": 7,
+  "agreement": 1,
+  "planted_skipped": 1,
+  "recorded_at": "2026-11-18T18:14:04.105Z"
+}

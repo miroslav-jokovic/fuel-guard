@@ -1,0 +1,36 @@
+{
+  "name": "planted-off-list-scene",
+  "about": "A planted answer naming a scene that is not on the plan's list: the schema must refuse it, so no reading outside the closed lists can reach a plan.",
+  "input": {
+    "image": "finishedAdJudge/fixtures/images/clean-highway-pay.jpg",
+    "note": null
+  },
+  "expect": "off_schema",
+  "truth": {
+    "hook_family": [
+      "pay_first"
+    ],
+    "scene_family": [
+      "equipment_on_road"
+    ],
+    "words": [
+      "$0.65 per mile, Class A OTR.",
+      "Apply today",
+      "Equal Opportunity Employer"
+    ]
+  },
+  "recorded": {
+    "source": "planted",
+    "prompt_version": "swipeReader@1",
+    "model": "planted",
+    "recorded_at": "2026-11-18T15:00:00Z",
+    "output": {
+      "hook_family": "pay_first",
+      "scene_family": "sunset_highway",
+      "words": [
+        "$0.65 per mile, Class A OTR."
+      ],
+      "summary": "It offers OTR work paid by the mile."
+    }
+  }
+}

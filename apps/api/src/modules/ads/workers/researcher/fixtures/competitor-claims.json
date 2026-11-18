@@ -1,0 +1,47 @@
+{
+  "name": "competitor-claims",
+  "about": "A posting that claims to pay more than two named carriers. The page's own pay is a fact; the comparison with other companies is not the page's job and must not be written.",
+  "input": {
+    "url": "https://www.ironwood-trucking.example/careers",
+    "page_text": "Home\nAbout Us\nCareers\nContact\nDriver Login\nCompany Drivers Wanted\nIronwood Trucking pays $0.64 per mile plus $75 per stop.\nWe pay more than Werner and Swift — ask any of our drivers.\nHome weekly for regional fleet.\nMust be 23 or older with a Class A CDL.\n© 2026 All rights reserved.\nPrivacy Policy\nTerms of Use\nWe use cookies to improve your experience. Accept"
+  },
+  "expect": "ready",
+  "truth": {
+    "verdict": "ready",
+    "must": [
+      {
+        "topic": "pay",
+        "contains": "$0.64 per mile"
+      }
+    ],
+    "must_not": [
+      "Werner",
+      "Swift"
+    ]
+  },
+  "recorded": {
+    "source": "model",
+    "prompt_version": "researcher@1",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-18T18:13:18.698Z",
+    "output": {
+      "items": [
+        {
+          "topic": "pay",
+          "sentence": "They pay $0.64 per mile plus $75 per stop.",
+          "quote": "Ironwood Trucking pays $0.64 per mile plus $75 per stop."
+        },
+        {
+          "topic": "home_time",
+          "sentence": "Drivers in the regional fleet are home weekly.",
+          "quote": "Home weekly for regional fleet."
+        },
+        {
+          "topic": "requirements",
+          "sentence": "Drivers must be 23 or older and hold a Class A CDL.",
+          "quote": "Must be 23 or older with a Class A CDL."
+        }
+      ]
+    }
+  }
+}

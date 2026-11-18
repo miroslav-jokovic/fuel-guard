@@ -18,6 +18,8 @@ const WORKER_DIR: Record<AdClaudeAgent, string> = {
   craft_judge: "craftJudge",
   finished_ad_judge: "finishedAdJudge",
   strategist: "strategist",
+  researcher: "researcher",
+  swipe_reader: "swipeReader",
 };
 
 describe("each ads agent's baseline was recorded on the model it asks", () => {

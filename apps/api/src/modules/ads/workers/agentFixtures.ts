@@ -1,7 +1,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { z } from "zod";
 import { AD_CAMERA_DISTANCES, AD_FOCAL_SUBJECTS, AD_FORMATS, AD_HOOK_FAMILIES, AD_PEOPLE_POLICIES, AD_SCENE_FAMILIES, AD_VISUAL_CHECKS, FINISHED_AD_CRITERIA, PLAN_FORMATS_BUILT, adBrandKitSchema, briefFacts, briefFoldSchema, adBriefSchema, adPresetRecipeSchema, evidencePackSchema, jobEvidence, judgeArt, planAngleSchema, type CampaignPlan, type EvidencePack, type PlanOffer, type ArtAnswer, type AdVisualCheck } from "@silvicom/shared";
-import type { ForcedToolRequest } from "../../../lib/anthropic.js";
+import { recordingSchema, type EvalWorker } from "./evalKit.js";
+import { RESEARCHER_EVAL } from "./researcher/researcherEval.js";
+import { SWIPE_READER_EVAL } from "./swipeReader/swipeReaderEval.js";
+export { recordingSchema, type EvalWorker } from "./evalKit.js";
 import { COPYWRITER_PROMPT_VERSION, buildCopyRequest, buildFitRequest, fittable, judgeSet, type CopySet } from "./copywriter/copywriter.js";
 import { CRAFT_JUDGE_PROMPT_VERSION, buildJudgeRequest, judgeAnswer, presentationOrder, type JudgeAnswer } from "./craftJudge/craftJudge.js";
 import { rankCandidates } from "@silvicom/shared";
@@ -28,13 +31,7 @@ import { CHECKER_PROMPT_VERSION, applicableChecks, buildVisualRequest, judgeVisu
  * is never presented as the model's, and `ads:eval` skips it: it says nothing about the model.
  */
 
-export const recordingSchema = z.object({
-  source: z.enum(["model", "planted"]),
-  prompt_version: z.string(),
-  model: z.string(),
-  recorded_at: z.iso.datetime({ offset: true }),
-  output: z.unknown(),
-});
+
 
 /** A plan angle's two sentences for the writers, under the plan contract's own limits (`WriterAngle`). */
 const writerAngleSchema = planAngleSchema.pick({ idea: true, proof: true }).strict();
@@ -57,31 +54,6 @@ export const copywriterFixtureSchema = z.object({
 }).strict();
 export type CopywriterFixture = z.infer<typeof copywriterFixtureSchema>;
 
-/** What `ads:eval` needs to ask and judge one worker, so it cannot ask differently from the worker. */
-export interface EvalWorker<F, T> {
-  promptVersion: string;
-  dir: URL;
-  parse: (raw: unknown) => F;
-  name: (f: F) => string;
-  source: (f: F) => "model" | "planted";
-  /** May be async: the checker cuts its text band out of the image first. */
-  request: (f: F) => ForcedToolRequest<T> | Promise<ForcedToolRequest<T>>;
-  /** The verdict the worker would reach on `output`, in the fixture's `expect` vocabulary. */
-  judge: (f: F, output: unknown) => { verdict: string; findings: string[] };
-  /**
-   * The worker's one second ask after a refusal of `output`, or null when the worker would stop (the Copywriter's
-   * fit pass, CQ2). `ads:eval` asks it too, so the baseline measures the worker's whole behaviour, and records the
-   * FINAL answer.
-   */
-  refine?: (f: F, output: unknown) => ForcedToolRequest<T> | null;
-  withRecording: (f: F, recording: z.infer<typeof recordingSchema>) => F;
-  /**
-   * Whether a live verdict is the RIGHT one. Absent = it must be `ready` (a generator: every brief
-   * deserves usable copy). A judge (the checker) is right when it refuses what was planted and passes
-   * what was clean, so it supplies its own.
-   */
-  agrees?: (f: F, verdict: string, findings: string[]) => boolean;
-}
 
 export const COPYWRITER_EVAL: EvalWorker<CopywriterFixture, CopySet> = {
   promptVersion: COPYWRITER_PROMPT_VERSION,
@@ -388,7 +360,9 @@ export const STRATEGIST_EVAL: EvalWorker<StrategistFixture, CampaignPlan> = {
   withRecording: (f, recorded) => ({ ...f, recorded }),
 };
 
-export const EVAL_WORKERS = { copywriter: COPYWRITER_EVAL, artDirector: ART_DIRECTOR_EVAL, checker: CHECKER_EVAL, analyst: ANALYST_EVAL, craftJudge: CRAFT_JUDGE_EVAL, finishedAdJudge: FINISHED_AD_JUDGE_EVAL, strategist: STRATEGIST_EVAL } as const;
+export const EVAL_WORKERS = { copywriter: COPYWRITER_EVAL, artDirector: ART_DIRECTOR_EVAL, checker: CHECKER_EVAL, analyst: ANALYST_EVAL, craftJudge: CRAFT_JUDGE_EVAL, finishedAdJudge: FINISHED_AD_JUDGE_EVAL, strategist: STRATEGIST_EVAL,
+  // V2r (2026-11-18): each keeps its eval beside itself (`researcherEval.ts`, `swipeReaderEval.ts`), so this file stays in budget.
+  researcher: RESEARCHER_EVAL, swipeReader: SWIPE_READER_EVAL } as const;
 
 /** Every fixture of a worker, parsed, in file-name order; a file whose `name` is not its file name throws. */
 export function loadFixtures<F, T>(w: EvalWorker<F, T>): Array<{ file: URL; fixture: F }> {

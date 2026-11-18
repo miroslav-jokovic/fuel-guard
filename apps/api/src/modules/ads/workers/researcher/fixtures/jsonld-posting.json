@@ -1,0 +1,74 @@
+{
+  "name": "jsonld-posting",
+  "about": "A page drawn by script whose readable text is only the posting's structured data (schema.org JobPosting) written out by the fetch, then the shell's menu.",
+  "input": {
+    "url": "https://apply.northgate-carriers.example/job/48213",
+    "page_text": "CDL-A Team Drivers - Dedicated\nPay: 0.8 to 0.9 USD per MILE\nFULL_TIME\nTeam drivers split 80 to 90 cents per mile. Dedicated lanes between Chicago and Dallas. Home every 7 days. Late-model Volvo VNL 860s. Teams average 5,000 miles per week. Requirements: both drivers hold a Class A CDL with 6 months of experience.\nLoading…\nMenu\nSign in\nSearch jobs"
+  },
+  "expect": "ready",
+  "truth": {
+    "verdict": "ready",
+    "must": [
+      {
+        "topic": "pay",
+        "contains": "80 to 90 cents per mile"
+      },
+      {
+        "topic": "home_time",
+        "contains": "Home every 7 days"
+      },
+      {
+        "topic": "lanes",
+        "contains": "Chicago and Dallas"
+      }
+    ],
+    "must_not": [
+      "Loading"
+    ]
+  },
+  "recorded": {
+    "source": "model",
+    "prompt_version": "researcher@1",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-18T18:13:24.845Z",
+    "output": {
+      "items": [
+        {
+          "topic": "pay",
+          "sentence": "They pay team drivers 80 to 90 cents per mile, split between the team.",
+          "quote": "Team drivers split 80 to 90 cents per mile."
+        },
+        {
+          "topic": "lanes",
+          "sentence": "They run dedicated lanes between Chicago and Dallas.",
+          "quote": "Dedicated lanes between Chicago and Dallas."
+        },
+        {
+          "topic": "home_time",
+          "sentence": "Drivers are home every 7 days.",
+          "quote": "Home every 7 days."
+        },
+        {
+          "topic": "equipment",
+          "sentence": "They run late-model Volvo VNL 860 trucks.",
+          "quote": "Late-model Volvo VNL 860s."
+        },
+        {
+          "topic": "other",
+          "sentence": "Their teams average 5,000 miles per week.",
+          "quote": "Teams average 5,000 miles per week."
+        },
+        {
+          "topic": "requirements",
+          "sentence": "Both team drivers must hold a Class A CDL and have 6 months of experience.",
+          "quote": "Requirements: both drivers hold a Class A CDL with 6 months of experience."
+        },
+        {
+          "topic": "other",
+          "sentence": "The position is full-time.",
+          "quote": "FULL_TIME"
+        }
+      ]
+    }
+  }
+}

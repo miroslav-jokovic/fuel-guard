@@ -167,6 +167,9 @@ export const ADS_AUTHORITY = {
   change_area: ["approver"],
   edit_live_copy: ["approver"],
   edit_settings_brand_kit_presets: ["admin"],
+  // V2r (2026-11-18): a recruiter saves what they see — a competitor's job page or ad — for the Researcher to read.
+  // Nothing it does spends, publishes or reaches a vendor account; what is read reaches a campaign only on a plan a person approves.
+  save_to_swipe_file: ["person"],
   connect_platform: ["admin"],
   // Pressing it only pauses — the safe direction, open to anyone on the campaign (plan §5). Clearing it
   // lets spending start again, which is an admin's act.

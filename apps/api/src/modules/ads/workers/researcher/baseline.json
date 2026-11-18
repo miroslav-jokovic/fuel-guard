@@ -1,0 +1,11 @@
+{
+  "worker": "researcher",
+  "prompt_version": "researcher@1",
+  "model": "claude-opus-5-5",
+  "fixtures": 13,
+  "asked": 9,
+  "agreed": 9,
+  "agreement": 1,
+  "planted_skipped": 4,
+  "recorded_at": "2026-11-18T18:13:45.784Z"
+}

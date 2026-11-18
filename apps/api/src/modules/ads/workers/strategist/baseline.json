@@ -2,10 +2,35 @@
   "worker": "strategist",
   "prompt_version": "strategist@4",
   "model": "claude-fable-5-2",
-  "fixtures": 20,
-  "asked": 10,
-  "agreed": 10,
+  "fixtures": 22,
+  "asked": 12,
+  "agreed": 12,
   "agreement": 1,
   "planted_skipped": 10,
-  "recorded_at": "2026-11-17T21:07:55.041Z"
+  "recorded_at": "2026-11-18T18:53:46.865Z",
+  "parts": [
+    {
+      "worker": "strategist",
+      "prompt_version": "strategist@4",
+      "model": "claude-fable-5-2",
+      "fixtures": 20,
+      "asked": 10,
+      "agreed": 10,
+      "agreement": 1,
+      "planted_skipped": 10,
+      "recorded_at": "2026-11-17T21:07:55.041Z"
+    },
+    {
+      "worker": "strategist",
+      "prompt_version": "strategist@4",
+      "model": "claude-fable-5-2",
+      "fixtures": 22,
+      "asked": 2,
+      "agreed": 2,
+      "agreement": 1,
+      "planted_skipped": 10,
+      "only": "market",
+      "recorded_at": "2026-11-18T18:53:46.865Z"
+    }
+  ]
 }

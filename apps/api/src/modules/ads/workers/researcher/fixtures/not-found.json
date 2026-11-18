@@ -1,0 +1,23 @@
+{
+  "name": "not-found",
+  "about": "An error page with navigation and a list of other links. It states nothing about a job, so the right reading is no items.",
+  "input": {
+    "url": "https://www.prairieline-transport.example/careers/old-posting-2023",
+    "page_text": "Home\nAbout Us\nCareers\nContact\nDriver Login\nPage not found\nSorry, the page you are looking for has moved or no longer exists.\nTry one of these instead:\nOur locations\nFleet and equipment\nNews and press releases\nBack to the home page\n© 2026 All rights reserved.\nPrivacy Policy\nTerms of Use\nWe use cookies to improve your experience. Accept"
+  },
+  "expect": "empty",
+  "truth": {
+    "verdict": "empty",
+    "must": [],
+    "must_not": []
+  },
+  "recorded": {
+    "source": "model",
+    "prompt_version": "researcher@1",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-18T18:13:29.882Z",
+    "output": {
+      "items": []
+    }
+  }
+}

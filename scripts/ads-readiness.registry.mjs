@@ -40,6 +40,9 @@ const RENDER = "apps/api/src/modules/ads/creative/higgsfield/render.test.ts";
 const RENDER_CLIP = "apps/api/src/modules/ads/creative/higgsfield/render.clip.test.ts";
 const MOTION_MAKE = "apps/api/src/modules/ads/compose/creativeMotion.test.ts";
 const CHECKER = "apps/api/src/modules/ads/workers/checker/checker.test.ts";
+const RESEARCHER = "apps/api/src/modules/ads/workers/researcher/researcher.test.ts";
+const SWIPE_READER = "apps/api/src/modules/ads/workers/swipeReader/swipeReader.test.ts";
+const PAGE_FETCH = "apps/api/src/modules/ads/research/pageFetch.test.ts";
 const MONITOR_GOLDEN = "apps/api/src/modules/ads/monitor/golden.test.ts";
 const LEAD_GOLDEN = "apps/api/src/modules/ads/leads/golden.test.ts";
 const ANALYST = "apps/api/src/modules/ads/workers/analyst/analyst.test.ts";
@@ -1331,6 +1334,8 @@ export const READINESS = [
             "the live eval met the bar on every opening: each model recording under the prompt in force is ready, and the baseline agrees on all",
             "a recorded plan spreads its angles over more than one hook, so the angles differ in kind and not only in picture",
             "first-campaign-regional", "thin-results",
+            // V2r (2026-11-18): a pack with BLS pay, competitors' page facts and saved ads (market, swipe), recorded on strategist@4.
+            "market-pay-first-campaign", "market-swipe-all-pay-first",
           ] }],
         },
         {
@@ -1368,6 +1373,75 @@ export const READINESS = [
       ],
       L3: [{ need: "plans a person judges good: the office's approvals and edits of real plans on the review screen, as Q-APX3 rules for the judge", gap: "passing the check shows a plan is sound, not that it is good — there is no ground truth for that until the plan review screen exists and the owner has approved or edited real plans (ADS-PLATFORM-V2-PLAN V2c, Q-APX3)" }],
       L4: [{ need: "a plan written over a sandbox campaign's real evidence pack and approved by a person", gap: STAGE2 }],
+      L5: [{ need: "canary", gap: CANARY }],
+    },
+  },
+  {
+    // V2r (2026-11-18): the Researcher reads a job page a recruiter saved to the swipe file into quoted facts, and
+    // the Swipe reader a saved ad picture into its families and words (ADS-PLATFORM-V2-PLAN V2r, D-AD36). Neither is
+    // in CAMPAIGN_WORKERS: what they read reaches a campaign only as evidence on a plan a person approves, with its
+    // source shown, and neither touches a vendor. Each entered here at L0 and climbs on its own recordings.
+    worker: "Researcher",
+    levels: {
+      L1: [{
+        need: "a page is read only as data, and every item kept is held to the page by code: its quote found in the text that was fetched, every figure of its sentence in its quote",
+        tests: [
+          { file: "packages/shared/src/ads/swipeFile.test.ts", titles: [
+            "keeps an item whose quote is on the page and whose figures are in its quote, across line breaks and curly quotes",
+            "drops a quote the page does not hold — a paraphrase, an invention, or a planted page's own instruction reworded",
+            "drops an item whose sentence states a figure its quote does not",
+          ] },
+          { file: RESEARCHER, titles: [
+            "hands the page as one field of a JSON sheet, with the topics, and keys the call by entry and attempt",
+            "planted-quote-not-on-page", "planted-figure-not-in-quote", "planted-one-of-two-dropped",
+          ] },
+        ],
+      }],
+      L2: [
+        {
+          need: "§4R's faults: a replay checked against the text it was written from; an instruction inside the page; a page that states nothing; the address held to public https at every hop",
+          tests: [
+            { file: RESEARCHER, titles: ["checks a replayed answer against the text stored with its request, not the text handed in now", "instruction-in-page", "not-found"] },
+            { file: PAGE_FETCH, titles: [
+              "refuses a private address, and a redirect to one, before asking it",
+              "refuses more than three redirects",
+              "refuses a file that is not a web page, and a page over 2 MB",
+              "refuses a page drawn by script that holds almost no text",
+            ] },
+          ],
+        },
+        {
+          need: "the live model's readings agree with every page's truth: each expected fact found, nothing planted written, nothing the check had to drop",
+          tests: [{ file: RESEARCHER, titles: ["the live eval met the bar: every model recording agrees with its truth, and the baseline says so"] }],
+        },
+      ],
+      L3: [{ need: "readings of real pages the office saved, compared with a person's reading of the same pages", gap: "no real page has been saved yet: the swipe file's screen comes with the Ads workspace (V6, Q-APX18), and the comparison is the office's own reading (ADS-PLATFORM-V2-PLAN V2r)" }],
+      L4: [{ need: "a reading of a real competitor page the owner saved, on production's own fetch, quotes checked", gap: "waits on L3" }],
+      L5: [{ need: "canary", gap: CANARY }],
+    },
+  },
+  {
+    worker: "Swipe reader",
+    levels: {
+      L1: [{
+        need: "a picture's reading names its hook and scene from the plan's closed lists, and its words are marked as read",
+        tests: [
+          { file: "packages/shared/src/ads/swipeFile.test.ts", titles: ["writes a picture's reading as one swipe item, its words marked as read"] },
+          { file: SWIPE_READER, titles: ["planted-off-list-scene", "sends the picture first and the sheet as data"] },
+        ],
+      }],
+      L2: [
+        {
+          need: "the eval's judge is not vacuous: an invented figure, a missed phrase and a wrong family are each named",
+          tests: [{ file: SWIPE_READER, titles: ["names an invented figure, a missed phrase and a wrong family", "accepts a reading in capitals split over lines"] }],
+        },
+        {
+          need: "the live model's readings agree with every fixture ad's truth: both families right, every printed phrase found, no figure that is not printed",
+          tests: [{ file: SWIPE_READER, titles: ["the live eval met the bar: every model recording agrees with its truth, and the baseline says so", "photo-no-words"] }],
+        },
+      ],
+      L3: [{ need: "readings of real competitor ads the office saved, compared with a person's reading", gap: "no real ad has been saved yet: the swipe file's screen comes with the Ads workspace (V6, Q-APX18)" }],
+      L4: [{ need: "a reading of a real saved ad on production", gap: "waits on L3" }],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },

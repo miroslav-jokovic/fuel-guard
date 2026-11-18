@@ -1,0 +1,88 @@
+{
+  "name": "otr-dry-van",
+  "about": "An OTR dry-van posting with pay per mile, home time, equipment and a sign-on bonus, between navigation and a cookie notice.",
+  "input": {
+    "url": "https://www.prairieline-transport.example/careers/otr-dry-van",
+    "page_text": "Home\nAbout Us\nCareers\nContact\nDriver Login\nOTR Class A Dry Van Driver\nPrairieline Transport is hiring experienced over-the-road drivers out of our Joliet, IL terminal.\nWhat we offer:\nEarn 62 to 70 cents per mile based on experience\nHome every 10 to 14 days\n2024 and newer Freightliner Cascadias, automatic transmissions\n$3,000 sign-on bonus paid out over 90 days\nMedical, dental and vision insurance after 60 days\nWhat we need:\nValid Class A CDL\nAt least 12 months of verifiable tractor-trailer experience\nApply online in 5 minutes.\n© 2026 All rights reserved.\nPrivacy Policy\nTerms of Use\nWe use cookies to improve your experience. Accept"
+  },
+  "expect": "ready",
+  "truth": {
+    "verdict": "ready",
+    "must": [
+      {
+        "topic": "pay",
+        "contains": "62 to 70 cents per mile"
+      },
+      {
+        "topic": "home_time",
+        "contains": "Home every 10 to 14 days"
+      },
+      {
+        "topic": "sign_on",
+        "contains": "$3,000 sign-on bonus"
+      },
+      {
+        "topic": "requirements",
+        "contains": "12 months"
+      }
+    ],
+    "must_not": [
+      "cookies"
+    ]
+  },
+  "recorded": {
+    "source": "model",
+    "prompt_version": "researcher@1",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-18T18:13:34.553Z",
+    "output": {
+      "items": [
+        {
+          "topic": "pay",
+          "sentence": "They pay 62 to 70 cents per mile based on experience.",
+          "quote": "Earn 62 to 70 cents per mile based on experience"
+        },
+        {
+          "topic": "home_time",
+          "sentence": "Drivers are home every 10 to 14 days.",
+          "quote": "Home every 10 to 14 days"
+        },
+        {
+          "topic": "equipment",
+          "sentence": "They run 2024 and newer Freightliner Cascadias with automatic transmissions.",
+          "quote": "2024 and newer Freightliner Cascadias, automatic transmissions"
+        },
+        {
+          "topic": "sign_on",
+          "sentence": "They offer a $3,000 sign-on bonus paid out over 90 days.",
+          "quote": "$3,000 sign-on bonus paid out over 90 days"
+        },
+        {
+          "topic": "benefits",
+          "sentence": "They offer medical, dental and vision insurance after 60 days.",
+          "quote": "Medical, dental and vision insurance after 60 days"
+        },
+        {
+          "topic": "requirements",
+          "sentence": "Drivers need a valid Class A CDL.",
+          "quote": "Valid Class A CDL"
+        },
+        {
+          "topic": "requirements",
+          "sentence": "Drivers need at least 12 months of verifiable tractor-trailer experience.",
+          "quote": "At least 12 months of verifiable tractor-trailer experience"
+        },
+        {
+          "topic": "other",
+          "sentence": "They are hiring experienced over-the-road drivers out of their Joliet, IL terminal.",
+          "quote": "Prairieline Transport is hiring experienced over-the-road drivers out of our Joliet, IL terminal."
+        },
+        {
+          "topic": "other",
+          "sentence": "The position is an OTR Class A dry van driver job.",
+          "quote": "OTR Class A Dry Van Driver"
+        }
+      ]
+    }
+  }
+}

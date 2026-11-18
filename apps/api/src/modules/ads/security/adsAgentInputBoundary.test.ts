@@ -59,6 +59,7 @@ const requestTexts = (req: ForcedToolRequest<unknown>): string[] => [
 const EVAL_OF: Record<AdClaudeAgent, keyof typeof EVAL_WORKERS> = {
   copywriter: "copywriter", art_director: "artDirector", checker: "checker", analyst: "analyst",
   craft_judge: "craftJudge", finished_ad_judge: "finishedAdJudge", strategist: "strategist",
+  researcher: "researcher", swipe_reader: "swipeReader",
 };
 
 describe("Q-APX2 — the detector is not vacuous", () => {
@@ -99,7 +100,10 @@ describe("Q-APX2 — no ads agent is sent a lead's name, phone or e-mail", () =>
 
 describe("Q-APX2 — the code that builds agent inputs cannot reach a lead", () => {
   const ADS = new URL("..", import.meta.url).pathname;
-  const BUILDERS = ["workers", "compose", "generations", "plan"];
+  // `research` (V2r): the page fetch and the swipe file's read step, which build the Researcher's and the Swipe
+  // reader's inputs. A competitor's page may print its own recruiting line or address; that is the page's
+  // carrier's, not a lead's, and Q-APX2 is about leads — this check is that no lead can reach the input.
+  const BUILDERS = ["workers", "compose", "generations", "plan", "research"];
   const sources = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
     const at = join(dir, e.name);
     if (e.isDirectory()) return e.name === "fixtures" ? [] : sources(at);

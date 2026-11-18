@@ -52,7 +52,9 @@ export const evidenceItemSchema = z.object({
 }).refine((e) => e.id.startsWith(`${e.kind}:`), { message: "an evidence id starts with its kind", path: ["id"] });
 export type EvidenceItem = z.infer<typeof evidenceItemSchema>;
 
-export const evidencePackSchema = z.array(evidenceItemSchema).max(120)
+/** The most items one pack holds. Our own rows come first; the swipe file's readings fill what room is left (V2r). */
+export const EVIDENCE_PACK_MAX = 120;
+export const evidencePackSchema = z.array(evidenceItemSchema).max(EVIDENCE_PACK_MAX)
   .refine((items) => new Set(items.map((e) => e.id)).size === items.length, { message: "evidence ids are unique" });
 export type EvidencePack = z.infer<typeof evidencePackSchema>;
 

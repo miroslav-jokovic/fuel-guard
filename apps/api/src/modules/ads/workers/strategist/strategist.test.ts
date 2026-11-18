@@ -78,6 +78,9 @@ describe("strategist replay — every recorded plan reaches its fixture's verdic
   it("planted-invented-figure", () => replay("planted-invented-figure"));
   it("planted-added-benefit", () => replay("planted-added-benefit"));
   it("planted-two-angles", () => replay("planted-two-angles"));
+  // V2r: a pack holding BLS pay, competitors' page facts and saved ads — cited where they help, no figure of theirs written.
+  it("market-pay-first-campaign", () => replay("market-pay-first-campaign"));
+  it("market-swipe-all-pay-first", () => replay("market-swipe-all-pay-first"));
   it("planted-concept-not-available", () => replay("planted-concept-not-available"));
   it("first-campaign-regional", () => replay("first-campaign-regional"));
   it("thin-job", () => replay("thin-job"));

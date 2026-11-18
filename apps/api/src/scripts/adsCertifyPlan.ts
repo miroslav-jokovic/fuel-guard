@@ -47,6 +47,10 @@ export const WORKER_RUNS: Readonly<Record<string, WorkerRun>> = {
   "Craft judge": { unbuilt: "its L4 is its ranking over the Copywriter's live candidates on a sandbox run, the chosen copy created on Meta without refusal; the run rides the Copywriter's (stage2-kit 2b), and its L3 waits on the owner's rating sheet (Q-AD57)" },
   "Finished-ad judge": { unbuilt: "its L4 is its scores over the composed ads of a sandbox run, every creative reaching review whatever it scored; the run rides the Checker's (stage2-kit), and its L3 waits on real images (V4, Q-AD20) and the owner's approve/reject on 30 of them (Q-AD76)" },
   "Strategist": { unbuilt: "its L4 is a plan written over a sandbox campaign's real evidence pack (the sandbox account's own per-ad hours, read by the Monitor's sandbox pull) and approved by a person on the review screen; no host plans yet (CampaignWorkers.plan is null until the approval door lands, ADS-PLATFORM-V2-PLAN V2c)" },
+  // V2r (2026-11-18): neither reads a vendor's account, so there is no sandbox for them; their L4 is a reading of
+  // what the owner saved on production, after the office's own reading has set their L3 (readiness registry).
+  "Researcher": { unbuilt: "its L4 is a reading of a real competitor page the owner saved, on production's own fetch, its quotes checked; it waits on L3 (the office's reading of real saved pages), which waits on the swipe file's screen (V6)" },
+  "Swipe reader": { unbuilt: "its L4 is a reading of a real competitor ad the owner saved; it waits on L3 (the office's reading of real saved ads), which waits on the swipe file's screen (V6)" },
   "Renderer / Higgsfield client": { unbuilt: "its L4 is renders on a small real Higgsfield budget, with FakeHiggsfield's OUR readings (higgsfieldClient.ts) recorded and diffed; stage2-kit 2b, and it needs the owner's Higgsfield key (Q-AD20)" },
   // Its need is "a token scrape over the sandbox run's logs": the Publisher's run, every byte it printed
   // searched for each secret it was given.
