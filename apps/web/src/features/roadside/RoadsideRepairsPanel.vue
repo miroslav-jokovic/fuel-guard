@@ -9,7 +9,7 @@ import {
   type DataTableColumn,
   useQueryState,
 } from "@silvicom/ui";
-import { byRepairUrgency, repairClock, repairSettled, repairUnitName, todayInZone, type RepairEngineOutcome, type RoadsideRepairDueDto } from "@silvicom/shared";
+import { byRepairUrgency, repairClock, repairOpen, repairSettled, repairUnitName, todayInZone, type RepairEngineOutcome, type RoadsideRepairDueDto } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import RepairUnitDecision from "@/features/roadside/RepairUnitDecision.vue";
@@ -48,9 +48,15 @@ const qs = useQueryState();
  * (MAINTENANCE-SECTION-REDESIGN-PROPOSAL §7a.3, M6): a tab row inside a tab is two rows of doors to one
  * list, so the choice is a filter, and `show=` rather than `tab=`, which is now the Shop page's.
  */
+/**
+ * …and "Before the repair record" (ROADSIDE-REPAIR-FLOW-PLAN RR4, Q-RR2 (a)): units inspected before this
+ * carrier's repair record began. Kept and decidable here, but not in Open — measured 2026-11-18, they were 142 of
+ * the 147 waiting and buried the live repairs — and never in a count or the bell (`repairOpen`).
+ */
 const SHOW_OPTIONS = [
   { value: "", label: "Open" },
   { value: "recorded", label: "Recorded" },
+  { value: "history", label: "Before the repair record" },
 ];
 const show = qs.param("show", SHOW_OPTIONS.map((o) => o.value));
 const search = qs.param("search");
@@ -63,7 +69,10 @@ const today = computed(() => todayInZone(new Date(), zone.value));
 const due = useRoadsideRepairsDueQuery();
 
 const inFocus = (r: RoadsideRepairDueDto) => !focus.value || r.inspection.id === focus.value;
-const open = computed(() => (due.data.value ?? []).filter((r) => !repairSettled(r) && inFocus(r)).sort(byRepairUrgency(today.value)));
+const open = computed(() => (due.data.value ?? []).filter((r) => repairOpen(r) && inFocus(r)).sort(byRepairUrgency(today.value)));
+const history = computed(() =>
+  (due.data.value ?? []).filter((r) => !repairSettled(r) && r.beforeRecord && inFocus(r)).sort((a, b) => b.dueOn.localeCompare(a.dueOn)),
+);
 const recorded = computed(() =>
   (due.data.value ?? [])
     .filter((r) => repairSettled(r) && inFocus(r))
@@ -71,7 +80,7 @@ const recorded = computed(() =>
 );
 const rows = computed(() => {
   const term = search.value.trim().toLowerCase();
-  const list = show.value === "recorded" ? recorded.value : open.value;
+  const list = show.value === "recorded" ? recorded.value : show.value === "history" ? history.value : open.value;
   if (!term) return list;
   return list.filter((r) =>
     [repairUnitName(r), r.inspection.reportNumber, r.inspection.reportState, r.inspection.locationDesc, ...r.violations.map((v) => v.code)].some((v) =>
@@ -110,6 +119,8 @@ const proposalText = (r: RoadsideRepairDueDto) => {
 function dueBadge(r: RoadsideRepairDueDto): { text: string; tone: string } {
   if (repairSettled(r)) return { text: "Recorded", tone: "success" };
   const c = repairClock(r.dueOn, today.value);
+  // Before the record: still past due, but not the shop's alarm (RR4) — said plainly, not in red.
+  if (r.beforeRecord) return { text: `${c.days} ${c.days === 1 ? "day" : "days"} past due`, tone: "neutral" };
   if (c.overdue) return { text: `${c.days} ${c.days === 1 ? "day" : "days"} overdue`, tone: "danger" };
   return { text: c.days === 0 ? "Due today" : `${c.days} ${c.days === 1 ? "day" : "days"} left`, tone: c.days <= 3 ? "warning" : "neutral" };
 }
@@ -136,7 +147,9 @@ watch(
     if (arrived || !list || !focus.value) return;
     arrived = true;
     const mine = list.filter((r) => r.inspection.id === focus.value);
+    // The Show that holds them: recorded, before the record (RR4), or open.
     if (mine.length && mine.every(repairSettled)) show.value = "recorded";
+    else if (mine.length && !mine.some(repairOpen)) show.value = "history";
     const first = mine.find((r) => !repairSettled(r)) ?? mine[0];
     if (first && !openUnit.value) openUnit.value = first.unitId;
   },
@@ -206,8 +219,9 @@ const clearAll = () => qs.set({ search: undefined, inspection: undefined, show: 
           <p class="mt-0.5 text-xs text-ink-muted">{{ formatDate((row as RoadsideRepairDueDto).dueOn) }}</p>
         </template>
         <template #empty>
-          <p v-if="activeFilterCount">No roadside repair matches that.</p>
-          <p v-else-if="show !== 'recorded'">Every roadside repair of the last year is recorded.</p>
+          <p v-if="search.trim() || focus">No roadside repair matches that.</p>
+          <p v-else-if="show === 'history'" data-test="repair-history-empty">Nothing from before the repair record is waiting.</p>
+          <p v-else-if="show !== 'recorded'">Every roadside repair since the repair record began is recorded.</p>
           <p v-else>No roadside repair has been recorded yet.</p>
         </template>
         <template #footer>

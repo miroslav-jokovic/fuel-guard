@@ -74,7 +74,13 @@ function recorder() {
     tables: {
       organizations: () => ({ data: [{ operating_hours: { tz: "America/Chicago" } }] }),
       roadside_inspections: (q) => ({ data: scoped(INSPECTIONS, q, ["org_id"]) }),
-      inspection_repairs: (q) => ({ data: scoped(repairs, q, ["org_id", "inspection_id"]) }),
+      // Honours the order the query asks for, so "the FIRST engine reading" is a property of the read (RR4).
+      inspection_repairs: (q) => {
+        const rows = scoped(repairs, q, ["org_id", "inspection_id", "source"]);
+        const order = q.ops.find((o) => o.method === "order" && o.args[0] === "created_at")?.args as [string, { ascending?: boolean }] | undefined;
+        const sorted = order ? [...rows].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)) * (order[1]?.ascending === false ? -1 : 1)) : rows;
+        return { data: sorted };
+      },
       roadside_inspection_units: (q) => ({ data: scoped(UNITS, q, ["org_id", "inspection_id"]) }),
       roadside_violations: () => ({ data: [] }),
       memberships: () => ({ data: [] }),
@@ -131,5 +137,21 @@ describe("the Shop's roadside repairs", () => {
     const { data } = await get();
     expect(data).toHaveLength(1);
     expect(data[0]!.proposal.outcome).toBe("one_candidate");
+  });
+
+  it("marks a unit inspected before the carrier's repair record began — its first engine reading, on its own clock (RR4)", async () => {
+    const at = (k: number, inspection_date: string) => Object.assign(INSPECTIONS[k - 1]!, { inspection_date });
+    at(1, "2026-10-15");
+    at(130, "2026-10-16");
+    // The first reading: 03:00 UTC on 10-17 is still 10-16 in Chicago. A later reading must not move the start.
+    repairs = [
+      engineRow(1, { due_on: "2026-10-30", created_at: "2026-10-20T12:00:00Z" }),
+      engineRow(130, { due_on: "2026-10-31", created_at: "2026-10-17T03:00:00Z" }),
+      engineRow(2, { org_id: "org-2", created_at: "2026-01-01T00:00:00Z" }),
+    ];
+    const { data } = await get();
+    expect(data.map((r) => [r.inspection.reportNumber, r.beforeRecord])).toEqual([["IL1", true], ["IL130", false]]);
+    at(1, "2026-10-01");
+    at(130, "2026-10-01");
   });
 });

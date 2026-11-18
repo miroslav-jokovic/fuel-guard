@@ -2,7 +2,7 @@
 import { computed, nextTick, ref } from "vue";
 import { useRoute } from "vue-router";
 import { AppCard as BaseCard, AppTabs, FactList, type Fact, QueryState, useQueryState } from "@silvicom/ui";
-import { repairSettled, todayInZone, type RoadsideRepairDueDto, type UnitKitDto } from "@silvicom/shared";
+import { repairOpen, todayInZone, type RoadsideRepairDueDto, type UnitKitDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import UnitFileSection from "@/components/files/UnitFileSection.vue";
 import type { UnitFileSubject } from "@/components/files/fileSubject";
@@ -69,7 +69,7 @@ const reasons = computed(() => (attentionQ.data.value ?? []).find((u) => u.kind 
 const roadsideOpen = computed(() => opens("/shop/roadside-repairs"));
 const roadsideQ = useRoadsideRepairsDueQuery(roadsideOpen);
 const roadside = computed<RoadsideRepairDueDto[]>(() =>
-  (roadsideQ.data.value ?? []).filter((r) => !repairSettled(r) && r.unit.kind === kind.value && file.value != null && r.unit.companyNumber === file.value.unit.unitNumber),
+  (roadsideQ.data.value ?? []).filter((r) => repairOpen(r) && r.unit.kind === kind.value && file.value != null && r.unit.companyNumber === file.value.unit.unitNumber),
 );
 const attentionLoading = computed(() => attentionQ.isPending.value || (roadsideOpen.value && roadsideQ.isPending.value));
 const attentionError = computed(() => attentionQ.isError.value || roadsideQ.isError.value);

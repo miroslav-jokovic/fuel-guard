@@ -102,6 +102,7 @@ const due = (over: Partial<RoadsideRepairDueDto> = {}): RoadsideRepairDueDto =>
     proposal: { outcome: "no_candidate", candidates: [], readAt: "2026-10-28T00:00:00Z" },
     decision: null,
     inspection: { id: "i1", reportNumber: null, reportState: "IL", inspectionDate: "2026-10-18", locationDesc: null },
+    beforeRecord: false,
     ...over,
   }) as unknown as RoadsideRepairDueDto;
 

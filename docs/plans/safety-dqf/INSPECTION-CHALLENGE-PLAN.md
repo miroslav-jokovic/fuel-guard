@@ -1267,3 +1267,12 @@ about three merges.
   candidates, so an invoice entered after the proposal shows. A count, never a total (D-FP27). Both the
   inspection page and the Shop's repairs-due list get it from the one builder. Mutations: dropping the org
   filter on invoices, and a wrong count source, each turned a test red.
+- **2026-11-18 · The year of history, out of the live list (ROADSIDE-REPAIR-FLOW-PLAN RR4, Q-RR2 (a)).** Of 147
+  units waiting on a person, 142 came from inspections before the repair record existed, and they buried the
+  live ones (15 of 18 recent units undecided). Each repairs-due row now carries `beforeRecord`: inspected
+  before the carrier's first engine reading, on its own clock — read from the record, not written down as
+  2026-10-16, so a carrier connected later is split at its own first day. One predicate, `repairOpen`, decides
+  every count, the Shop's Open list and the bell; such units move to Show › "Before the repair record", stay
+  decidable, read "N days past due" without the red, and still have to be settled before their inspection is
+  certified (`repairSettled` is unchanged). Nothing in the record changes. Mutations: `repairOpen` ignoring
+  history, the start read from the newest reading, and the Shop home counting history each turned a test red.
