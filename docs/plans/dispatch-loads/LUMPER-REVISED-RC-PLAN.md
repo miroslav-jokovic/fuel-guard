@@ -284,6 +284,49 @@ filed, so it can outlive the window, and the feed then stops refreshing its paid
   would be told every morning to re-bill a load they already re-billed. If old billing gaps turn out
   to matter in the silent weeks, (a) is still the fix, taken to IT with the evidence.
 
+**Q-LRC10 — 360 finds the revised RC in McLeod by itself and downloads it onto the case (owner,
+2026-11-18).** The owner's statement of the feature: "find revised confirmations and download them
+when they are uploaded", so a paid lumper is tracked to its RC without anybody filing it twice. Today
+the only "RC on file" fact is a file somebody puts on the 360 case (§1.3), because the place the
+dispatchers actually put it is out of reach. **This is a BLOCKER: no route to that place exists, and
+none is built around it.** Measured:
+- Dispatchers get the RC from the broker as a PDF by email and print it to "Print to Billing"
+  (owner, 2026-11-17 and 11-18). That is McLeod's imaging (DocumentPower), not the LME database:
+  `image` and `image_type` are empty, `imaging_control`'s hosts are NULL, `orders.image_is_present`
+  is 'Y' on 0 orders, and the RC fields on `movement` are empty on all 281,420 movements.
+- It is NOT `comments` either. The unit-papers export reads `comments.attachment` straight out of
+  the database, and that works for trucks and trailers, but the 78 attachments of 2026 with
+  `parent_row_type = 'O'` are not orders: every key is 9 digits, `orders.id` is 7 characters on all
+  136,414 orders, and 0 match an order (any company, trimmed) or a movement (lme_analytics,
+  restore 2026-10-09, counts only, measured 2026-11-18).
+- The best candidate for the index is one of `dta`..`dta6` (created 2023-02-03, backed up with lme
+  every hour), which neither login can open; McLeod's documented ImagingService lists a row's images
+  (order or movement) and returns one by id. Neither is confirmed for this install.
+
+Whatever the route, the matching rule is ours and needs nothing new from McLeod: a case already has
+the order and the lumper's date, so an RC-type document on that order dated on or after the lumper
+charge is the revised RC. It is downloaded into the case's files (0601) with McLeod as its source,
+which closes the RC reminders exactly as a hand-filed one does, and a dispatcher never files it twice.
+
+- **(a) Recommended: McLeod's own API (DocumentPower / ImagingService), with a read-only API user.**
+  The supported route, it returns the file itself, and it survives the 26.2 upgrade the office is
+  weighing, where a table read may not. It also answers the 2026-11-11 meeting's open "send BOL and
+  POD scans into DocumentPower" question, and the BOL reader's corpus. Cost: an API user and possibly
+  a licence, through McLeod and Alex, and one new outbound connection from the VM.
+- (b) A read grant on DocumentPower's index tables, once Alex names them (probably in `dta`..`dta6`).
+  Fits the connector as it is (SQL on the VM), but it is an undocumented schema, and the file
+  itself may still live on a share or behind the service, so it may answer "is an RC there" without
+  the PDF.
+- (c) Read the broker emails where the RC arrives (Microsoft Graph, already used for the Pilot
+  mailbox), limited to the dispatchers' mailboxes, and read the order number off the PDF. Needs no
+  McLeod change, but it is a second source beside the one billing uses, it misses an RC that came any
+  other way, and it puts the document reader in the path of a money decision.
+
+What IT has to answer for (a) or (b), asked ONCE, together with the finance grants still missing on
+LME (15 tables, measured 2026-11-17): what "Print to Billing" writes to and where its index lives;
+whether this install has McLeod's web services and an API user can be read-only; the document type
+the dispatchers pick for a rate confirmation, and whether "revised" is recorded at all.
+
 **Rulings, 2026-11-13.** The owner answered "proceed as recommended": Q-LRC3 (every `LUM` row),
 Q-LRC5 (the order's `operations_user`), Q-LRC7 (lumper only, case keyed by charge code) and Q-LRC2
 (08:00 Central, Monday to Friday) and Q-LRC4 (no exempt customers on day one) stand as recommended.
@@ -483,3 +526,8 @@ VM runs it. Q-LRC8 (EFS money codes) and Q-LRC9 are open.
   on this read), D-LRC14 (CRTUCKER, TLAMAR, YHUGGLER matched; DRUTHERF's $100 stays unknown),
   D-LRC15 with 0629, "Invoiced <day>" when there is no number, and "Paid to" (the payee) on the
   order-unknown list, where the driver column was empty for every reimbursement line.
+- 2026-11-18 — Owner: the feature's point is to find the revised RC in McLeod and download it when it
+  is uploaded. Recorded as Q-LRC10, a blocker: the place "Print to Billing" stores it is outside both
+  logins' reach, and the `comments` route the unit-papers export uses does not hold it (the 78 'O'
+  attachments of 2026 match no order). Nothing built around it; one request to IT, with the finance
+  grants, decides between (a) the API and (b) an index grant.
