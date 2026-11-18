@@ -6,6 +6,9 @@
       "archived",
       "color",
       "created",
+      "division",
+      "division_data",
+      "domicile",
       "engine_hp",
       "engine_model",
       "engine_serial_number",
@@ -19,7 +22,9 @@
       "owner",
       "ownership",
       "serial_number",
+      "status",
       "tire_size",
+      "tracked_meters",
       "transmission_gears",
       "transmission_model",
       "transmission_serial_number",
@@ -28,6 +33,7 @@
       "url",
       "vin",
       "vmrs_equipment_category",
+      "vmrs_equipment_category_data",
       "vmrs_manufacturer"
     ],
     "WorkOrder": [
@@ -45,6 +51,7 @@
       "shop",
       "started",
       "status",
+      "total",
       "unit",
       "updated",
       "url"
@@ -81,6 +88,7 @@
       "part_number",
       "price",
       "quantity",
+      "technician",
       "total",
       "type",
       "unit_of_measure",
@@ -142,17 +150,31 @@
       "description",
       "id",
       "intervals",
+      "is_dependent",
       "last_done",
+      "most_urgent_percent",
+      "most_urgent_status",
+      "most_urgent_type",
       "name",
+      "parent",
+      "rank",
       "reason_for_repair",
       "unit",
       "updated",
       "url"
     ],
     "Interval": [
+      "current_meter",
+      "due_int",
+      "due_time",
       "id",
       "last_done_meter_value",
       "order",
+      "overdue_int",
+      "overdue_time",
+      "passed_percent_till_overdue",
+      "remaining_till_overdue",
+      "status",
       "threshold_int",
       "threshold_time_type",
       "type",
@@ -162,6 +184,7 @@
     "Part": [
       "component",
       "created",
+      "cross_references",
       "description",
       "id",
       "manufacturer",
@@ -178,6 +201,7 @@
     "Vendor": [
       "address",
       "address_2",
+      "archived",
       "city",
       "code",
       "country",
@@ -209,6 +233,7 @@
       "name",
       "phone",
       "state",
+      "timezone",
       "url",
       "website",
       "zip_code"
@@ -286,6 +311,7 @@
     ],
     "POInvoice": [
       "amount",
+      "attachments",
       "created",
       "date",
       "id",
@@ -345,6 +371,8 @@
       "number",
       "payable_to",
       "purchase_order",
+      "reason",
+      "reversed_on",
       "updated",
       "url"
     ],
@@ -489,7 +517,23 @@
   },
   "listFilters": {
     "/status": [],
-    "/v1/customer-invoice-items/": [
+    "/v1/assignments": [
+      "customer",
+      "limit",
+      "offset",
+      "status",
+      "unit",
+      "updated_after"
+    ],
+    "/v1/company": [],
+    "/v1/customer-contacts": [
+      "customer",
+      "email",
+      "limit",
+      "offset",
+      "updated_after"
+    ],
+    "/v1/customer-invoice-items": [
       "customer",
       "invoice",
       "is_canceled",
@@ -501,7 +545,7 @@
       "type",
       "updated_after"
     ],
-    "/v1/customer-invoice-payments/": [
+    "/v1/customer-invoice-payments": [
       "customer",
       "invoice",
       "limit",
@@ -512,7 +556,7 @@
       "paid_before",
       "updated_after"
     ],
-    "/v1/customer-invoices/": [
+    "/v1/customer-invoices": [
       "customer",
       "invoiced_after",
       "invoiced_before",
@@ -527,13 +571,21 @@
       "unit",
       "updated_after"
     ],
-    "/v1/customers/": [
+    "/v1/customer-pricing": [
+      "customer",
+      "is_tax_exempt",
+      "limit",
+      "offset",
+      "shop",
+      "updated_after"
+    ],
+    "/v1/customers": [
       "dot_number",
       "limit",
       "offset",
       "updated_after"
     ],
-    "/v1/defects/": [
+    "/v1/defects": [
       "detected_after",
       "is_resolved",
       "limit",
@@ -541,18 +593,55 @@
       "severity",
       "unit"
     ],
-    "/v1/divisions/": [
+    "/v1/divisions": [
       "limit",
       "offset"
     ],
-    "/v1/expirations/": [
+    "/v1/expirations": [
       "expires_before",
       "is_completed",
       "limit",
       "offset",
       "unit"
     ],
-    "/v1/issues/": [
+    "/v1/fault-codes": [
+      "code",
+      "critical",
+      "last_occurrence_after",
+      "limit",
+      "offset",
+      "status",
+      "unit"
+    ],
+    "/v1/fault-rules": [
+      "code",
+      "component",
+      "limit",
+      "offset",
+      "type"
+    ],
+    "/v1/fee-tiers": [
+      "limit",
+      "name",
+      "offset",
+      "shop",
+      "updated_after"
+    ],
+    "/v1/inventory-items": [
+      "limit",
+      "offset",
+      "part",
+      "shop"
+    ],
+    "/v1/inventory-transactions": [
+      "dated_after",
+      "dated_before",
+      "item",
+      "limit",
+      "offset",
+      "type"
+    ],
+    "/v1/issues": [
       "limit",
       "offset",
       "priority",
@@ -560,17 +649,33 @@
       "unit",
       "updated_after"
     ],
-    "/v1/job-items/": [
+    "/v1/item-pricing": [
+      "item",
+      "limit",
+      "offset",
+      "shop",
+      "type",
+      "updated_after"
+    ],
+    "/v1/job-items": [
       "job",
       "limit",
       "offset",
       "part",
+      "technician",
       "type",
       "unit",
       "updated_after",
       "work_order"
     ],
-    "/v1/jobs/": [
+    "/v1/job-templates": [
+      "component",
+      "limit",
+      "name",
+      "offset",
+      "updated_after"
+    ],
+    "/v1/jobs": [
       "billable",
       "limit",
       "offset",
@@ -579,7 +684,31 @@
       "updated_after",
       "work_order"
     ],
-    "/v1/meters/": [
+    "/v1/labor-lines": [
+      "limit",
+      "offset",
+      "period_end",
+      "period_start",
+      "shop",
+      "technician",
+      "updated_after",
+      "work_order"
+    ],
+    "/v1/labor-tiers": [
+      "limit",
+      "name",
+      "offset",
+      "shop",
+      "updated_after"
+    ],
+    "/v1/members": [
+      "is_archived",
+      "limit",
+      "offset",
+      "type",
+      "updated_after"
+    ],
+    "/v1/meters": [
       "limit",
       "offset",
       "source",
@@ -589,25 +718,33 @@
       "unit",
       "updated_after"
     ],
-    "/v1/parts/": [
+    "/v1/part-tiers": [
+      "limit",
+      "name",
+      "offset",
+      "shop",
+      "updated_after"
+    ],
+    "/v1/parts": [
       "limit",
       "number",
       "offset",
       "universal_product_code",
       "updated_after"
     ],
-    "/v1/payment-terms/": [
+    "/v1/payment-terms": [
       "limit",
       "offset"
     ],
-    "/v1/pm-schedules/": [
+    "/v1/pm-schedules": [
       "limit",
+      "most_urgent_status",
       "name",
       "offset",
       "unit",
       "updated_after"
     ],
-    "/v1/purchase-order-estimates/": [
+    "/v1/purchase-order-estimates": [
       "dated_after",
       "limit",
       "number",
@@ -616,7 +753,7 @@
       "status",
       "updated_after"
     ],
-    "/v1/purchase-order-invoices/": [
+    "/v1/purchase-order-invoices": [
       "dated_after",
       "dated_before",
       "limit",
@@ -627,7 +764,7 @@
       "type",
       "updated_after"
     ],
-    "/v1/purchase-order-items/": [
+    "/v1/purchase-order-items": [
       "limit",
       "offset",
       "part",
@@ -635,7 +772,7 @@
       "type",
       "updated_after"
     ],
-    "/v1/purchase-order-payments/": [
+    "/v1/purchase-order-payments": [
       "invoice",
       "limit",
       "method",
@@ -647,7 +784,7 @@
       "purchase_order",
       "updated_after"
     ],
-    "/v1/purchase-order-receipt-items/": [
+    "/v1/purchase-order-receipt-items": [
       "created_after",
       "limit",
       "offset",
@@ -656,7 +793,7 @@
       "receipt",
       "type"
     ],
-    "/v1/purchase-order-receipts/": [
+    "/v1/purchase-order-receipts": [
       "created_after",
       "invoice",
       "limit",
@@ -664,7 +801,16 @@
       "offset",
       "purchase_order"
     ],
-    "/v1/purchase-orders/": [
+    "/v1/purchase-order-supplements": [
+      "limit",
+      "offset",
+      "purchase_order",
+      "status",
+      "updated_after"
+    ],
+    "/v1/purchase-orders": [
+      "created_after",
+      "created_before",
       "limit",
       "number",
       "offset",
@@ -674,7 +820,7 @@
       "vendor_location",
       "work_order"
     ],
-    "/v1/sales-orders/": [
+    "/v1/sales-orders": [
       "customer",
       "limit",
       "number",
@@ -686,7 +832,7 @@
       "updated_after",
       "work_order"
     ],
-    "/v1/service-history/": [
+    "/v1/service-history": [
       "billable",
       "component",
       "customer",
@@ -700,61 +846,140 @@
       "vendor",
       "work_order"
     ],
-    "/v1/shops/": [
+    "/v1/service-tasks": [
+      "kind",
+      "limit",
+      "offset",
+      "status",
+      "unit",
+      "work_order"
+    ],
+    "/v1/service-tiers": [
+      "limit",
+      "name",
+      "offset",
+      "shop",
+      "updated_after"
+    ],
+    "/v1/shops": [
       "code",
       "limit",
       "offset"
     ],
-    "/v1/units/": [
+    "/v1/tags": [
+      "limit",
+      "name",
+      "offset",
+      "updated_after"
+    ],
+    "/v1/tax-tiers": [
+      "limit",
+      "name",
+      "offset",
+      "shop",
+      "updated_after"
+    ],
+    "/v1/technician-labor-hours": [
+      "limit",
+      "offset",
+      "period_end",
+      "period_start",
+      "shop",
+      "technician"
+    ],
+    "/v1/unit-documents": [
+      "extension",
+      "limit",
+      "offset",
+      "unit",
+      "updated_after"
+    ],
+    "/v1/unit-statuses": [
+      "is_default",
+      "limit",
+      "offset",
+      "updated_after"
+    ],
+    "/v1/units": [
+      "division",
       "is_archived",
       "limit",
       "model_year",
       "number",
       "offset",
       "ownership",
+      "status",
       "updated_after",
-      "vin"
+      "vin",
+      "vmrs_equipment_category"
     ],
-    "/v1/vendors/": [
+    "/v1/vendor-contacts": [
+      "email",
+      "limit",
+      "offset",
+      "updated_after",
+      "vendor"
+    ],
+    "/v1/vendor-location-contacts": [
+      "email",
+      "limit",
+      "offset",
+      "updated_after",
+      "vendor_location"
+    ],
+    "/v1/vendor-locations": [
+      "is_archived",
+      "limit",
+      "offset",
+      "updated_after",
+      "vendor"
+    ],
+    "/v1/vendors": [
       "code",
+      "is_archived",
       "limit",
       "offset",
       "type",
       "updated_after"
     ],
-    "/v1/vmrs-complaints/": [
+    "/v1/vmrs-complaints": [
       "code",
+      "id",
       "limit",
       "offset",
       "search"
     ],
-    "/v1/vmrs-components/": [
+    "/v1/vmrs-components": [
       "code",
+      "id",
       "level",
       "limit",
       "offset",
       "parent",
       "search"
     ],
-    "/v1/vmrs-equipment-categories/": [
+    "/v1/vmrs-equipment-categories": [
       "code",
+      "id",
       "limit",
       "offset",
       "search"
     ],
-    "/v1/vmrs-manufacturers/": [
+    "/v1/vmrs-manufacturers": [
       "code",
+      "id",
       "limit",
       "offset",
       "search"
     ],
-    "/v1/vmrs-reasons-for-repair/": [
+    "/v1/vmrs-reasons-for-repair": [
       "code",
+      "id",
       "limit",
       "offset",
       "search"
     ],
-    "/v1/webhook-deliveries/": [
+    "/v1/webhook-deliveries": [
       "event_key",
       "limit",
       "offset",
@@ -762,15 +987,22 @@
       "subscription",
       "updated_after"
     ],
-    "/v1/webhook-events/": [],
-    "/v1/webhook-subscriptions/": [
+    "/v1/webhook-events": [],
+    "/v1/webhook-subscriptions": [
       "event_key",
       "is_active",
       "limit",
       "offset",
       "updated_after"
     ],
-    "/v1/work-orders/": [
+    "/v1/work-order-charges": [
+      "limit",
+      "offset",
+      "type",
+      "updated_after",
+      "work_order"
+    ],
+    "/v1/work-orders": [
       "completed_after",
       "limit",
       "number",

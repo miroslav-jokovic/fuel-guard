@@ -190,6 +190,16 @@ describe("what the invoice mapping carries", () => {
     const mapped = poInvoicesIngest.map(poInvoices[0] as never) as Record<string, unknown>;
     expect(mapped.purchase_order_fleetpal_id).toBe("htogZmNa");
   });
+
+  it("⚠ never carries the scanned bill's signed link into storage (D-FP28)", () => {
+    // The link opens the file to anybody holding it for an hour; F16 reads it live and it must not land in a row.
+    const row = poInvoicesIngest.schema.parse({
+      ...poInvoiceFixture.results[0],
+      attachments: [{ index: 0, filename: "bill", content_type: "application/pdf", url: "https://storage.test/bill.pdf?X-Amz-Signature=secret" }],
+    });
+    expect(row.attachments).toHaveLength(1);
+    expect(JSON.stringify(poInvoicesIngest.map(row))).not.toContain("X-Amz-Signature");
+  });
 });
 
 /**

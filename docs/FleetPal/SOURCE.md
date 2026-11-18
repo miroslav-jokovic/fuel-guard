@@ -14,12 +14,12 @@ a recorded version they would assume the two agree.
 | | |
 |---|---|
 | File | `docs/FleetPal/Fleetpal API.json` |
-| Retrieved | before 2026-09-09, by the owner, from the vendor |
-| Read in full | **2026-09-10** (an earlier partial read on 2026-09-09 produced INVENTORY-PLAN §8's audit) |
+| Retrieved | **2026-11-18**, from `GET https://openapi.fleetpal.io/v1/openapi.json` with the API key (the vendor serves its current document there). Previously: before 2026-09-09, by the owner. |
+| Read in full | **2026-11-18** for Q13 (the 2026-09 copy was read in full on 2026-09-10) |
 | `info.title` / `info.version` | `Fleetpal API` / `v1` |
 | Server | `https://openapi.fleetpal.io` |
-| Size | 829,920 bytes |
-| Endpoints | 71 paths (35 list collections plus their `{id}` members, and `/status`) |
+| Size | **961,701 bytes** (was 829,920) |
+| Endpoints | **174 paths**, no trailing slashes (was 71, with them) |
 | Contact | `support@fleetpal.io` |
 
 The spec carries no build or revision stamp beyond `info.version: v1`, which the vendor holds
@@ -42,12 +42,11 @@ what your working tree holds, the document has moved and
 - **Distances** on meter readings are canonical **metres**, never the company's display units.
   Divide by 1609.344 for miles.
 
-## ⚠ 2026-11-18 — this copy is 100 endpoints behind the vendor
+## 2026-11-18 — refreshed (plan Q13)
 
-FleetPal serves its current document at **`GET https://openapi.fleetpal.io/v1/openapi.json`** (with the
-API key). Read 2026-11-18: **174 paths, 961,701 bytes** — against the 71 paths above. Among the
-differences, `POInvoice.attachments` (the shop's scanned bill, pre-signed link, 1 h) — which this copy
-lacks, and which is why Q-IC12 and D-FP27 were ruled believing FleetPal serves no files. F16 reads it
-(FLEETPAL-INTEGRATION-PLAN D-FP28) through a schema the gate does not yet map. Replacing this file and
-regenerating the manifest surfaces 28 unmodelled fields: plan Q13 / F16b. Until then, **check the live
-document before concluding FleetPal cannot do something.**
+The September copy was 100 endpoints behind; that is why Q-IC12 and D-FP27 were ruled believing FleetPal
+serves no files while `POInvoice.attachments` carried a scanned bill on ~95% of invoices. Regenerating
+the manifest surfaced 28 fields the contracts did not model; all 28 are now modelled as optional and
+none is stored. **To refresh again:** fetch the URL above into this file, run
+`node scripts/gen-fleetpal-manifest.mjs`, then `pnpm lint:fleetpal-contract` lists what to model. Do it
+before concluding FleetPal cannot do something.
