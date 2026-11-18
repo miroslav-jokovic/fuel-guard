@@ -19,6 +19,10 @@ import { formatPhone, phoneDialString } from "@/lib/format";
  * when the reader most likely wanted to select and copy it, and the table keeps its density.
  *
  * A value no phone could dial (`phoneDialString` → null) is shown as stored, with no links.
+ *
+ * The desk branch is bare text, with no wrapping element and no template comment, so at a desk the
+ * cell is byte-for-byte what it was before this component — "renders the roster table unchanged by
+ * the R2 extraction" in `DriversPage.test.ts` snapshots that cell.
  */
 const props = defineProps<{ phone: string | null | undefined; name?: string | null }>();
 
@@ -46,5 +50,5 @@ const who = computed(() => props.name?.trim() || shown.value);
       <AppIcon :icon="ChatBubbleIcon" class="size-5" aria-hidden="true" />
     </a>
   </span>
-  <span v-else class="tabular-nums">{{ shown }}</span>
+  <template v-else>{{ shown }}</template>
 </template>
