@@ -104,8 +104,7 @@ export type JobKind =
    * duplicate delivery while one is queued is the ledger's own "already on it".
    */
   | "ads_lead_fetch"
-  // One connection's hourly insights pull + auto-pause checks (B5a/b); dedup `ads_insights:<connection>`.
-  | "ads_insights"
+  | "ads_insights" // one connection's hourly insights pull + auto-pause checks (B5a/b); dedup `ads_insights:<connection>`
   // One connection's daily reconcile → `external_change` rows (B5c); dedup `ads_reconcile:<connection>`.
   | "ads_reconcile"
   // One carrier's morning brief (F1b): yesterday's fold, the analyst's narration, the `ads_brief` bell; dedup `ads_daily_brief:<org>`.
@@ -114,6 +113,7 @@ export type JobKind =
   // One carrier's sweep for leads nobody has contacted (D2c); dedup `lead_uncontacted:<org>`.
   | "lead_uncontacted"
   | "ads_render" // one Higgsfield render, one step (C3); polled by retry; dedup `ads_render:<creative>:<attempt>`
+  | "ads_swipe_read" // one swipe-file entry read (V2r); dedup `ads_swipe_read:<entry>:<attempt>`
   // One org's nightly copy of its Storage objects to the off-provider bucket (storageBackup.ts). A kind so a
   // failed night has a row, and so `/api/version` can read the last success from the ledger.
   | "storage_backup";

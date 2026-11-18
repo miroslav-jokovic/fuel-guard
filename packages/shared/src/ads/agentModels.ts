@@ -25,6 +25,10 @@ import type { AdAiAgent } from "./contracts.js";
  * The Strategist (V2c, 2026-11-15) started on Fable 5.2 and has no earlier line: the plan (§V1) assigns the
  * planning work to the strongest model, and its first recording was made there.
  *
+ * The Researcher and the Swipe reader (V2r, 2026-11-18) start on Opus 5.5, the writers' model: reading a page into
+ * quoted facts and a picture into its words is reading, not judging another worker's output, so F-AG7's reason to
+ * put the judges on a different model does not apply. Their first recordings were made there.
+ *
  * `renderer` asks no Claude model (its provider is Higgsfield); it is in `AD_AI_AGENTS` for the switch and
  * the ledger, so it has no line.
  */
@@ -44,4 +48,6 @@ export const AD_AGENT_MODELS: Readonly<Record<AdClaudeAgent, AdAgentModel>> = {
   craft_judge: { model: "claude-fable-5-2" },
   finished_ad_judge: { model: "claude-fable-5-2" },
   strategist: { model: "claude-fable-5-2" },
+  researcher: { model: "claude-opus-5-5" },
+  swipe_reader: { model: "claude-opus-5-5" },
 };

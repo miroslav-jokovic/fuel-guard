@@ -32,7 +32,7 @@ this section is what is true today and what comes next. When the two disagree, t
 | Step | State | Proven on |
 |---|---|---|
 | V1 any current model per agent | done | recorded fixtures, each agent's baseline met twice |
-| V2 planning stage | done, except the Researcher and the swipe file | simulator |
+| V2 planning stage | done; V2r (2026-11-18): market pay from BLS, the swipe file's API, the Researcher and the Swipe reader at L2. The swipe file's screen comes with V6 | simulator; BLS read live once |
 | V3 design quality | done, except the story frame, Meta's own preview and the reference set | simulator |
 | V4 video (motion ad) | done; driver clip not started | simulator (FakeMeta, the simulated video model) |
 | V5 modes · V6 workspace · V7 lead engine · V8 health page | not built | — |
@@ -59,7 +59,7 @@ the rating page (https://claude.ai/artifact/KG1h65doetP92nctQvSvnx).
 | # | Work | Waits on | Why here |
 |---|---|---|---|
 | 1 | **L4 on Meta's sandbox** (`pnpm ads:certify`) and **the model sitting** (Q-APX12, Q-AD20). Fix what the sandbox refuses; move `META_GRAPH_VERSION` to v27.0 after reading its changelog | credentials | Everything else is built on readings only this can confirm |
-| 2 | **The research (V2r): market pay from BLS, the swipe file, the Researcher** (V2's remainder; D-AD35, D-AD36) | nothing — started 2026-11-18 | The owner's first complaint was ads made "without any research"; a first campaign's plan today rests on the job and one benchmark |
+| 2 | **The research (V2r): market pay from BLS, the swipe file, the Researcher** (V2's remainder; D-AD35, D-AD36) | built 2026-11-18, except the swipe file's screen (V6) | The owner's first complaint was ads made "without any research"; a first campaign's plan today rests on the job and one benchmark |
 | 3 | **V8 health page and the Overview's read** (API), then **V6 screens** | Q-APX18 for the screens | Running a real campaign needs somewhere to see it |
 | 4 | **Q-APX16 and Q-APX17** (budget in dollars; video at 1440 × 1800) | their rulings; the sandbox answers Q-APX17 | A real video cannot be bought or sent without them |
 | 5 | **The canary (L5):** one real campaign, small cap, launched by the owner, 72 hours | 1 and 4 | The gate to any automatic launch (Q-APX1 Level B) |
@@ -213,6 +213,9 @@ confirmed. CareerOneStop answers 403 as well.
   stay out of the pack.
 - New workers (Researcher, Swipe reader) enter the readiness registry at L0 and are recorded on fixture pages and
   pictures, the size said before each recording.
+
+**Built 2026-11-18** (progress `2026-11-18-1530-W-V2r-market.md`, `2026-11-18-1900-W-V2r-swipe-researcher.md`): all of the
+above except the swipe file's screen, which is V6's Creative studio (Q-APX18 (a)). Researcher and Swipe reader at L2.
 
 **Done when:** a campaign whose area is centred in a US state carries market items from BLS with the year; a
 saved page yields items whose quotes are found in it and a planted page (a quote not on it, a figure not in the

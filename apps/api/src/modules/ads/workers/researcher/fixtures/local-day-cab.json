@@ -1,0 +1,77 @@
+{
+  "name": "local-day-cab",
+  "about": "A local day-cab job paid by the hour, home daily, with benefits listed in a sentence.",
+  "input": {
+    "url": "https://careers.lakeshore-freight.example/jobs/local-class-a",
+    "page_text": "Local Class A Driver – Day Cab\nLakeshore Freight | Gary, IN\n$29.50 per hour, overtime after 40 hours\nHome daily. Day shift, 5:00 AM start.\nEquipment: day cab tractors with 53' dry vans, no touch freight.\nBenefits include medical, dental, a 401(k) with a 4% match and paid time off from your first year.\nMinimum 2 years of Class A experience. Must pass a DOT physical and drug screen.\nEqual Opportunity Employer.\n© 2026 All rights reserved.\nPrivacy Policy\nTerms of Use\nWe use cookies to improve your experience. Accept"
+  },
+  "expect": "ready",
+  "truth": {
+    "verdict": "ready",
+    "must": [
+      {
+        "topic": "pay",
+        "contains": "$29.50 per hour"
+      },
+      {
+        "topic": "home_time",
+        "contains": "Home daily"
+      },
+      {
+        "topic": "requirements",
+        "contains": "2 years of Class A experience"
+      }
+    ],
+    "must_not": []
+  },
+  "recorded": {
+    "source": "model",
+    "prompt_version": "researcher@1",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-18T18:13:28.839Z",
+    "output": {
+      "items": [
+        {
+          "topic": "pay",
+          "sentence": "They pay $29.50 per hour, with overtime after 40 hours.",
+          "quote": "$29.50 per hour, overtime after 40 hours"
+        },
+        {
+          "topic": "home_time",
+          "sentence": "Drivers are home daily.",
+          "quote": "Home daily."
+        },
+        {
+          "topic": "other",
+          "sentence": "The job is a day shift with a 5:00 AM start.",
+          "quote": "Day shift, 5:00 AM start."
+        },
+        {
+          "topic": "equipment",
+          "sentence": "They run day cab tractors with 53' dry vans and no touch freight.",
+          "quote": "Equipment: day cab tractors with 53' dry vans, no touch freight."
+        },
+        {
+          "topic": "lanes",
+          "sentence": "The job is a local Class A position based in Gary, IN.",
+          "quote": "Lakeshore Freight | Gary, IN"
+        },
+        {
+          "topic": "benefits",
+          "sentence": "Benefits include medical, dental, a 401(k) with a 4% match, and paid time off from the first year.",
+          "quote": "Benefits include medical, dental, a 401(k) with a 4% match and paid time off from your first year."
+        },
+        {
+          "topic": "requirements",
+          "sentence": "They require a minimum of 2 years of Class A experience.",
+          "quote": "Minimum 2 years of Class A experience."
+        },
+        {
+          "topic": "requirements",
+          "sentence": "Drivers must pass a DOT physical and drug screen.",
+          "quote": "Must pass a DOT physical and drug screen."
+        }
+      ]
+    }
+  }
+}

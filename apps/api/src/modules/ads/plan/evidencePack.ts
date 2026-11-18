@@ -1,12 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import {
-  AD_HOOK_FAMILIES, AD_HOOK_FAMILY_LABELS, AD_SCENE_FAMILIES, AD_SCENE_FAMILY_LABELS, ADS_BENCHMARK_SUGGESTIONS,
+  AD_HOOK_FAMILIES, AD_HOOK_FAMILY_LABELS, EVIDENCE_PACK_MAX, AD_SCENE_FAMILIES, AD_SCENE_FAMILY_LABELS, ADS_BENCHMARK_SUGGESTIONS,
   adBriefSchema, closedReasonWords, evidencePackSchema, foldConcepts, jobEvidence, showMoney,
   type AdBrief, type AdHourFact, type ConceptPerformance, type EvidenceItem, type EvidencePack, type LeadQuality, type LeadQualityCounts,
 } from "@silvicom/shared";
 import { CONCEPT_WINDOW_DAYS } from "../monitor/conceptPerformance.js";
 import type { MarketReader } from "./marketWages.js";
+import { swipeEvidence } from "../research/swipeFile.js";
 
 /**
  * The evidence a campaign's plan is written from (ADS-PLATFORM-V2-PLAN V2c; owner 2026-11-14: decisions "based
@@ -26,7 +27,9 @@ import type { MarketReader } from "./marketWages.js";
  *   market        what heavy and tractor-trailer truck drivers earn, in the nation and in the state the ad's
  *                 area is centred in: BLS figures read by code, never by a model (`marketWages.ts`, D-AD35).
  *                 Context for choosing an angle; the plan may still write no figure the job does not hold.
- * Not built: `swipe` (ads a recruiter saved) and the Researcher's `market` items — V2r's next steps.
+ *   swipe, market  what the swipe file's readings say (`research/swipeFile.ts`, D-AD36): a saved ad picture as one
+ *                 `swipe` item, a saved job page's quoted facts as `market` items naming the site. Read within 180
+ *                 days, not removed, newest first, in whatever room our own items leave.
  *
  * ── WHY THE CARRIER'S WHOLE BOOK AND NOT THIS CAMPAIGN'S ───────────────────────────────────────────────
  * A campaign being planned has run nothing. Its evidence is what the carrier's OTHER campaigns did in the
@@ -69,18 +72,16 @@ export async function buildEvidencePack(deps: EvidenceDeps, campaign: { id: stri
   const now = deps.now();
   const since = new Date(now.getTime() - CONCEPT_WINDOW_DAYS * 86_400_000);
   since.setUTCMinutes(0, 0, 0);
-  const [quality, concepts, market] = await Promise.all([
+  const [quality, concepts, market, swipe] = await Promise.all([
     deps.quality.qualitySince(campaign.org_id, since.toISOString()),
     conceptResults(deps.admin, campaign.org_id, since),
     deps.market.itemsFor(brief.data.area),
+    swipeEvidence(deps.admin, campaign.org_id, now),
   ]);
-  const pack = evidencePackSchema.safeParse([
-    ...jobEvidence(brief.data),
-    benchmarkEvidence(),
-    ...leadEvidence(quality),
-    ...resultEvidence(concepts),
-    ...market,
-  ]);
+  const ours = [...jobEvidence(brief.data), benchmarkEvidence(), ...leadEvidence(quality), ...resultEvidence(concepts), ...market];
+  // The swipe file's readings fill the room our own items leave, newest first (`swipeEvidence`'s order): a pack
+  // never drops a fact of the job or a result of ours to make room for what another carrier says.
+  const pack = evidencePackSchema.safeParse([...ours, ...swipe.slice(0, Math.max(0, EVIDENCE_PACK_MAX - ours.length))]);
   // An item this file built that the contract refuses is our fault, and the reason is the planner's failure line.
   if (!pack.success) return { ok: false, error: `the evidence pack does not hold: ${pack.error.issues[0]?.message ?? "invalid"}` };
   return { ok: true, brief: brief.data, evidence: pack.data };

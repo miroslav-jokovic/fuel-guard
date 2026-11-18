@@ -108,6 +108,10 @@ export const JOB_KIND_CATALOGUE = {
     label: "Drawing an ad picture", area: "ads", item: { key: "creativeId", noun: "Ad" },
     hint: "The picture service failed or this month's picture credits ran out (Settings › Ads control, AI and pictures). The ad can be regenerated.",
   },
+  ads_swipe_read: {
+    label: "Reading a page or ad saved to the swipe file", area: "ads", item: { key: "entryId", noun: "Swipe entry" },
+    hint: "The entry says why it could not be read (the site refused, the reader is switched off, or the AI budget is spent). Press Read again on it.",
+  },
   storage_backup: { label: "Backing up stored files", area: "platform" },
 } as const satisfies Record<string, JobKindEntry>;
 

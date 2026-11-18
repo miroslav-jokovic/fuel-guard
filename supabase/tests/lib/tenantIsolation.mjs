@@ -249,6 +249,8 @@ const FORMAT_PINNED = {
   "web_push_subscriptions.p256dh": "('B' || repeat('a', 86))", // check (p256dh ~ '^[A-Za-z0-9_-]{86,88}$')
   "web_push_subscriptions.auth": "repeat('c', 22)", // check (auth ~ '^[A-Za-z0-9_-]{22,24}$')
   "web_push_subscriptions.origin": "'https://360.silvicominc.com'", // check (origin ~ '^https?://[^/]+$')
+  // A page entry (kind's first literal) must carry its https address, a nullable column (0632): seeded because it is pinned.
+  "ads_swipe_entries.url": "'https://jobs.example.com/seed'",
 };
 
 /**
@@ -314,7 +316,10 @@ async function seed(db, meta, table, orgId, inProgress = new Set()) {
     for (const c of cols) {
       const required = c.notnull && !c.has_default && !c.is_identity && !c.is_generated;
       const isPk = c.col === pk;
-      if (!required && !(isPk && !c.has_default && !c.is_identity)) continue;
+      // A pinned column is seeded even when nullable: a CHECK can tie a nullable column to another (0632's swipe
+      // entry is a page only WITH its address), and leaving it null would read as "cannot seed".
+      const pinned = FORMAT_PINNED[`${table}.${c.col}`] !== undefined;
+      if (!required && !pinned && !(isPk && !c.has_default && !c.is_identity)) continue;
       if (c.is_generated) continue;
 
       const poly = POLYMORPHIC_SUBJECTS[table];

@@ -1,0 +1,195 @@
+{
+  "name": "market-pay-first-campaign",
+  "about": "A carrier with no history of its own, planned with market evidence: BLS pay for the state and the nation, and three facts read from competitors' job pages. The plan may cite them; it may write none of their figures.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A regional truck driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 68,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "quantity",
+          "value": 1,
+          "unit": "year"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 150,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "subject_matter": {
+        "details": [
+          "flatbed",
+          "Midwest lanes",
+          "assigned truck"
+        ],
+        "in_our_words": "A small fleet where dispatch knows your name"
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "history": [
+      {
+        "id": "benchmark:cost_per_lead",
+        "kind": "benchmark",
+        "text": "Boostpoint 2026 benchmark, CDL drivers on Meta: an ad costing more than $42.00 per lead after 5 leads, or $85.00 spent with no lead, is where pausing is suggested.",
+        "source": null
+      },
+      {
+        "id": "market:oews_il",
+        "kind": "market",
+        "text": "BLS wage survey, 2025: heavy and tractor-trailer truck drivers in Illinois, the state this ad's area is centred in, earned a median of $60,320 a year ($29.00 an hour); a tenth earned $39,710 or less and a tenth $86,300 or more.",
+        "source": "https://data.bls.gov/timeseries/OEUS170000000000053303213"
+      },
+      {
+        "id": "market:oews_us",
+        "kind": "market",
+        "text": "BLS wage survey, 2025: heavy and tractor-trailer truck drivers across the United States earned a median of $58,640 a year ($28.19 an hour); a tenth earned $40,140 or less and a tenth $79,380 or more.",
+        "source": "https://data.bls.gov/timeseries/OEUN000000000000053303213"
+      },
+      {
+        "id": "market:page_7a1b2c3d4e5f_1",
+        "kind": "market",
+        "text": "A job page on prairieline-transport.example, saved by our recruiters, says (pay): They pay 62 to 70 cents per mile based on experience.",
+        "source": "https://www.prairieline-transport.example/careers/otr-dry-van"
+      },
+      {
+        "id": "market:page_7a1b2c3d4e5f_2",
+        "kind": "market",
+        "text": "A job page on prairieline-transport.example, saved by our recruiters, says (sign-on bonus): They pay a $3,000 sign-on bonus over 90 days.",
+        "source": "https://www.prairieline-transport.example/careers/otr-dry-van"
+      },
+      {
+        "id": "market:page_8b2c3d4e5f6a_1",
+        "kind": "market",
+        "text": "A job page on ridgecrest-hauling.example, saved by our recruiters, says (home time): Drivers are home every weekend, out Monday through Friday.",
+        "source": "https://jobs.ridgecrest-hauling.example/regional-flatbed"
+      }
+    ],
+    "concepts": [
+      {
+        "hook_family": "pay_first",
+        "scene_family": "equipment_on_road"
+      },
+      {
+        "hook_family": "life_first",
+        "scene_family": "home_street"
+      },
+      {
+        "hook_family": "equipment_first",
+        "scene_family": "equipment_at_rest"
+      },
+      {
+        "hook_family": "straight_talk",
+        "scene_family": "cab_pov"
+      },
+      {
+        "hook_family": "proof",
+        "scene_family": "abstract_plate"
+      }
+    ],
+    "formats": [
+      "still"
+    ]
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "strategist@4",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-18T18:53:14.490Z",
+    "output": {
+      "audience": "Experienced Class A flatbed drivers who run or want regional Midwest lanes. Many may be at bigger fleets with less regular home time. A stated pay per mile, home weekly and an assigned truck at a small fleet would make them stop.",
+      "audience_evidence": [
+        "job:subject",
+        "job:claim_3",
+        "job:detail_1",
+        "job:detail_2"
+      ],
+      "angles": [
+        {
+          "hook_family": "pay_first",
+          "scene_family": "equipment_on_road",
+          "format": "still",
+          "idea": "Lead with the pay per mile for regional flatbed work, stated as a plain rate.",
+          "proof": "The opening states a pay per mile.",
+          "why": "Pay is what drivers compare before anything else, and a nearby carrier's page gives a range by experience where this job states a rate. Nothing has been measured yet for this carrier.",
+          "evidence": [
+            "job:claim_1",
+            "job:detail_1",
+            "market:page_7a1b2c3d4e5f_1"
+          ]
+        },
+        {
+          "hook_family": "life_first",
+          "scene_family": "home_street",
+          "format": "still",
+          "idea": "Lead with being home weekly while running Midwest lanes, pictured on a home street.",
+          "proof": "The opening offers home weekly on Midwest lanes.",
+          "why": "A competing flatbed page promises weekends home, so home time is what these drivers weigh. The job says home weekly only, so do not name days. No results measured yet.",
+          "evidence": [
+            "job:claim_2",
+            "job:detail_2",
+            "market:page_8b2c3d4e5f6a_1"
+          ]
+        },
+        {
+          "hook_family": "equipment_first",
+          "scene_family": "equipment_at_rest",
+          "format": "still",
+          "idea": "Lead with the assigned truck, shown as a flatbed rig parked and ready for its driver.",
+          "proof": "The job lists an assigned truck and flatbed work.",
+          "why": "Flatbed drivers care which truck they get, and an assigned truck is a concrete fact a picture can show. Untested: this carrier has no ad results yet.",
+          "evidence": [
+            "job:detail_3",
+            "job:detail_1"
+          ]
+        },
+        {
+          "hook_family": "straight_talk",
+          "scene_family": "cab_pov",
+          "format": "still",
+          "idea": "Say plainly who this is for: Class A, the experience requirement, flatbed, Midwest lanes.",
+          "proof": "The job states Class A, an experience requirement, flatbed freight and Midwest lanes.",
+          "why": "No lead outcomes exist yet, so stating the requirement and the area up front guards against unqualified leads and against the benchmark's cost per lead line.",
+          "evidence": [
+            "job:subject",
+            "job:claim_3",
+            "job:detail_2",
+            "benchmark:cost_per_lead"
+          ]
+        },
+        {
+          "hook_family": "proof",
+          "scene_family": "abstract_plate",
+          "format": "still",
+          "idea": "Set out the terms as a short list on a plain ground, closing on the small fleet where dispatch knows your name.",
+          "proof": "The job holds the pay per mile, home weekly, the retirement plan and the small-fleet line.",
+          "why": "A new advertiser has no record to show, so the proof is the job's own stated terms. Nothing has been measured, so this tests whether facts alone draw leads.",
+          "evidence": [
+            "job:claim_1",
+            "job:claim_2",
+            "job:claim_4",
+            "job:in_our_words"
+          ]
+        }
+      ]
+    }
+  }
+}

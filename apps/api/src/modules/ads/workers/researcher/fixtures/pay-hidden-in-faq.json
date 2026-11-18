@@ -1,0 +1,53 @@
+{
+  "name": "pay-hidden-in-faq",
+  "about": "A posting whose pay is stated only inside a questions-and-answers section, and whose header says only 'competitive pay'. The reader must find the stated figure and not write 'competitive' as a fact.",
+  "input": {
+    "url": "https://www.cedar-run-transport.example/jobs/otr",
+    "page_text": "Home\nAbout Us\nCareers\nContact\nDriver Login\nOTR Driver Opportunities\nCompetitive pay and great benefits!\nFrequently asked questions\nHow much will I make? New drivers start at 58 cents per mile and reach 63 cents after one year.\nHow often am I home? Most drivers are home every 12 days for 3 days.\nWhat do I drive? International LT tractors, all under 3 years old.\n© 2026 All rights reserved.\nPrivacy Policy\nTerms of Use\nWe use cookies to improve your experience. Accept"
+  },
+  "expect": "ready",
+  "truth": {
+    "verdict": "ready",
+    "must": [
+      {
+        "topic": "pay",
+        "contains": "58 cents per mile"
+      },
+      {
+        "topic": "home_time",
+        "contains": "home every 12 days"
+      }
+    ],
+    "must_not": []
+  },
+  "recorded": {
+    "source": "model",
+    "prompt_version": "researcher@1",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-18T18:13:36.984Z",
+    "output": {
+      "items": [
+        {
+          "topic": "pay",
+          "sentence": "New drivers start at 58 cents per mile and reach 63 cents after one year.",
+          "quote": "New drivers start at 58 cents per mile and reach 63 cents after one year."
+        },
+        {
+          "topic": "home_time",
+          "sentence": "Most drivers are home every 12 days for 3 days.",
+          "quote": "Most drivers are home every 12 days for 3 days."
+        },
+        {
+          "topic": "equipment",
+          "sentence": "They run International LT tractors, all under 3 years old.",
+          "quote": "International LT tractors, all under 3 years old."
+        },
+        {
+          "topic": "lanes",
+          "sentence": "The job is an OTR driver position.",
+          "quote": "OTR Driver Opportunities"
+        }
+      ]
+    }
+  }
+}

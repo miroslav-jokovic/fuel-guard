@@ -1,0 +1,63 @@
+{
+  "name": "spanish-posting",
+  "about": "A posting written in Spanish. Quotes stay in Spanish exactly as written; the sentence may be in English and must carry only the quote's figures.",
+  "input": {
+    "url": "https://empleos.sol-del-norte.example/chofer-clase-a",
+    "page_text": "Chofer de Tráiler Clase A — Regional\nTransportes Sol del Norte\nPagamos $0.60 por milla para choferes con experiencia.\nDescanso en casa cada fin de semana.\nCamiones Kenworth T680 modelo 2023.\nRequisitos: licencia CDL Clase A vigente y un año de experiencia comprobable.\nBono de contratación de $2,000.\n© 2026 All rights reserved.\nPrivacy Policy\nTerms of Use\nWe use cookies to improve your experience. Accept"
+  },
+  "expect": "ready",
+  "truth": {
+    "verdict": "ready",
+    "must": [
+      {
+        "topic": "pay",
+        "contains": "$0.60 por milla"
+      },
+      {
+        "topic": "sign_on",
+        "contains": "$2,000"
+      }
+    ],
+    "must_not": []
+  },
+  "recorded": {
+    "source": "model",
+    "prompt_version": "researcher@1",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-18T18:13:45.783Z",
+    "output": {
+      "items": [
+        {
+          "topic": "pay",
+          "sentence": "They pay $0.60 per mile for experienced drivers.",
+          "quote": "Pagamos $0.60 por milla para choferes con experiencia."
+        },
+        {
+          "topic": "home_time",
+          "sentence": "Drivers get home time every weekend.",
+          "quote": "Descanso en casa cada fin de semana."
+        },
+        {
+          "topic": "equipment",
+          "sentence": "They run 2023 Kenworth T680 trucks.",
+          "quote": "Camiones Kenworth T680 modelo 2023."
+        },
+        {
+          "topic": "sign_on",
+          "sentence": "They offer a $2,000 sign-on bonus.",
+          "quote": "Bono de contratación de $2,000."
+        },
+        {
+          "topic": "lanes",
+          "sentence": "The job is a regional Class A tractor-trailer driver position.",
+          "quote": "Chofer de Tráiler Clase A — Regional"
+        },
+        {
+          "topic": "requirements",
+          "sentence": "Drivers need a valid Class A CDL and one year of verifiable experience.",
+          "quote": "Requisitos: licencia CDL Clase A vigente y un año de experiencia comprobable."
+        }
+      ]
+    }
+  }
+}

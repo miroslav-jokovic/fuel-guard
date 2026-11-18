@@ -61,6 +61,7 @@ const idsOf = (n: number) => ({
   settings: `${n}30e0c1a-2d3e-4f50-8a6b-7c8d9e0f1a2b`,
   plan: `${n}40e0c1a-2d3e-4f50-8a6b-7c8d9e0f1a2b`,
   generation: `${n}50e0c1a-2d3e-4f50-8a6b-7c8d9e0f1a2b`,
+  swipe: `${n}60e0c1a-2d3e-4f50-8a6b-7c8d9e0f1a2b`,
 });
 const MINE = idsOf(1);
 const THEIRS = idsOf(2);
@@ -94,6 +95,9 @@ function carrier(org: string, ids: ReturnType<typeof idsOf>): Record<string, Fix
     ads_ad_spend_hourly: [{ org_id: org, campaign_id: ids.campaign, creative_id: ids.creative, language: "en", meta_ad_id: org === ORG ? "880000000001" : "880000000002", hour: T, spend_cents: org === ORG ? 2_468 : 9_753, impressions: 20, clicks: 2, leads: 2 }],
     // V2c's plan read: each carrier's campaign has a plan with its own audience line, so a read that lost its org filter would show it.
     ads_campaign_plans: [{ id: ids.plan, org_id: org, campaign_id: ids.campaign, version: 1, plan: { audience: org === ORG ? "Our own regional drivers" : "The other carrier's drivers", audience_evidence: ["job:subject"], angles: [] }, evidence: [], author_kind: "agent", generation_id: ids.generation, author_id: null, author_name: null, created_at: T }],
+    // V2r's swipe file: each carrier's entry carries its own note, so a list that lost its org filter would show it.
+    ads_swipe_entries: [{ id: ids.swipe, org_id: org, kind: "page", url: "https://127.0.0.1/jobs", asset: null, note: org === ORG ? "Our own saved page" : "The other carrier's saved page", state: "read", read_attempt: 1,
+      reading: [{ topic: "pay", sentence: "They pay up to $0.68 per mile.", quote: "Earn up to $0.68 per mile" }], dropped: [], last_error: null, read_at: T, created_at: T, created_by: "u-admin", created_by_name: "Admin", archived_at: null }],
     jobs: [{ id: randomUUID(), org_id: org, kind: "ads_reconcile", dedup_key: `ads_reconcile:${ids.conn}`, status: "done", started_at: org === ORG ? T : "2026-11-05T13:00:00.000Z" }],
   };
 }
@@ -131,7 +135,10 @@ function tableOf(name: string) {
     if (q.write?.method === "update") {
       const hit = postgrestFixture(rows)({ ...q, ops: q.ops.filter((o) => !["select", "single", "maybeSingle"].includes(o.method)) });
       for (const h of hit) Object.assign(rows.find((r) => r.id === h.id)!, q.write.payload as object);
-      return postgrestFixture(rows)({ ...q, ops: q.ops.filter((o) => o.method !== "update") });
+      // PostgREST answers the rows it UPDATED, matched before the change — not the table filtered again after it,
+      // which would lose a row whose update moved a filtered column (V2r's Read again moves `read_attempt`).
+      const updated = hit.map((h) => rows.find((r) => r.id === h.id)!);
+      return postgrestFixture(updated)({ ...q, ops: q.ops.filter((o) => ["select", "single", "maybeSingle"].includes(o.method)) });
     }
     return postgrestFixture(rows)(q);
   };
@@ -187,6 +194,14 @@ const SWEEP: Array<[string, string, unknown?]> = [
   // The sweep's campaign is paused, so both plan doors answer their refusal: reached, and nothing moved.
   ["POST /api/ads/campaigns/:campaignId/plan/versions", `campaigns/${MINE.campaign}/plan/versions`, { based_on_version: 1, plan: SWEEP_PLAN }],
   ["POST /api/ads/campaigns/:campaignId/plan/approval", `campaigns/${MINE.campaign}/plan/approval`, { plan_id: MINE.plan }],
+  // V2r: the swipe file. The saved page is an address the fetch refuses without a lookup (a loopback literal), so
+  // the queued read ends on the entry and no test reaches the network.
+  ["GET /api/ads/swipe", "swipe"],
+  ["POST /api/ads/swipe/pages", "swipe/pages", { url: "https://127.0.0.1/careers", note: "sweep" }],
+  ["POST /api/ads/swipe/pictures/upload-url", "swipe/pictures/upload-url", {}],
+  ["POST /api/ads/swipe/pictures", "swipe/pictures", { upload_id: randomUUID(), note: null }],
+  ["POST /api/ads/swipe/:entryId/read", `swipe/${MINE.swipe}/read`, {}],
+  ["POST /api/ads/swipe/:entryId/archive", `swipe/${MINE.swipe}/archive`, {}],
   ["POST /api/ads/campaigns", "campaigns", { id: randomUUID(), brief_source: "recruiting_opening", brief_ref: MINE.campaign, connection_id: MINE.conn, brand_kit_id: MINE.kit }],
   ["POST /api/ads/campaigns/:campaignId/launch", `campaigns/${MINE.campaign}/launch`, { daily_budget_cents: 5_000, lifetime_cap_cents: 50_000 }],
   // Launch before the archive move below: G-launch-gate's refusal is asserted on a paused campaign.
@@ -260,6 +275,13 @@ describe("Security L3 — the sweep reaches every ads route", () => {
     expect(spend.text).toContain(`"lifetime_spend_cents":1234`);
     expect(spend.text).toContain(`"last_run_at":"${T}"`);
     expect(spend.text).not.toContain("8765");
+    const swipe = answers.get("GET /api/ads/swipe")!;
+    expect(swipe.status).toBe(200);
+    expect(swipe.text).toContain("Our own saved page");
+    expect(swipe.text).not.toContain("The other carrier's saved page");
+    expect(answers.get("POST /api/ads/swipe/pages")!.status).toBe(201);
+    expect(answers.get("POST /api/ads/swipe/:entryId/read")!.status).toBe(202);
+    expect(answers.get("POST /api/ads/swipe/:entryId/archive")!.status).toBe(200);
   });
 
   it("Launch on a real connection answers the door's refusal through the app: its code, its sentence and every worker below L4", () => {

@@ -1,0 +1,29 @@
+{
+  "name": "planted-off-schema",
+  "about": "A planted answer with a topic that is not on the list: the schema must refuse it.",
+  "input": {
+    "url": "https://www.prairieline-transport.example/careers/otr-dry-van",
+    "page_text": "Home\nAbout Us\nCareers\nContact\nDriver Login\nOTR Class A Dry Van Driver\nPrairieline Transport is hiring experienced over-the-road drivers out of our Joliet, IL terminal.\nWhat we offer:\nEarn 62 to 70 cents per mile based on experience\nHome every 10 to 14 days\n2024 and newer Freightliner Cascadias, automatic transmissions\n$3,000 sign-on bonus paid out over 90 days\nMedical, dental and vision insurance after 60 days\nWhat we need:\nValid Class A CDL\nAt least 12 months of verifiable tractor-trailer experience\nApply online in 5 minutes.\n© 2026 All rights reserved.\nPrivacy Policy\nTerms of Use\nWe use cookies to improve your experience. Accept"
+  },
+  "expect": "off_schema",
+  "expect_findings": [],
+  "truth": {
+    "must": [],
+    "must_not": []
+  },
+  "recorded": {
+    "source": "planted",
+    "prompt_version": "researcher@1",
+    "model": "planted",
+    "recorded_at": "2026-11-18T15:00:00Z",
+    "output": {
+      "items": [
+        {
+          "topic": "salary",
+          "sentence": "They pay up to 70 cents per mile.",
+          "quote": "Earn 62 to 70 cents per mile based on experience"
+        }
+      ]
+    }
+  }
+}

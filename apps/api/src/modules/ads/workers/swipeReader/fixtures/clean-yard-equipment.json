@@ -1,0 +1,39 @@
+{
+  "name": "clean-yard-equipment",
+  "about": "A parked tractor at a fuel island at night with a direct call to apply. It names no pay and no life outside the cab, so it leads with a plain call (straight talk) — or, read by what is seen first, with the truck itself (equipment first): both are accepted.",
+  "input": {
+    "image": "finishedAdJudge/fixtures/images/clean-yard-equipment.jpg",
+    "note": null
+  },
+  "expect": "ready",
+  "truth": {
+    "hook_family": [
+      "straight_talk",
+      "equipment_first"
+    ],
+    "scene_family": [
+      "equipment_at_rest"
+    ],
+    "words": [
+      "Class A OTR drivers, apply.",
+      "Apply now",
+      "Equal Opportunity Employer"
+    ]
+  },
+  "recorded": {
+    "source": "model",
+    "prompt_version": "swipeReader@1",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-18T18:13:52.345Z",
+    "output": {
+      "hook_family": "straight_talk",
+      "scene_family": "equipment_at_rest",
+      "words": [
+        "Class A OTR drivers, apply.",
+        "Apply now",
+        "Equal Opportunity Employer"
+      ],
+      "summary": "A recruiting ad asking Class A over-the-road drivers to apply, shown over a white day-cab-less tractor parked at a wet fuel island at night."
+    }
+  }
+}

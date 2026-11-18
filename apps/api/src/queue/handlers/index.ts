@@ -11,6 +11,7 @@ import { adsReconcileHandler } from "./adsReconcile.js";
 import { adsDailyBriefHandler } from "./adsDailyBrief.js";
 import { adsOutcomeFeedHandler } from "./adsOutcomeFeed.js";
 import { adsRenderHandler } from "./adsRender.js";
+import { adsSwipeReadHandler } from "./adsSwipeRead.js";
 import { efsIngestHandler } from "./efsIngest.js";
 import { dataRetentionHandler } from "./retention.js";
 import { idleEngineHandler } from "./idleEngine.js";
@@ -118,4 +119,6 @@ export function registerAllHandlers(): void {
   // D2c: one carrier's sweep for leads nobody has contacted; dedup-keyed per org by its tick.
   registerHandler("lead_uncontacted", leadUncontactedHandler);
   registerHandler("ads_render", adsRenderHandler);
+  // V2r: one swipe-file entry read; dedup-keyed per entry and attempt.
+  registerHandler("ads_swipe_read", adsSwipeReadHandler);
 }

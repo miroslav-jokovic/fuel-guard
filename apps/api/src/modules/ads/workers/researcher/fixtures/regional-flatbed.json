@@ -1,0 +1,74 @@
+{
+  "name": "regional-flatbed",
+  "about": "A regional flatbed posting with a weekly pay range, weekends at home, a tarp-pay line and requirements.",
+  "input": {
+    "url": "https://jobs.ridgecrest-hauling.example/regional-flatbed",
+    "page_text": "Home\nAbout Us\nCareers\nContact\nDriver Login\nRegional Flatbed Driver — Midwest\nAverage weekly pay $1,450 – $1,800\nHome every weekend, out Monday through Friday\nTarp pay: $50 per load\nRun 2,200 to 2,600 miles per week\nRequirements: Class A CDL, 1 year flatbed experience, clean MVR\nRidgecrest Hauling has been family-owned since 1987.\n© 2026 All rights reserved.\nPrivacy Policy\nTerms of Use\nWe use cookies to improve your experience. Accept"
+  },
+  "expect": "ready",
+  "truth": {
+    "verdict": "ready",
+    "must": [
+      {
+        "topic": "pay",
+        "contains": "$1,450"
+      },
+      {
+        "topic": "home_time",
+        "contains": "Home every weekend"
+      },
+      {
+        "topic": "requirements",
+        "contains": "1 year flatbed experience"
+      }
+    ],
+    "must_not": [
+      "cookies"
+    ]
+  },
+  "recorded": {
+    "source": "model",
+    "prompt_version": "researcher@1",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-18T18:13:40.544Z",
+    "output": {
+      "items": [
+        {
+          "topic": "pay",
+          "sentence": "They state average weekly pay of $1,450 – $1,800.",
+          "quote": "Average weekly pay $1,450 – $1,800"
+        },
+        {
+          "topic": "home_time",
+          "sentence": "Drivers are home every weekend and out Monday through Friday.",
+          "quote": "Home every weekend, out Monday through Friday"
+        },
+        {
+          "topic": "pay",
+          "sentence": "They pay $50 per load in tarp pay.",
+          "quote": "Tarp pay: $50 per load"
+        },
+        {
+          "topic": "lanes",
+          "sentence": "The position is a regional flatbed route in the Midwest.",
+          "quote": "Regional Flatbed Driver — Midwest"
+        },
+        {
+          "topic": "other",
+          "sentence": "Drivers run 2,200 to 2,600 miles per week.",
+          "quote": "Run 2,200 to 2,600 miles per week"
+        },
+        {
+          "topic": "requirements",
+          "sentence": "They require a Class A CDL, 1 year of flatbed experience, and a clean MVR.",
+          "quote": "Requirements: Class A CDL, 1 year flatbed experience, clean MVR"
+        },
+        {
+          "topic": "other",
+          "sentence": "Ridgecrest Hauling has been family-owned since 1987.",
+          "quote": "Ridgecrest Hauling has been family-owned since 1987."
+        }
+      ]
+    }
+  }
+}

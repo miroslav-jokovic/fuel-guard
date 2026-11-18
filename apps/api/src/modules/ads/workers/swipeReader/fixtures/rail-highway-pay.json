@@ -1,0 +1,39 @@
+{
+  "name": "rail-highway-pay",
+  "about": "The same pay-first ad in the rail look, the headline set in capitals.",
+  "input": {
+    "image": "finishedAdJudge/fixtures/images/rail-highway-pay.jpg",
+    "note": "seen on Facebook"
+  },
+  "expect": "ready",
+  "truth": {
+    "hook_family": [
+      "pay_first"
+    ],
+    "scene_family": [
+      "equipment_on_road"
+    ],
+    "words": [
+      "$0.65 per mile, Class A OTR.",
+      "Apply today",
+      "Equal Opportunity Employer"
+    ]
+  },
+  "recorded": {
+    "source": "model",
+    "prompt_version": "swipeReader@1",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-18T18:13:56.940Z",
+    "output": {
+      "hook_family": "pay_first",
+      "scene_family": "equipment_on_road",
+      "words": [
+        "$0.65 PER MILE,",
+        "CLASS A OTR.",
+        "APPLY TODAY",
+        "Equal Opportunity Employer"
+      ],
+      "summary": "A Class A over-the-road driving job paying $0.65 per mile, with an invitation to apply today."
+    }
+  }
+}
