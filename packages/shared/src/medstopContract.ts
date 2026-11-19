@@ -219,6 +219,13 @@ export interface MedstopResultRow {
  */
 export interface InProgressRow {
   key: string;
+  /**
+   * The Med-Stop request an "Ordered, not collected" row is — what "Cancel order" and "Didn't go" close
+   * (MSO2's close, offered on Safety's list since 2026-11-19); null on a collected test's row, which has no
+   * order left to close. Until then an employee's order could only be closed in Med-Stop's own portal: the
+   * hiring step was the one place with the buttons, and an employee has no hiring step.
+   */
+  requestId: string | null;
   person: ProgramPerson;
   kind: "drug" | "alcohol" | "medical";
   reason: string | null;

@@ -1281,3 +1281,12 @@ SQL, counts only). Nothing was ordered.
   Checked against live lists, all matching what we send: CATEGORYSERVICE TA|TD|TM, STATUSDOTYN Y, REASONTEST (our six
   are among its nine), CATEGORYNOTIFY (our four = its four), CATEGORYPAYMENTTEST EMPLOYER, BOOLEAN Y|N. Date window:
   search today..+30, order today..+120 (ours: +30).
+- 2026-11-19 — **An employee's order closes from Safety's In progress (no migration).** The office's first order was
+  a test on a working driver, to be cancelled. MSO2's "Cancel order" and "Didn't go" existed only in the hiring
+  step, so an employee's order could not be closed in the product. The api's close (`prepareClose`) already
+  accepted the active roster. The gap was the screen. `InProgressRow.requestId` (the open order's Med-Stop
+  id, null on a collected test) puts both buttons on the row for `MEDSTOP_ORDER_ROLES`. The page opens the same
+  `CloseOrderDrawer` (label "Person", no appointment line). A placed order is mirrored at once
+  (`mirrorPlacedRequest`), so it is on the list to close straight away. "Order again" there opens the header's
+  drawer unseeded, because no seed fits an employee's re-order. Read-only check of the person in the office's test: on
+  Med-Stop's active roster, DOT FMCSA, CDL A, hired 2026-09-29, gender on file, one completed pre-employment test.

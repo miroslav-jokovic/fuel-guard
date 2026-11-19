@@ -21,7 +21,10 @@ import { useCloseOrder, useClosePreview } from "@/composables/useMedstopOrder";
  * person, ZIP and site, and the page opens the order drawer filled from them — a drawer never opens
  * another drawer.
  */
-const props = defineProps<{ open: boolean; request: { requestId: string; status: MedstopCloseStatus } | null }>();
+// `personLabel`: the hiring step closes an applicant's order; Safety's In progress closes anybody's (2026-11-19).
+const props = withDefaults(defineProps<{ open: boolean; request: { requestId: string; status: MedstopCloseStatus } | null; personLabel?: "Applicant" | "Person" }>(), {
+  personLabel: "Applicant",
+});
 const emit = defineEmits<{ close: []; closed: []; orderAgain: [reorder: NonNullable<MedstopClosed["reorder"]>] }>();
 
 const toast = useToastStore();
@@ -73,7 +76,7 @@ const facts = computed((): Fact[] => {
   const r = reviewed.value;
   if (!r) return [];
   return [
-    { label: "Applicant", value: r.person },
+    { label: props.personLabel, value: r.person },
     { label: "Order", value: [r.site, r.goBy ? `go by ${formatDisplayWallTime(r.goBy)}` : null].filter(Boolean).join(" · ") || r.requestId },
     { label: "Med-Stop records", value: r.status === "NO SHOW" ? "No show" : "Request canceled" },
     { label: "Comment sent", value: r.comment },
@@ -86,7 +89,7 @@ const facts = computed((): Fact[] => {
     <div class="space-y-5 text-sm">
       <template v-if="done">
         <AppCallout tone="success">
-          Med-Stop now has this order as {{ done.status === "NO SHOW" ? "a no-show" : "cancelled" }}. Its appointment is no longer offered for texting.
+          Med-Stop now has this order as {{ done.status === "NO SHOW" ? "a no-show" : "cancelled" }}.<template v-if="personLabel === 'Applicant'"> Its appointment is no longer offered for texting.</template>
         </AppCallout>
       </template>
       <template v-else>

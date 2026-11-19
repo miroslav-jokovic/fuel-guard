@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { canOrderDrugTests, type MedstopOrderReason, type RandomDraw } from "@silvicom/shared";
+import { canOrderDrugTests, type MedstopCloseStatus, type MedstopOrderReason, type RandomDraw } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, AppTabs, QueryState, useQueryState } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import CloseOrderDrawer from "@/components/medstop/CloseOrderDrawer.vue";
 import InProgressTab from "@/features/drugAlcohol/InProgressTab.vue";
 import MedicalTab from "@/features/drugAlcohol/MedicalTab.vue";
 import OrderTestDrawer, { type OrderSeed } from "@/components/medstop/OrderTestDrawer.vue";
@@ -48,6 +49,15 @@ function openOrder(selection?: RandomDraw): void {
 function openRecollection(r: { testId: string; medstopId: string; name: string; reason: MedstopOrderReason; collectedOn: string | null }): void {
   seed.value = { kind: "recollection", ...r };
   ordering.value = true;
+}
+
+// Closing an open order (Cancel / Didn't go) from In progress — the hiring step's drawer, for any person.
+const closing = ref<{ requestId: string; status: MedstopCloseStatus } | null>(null);
+// "Order again" opens the header's order drawer: its seeds are a random selection, an applicant or a
+// recollection, and a re-order of an employee's test is none of those — the office picks the person again.
+function orderAgain(): void {
+  closing.value = null;
+  openOrder();
 }
 
 /**
@@ -127,13 +137,14 @@ const stale = computed(() => {
         <AppTabs v-model="tab" :tabs="tabs" label="Drug and alcohol" />
 
         <RandomTab v-if="tab === 'random' && p.selections" @shown="shown = $event" :draws="p.selections.draws" :current-period="p.selections.currentPeriod" :dispatch="p.selections.dispatch" :pools="p.pools" :can-order="canOrder" @order="openOrder" />
-        <InProgressTab v-else-if="tab === 'progress'" @shown="shown = $event" :rows="p.inProgress" />
+        <InProgressTab v-else-if="tab === 'progress'" @shown="shown = $event" :rows="p.inProgress" :can-order="canOrder" @close-order="closing = $event" />
         <ResultsTab v-else-if="tab === 'results' && p.results" @shown="shown = $event" :all="p.results.all" :recent="p.results.recent" :history="p.results.history" :can-order="canOrder" @recollect="openRecollection" />
         <MedicalTab v-else-if="tab === 'medical'" @shown="shown = $event" :medical="p.medical" />
         <RosterTab v-else-if="tab === 'roster'" @shown="shown = $event" :not-in-pool="p.roster.notInPool" :left-but-in-pool="p.roster.leftButInPool" />
       </template>
     </QueryState>
 
-    <OrderTestDrawer :open="ordering" :seed="seed" @close="ordering = false" />
+    <OrderTestDrawer :open="ordering" :seed="seed" @close="ordering = false" @placed="program.refetch()" />
+    <CloseOrderDrawer :open="closing !== null" :request="closing" person-label="Person" @close="closing = null" @closed="program.refetch()" @order-again="orderAgain" />
   </div>
 </template>
