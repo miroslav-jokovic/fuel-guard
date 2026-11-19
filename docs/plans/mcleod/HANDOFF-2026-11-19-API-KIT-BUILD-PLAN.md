@@ -89,6 +89,27 @@ Also: **at ~50% context usage, write a handoff** like this one for the next fres
 - D-IP5 (manual fuel from McLeod) was superseded 2026-10-07 by D-IP7 (uploads win).
 - Free ID prefixes: D-MK / Q-MK / B-MK are this plan's. Avoid reused IDs D-DB4, D-TL1, Q-TL3, LR4.
 
+## Findings from the specs that the plan MUST carry (2026-11-19)
+- **Stop ids are not stable**: both stop writers delete and re-insert pending stops on every sync
+  (`mirrorLoads.ts:102-128`, `tmsLoadIngestWriters.ts:123-164`). Once N2 lets drivers see approved loads,
+  a queued stop action would 404. Spec A step **S0** keys stops by `mcleod_stop_id` first (3 merges) — S0
+  precedes N2 and MK3.
+- **Co-driver visibility**: `auth_dispatched_load_ids()` returns only loads whose current dispatch names
+  the caller (`0371:37-56`). Spec A lets both seats see the load when the current dispatch names either
+  seat — put this in the plan as a decision the owner verifies.
+- **D-MK1 corrected**: a mutable state column on an append-only table is impossible. Requests and
+  outcomes are two append-only tables (spec A). Spec C (transport) proposes six mcleod-owned tables
+  (requests, attempts log, agent health, …). **Reconcile A and C into one schema** before writing the plan.
+- **Visibility rule becomes one SQL function** read by RLS, `assert_driver_load` and the API;
+  `DRIVER_VISIBLE_STATUSES` is deleted (only reader `driverLoads.ts`). Closes a live hole: a driver can
+  act today on a McLeod load never dispatched to them.
+- **Tap → McLeod**: the client action id becomes the `load_events` row id. Only stop **Complete** sends
+  one `clearStop` (with the driver's real arrival tap and departure); Arrive and Skip send nothing.
+- Spec C: stop writes cannot start before N7 merges. The owner signs off only twice: the first switch to
+  live, and the canary order if McLeod gives no test company.
+- Specs are now in `docs/plans/mcleod/api-kit-specs/` (A, C done; B and D may be missing or partial — if
+  so, write them yourself).
+
 ## External blockers — the plan must close each with a defined action and per-outcome build
 - B-MK2 `/ws` on LoadMaster 22.1 vs 26.x; B-MK3 URL/TLS/AnywhereCompanyID; B-MK4 integration user +
   least role; B-MK5 a write-capable **test company**; B-MK8 Symphony licence; B-MK9 **Alex's written OK**
