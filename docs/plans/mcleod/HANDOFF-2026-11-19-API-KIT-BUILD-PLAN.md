@@ -107,6 +107,13 @@ Also: **at ~50% context usage, write a handoff** like this one for the next fres
   one `clearStop` (with the driver's real arrival tap and departure); Arrive and Skip send nothing.
 - Spec C: stop writes cannot start before N7 merges. The owner signs off only twice: the first switch to
   live, and the canary order if McLeod gives no test company.
+- Spec B: the agent never reads McLeod `reference_number` (grant exists since 09-28) — PU number needs
+  3 new agent statements + Alex's review before the VM runs them; the agent resends a load only on change,
+  so the wire field ships optional first (B4), required after (B5). **PU may mean "Previous Bill of Lading
+  Number" in the EDI code list** — check V1 on production + a dispatcher on 3 loads picks one of three
+  written outcomes before B5. Unmatched codes become a self-clearing derived exception
+  (`loads.external_unmatched`). Columns named `reference_numbers` (`references` is reserved).
+  `DispatchLoadsPage.vue` is at 496/500 lines — extract a cell first.
 - Specs are now in `docs/plans/mcleod/api-kit-specs/` (A, C done; B and D may be missing or partial — if
   so, write them yourself).
 
