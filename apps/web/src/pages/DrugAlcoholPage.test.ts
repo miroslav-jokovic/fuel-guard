@@ -3,7 +3,7 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { computed, ref } from "vue";
-import type { DrugAlcoholProgram } from "@silvicom/shared";
+import type { DrugAlcoholProgram, InProgressRow } from "@silvicom/shared";
 
 /**
  * Safety › Drug & Alcohol, mounted (MEDSTOP-PLAN.md §7A, MS-UX1). Pinned: five tabs with the count of
@@ -17,6 +17,9 @@ const state = vi.hoisted(() => ({ program: null as unknown, role: null as string
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ get role() { return state.role; } }) }));
 vi.mock("@/components/medstop/OrderTestDrawer.vue", () => ({
   default: { props: ["open", "seed"], template: `<div v-if="open" data-test="order-drawer">{{ seed ? (seed.kind === "recollection" ? "recollect:" + seed.testId + ":" + seed.medstopId + ":" + seed.reason : "seeded:" + seed.selectionId) : "unseeded" }}</div>` },
+}));
+vi.mock("@/components/medstop/CloseOrderDrawer.vue", () => ({
+  default: { props: ["open", "request", "personLabel"], template: `<div v-if="open" data-test="close-drawer">{{ request.requestId }}:{{ request.status }}:{{ personLabel }}</div>` },
 }));
 vi.mock("@/features/drugAlcohol/useDrugAlcoholProgram", () => ({
   useDrugAlcoholProgram: () => ({
@@ -68,7 +71,7 @@ const program = (over: Partial<DrugAlcoholProgram> = {}): DrugAlcoholProgram => 
     },
   },
   inProgress: [
-    { key: "test:t1", person: person("d5", "Pat Pending"), kind: "drug", reason: "PRE-EMPLOYMENT", stage: "At the lab", orderedOn: null, collectedOn: "2026-10-09", expectedOn: "2026-10-13", daysWaiting: 4 },
+    { key: "test:t1", requestId: null, person: person("d5", "Pat Pending"), kind: "drug", reason: "PRE-EMPLOYMENT", stage: "At the lab", orderedOn: null, collectedOn: "2026-10-09", expectedOn: "2026-10-13", daysWaiting: 4 },
   ],
   results: { all: [], recent: [], history: [] },
   medical: {
@@ -382,6 +385,21 @@ describe("DrugAlcoholPage", () => {
     state.role = "auditor";
     const viewer = await render(program({ results }), "/drug-alcohol?tab=results");
     expect(viewer.text()).not.toContain("Order a recollection");
+    state.role = null;
+  });
+
+  it("closes an employee's open order from In progress — Cancel or Didn't go — for the order roles only (2026-11-19)", async () => {
+    const open: InProgressRow = { key: "order:REQ-9", requestId: "REQ-9", person: person("d7", "Kim Employee"), kind: "drug", reason: "POST-ACCIDENT", stage: "Ordered, not collected", orderedOn: "2026-11-19", collectedOn: null, expectedOn: null, daysWaiting: 0 };
+    const inProgress = [open, ...program().inProgress];
+    state.role = "safety_manager";
+    const w = await render(program({ inProgress }), "/drug-alcohol?tab=progress");
+    // Only the open order has the buttons; the collected test's row has no order left to close.
+    expect(w.findAll("button").filter((b) => b.text() === "Cancel order")).toHaveLength(1);
+    await w.findAll("button").find((b) => b.text() === "Cancel order")!.trigger("click");
+    expect(w.find('[data-test="close-drawer"]').text()).toBe("REQ-9:CANCELED:Person");
+    state.role = "fleet_manager";
+    const viewer = await render(program({ inProgress }), "/drug-alcohol?tab=progress");
+    expect(viewer.text()).not.toContain("Cancel order");
     state.role = null;
   });
 });

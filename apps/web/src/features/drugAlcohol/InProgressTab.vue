@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { InProgressRow } from "@silvicom/shared";
-import { DataTable, type DataTableColumn, DataWorkspace, FilterBar, TablePagination, useQueryState } from "@silvicom/ui";
+import { MEDSTOP_CLOSE_LABEL, type InProgressRow, type MedstopCloseStatus } from "@silvicom/shared";
+import { AppButton as BaseButton, DataTable, type DataTableColumn, DataWorkspace, FilterBar, TablePagination, useQueryState } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import ListIntro from "@/features/drugAlcohol/ListIntro.vue";
 import PersonCell from "@/features/drugAlcohol/PersonCell.vue";
@@ -13,8 +13,9 @@ import { formatDate } from "@/lib/format";
  * result is not final, any reason, longest-waiting first. No result is shown here — a test with a
  * final result has left this list. A random order is in the data only for the DER (§382.305(l)).
  */
-const props = defineProps<{ rows: InProgressRow[] }>();
-const emit = defineEmits<{ shown: [count: number | null] }>();
+const props = defineProps<{ rows: InProgressRow[]; canOrder?: boolean }>();
+// An open order closes from here (2026-11-19) — through the page's close drawer, as the hiring step's does.
+const emit = defineEmits<{ shown: [count: number | null]; closeOrder: [request: { requestId: string; status: MedstopCloseStatus }] }>();
 
 const columns: DataTableColumn[] = [
   { key: "name", label: "Person", sortable: true, cellClass: "font-medium text-ink" },
@@ -81,6 +82,13 @@ const { search, page, sort, onSort, filtered, pageRows, activeCount, clearAll, p
         <template #cell-since="{ row }">{{ row.collectedOn ? `Collected ${formatDate(row.collectedOn)}` : row.orderedOn ? `Ordered ${formatDate(row.orderedOn)}` : "—" }}</template>
         <template #cell-expectedOn="{ row }">{{ row.expectedOn ? formatDate(row.expectedOn) : "—" }}</template>
         <template #cell-daysWaiting="{ row }">{{ row.daysWaiting === 0 ? "today" : `${row.daysWaiting} d` }}</template>
+        <template #cell-stage="{ row }">
+          {{ row.stage }}
+          <span v-if="canOrder && row.requestId" class="ml-2 inline-flex gap-1">
+            <BaseButton size="sm" variant="link" @click="emit('closeOrder', { requestId: row.requestId, status: 'NO SHOW' })">{{ MEDSTOP_CLOSE_LABEL["NO SHOW"] }}</BaseButton>
+            <BaseButton size="sm" variant="link" @click="emit('closeOrder', { requestId: row.requestId, status: 'CANCELED' })">{{ MEDSTOP_CLOSE_LABEL.CANCELED }}</BaseButton>
+          </span>
+        </template>
         <template #footer>
           <TablePagination :page="page" :page-size="pageSize" :total="filtered.length" @update:page="page = $event" />
         </template>

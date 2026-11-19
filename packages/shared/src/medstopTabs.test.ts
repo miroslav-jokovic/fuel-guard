@@ -23,6 +23,8 @@ describe("inProgressRows", () => {
       ["test:t2", "Collected", 1],
     ]);
     expect(rows[0]!.expectedOn).toBe("2026-10-10");
+    // Only the open order carries a request to close; a collected test has none left.
+    expect(rows.map((r) => r.requestId)).toEqual([null, "o1", null]);
   });
 
   it("leaves out what is done: a collected order (its test is the row), a final result, a closed test", () => {

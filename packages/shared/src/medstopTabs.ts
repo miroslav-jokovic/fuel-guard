@@ -64,6 +64,7 @@ export function inProgressRows(
     const orderedOn = o.requestedLocal?.slice(0, 10) ?? null;
     rows.push({
       key: `order:${o.medstopId}`,
+      requestId: o.medstopId,
       person: personOf(o.employeeMedstopId),
       kind: medstopTestKind(o.service),
       reason: o.reason,
@@ -81,6 +82,7 @@ export function inProgressRows(
     const collectedOn = t.collectedLocal?.slice(0, 10) ?? null;
     rows.push({
       key: `test:${t.medstopId}`,
+      requestId: null,
       person: personOf(t.employeeMedstopId),
       kind: medstopTestKind(t.service),
       reason: t.reason,
