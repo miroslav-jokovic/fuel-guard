@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { adBriefSchema, nextRefreshOption, refreshOptions, type AdPlatform, type CreativeState } from "@silvicom/shared";
+import { adBriefSchema, mayAct, nextRefreshOption, refreshOptions, type AdPlatform, type CreativeState } from "@silvicom/shared";
 import { completeAction, startAction } from "../actions/actionLedger.js";
 import { sendAdsAlert } from "../alerts/adsAlerts.js";
 import { listPresets } from "../creative/kitVersions.js";
@@ -174,6 +174,8 @@ async function versionKeys(admin: SupabaseClient, orgId: string, versionIds: str
  */
 async function turnOn(deps: RefreshDeps, c: CampaignRow, creative: Row): Promise<string | null> {
   const { admin } = deps;
+  // The agent's by the authority table (Q-AD68; Q-APX22 (a), 2026-11-19). Asked before anything is published.
+  if (!mayAct("turn_on_approved_replacement", "agent")) return `creative ${creative.id}: the ads policy does not let the agent turn on an approved replacement`;
   const now = () => deps.now().toISOString();
   const approval = await standingApproval(admin, c, creative.id);
   if (!approval) return `creative ${creative.id}: approved without a standing approval row`;

@@ -3,6 +3,7 @@ import { ADS_CREATIVE_REFRESH_DEFAULT, type AdsCreativeRefresh, type AdsSettings
 import { ADMIN_USER, campaign, CONN, createAdsWorld, LIVE_SETTINGS, ORG, type WorldCampaign } from "../../../testing/adsWorld.js";
 import { expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { testEnv } from "../../../testing/testEnv.js";
+import { withAuthority } from "../../../testing/withAuthority.js";
 import { resetGraphThrottles } from "../platforms/meta/graphClient.js";
 import { SIMULATOR_ACCOUNT_ID, simulatorFakeForTests, stopSimulatorForTests } from "../platforms/registry.js";
 import type { FakeMeta } from "../platforms/simulator/fakeMeta.js";
@@ -81,6 +82,13 @@ describe("retireTiredAds — one ad paused at the platform, the campaign kept ru
     const again = await run(w);
     expect(again.verdicts[0]!.acted).toBe("already");
     expect([posts(), w.actions.filter((a) => a.kind === "retire_ad").length, w.bell.length]).toEqual([after, 1, 1]);
+  });
+
+  it("the Monitor reads the authority table: with retiring not the agent's, nothing is called, written or rung", async () => {
+    const w = world();
+    const r = await withAuthority("retire_tired_ad", ["person"], () => run(w));
+    expect(r.verdicts[0]).toMatchObject({ meta_ad_id: AD_TIRED, verdict: { kind: "retire" }, acted: "not_permitted" });
+    expect([fake.sets.ads.get(AD_TIRED)!.status, w.actions.length, w.bell.length]).toEqual(["ACTIVE", 0, 0]);
   });
 
   it("with the switch off, the verdict is computed and reported and nothing is called, written or rung", async () => {

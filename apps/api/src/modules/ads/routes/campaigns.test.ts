@@ -10,6 +10,7 @@ import { loadEnv } from "../../../env.js";
 import { postgrestFixture, type FixtureRow } from "../../../testing/postgrestFixture.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { withAuthority } from "../../../testing/withAuthority.js";
 
 /**
  * `/api/ads/campaigns` (Track S, S1b) through the real app, the shipped gates and recruiting's real
@@ -146,6 +147,13 @@ describe("POST /api/ads/campaigns — a campaign from an opening", () => {
     expect(again.status).toBe(200);
     expect(await again.json()).toEqual({ id: NEW_ID });
     expect(created()).toHaveLength(1);
+  });
+
+  it("the door reads the authority table: with starting a campaign not a person's, it is refused 403 before anything is read or written", async () => {
+    const res = await withAuthority("start_campaign", ["never"], () => call("POST", "campaigns", ask()));
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("not_permitted");
+    expect(campaignWrites()).toEqual([]);
   });
 
   it("an id already used for another brief is refused, and nothing is written over it", async () => {

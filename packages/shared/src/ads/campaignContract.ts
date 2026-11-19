@@ -40,6 +40,8 @@ export type AdsCampaignCreate = z.infer<typeof adsCampaignCreateSchema>;
 export const ADS_CAMPAIGN_CREATE_REFUSALS = [
   "brief_source_unknown", "brief_unavailable", "settings_not_saved", "connection_unusable", "brand_kit_unusable",
   "id_taken",
+  // The authority table (`ADS_AUTHORITY.start_campaign`, V5) does not give this act to a person.
+  "not_permitted",
 ] as const;
 export type AdsCampaignCreateRefusal = (typeof ADS_CAMPAIGN_CREATE_REFUSALS)[number];
 
