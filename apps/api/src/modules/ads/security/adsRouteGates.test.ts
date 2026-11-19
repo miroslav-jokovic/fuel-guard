@@ -70,6 +70,8 @@ const LEDGER: Record<string, string> = {
   "POST /api/ads/campaigns/:campaignId/creatives/:creativeId/decision": MANAGE,
   "POST /api/ads/campaigns/:campaignId/creatives/:creativeId/words": MANAGE,
   "POST /api/ads/campaigns/:campaignId/launch": SPEND,
+  // V5 (Q-APX21): lowering is the safe direction (`ADS_AUTHORITY.lower_budget`: a person), so manage, as a pause is.
+  "POST /api/ads/campaigns/:campaignId/budget/lower": MANAGE,
   // V2c: reading a plan is a view; editing and approving one spend nothing (composing runs inside the AI budget).
   "GET /api/ads/campaigns/:campaignId/plan": VIEW,
   "POST /api/ads/campaigns/:campaignId/plan/versions": MANAGE,

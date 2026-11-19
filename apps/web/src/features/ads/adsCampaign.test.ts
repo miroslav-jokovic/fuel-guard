@@ -249,6 +249,29 @@ describe("AdsCampaignDrawer", () => {
     expect(api.calls).toEqual([{ path: `/api/ads/campaigns/${ID}/creatives/cr-new/decision`, body: { decision: "approve" } }]);
   });
 
+  it("a manager lowers a running campaign's daily budget: only below the one in force, with a reason (V5)", async () => {
+    state.campaign = { ...campaign("live"), daily_budget_cents: 5_000 };
+    const w = drawer();
+    const button = () => w.find("[data-test=lower]");
+    expect(w.find("[data-test=lower-form]").text()).toContain("Now $50 a day");
+    await w.find("[data-test=lower-amount]").setValue("50");
+    await w.find("[data-test=lower-reason]").setValue("Too many leads");
+    expect(button().attributes("disabled")).toBeDefined();
+    await w.find("[data-test=lower-amount]").setValue("30");
+    expect(button().attributes("disabled")).toBeUndefined();
+    await w.find("[data-test=lower-form]").trigger("submit");
+    await flushPromises();
+    expect(api.calls).toEqual([{ path: `/api/ads/campaigns/${ID}/budget/lower`, body: { daily_budget_cents: 3_000, reason: "Too many leads" } }]);
+  });
+
+  it("the lower form is shown only to a manager, on a running campaign with a budget", () => {
+    for (const [s, manages, budget, shown] of [["live", true, 5_000, true], ["paused", true, 5_000, false], ["live", false, 5_000, false], ["live", true, null, false]] as const) {
+      who.manages = manages;
+      state.campaign = { ...campaign(s), daily_budget_cents: budget };
+      expect(drawer().find("[data-test=lower-form]").exists(), `${s} ${manages} ${budget}`).toBe(shown);
+    }
+  });
+
   it("shows why a campaign stopped", () => {
     state.campaign = { ...campaign("failed"), last_error: "render: no still model chosen yet (V4)" };
     expect(drawer().find("[data-test=campaign-error]").text()).toContain("V4");

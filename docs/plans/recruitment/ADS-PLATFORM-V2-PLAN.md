@@ -492,7 +492,7 @@ a person sees every ad.
 
 | Level | What runs alone | When |
 |---|---|---|
-| A | Pause, lower a budget, retire a tired ad. | Ruled and built — **except lowering a budget, which is not built (found 2026-11-19, Q-APX21).** |
+| A | Pause, lower a budget, retire a tired ad. | Ruled and built. Lowering a budget was not built until 2026-11-19 (V5 part 2: a person lowers); **no rule yet lowers one on its own (Q-APX23).** |
 | B | Launch a campaign whose plan and ads a person approved, inside a monthly envelope an admin approved once. Turn on a person-approved replacement for a retired ad. | After the canary (L5). **Reverses Q-AD2 for this case only.** |
 | C | Publish an ad no person saw. | Locked in code by a certification record, like Launch. Opens only at ≥ 50 real ads decided by a person with the judge agreeing at κ ≥ 0.8, counsel's wording list complete (G12), and one ad in ten still shown to a person afterwards. |
 
@@ -968,6 +968,23 @@ run a real campaign, so nothing has turned on yet.
 - (b) Hold it until the canary, as Q-APX1's table reads: the replacement waits in "Needs you" for a person to turn it on.
   One more door and a screen; the campaign keeps the tired ad's slot empty meanwhile.
 
+### Q-APX23 · When should the agent lower a budget on its own? — OPEN, 2026-11-19
+
+**What was read.** Level A (Q-APX1) lets the agent lower a budget; `ADS_AUTHORITY.lower_budget` gives it to the agent
+and to a person. Since V5 part 2 a person can lower one end to end (`campaigns/lowerBudget.ts`). No rule anywhere
+says when the AGENT should: the Monitor's five rules (`monitorChecks.ts`: monthly cap, daily cap, spend with no lead,
+cost per lead over the cap, frequency) all PAUSE, and Meta's Automated Rules are synced as `PAUSE` only. A rule that
+lowered instead would need a threshold nobody has measured — no campaign has run, so there is no cost-per-lead or
+lead-volume curve of ours to set it from.
+
+- **(a) No agent rule until the canary's data exists; the step stays a person's — recommended.** Every breach the
+  Monitor watches still pauses (the stronger safe move). After the canary, the real cost-per-lead and lead volume
+  say whether a "too many leads for the office" or "cost rising but under the cap" rule is worth a lower, and at
+  what figure. Nothing waits on it.
+- (b) Add now: "cost per lead above X % of the cap for N hours → lower the daily budget by Y %", X/N/Y chosen from
+  benchmarks (Boostpoint's middle half, §2a.7). Automatic, but its three numbers would be guesses on our own fleet.
+- (c) Lower instead of pause on the daily-cap rule. Changes a rule the owner chose as a pause (`pause_at_daily_cap`).
+
 ### Q-APX20 · A motion ad's file has no size cap; the store takes 15 MB — RULED (a), 2026-11-19
 
 **What was measured (2026-11-19, while building Q-APX17).** The join asks the encoder for a quality (`-crf 18`), not a
@@ -1057,6 +1074,16 @@ The steps and their modes (`AD_STEPS`) name acts and never say who: a locked Aut
 gives none of its acts to the agent. Replacing a tired ad reads the existing switch (`creative_refresh.retire`)
 for its mode rather than a second copy. Progress: `ads-progress/2026-11-19-1500-W-V5-step-table.md`.
 
+**Built 2026-11-19 (V5 part 2, lowering a budget).** A person lowers a running campaign's daily budget
+(`POST /api/ads/campaigns/:id/budget/lower`, the section's manage grant, no fresh sign-in: the safe direction) with a
+reason, from the campaign drawer. "Lower" is held three times: the door against our row, the Meta adapter against
+what Meta holds at that moment (a budget already lowered in Ads Manager is never raised from our stale copy), and
+Meta's read-back. A `lower_budget` ledger row is started before Meta is asked; our row's amount follows by
+compare-and-set, so the daily reconcile does not read our own lower as someone else's. Meta's minimum daily budget is
+not pre-checked: its reference names four minimums by optimization type and says neither which a lead ad set takes
+nor their unit, so Meta's own refusal answers. "Raise a budget" stays an approver's with no door, as before. The
+agent may lower by the table but no rule does: Q-APX23. Progress: `ads-progress/2026-11-19-1630-W-V5-lower-budget.md`.
+
 ## 6. Open, in one place
 
 | Id | Question | Recommendation | Who |
@@ -1072,6 +1099,7 @@ for its mode rather than a second copy. Progress: `ads-progress/2026-11-19-1500-
 | Q-APX20 | A motion ad's file has no size cap; the store takes 15 MB | **ruled (a) 2026-11-19, §5a**: keep quality and the named refusal; decide on the sitting's real clips | — |
 | Q-APX21 | What V5's modes are, step by step; step 6 cannot exist on Meta | **ruled (a) 2026-11-19, §5a**: one enforced table of who acts, a mode only where two are real; lowering a budget built | — |
 | Q-APX22 | Approved replacements are turned on today (Q-AD68); Q-APX1 put that after the canary | **ruled (a) 2026-11-19, §5a**: keep it; Level B means launching a new campaign | — |
+| Q-APX23 | When the agent should lower a budget on its own (Level A allows it; no rule exists) | **(a)** none until the canary's data; lowering stays a person's step | owner |
 | — | Meta app (id `META_APP_ID` and secret), system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 **2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want

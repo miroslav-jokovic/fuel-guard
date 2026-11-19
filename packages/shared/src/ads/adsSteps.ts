@@ -59,7 +59,7 @@ export interface AdStep {
   modeIn: (settings: AdsSettings) => AdMode;
 }
 
-export const AD_STEP_KEYS = ["start_campaign", "approve_plan", "approve_ad", "launch", "replace_tired_ad"] as const;
+export const AD_STEP_KEYS = ["start_campaign", "approve_plan", "approve_ad", "launch", "replace_tired_ad", "lower_budget"] as const;
 export type AdStepKey = (typeof AD_STEP_KEYS)[number];
 
 const LEVEL_C = "Opens only after 50 real ads decided by a person with the judge agreeing (κ ≥ 0.8), counsel's wording list complete, and one ad in ten still shown to a person (Q-APX1, Level C).";
@@ -100,6 +100,13 @@ export const AD_STEPS: readonly AdStep[] = [
     ],
     // The switch that already chose this (`creative_refresh.retire`, CQ9): read, not restated.
     modeIn: (s) => (s.creative_refresh.retire ? "assisted" : "manual"),
+  },
+  {
+    // V5 part 2. The table lets the agent lower too (Level A), but no rule says WHEN it should — the Monitor pauses,
+    // it never lowers — so offering Autopilot here would describe code that does not exist. Plan Q-APX23.
+    key: "lower_budget", label: "Lower a running campaign's daily budget",
+    modes: [{ mode: "manual", said: "A person lowers it from the campaign, with a reason; it takes effect at the ad platform at once.", acts: ["lower_budget"] }],
+    modeIn: () => "manual",
   },
 ];
 
