@@ -507,6 +507,21 @@ cursor is by `received_at`); the Match cell shows "Check first" and the reasons,
 bells are unchanged (`newLeadBell` already stays silent for a current driver and a failed requirement). Progress:
 `ads-progress/2026-11-19-2100-S-V7b-standing.md`.
 
+**Built 2026-11-19 (V7c and V7d, which ad and the report — around Q-APX25 (a) and Q-APX26 (a), recommended, not yet
+ruled).** Recruiting gains a second interface beside `LeadOutcomes`, `LeadSources` (`everyLeadBetween`): every lead of
+every source in a window, its channel, its campaign, and Meta's `ad_id` read from the lead's `raw` (`raw->>ad_id`,
+digits only); the outcome feed and the brief still read ad leads only, through the same one reading. Ads maps the ad
+through the publisher's record (`adRefsOf`) to its creative, and the creative's preset version to its concept
+(`conceptPair`, the value plan angles are matched by). `GET /api/ads/report/leads?from=&to=` (recruitment view, as the
+Overview; both route ledgers) answers by source and by angle: leads, qualified, hired, spend, cost per qualified lead
+and per hire, for the leads that ARRIVED in the days and what they have reached so far, with the spend of the same days
+— carrier days in the ads module's zone, at most 366. A source with no spend says "No spend recorded"; the total's
+costs are withheld when any source with leads has no spend (Meta's money is never divided by Tenstreet's leads); a lead
+whose ad is not in the record is "Ad not known", an ad whose preset names no concept "No angle named"; two currencies
+in one range are refused rather than summed. Ads › Overview shows it as a card with its own date range. Not built:
+`LeadQuality`'s wrong-number share by line type, and the Analyst's brief reading this report. Progress:
+`ads-progress/2026-11-19-2200-W-V7cd-cost-report.md`.
+
 ### V8 · What makes it enterprise grade
 
 Already on main: sealed tokens opened in one place, admin-only spend behind a fresh sign-in, two approvers above a
@@ -1072,8 +1087,8 @@ to its creative and language, and the creative names its preset.
 are read from the application and the driver (`leadOutcomes.ts`). Spend is known for Meta only: Tenstreet, Indeed and
 a typed-in lead carry none.
 
-- **(a) Qualified = a recruiter's qualify, or any later stage reached (applied, hired); a source with no spend shows
-  its counts and "no spend recorded", never a cost of $0 — recommended.** A verdict of all-met is the person's own
+- **(a) Qualified = a recruiter's qualify, or any later step the office took with them (made an applicant, applied,
+  hired); a source with no spend shows its counts and "no spend recorded", never a cost of $0 — recommended.** A verdict of all-met is the person's own
   answer, not a qualification; counting it would let a form with easy questions look cheap.
 - (b) Qualified = every hard requirement met by the person's answer. Available on every lead at once; measures the
   form, not the person.

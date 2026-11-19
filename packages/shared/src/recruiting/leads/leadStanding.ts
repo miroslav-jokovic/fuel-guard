@@ -40,7 +40,8 @@ export interface LeadStanding {
   reasons: string[];
 }
 
-export type LeadStandingInput = Pick<LeadQueueRow, "summary" | "phone_line" | "drivers" | "also" | "do_not_contact" | "phone_e164" | "email_lower">;
+/** A queue row or a single lead (`LeadRecord`): their `also` lists differ in shape, and only whether one exists is read. */
+export type LeadStandingInput = Pick<LeadQueueRow, "summary" | "phone_line" | "drivers" | "do_not_contact" | "phone_e164" | "email_lower"> & { also: readonly unknown[] };
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 

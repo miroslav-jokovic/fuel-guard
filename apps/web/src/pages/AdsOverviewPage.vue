@@ -8,6 +8,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
 import AdsTabs from "@/features/ads/AdsTabs.vue";
+import AdsLeadCostCard from "@/features/ads/AdsLeadCostCard.vue";
 import { LEDGER_STATUS, NEEDS_TONE, ledgerWhat, needsYouLink } from "@/features/ads/adsOverviewWords";
 import { count, usd } from "@/features/ads/spendLines";
 import { useAdsOverview } from "@/features/ads/useAdsOverview";
@@ -121,6 +122,8 @@ const rows = computed(() => entries.value.map((e) => ({ ...e, what: ledgerWhat(e
             </li>
           </ul>
         </BaseCard>
+
+        <AdsLeadCostCard />
 
         <section class="space-y-2">
           <h2 class="text-sm font-semibold text-ink">What the ads did</h2>

@@ -62,7 +62,7 @@ import { drugAlcoholRouter } from "./modules/medstop/index.js";
 import { adsRouter, META_WEBHOOK_PATH, metaWebhookBootWarning, metaWebhookRouter } from "./modules/ads/index.js";
 import { roadsideInspectionsRouter } from "./modules/inspections/index.js";
 import { hazmatRouter, meHazmatRouter, publicHazmatRouter } from "./modules/hazmat/index.js";
-import { publicApplicationRouter, recordOrderedDrugTest, recruitingBriefSource, recruitmentRouter, releaseOrderedDrugTest } from "./modules/recruiting/index.js";
+import { publicApplicationRouter, recordOrderedDrugTest, recruitingBriefSource, recruitingLeadSources, recruitmentRouter, releaseOrderedDrugTest } from "./modules/recruiting/index.js";
 import { complianceRouter } from "./modules/evidence/index.js";
 import { driverAppSettingsRouter, meRouter } from "./modules/driver-app/index.js";
 import { alertRoutingRouter, chatRouters, myAlertsRouter, notificationsRouter, messagesRouter } from "./modules/messaging/index.js";
@@ -285,7 +285,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/livemap", liveMapRouter()); // the dispatcher's board (LM6) — gated dispatch:view
   app.use("/api/idle", idleRouter()); // the idle cost basis (Q9) — gated safety:view
   // ads module guard: settings, kill switch, spend approvals (ADS A5); campaigns made from recruiting's briefs (S1b, D-AD17).
-  app.use("/api/ads", adsRouter({ briefSourcesFor: (admin) => [recruitingBriefSource(admin)] }));
+  app.use("/api/ads", adsRouter({ briefSourcesFor: (admin) => [recruitingBriefSource(admin)], leadSourcesFor: recruitingLeadSources }));
   // Med-Stop program view (MEDSTOP MS1) — gated safety:view. A pre-employment order fills the hiring step's
   // appointment through recruiting's writer, and a closed one retires it (MSO1/MSO2) — handed in here because
   // medstop may not import recruiting.
