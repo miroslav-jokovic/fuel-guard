@@ -114,8 +114,19 @@ Also: **at ~50% context usage, write a handoff** like this one for the next fres
   written outcomes before B5. Unmatched codes become a self-clearing derived exception
   (`loads.external_unmatched`). Columns named `reference_numbers` (`references` is reserved).
   `DispatchLoadsPage.vue` is at 496/500 lines — extract a cell first.
-- Specs are now in `docs/plans/mcleod/api-kit-specs/` (A, C done; B and D may be missing or partial — if
-  so, write them yourself).
+- Spec D: documents attach to the ORDER (`loads.ref`), one PDF per stop and kind, uploaded when the driver
+  completes the stop; categories stored from `/ws` and picked once per kind by a person; dedupe by sha256
+  (adds `load_stop_photos.sha256`); "confirmed" = image seen on the order afterwards (McLeod may stage).
+  Revised-RC reading stays route (b); the API replaces it only after 14 days of exact agreement. BOL Q6 =
+  yes, Q9 closed. Office-write routes live in the `mcleod` module (avoids cycles). **SSN never sent**; if
+  McLeod requires it, driver create stays off and hiring stays as today. Termination written in 360 first,
+  then McLeod; a returning driver comes back through Hiring. Claim trigger defect: a phone edit claims a
+  McLeod row today — fix. Finance stays SQL: IT runs SILVICOM-GRANTS Parts 3/4/5 on `lme` + `drs_check`,
+  `gl_summary`; closed-month comparison; build F12b/C1 now. ETA write waits on DB7 (never recorded as run);
+  home time H1/H2/H3 from a 14-day read probe. Appendix C = the 12 MK0 checks. Spec D assumed the table
+  name `mcleod_write_requests` — the reconciled schema's name wins.
+- All four specs are in `docs/plans/mcleod/api-kit-specs/` (A driver loads, B data fixes, C transport,
+  D office/finance/docs). They overlap and sometimes disagree: the plan reconciles them, it does not paste them.
 
 ## External blockers — the plan must close each with a defined action and per-outcome build
 - B-MK2 `/ws` on LoadMaster 22.1 vs 26.x; B-MK3 URL/TLS/AnywhereCompanyID; B-MK4 integration user +
