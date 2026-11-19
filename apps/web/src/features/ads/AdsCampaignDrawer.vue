@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from "vue";
-import { isReplacement, type AdsCampaignMove, type AdsCopyChoice } from "@silvicom/shared";
+import { isReplacement, mayAct, type AdsCampaignMove, type AdsCopyChoice } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, QueryState } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -8,6 +8,7 @@ import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import AdsCampaignConcepts from "./AdsCampaignConcepts.vue";
 import AdsCampaignLaunch from "./AdsCampaignLaunch.vue";
+import AdsCampaignLowerBudget from "./AdsCampaignLowerBudget.vue";
 import AdsCampaignPlan from "./AdsCampaignPlan.vue";
 import AdsCreativeReview from "./AdsCreativeReview.vue";
 import { CAMPAIGN_STATE_LABEL, CAMPAIGN_STATE_TONE, canLaunchFrom, isWorking, personMoves } from "./adsCampaignFlow";
@@ -41,6 +42,11 @@ const moves = computed(() => (view.value && canManage.value ? personMoves(view.v
  */
 const launchRefused = ref(false);
 const showLaunch = computed(() => Boolean(view.value && session.admin && canLaunchFrom(view.value.state)));
+/**
+ * Lowering a running campaign's budget (V5): shown to whoever manages recruiting — the route's gate — on a live
+ * campaign with a budget on record, and only while the authority table gives the act to a person.
+ */
+const lowerFrom = computed(() => (view.value && canManage.value && mayAct("lower_budget", "person") && view.value.state === "live" ? view.value.daily_budget_cents : null));
 /**
  * Approving the plan is the drawer's primary action while the plan waits for review, so it sits in the footer with
  * the campaign's other actions and not at the end of a long plan. It names the version on screen — the same read
@@ -87,6 +93,7 @@ const reject = (creativeId: string, reason: string) => act(() => decide.mutateAs
         </div>
         <AppCallout v-if="view.last_error && !launchRefused" tone="danger" data-test="campaign-error">{{ view.last_error }}</AppCallout>
         <AdsCampaignLaunch v-if="showLaunch" :campaign-id="campaignId" @refused="(m) => (launchRefused = m !== null)" />
+        <AdsCampaignLowerBudget v-if="lowerFrom !== null" :campaign-id="campaignId" :daily-cents="lowerFrom" />
         <AdsCampaignPlan :campaign-id="campaignId" :state="view.state" :can-manage="canManage" @editing="(e) => (planEditing = e)" />
         <AdsCampaignConcepts :campaign-id="campaignId" :state="view.state" />
         <p v-if="view.creatives.length === 0 && view.state !== 'plan_review'" class="text-sm text-ink-muted" data-test="no-ads">No ads yet.</p>

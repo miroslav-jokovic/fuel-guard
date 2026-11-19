@@ -134,6 +134,7 @@ export async function runGolden(s: GoldenScenario, file = s.name): Promise<Golde
       },
       pauseAd: async () => { throw new Error("ads golden: no scenario retires an ad yet (CQ9b)"); },
       activateAd: async () => { throw new Error("ads golden: no scenario replaces a retired ad yet (Q-AD68)"); },
+      lowerDailyBudget: async () => { throw new Error("ads golden: no scenario lowers a budget yet (V5)"); },
     },
     spend: {
       launch: async (call) => {

@@ -1,5 +1,5 @@
 import type { Request, Response, Router } from "express";
-import { adsCampaignCreateSchema, adsCampaignLaunchSchema, adsCampaignMoveSchema, adsCopyChoiceSchema, adsCreativeDecisionSchema, isRecordId, type AdBriefSource, type AdsCampaignCreateRefusal, type AppSection } from "@silvicom/shared";
+import { adsCampaignCreateSchema, adsCampaignLaunchSchema, adsLowerBudgetSchema, type AdsLowerBudgetRefusal, adsCampaignMoveSchema, adsCopyChoiceSchema, adsCreativeDecisionSchema, isRecordId, type AdBriefSource, type AdsCampaignCreateRefusal, type AppSection } from "@silvicom/shared";
 import { requireAdminOnly, requireSection } from "../../../middleware/auth.js";
 import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
@@ -9,6 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createCampaign, launchCampaign, listCampaigns, personMove, readCampaign, type MoveOutcome } from "../campaigns/campaignDoors.js";
 import type { Actor } from "../settings/settingsVersions.js";
 import { decideOnCreative, type DecisionOutcome } from "../campaigns/creativeDecisions.js";
+import { lowerBudget } from "../campaigns/lowerBudget.js";
 import { chooseWords, type CopyChoiceOutcome } from "../campaigns/copyChoice.js";
 import { campaignConcepts } from "../monitor/conceptPerformance.js";
 
@@ -90,6 +91,15 @@ const refusalText: Record<AdsCampaignCreateRefusal, [number, string]> = {
   not_permitted: [403, "The ads policy does not let a person start a campaign."],
 };
 
+const LOWER_REFUSAL: Record<AdsLowerBudgetRefusal, [number, string]> = {
+  not_permitted: [403, "The ads policy does not let a person lower a budget."],
+  not_live: [409, "Only a running campaign's budget can be lowered. Reload to see its state."],
+  no_budget: [409, "This campaign has no daily budget on record."],
+  not_lower: [409, "The new daily budget must be lower than the one in force."],
+  no_platform: [409, "The ad account is not connected. Connect or test it in Ads › Settings."],
+  platform_refused: [502, "The ad platform did not lower the budget."],
+};
+
 export function mountCampaignRoutes(router: Router, deps: CampaignRouteDeps): void {
   const admin = (req: Request) => getSupabaseAdmin(getAppLocals(req).env);
 
@@ -161,6 +171,22 @@ export function mountCampaignRoutes(router: Router, deps: CampaignRouteDeps): vo
     if (out.kind === "refused") return void res.status(409).json(apiError(out.reason, out.detail ? `${CHOICE_REFUSAL[out.reason]} (${out.detail})` : CHOICE_REFUSAL[out.reason]));
     if (out.kind === "words_refused") return void res.status(422).json({ ...apiError("words_refused", "These words cannot become the ad. Change the lines marked below."), copy: out.copy, overlay: out.overlay });
     res.json({ replaced: out.replaced });
+  }));
+
+  // V5 (Q-APX21): lower a delivering campaign's daily budget — the safe direction, so the section's manage grant
+  // (`ADS_AUTHORITY.lower_budget`: a person), no `ads.spend` and no fresh sign-in, as a pause asks neither.
+  router.post("/campaigns/:campaignId/budget/lower", requireSection(deps.section, "manage"), asyncHandler(async (req, res) => {
+    const id = campaignId(req, res);
+    if (!id) return;
+    const parsed = adsLowerBudgetSchema.safeParse(req.body);
+    if (!parsed.success) return void res.status(400).json(apiError("bad_request", "Give the new daily budget in cents, and why it is lowered."));
+    const out = await lowerBudget({ admin: admin(req), env: getAppLocals(req).env }, req.auth!.orgId!, await deps.actorOf(req), id, parsed.data, new Date());
+    if (out.kind === "not_found") return void res.status(404).json(apiError("not_found", "Campaign not found"));
+    if (out.kind === "refused") {
+      const [status, said] = LOWER_REFUSAL[out.refusal];
+      return void res.status(status).json(apiError(out.refusal, out.detail ? `${said} (${out.detail})` : said));
+    }
+    res.json(out);
   }));
 
   router.post("/campaigns/:campaignId/launch", requireAdminOnly("ads.spend"), requireFreshAuth(), asyncHandler(async (req, res) => {

@@ -75,6 +75,14 @@ export function metaAdapter(deps: MetaAdapterDeps): PlatformAdapter {
     return { ok: true, status: String(r.data.status ?? ""), effective: String(r.data.effective_status ?? "") };
   }
 
+  /** The ad set's daily budget as Meta holds it now, in cents (Meta writes it as a string of the minor unit). */
+  async function budgetOf(adset: string): Promise<{ ok: true; cents: number } | { ok: false; outcome: PlatformOutcome }> {
+    const r = await graph.get<{ daily_budget?: unknown }>(adset, { fields: "daily_budget" });
+    if (!r.ok) return { ok: false, outcome: fail(r.error, "read_budget") };
+    const cents = Number(r.data.daily_budget);
+    return Number.isInteger(cents) && cents > 0 ? { ok: true, cents } : { ok: false, outcome: { ok: false, error_code: "budget_unreadable", response: { daily_budget: r.data.daily_budget ?? null } } };
+  }
+
   return {
     safe: {
       async readAccountHeadroomCents() {
@@ -122,6 +130,26 @@ export function metaAdapter(deps: MetaAdapterDeps): PlatformAdapter {
         const back = await statusOf(ad);
         if (!back.ok) return back.outcome;
         return back.status === "PAUSED" ? { ok: true, response: { ad, status: back.status, effective_status: back.effective } } : { ok: false, error_code: "pause_not_applied", response: back };
+      },
+
+      // V5 (Q-APX21): the ad set's daily budget LOWERED, and only lowered. What Meta holds NOW is read first and anything
+      // not below it is refused before any write — the safe direction is a fact at the platform, not a promise from the
+      // caller's copy, which a person editing in Ads Manager can have made stale. The new amount is read back.
+      // Meta's minimum daily budget is not checked here: its reference names four minimums by optimization type and
+      // says neither which one a lead ad set takes nor their unit (read 2026-11-19), so Meta's own refusal answers.
+      async lowerDailyBudget({ campaign, daily_budget_cents }) {
+        const ids = refs(campaign, false);
+        if (!isRefs(ids)) return ids;
+        const now = await budgetOf(ids.adset);
+        if (!now.ok) return now.outcome;
+        if (!(daily_budget_cents < now.cents)) return { ok: false, error_code: "not_lower", response: { current_cents: now.cents, asked_cents: daily_budget_cents } };
+        const failed = await steps([["adset_budget", ids.adset, { daily_budget: daily_budget_cents }]]);
+        if (failed) return failed;
+        const back = await budgetOf(ids.adset);
+        if (!back.ok) return back.outcome;
+        return back.cents === daily_budget_cents
+          ? { ok: true, response: { from_cents: now.cents, to_cents: back.cents } }
+          : { ok: false, error_code: "lower_not_applied", response: { from_cents: now.cents, asked_cents: daily_budget_cents, now_cents: back.cents } };
       },
 
       // Q-AD68: a retired ad's approved replacement turned ACTIVE, read back the same way. Only an ad this campaign's

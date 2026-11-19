@@ -100,6 +100,12 @@ export interface PlatformSafe {
    * do not hold is refused before any call, as `pauseAd` refuses one.
    */
   activateAd(call: { campaign: PlatformCampaignRef; ad: string; idempotency_key: string }): Promise<PlatformOutcome>;
+  /**
+   * LOWER the daily budget of a delivering campaign (V5, Q-APX21; `ADS_AUTHORITY.lower_budget`). The safe direction,
+   * so no guard and no approval, like `pause`: less can only be spent. The adapter refuses (`not_lower`) any amount
+   * not below what the platform holds at the moment of the call, so a caller's stale copy cannot turn it into a raise.
+   */
+  lowerDailyBudget(call: { campaign: PlatformCampaignRef; daily_budget_cents: number; idempotency_key: string }): Promise<PlatformOutcome>;
 }
 
 /** One connection's adapter, both halves. Built by B1's registry; the orchestrator never sees it whole. */

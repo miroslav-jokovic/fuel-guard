@@ -206,6 +206,8 @@ const SWEEP: Array<[string, string, unknown?]> = [
   ["POST /api/ads/swipe/:entryId/archive", `swipe/${MINE.swipe}/archive`, {}],
   ["POST /api/ads/campaigns", "campaigns", { id: randomUUID(), brief_source: "recruiting_opening", brief_ref: MINE.campaign, connection_id: MINE.conn, brand_kit_id: MINE.kit }],
   ["POST /api/ads/campaigns/:campaignId/launch", `campaigns/${MINE.campaign}/launch`, { daily_budget_cents: 5_000, lifetime_cap_cents: 50_000 }],
+  // The sweep's campaign is paused, so a lower answers `not_live`: reached, and nothing asked of Meta.
+  ["POST /api/ads/campaigns/:campaignId/budget/lower", `campaigns/${MINE.campaign}/budget/lower`, { daily_budget_cents: 1_000, reason: "sweep" }],
   // Launch before the archive move below: G-launch-gate's refusal is asserted on a paused campaign.
   ["POST /api/ads/campaigns/:campaignId/moves", `campaigns/${MINE.campaign}/moves`, { event: "archive", reason: "sweep" }],
   ["POST /api/ads/campaigns/:campaignId/creatives/:creativeId/decision", `campaigns/${MINE.campaign}/creatives/${MINE.creative}/decision`, { decision: "reject", reason: "sweep" }],

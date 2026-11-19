@@ -30,9 +30,9 @@ describe("the campaign machine answers to the authority table (V5, Q-APX21)", ()
 });
 
 describe("the steps and their modes", () => {
-  it("are the five Q-APX21 ruled, in order, and none of them moves budget between ads", () => {
+  it("are the steps Q-APX21 ruled, in order, and none of them moves budget between ads", () => {
     expect(AD_STEPS.map((s) => s.key)).toEqual([...AD_STEP_KEYS]);
-    expect(AD_STEP_KEYS).toEqual(["start_campaign", "approve_plan", "approve_ad", "launch", "replace_tired_ad"]);
+    expect(AD_STEP_KEYS).toEqual(["start_campaign", "approve_plan", "approve_ad", "launch", "replace_tired_ad", "lower_budget"]);
   });
 
   it("a locked mode is locked by the authority table, not by its words", () => {

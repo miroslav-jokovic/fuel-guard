@@ -319,3 +319,18 @@ export async function addCampaignAds(admin: SupabaseClient, c: Pick<CampaignRow,
   if (e2) throw new Error(`ads_campaigns ${c.id}: ${e2.message}`);
   return (data ?? []).length === 1 ? next : null;
 }
+
+/**
+ * A running campaign's daily budget, LOWERED (V5 part 2; `campaigns/lowerBudget.ts`, after Meta has lowered the ad
+ * set). This module writes `ads_campaigns`, so the amount moves here. Compare-and-set on the amount and state it was
+ * read at: if a pause or another lower moved the row meanwhile, nothing is written and the caller says so — Meta holds
+ * the lowered amount either way, and the daily reconcile reports the difference rather than this function choosing.
+ * Refuses (returns false) an amount that is not lower, so no caller can use it to raise.
+ */
+export async function lowerCampaignBudget(admin: SupabaseClient, c: Pick<CampaignRow, "org_id" | "id">, fromCents: number, toCents: number): Promise<boolean> {
+  if (!(toCents > 0 && toCents < fromCents)) return false;
+  const { data, error } = await admin.from("ads_campaigns").update({ daily_budget_cents: toCents })
+    .eq("org_id", c.org_id).eq("id", c.id).eq("state", "live").eq("daily_budget_cents", fromCents).select("id");
+  if (error) throw new Error(`ads_campaigns ${c.id}: ${error.message}`);
+  return (data ?? []).length === 1;
+}

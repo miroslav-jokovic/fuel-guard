@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type { Ref } from "vue";
-import { adsLaunchMissingSchema, type AdsCampaignCreate, type AdsCampaignLaunch, type AdsCampaignMove, type AdsCampaignPlanRead, type AdsCampaignSummary, type AdsPlanApproval, type AdsPlanEdit, type AdsCampaignView, type AdsCopyChoice, type AdsCreativeDecision, type AdsLaunchMissing, type CampaignConcepts } from "@silvicom/shared";
+import { adsLaunchMissingSchema, type AdsCampaignCreate, type AdsCampaignLaunch, type AdsCampaignMove, type AdsCampaignPlanRead, type AdsCampaignSummary, type AdsPlanApproval, type AdsPlanEdit, type AdsCampaignView, type AdsCopyChoice, type AdsCreativeDecision, type AdsLaunchMissing, type AdsLowerBudget, type CampaignConcepts } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { apiRefusal } from "@/composables/useStepUpRetry";
 import { isWorking } from "./adsCampaignFlow";
@@ -93,6 +93,10 @@ export const useApproveAndLaunch = () =>
     await post(`/api/ads/campaigns/${id}/approvals`, { kind: "launch", ...launch }, "Could not approve the spend");
     await post(`/api/ads/campaigns/${id}/launch`, launch, "Could not launch");
   });
+
+/** Lower a running campaign's daily budget (V5, Q-APX21): the section's manage grant, no fresh sign-in (the safe direction). */
+export const useLowerBudget = () =>
+  useCampaignWrite<{ id: string; lower: AdsLowerBudget }>(({ id, lower }) => post(`/api/ads/campaigns/${id}/budget/lower`, lower, "Could not lower the budget"));
 
 export const useCreativeDecision = () =>
   useCampaignWrite<{ id: string; creativeId: string; decision: AdsCreativeDecision }>(({ id, creativeId, decision }) =>

@@ -183,6 +183,23 @@ export const adsCampaignLaunchSchema = z.object({
 });
 export type AdsCampaignLaunch = z.infer<typeof adsCampaignLaunchSchema>;
 
+// ── V5 (Q-APX21): a person lowers a delivering campaign's daily budget ─────────────────────────────────
+/**
+ * Lower, only: the safe direction, so no approval and no fresh sign-in (`ADS_AUTHORITY.lower_budget`). The reason is
+ * required because a lowered budget changes what an approved launch said, and the ledger must say why.
+ */
+export const adsLowerBudgetSchema = z.object({
+  daily_budget_cents: z.number().int().positive(),
+  reason: z.string().trim().min(1).max(500),
+});
+export type AdsLowerBudget = z.infer<typeof adsLowerBudgetSchema>;
+
+/** Why a lower was refused before or at the platform. */
+export const ADS_LOWER_BUDGET_REFUSALS = [
+  "not_permitted", "not_live", "no_budget", "not_lower", "no_platform", "platform_refused",
+] as const;
+export type AdsLowerBudgetRefusal = (typeof ADS_LOWER_BUDGET_REFUSALS)[number];
+
 // ── S1d: a person's decision on one creative ────────────────────────────────────────────────────
 export const adsCreativeDecisionSchema = z.object({
   decision: z.enum(["approve", "reject"]),
