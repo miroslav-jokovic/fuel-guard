@@ -12,7 +12,9 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
+import { readKeptTollStatement, type ReadOutcome } from "../statementRead.js";
 import {
+  getTollStatement,
   isStatementRefusal,
   keepTollStatement,
   listTollStatements,
@@ -47,6 +49,26 @@ function parseId(req: Request, res: Response): string | null {
 }
 
 const sendRefusal = (res: Response, r: StatementRefusal) => res.status(r.status).json(apiError(r.code, r.message));
+
+/**
+ * Read a kept statement and audit the attempt either way: a refusal is as much a fact about the
+ * statement as a read (TL4b). Returns the outcome or the reason nothing was attempted.
+ */
+async function readAndAudit(req: Request, statementId: string): Promise<ReadOutcome | StatementRefusal> {
+  const admin = adminOf(req);
+  const orgId = req.auth!.orgId!;
+  const out = await readKeptTollStatement(admin, orgId, req.auth!.userId, statementId);
+  if (isStatementRefusal(out)) return out;
+  await writeAudit(admin, {
+    orgId,
+    actorId: req.auth!.userId,
+    action: "tolls.statement_read",
+    entity: "toll_statements",
+    entityId: statementId,
+    meta: { provider: out.provider, fileName: out.fileName, outcome: out.outcome, lines: out.lineCount, message: out.message },
+  });
+  return out;
+}
 
 export function tollStatementsRouter(): Router {
   const router = Router();
@@ -89,7 +111,15 @@ export function tollStatementsRouter(): Router {
         entityId: out.id,
         meta: { provider: out.provider, fileName: out.fileName, format: out.format, byteSize: out.byteSize, sha256: body.sha256 },
       });
-      res.status(201).json({ ok: true, statement: out });
+      // Read straight away, so a statement that does not add up is known the moment it arrives. The
+      // statement is kept either way; if reading itself fails unexpectedly, it stays "not read yet"
+      // and the Read button tries again — the upload is not undone by a reader fault.
+      try {
+        await readAndAudit(req, out.id);
+      } catch (e) {
+        console.error(`[tolls] statement ${out.id} kept but not read: ${(e as Error).message}`);
+      }
+      res.status(201).json({ ok: true, statement: (await getTollStatement(admin, orgId, out.id)) ?? out });
     }),
   );
 
@@ -102,6 +132,18 @@ export function tollStatementsRouter(): Router {
       const out = await tollStatementLink(adminOf(req), req.auth!.orgId!, id);
       if (isStatementRefusal(out)) return void sendRefusal(res, out);
       res.json({ ok: true, ...out });
+    }),
+  );
+
+  router.post(
+    "/:id/read",
+    canManage,
+    asyncHandler(async (req, res) => {
+      const id = parseId(req, res);
+      if (!id) return;
+      const out = await readAndAudit(req, id);
+      if (isStatementRefusal(out)) return void sendRefusal(res, out);
+      res.json({ ok: true, statement: await getTollStatement(adminOf(req), req.auth!.orgId!, id) });
     }),
   );
 

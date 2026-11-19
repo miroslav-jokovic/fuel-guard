@@ -93,6 +93,23 @@ export function useRemoveTollStatement() {
   });
 }
 
+/**
+ * Ask the API to read a kept statement (TL4b). The server opens the file it stored and records the
+ * outcome either way; a refusal comes back as the statement with `lastRead.outcome = "refused"` and the
+ * reader's sentence, not as an error, because it is a fact about the file rather than a failure here.
+ */
+export function useReadTollStatement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string): Promise<TollStatementDto> => {
+      const r = await apiFetch<{ statement: TollStatementDto }>(`/api/tolls/statements/${id}/read`, { method: "POST" });
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "The statement could not be read.");
+      return r.data.statement;
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
 /** A five-minute link to the file as uploaded, opened in a new tab. */
 export async function openTollStatement(id: string): Promise<void> {
   const r = await apiFetch<{ url: string }>(`/api/tolls/statements/${id}/link`);

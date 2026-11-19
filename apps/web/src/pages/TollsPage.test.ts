@@ -21,8 +21,30 @@ vi.mock("@vueuse/core", async (orig) => {
 const aStatement = (o: Partial<TollStatementDto>): TollStatementDto => ({
   id: "s1", provider: "ezpass", fileName: "EZ June wk1.pdf", format: "pdf", byteSize: 2048, uploadedAt: "2026-11-17T15:00:00Z",
   uploadedByName: "Bea Books", periodStart: null, periodEnd: null, printedTotal: null, readAt: null,
-  removedAt: null, removedByName: null, removeReason: null, ...o,
+  removedAt: null, removedByName: null, removeReason: null, lastRead: null, ...o,
 });
+/** A statement the server read and tied (TL4b), as the API returns it. */
+const aRead = (o: Partial<TollStatementDto> = {}): TollStatementDto =>
+  aStatement({
+    readAt: "2026-11-18T16:00:00Z", periodStart: "2026-06-27", periodEnd: "2026-07-26", printedTotal: 40144.28,
+    lastRead: {
+      outcome: "read", message: null, readAt: "2026-11-18T16:00:00Z", readByName: "Bea Books", accountEnding: "4126", lineCount: 2657,
+      tollLineCount: 2651, tollCents: 4014328,
+      ties: [
+        { label: "Ending Balance", printedCents: 175460, readCents: 175460 },
+        { label: "Tolls, Non-Tolls and Fees", printedCents: 4014428, readCents: 4014428 },
+      ],
+    },
+    ...o,
+  });
+const aRefused = (o: Partial<TollStatementDto> = {}): TollStatementDto =>
+  aStatement({
+    lastRead: {
+      outcome: "refused", message: "This E-ZPass statement does not add up as read, so nothing was taken from it. Ending Balance: printed $1.00, read $2.00.",
+      readAt: "2026-11-18T16:00:00Z", readByName: "Bea Books", accountEnding: null, lineCount: null, tollLineCount: null, tollCents: null, ties: [],
+    },
+    ...o,
+  });
 const LIST: TollStatementDto[] = [
   aStatement({ id: "s-new" }),
   aStatement({ id: "s-ktag", provider: "ktag", fileName: "ktag-june.xlsx", format: "xlsx", byteSize: 3 * 1024 * 1024, uploadedAt: "2026-11-16T15:00:00Z", uploadedByName: null }),
@@ -34,6 +56,8 @@ const state = vi.hoisted(() => ({
   list: [] as unknown[],
   manage: true,
   removed: [] as unknown[],
+  readIds: [] as string[],
+  readReturns: null as unknown,
   equipment: "manage" as "manage" | "view" | "none",
   tags: [] as unknown[],
 }));
@@ -50,6 +74,7 @@ vi.mock("@/features/tolls/useTollStatements", async (orig) => {
     }),
     useUploadTollStatement: () => ({ isPending: ref(false), mutateAsync: vi.fn() }),
     useRemoveTollStatement: () => ({ isPending: ref(false), mutateAsync: async (args: unknown) => void state.removed.push(args) }),
+    useReadTollStatement: () => ({ isPending: ref(false), mutateAsync: async (id: string) => (state.readIds.push(id), state.readReturns) }),
   };
 });
 vi.mock("@/stores/session", () => ({
@@ -147,7 +172,7 @@ describe("TollsPage", () => {
     await flushPromises();
     expect(router.currentRoute.value.query.statement).toBe("s-new");
     const drawer = document.body;
-    expect(drawer.querySelector('[data-test="statement-unread"]')?.textContent).toContain("once the E-ZPass reader is built");
+    expect(drawer.querySelector('[data-test="statement-unread"]')?.textContent).toContain("do not count until it is read and adds up to every total it prints");
     (drawer.querySelector('[data-test="statement-remove"]') as HTMLButtonElement).click();
     await flushPromises();
     const confirm = () => drawer.querySelector('[data-test="statement-remove-confirm"]') as HTMLButtonElement;
@@ -174,6 +199,47 @@ describe("TollsPage", () => {
     expect(document.body.querySelector('[data-test="statement-removed"]')?.textContent).toContain("another company's statement");
     expect(document.body.querySelector('[data-test="statement-remove"]')).toBeNull();
     w.unmount();
+  });
+
+  describe("reading a statement (TL4b)", () => {
+    it("shows a read statement's tolls, total and account ending in the list, and every tie in the drawer", async () => {
+      const w = (await mountPage("/tolls?statement=s1", [aRead({ id: "s1" })])).w;
+      const row = w.findAll("tbody tr")[0]!;
+      expect(row.text()).toContain("Read, adds up");
+      expect(row.find('[data-test="read-summary"]').text()).toBe("2,651 tolls · $40,143.28 · account …4126");
+      const ties = document.body.querySelector('[data-test="statement-ties"]')!.textContent!;
+      expect(ties).toContain("Ending Balance");
+      expect(ties).toContain("$40,144.28 printed · $40,144.28 read");
+      // A read statement is never read again in place (0633): no Read button.
+      expect(document.body.querySelector('[data-test="statement-read"]')).toBeNull();
+      expect(w.find('[data-test="statements-unread"]').exists()).toBe(false);
+      w.unmount();
+    });
+
+    it("names a refused statement apart from an unread one, with the reader's sentence and no tolls", async () => {
+      const w = (await mountPage("/tolls?statement=s1", [aRefused({ id: "s1" }), aStatement({ id: "s2", fileName: "other.pdf" })])).w;
+      expect(w.findAll("tbody tr")[0]!.text()).toContain("Could not be read");
+      expect(w.find('[data-test="statements-refused"]').text()).toContain("1 statement could not be read");
+      expect(w.find('[data-test="statements-unread"]').text()).toContain("1 statement is kept but not read yet");
+      expect(document.body.querySelector('[data-test="statement-refused"]')!.textContent).toContain("Ending Balance: printed $1.00, read $2.00");
+      expect(w.find('[data-test="read-summary"]').exists()).toBe(false);
+      w.unmount();
+    });
+
+    it("lets accounting's managers read an unread statement, and nobody else", async () => {
+      state.readIds = [];
+      state.readReturns = aRead({ id: "s1" });
+      let w = (await mountPage("/tolls?statement=s1", [aStatement({ id: "s1" })])).w;
+      (document.body.querySelector('[data-test="statement-read"]') as HTMLButtonElement).click();
+      await flushPromises();
+      expect(state.readIds).toEqual(["s1"]);
+      w.unmount();
+      state.manage = false;
+      w = (await mountPage("/tolls?statement=s1", [aStatement({ id: "s1" })])).w;
+      expect(document.body.querySelector('[data-test="statement-read"]')).toBeNull();
+      w.unmount();
+      state.manage = true;
+    });
   });
 
   describe("the Toll tags tab", () => {

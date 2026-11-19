@@ -13,6 +13,16 @@ import type { TollStatementRead } from "./tollStatementRead.js";
 export * from "./tollStatementRead.js";
 export { readDriveKsStatement, readExpressTollStatement, readEzpassNjStatement };
 
+/**
+ * Which reader read a statement, kept with every read (0633 `toll_statement_reads.reader`). Bump a
+ * provider's date when its layout rules change, so a figure can be traced to the rules that made it.
+ */
+export const TOLL_READER_VERSION: Record<TollProvider, string> = {
+  ezpass: "ezpass-nj@2026-11-18",
+  ktag: "driveks@2026-11-18",
+  expresstoll: "expresstoll@2026-11-18",
+};
+
 const READERS: Record<TollProvider, (words: readonly StatementWord[]) => TollStatementRead> = {
   ezpass: readEzpassNjStatement,
   ktag: readDriveKsStatement,

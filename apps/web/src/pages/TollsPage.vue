@@ -39,6 +39,8 @@ const canManageTags = computed(() => session.can("equipment"));
 
 const statementsQ = useTollStatementsQuery();
 const unread = computed(() => (statementsQ.data.value ?? []).filter((s) => statementStatus(s) === "unread").length);
+// A refused statement is named apart from an unread one: someone must act on it (TL4b).
+const refused = computed(() => (statementsQ.data.value ?? []).filter((s) => statementStatus(s) === "refused").length);
 const tagsQ = useTollTagsQuery(undefined, canSeeTags);
 const { data: vehicles } = useVehiclesQuery();
 const tagCount = computed(() => (tagsQ.data.value ?? []).filter((t) => !t.retiredAt).length);
@@ -80,9 +82,13 @@ const adding = ref<TollTagAction | null>(null);
 
     <AppTabs v-if="tabs.length > 1" :model-value="onTags ? 'tags' : 'statements'" :tabs="tabs" label="Tolls view" @update:model-value="setView" />
 
+    <AppCallout v-if="!onTags && refused > 0" tone="danger" data-test="statements-refused">
+      {{ refused }} {{ refused === 1 ? "statement" : "statements" }} could not be read, so {{ refused === 1 ? "its" : "their" }} tolls do not count.
+      Open {{ refused === 1 ? "it" : "each one" }} to see why.
+    </AppCallout>
     <AppCallout v-if="!onTags && unread > 0" tone="info" data-test="statements-unread">
-      {{ unread }} {{ unread === 1 ? "statement is" : "statements are" }} kept but not read yet. The tolls inside are not counted
-      until the reader for each provider is built; then every file here is read, with nothing to upload again.
+      {{ unread }} {{ unread === 1 ? "statement is" : "statements are" }} kept but not read yet. The tolls inside do not count until
+      {{ unread === 1 ? "it is" : "each is" }} read and adds up to every total it prints. Open a statement and press Read.
     </AppCallout>
 
     <ExplainerPanel summary="How a toll reaches a truck">

@@ -51,8 +51,30 @@ async function namesOf(admin: SupabaseClient, userIds: readonly string[]): Promi
   return out;
 }
 
-async function toDtos(admin: SupabaseClient, rows: readonly StatementRow[]): Promise<TollStatementDto[]> {
-  const names = await namesOf(admin, rows.flatMap((r) => [r.uploaded_by, r.removed_by]).filter((id): id is string => id != null));
+interface ReadRow {
+  statement_id: string; outcome: "read" | "refused"; message: string | null; account: string | null;
+  line_count: number | null; toll_line_count: number | null; toll_cents: number | string | null;
+  ties: { label: string; printedCents: number; readCents: number }[]; read_by: string; created_at: string;
+}
+
+/** The latest read attempt of each statement (0633), org-scoped, 50 ids a request. */
+async function latestReads(admin: SupabaseClient, orgId: string, ids: readonly string[]): Promise<Map<string, ReadRow>> {
+  const out = new Map<string, ReadRow>();
+  for (let i = 0; i < ids.length; i += 50) {
+    const { data, error } = await admin
+      .from("toll_statement_reads")
+      .select("statement_id, outcome, message, account, line_count, toll_line_count, toll_cents, ties, read_by, created_at")
+      .eq("org_id", orgId).in("statement_id", ids.slice(i, i + 50))
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(`[tolls] reads not read: ${error.message}`);
+    for (const r of (data ?? []) as ReadRow[]) if (!out.has(r.statement_id)) out.set(r.statement_id, r);
+  }
+  return out;
+}
+
+async function toDtos(admin: SupabaseClient, orgId: string, rows: readonly StatementRow[]): Promise<TollStatementDto[]> {
+  const reads = await latestReads(admin, orgId, rows.map((r) => r.id));
+  const names = await namesOf(admin, [...rows.flatMap((r) => [r.uploaded_by, r.removed_by]), ...[...reads.values()].map((r) => r.read_by)].filter((id): id is string => id != null));
   return rows.map((r) => ({
     id: r.id,
     provider: r.provider,
@@ -68,7 +90,24 @@ async function toDtos(admin: SupabaseClient, rows: readonly StatementRow[]): Pro
     removedAt: r.removed_at,
     removedByName: r.removed_by ? (names.get(r.removed_by) ?? null) : null,
     removeReason: r.remove_reason,
+    lastRead: readDto(reads.get(r.id), names),
   }));
+}
+
+function readDto(r: ReadRow | undefined, names: Map<string, string>): TollStatementDto["lastRead"] {
+  if (!r) return null;
+  return {
+    outcome: r.outcome,
+    message: r.message,
+    readAt: r.created_at,
+    readByName: names.get(r.read_by) ?? null,
+    // Never the whole number: the page only needs to tell two accounts apart.
+    accountEnding: r.account ? r.account.slice(-4) : null,
+    lineCount: r.line_count,
+    tollLineCount: r.toll_line_count,
+    tollCents: r.toll_cents == null ? null : Number(r.toll_cents),
+    ties: r.ties ?? [],
+  };
 }
 
 /** Every statement the org kept, newest first; removed ones too, so a correction stays visible. */
@@ -76,7 +115,16 @@ export async function listTollStatements(admin: SupabaseClient, orgId: string): 
   const rows = await fetchAllPaged<StatementRow>((from, to) =>
     admin.from("toll_statements").select(COLUMNS).eq("org_id", orgId).order("created_at", { ascending: false }).order("id").range(from, to),
   );
-  return toDtos(admin, rows);
+  return toDtos(admin, orgId, rows);
+}
+
+/** One statement as the list shows it, after a read changed it. Null when it is not this org's. */
+export async function getTollStatement(admin: SupabaseClient, orgId: string, id: string): Promise<TollStatementDto | null> {
+  const { data, error } = await admin.from("toll_statements").select(COLUMNS).eq("org_id", orgId).eq("id", id).maybeSingle();
+  if (error) throw new Error(`[tolls] statement not read: ${error.message}`);
+  if (!data) return null;
+  const [dto] = await toDtos(admin, orgId, [data as StatementRow]);
+  return dto ?? null;
 }
 
 /** Step one: a place to put the bytes. Nothing is kept until `keepTollStatement` checks them. */
@@ -129,7 +177,7 @@ export async function keepTollStatement(admin: SupabaseClient, orgId: string, us
   }
   const { data: kept, error: readErr } = await admin.from("toll_statements").select(COLUMNS).eq("org_id", orgId).eq("id", f.fileId).maybeSingle();
   if (readErr || !kept) throw new Error(`[tolls] statement kept but not read back: ${readErr?.message ?? "no row"}`);
-  const [dto] = await toDtos(admin, [kept as StatementRow]);
+  const [dto] = await toDtos(admin, orgId, [kept as StatementRow]);
   return dto!;
 }
 
