@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FORMAT_SIZE, MOTION_FORMAT, MOTION_FPS, type MotionTimeline } from "@silvicom/shared";
+import { AD_ASSET_MAX_BYTES, MOTION_FPS, MOTION_SCALE, MOTION_SIZE, type MotionTimeline } from "@silvicom/shared";
 import type { MotionWordLayer } from "../overlay/overlay.js";
 
 /**
@@ -21,15 +21,17 @@ import type { MotionWordLayer } from "../overlay/overlay.js";
  *   never the picture it started from; the dissolve is what makes "the last frame is the approved ad" true
  *   whatever the model did.
  * `WORDS_IN_MS`, `WORDS_RISE_PX` and `SETTLE_MS` are OURS, chosen by eye on the fixture clip; nothing published
- * is behind them.
+ * is behind them. `WORDS_RISE_PX` is on the still's 1080 frame, as every measure of the layout is, and rises
+ * `MOTION_SCALE` times as many of the motion frame's pixels, so the words travel the same share of the ad.
  *
  * ── THE FILE IS WHAT META'S PAGE ASKS FOR (feed video, Leads objective, read 2026-11-16) ──────────
  * "H.264 compression, square pixels, fixed frame rate, progressive scan and stereo AAC audio compression at
  * 128kbps+", "MP4", 4:5, and "Videos should not contain edit lists". So: libx264, yuv420p, SAR 1, a constant
  * `MOTION_FPS`, a stereo AAC track at 128 kbit/s, the index at the front, and no B-frames — with none, no frame
  * is shown out of the order it is stored in, so the file needs no edit list to say so (`motionJoin.test.ts`
- * reads the bytes for one). The size is our still's, 1080 × 1350; Meta's page recommends 1440 × 1800 and accepts
- * less, and the still's layers are painted at 1080.
+ * reads the bytes for one). The size is `MOTION_SIZE`, 1440 × 1800 (Q-APX17 (a), 2026-11-18): Meta's video guide asks
+ * a width of 1,200 at least and its Ads Guide recommends 1440 × 1800 for 4:5. The layers arrive at that size
+ * (`renderMotionLayers` paints the still's layout larger), so nothing here is stretched but the model's clip.
  *
  * ── THE SOUND IS SILENCE, ON PURPOSE (Q-APX15) ────────────────────────────────────────────────────
  * The model's own sound is never used: whatever audio the clip carries is dropped, and the track is silence.
@@ -65,7 +67,17 @@ export interface MotionJoinInput {
 }
 
 export type FfmpegRefusal = "ffmpeg_missing" | "ffmpeg_failed" | "ffmpeg_timeout";
-export type MotionJoinRefusal = FfmpegRefusal | "cues_do_not_match_layers" | "hold_shorter_than_settle";
+export type MotionJoinRefusal = FfmpegRefusal | "cues_do_not_match_layers" | "hold_shorter_than_settle" | "too_large";
+
+/**
+ * The largest file the join hands on: what `ad-assets` stores an object up to (`AD_ASSET_MAX_BYTES`, 0562), where
+ * the file goes next. Over it the join refuses BY NAME, so the motion ad stops with its size and the still is kept —
+ * before Q-APX17 such a file reached `storeAdClip` and threw. The encoder is asked for a quality (`-crf 18`), not a
+ * size, so the size follows the picture: measured 2026-11-19 at 1440 × 1800, a photo pushed in as the simulator
+ * does is 2.8–5.9 MB for 7–15 s, and a frame of fresh noise every frame — no model's clip, the ceiling — 135–175 MB.
+ * Whether to cap the bitrate instead is plan Q-APX20, for the sitting's real clips to answer.
+ */
+export const MOTION_FILE_MAX_BYTES = AD_ASSET_MAX_BYTES;
 export type MotionJoinOutcome =
   | { kind: "joined"; mp4: Buffer; width: number; height: number; fps: number; duration_ms: number }
   | { kind: "refused"; refusal: MotionJoinRefusal; detail: string };
@@ -77,7 +89,7 @@ const s = (ms: number) => (ms / 1000).toFixed(3);
  * running anything. Inputs, in order: the clip, the layer under the words, one per words layer, the still, silence.
  */
 export function motionFfmpegArgs(t: MotionTimeline, files: { clip: string; under: string; words: readonly string[]; still: string; silence: string; out: string }): string[] {
-  const { width, height } = FORMAT_SIZE[MOTION_FORMAT];
+  const { width, height } = MOTION_SIZE;
   const moving = t.clip_ms + SETTLE_MS, total = t.duration_ms;
   const image = (file: string, ms: number) => ["-loop", "1", "-framerate", String(MOTION_FPS), "-t", s(ms), "-i", file];
   const still = 2 + files.words.length, silence = still + 1;
@@ -90,7 +102,7 @@ export function motionFfmpegArgs(t: MotionTimeline, files: { clip: string; under
     const from = cue.from_ms / 1000, d = WORDS_IN_MS / 1000;
     if (cue.from_ms === 0) { graph.push(`[l${i}][${2 + i}:v]overlay=0:0:format=auto[l${i + 1}]`); return; }
     // Eased out: fast at first, settling into place. Before its cue the layer is not drawn at all.
-    const rise = `${WORDS_RISE_PX}*pow(1-min(1\\,max(0\\,(t-${from.toFixed(3)})/${d.toFixed(3)}))\\,3)`;
+    const rise = `${WORDS_RISE_PX * MOTION_SCALE}*pow(1-min(1\\,max(0\\,(t-${from.toFixed(3)})/${d.toFixed(3)}))\\,3)`;
     graph.push(`[${2 + i}:v]format=rgba,fade=t=in:st=${from.toFixed(3)}:d=${d.toFixed(3)}:alpha=1[w${i}]`);
     graph.push(`[l${i}][w${i}]overlay=x=0:y='${rise}':eval=frame:format=auto:enable='gte(t\\,${from.toFixed(3)})'[l${i + 1}]`);
   });
@@ -121,7 +133,7 @@ export function motionFfmpegArgs(t: MotionTimeline, files: { clip: string; under
  * that are judged are the frames that are shown.
  */
 export function motionPictureChain(t: MotionTimeline): string {
-  const { width, height } = FORMAT_SIZE[MOTION_FORMAT];
+  const { width, height } = MOTION_SIZE;
   return `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,fps=${MOTION_FPS},trim=duration=${s(t.clip_ms)},setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration=${s(SETTLE_MS + 1000)},trim=duration=${s(t.clip_ms + SETTLE_MS)},format=yuv444p`;
 }
 
@@ -153,7 +165,7 @@ export function runFfmpeg(bin: string, args: string[]): Promise<{ ok: true } | {
   });
 }
 
-export async function joinMotion(input: MotionJoinInput, opts: { ffmpeg?: string } = {}): Promise<MotionJoinOutcome> {
+export async function joinMotion(input: MotionJoinInput, opts: { ffmpeg?: string; maxBytes?: number } = {}): Promise<MotionJoinOutcome> {
   const { timeline: t } = input;
   // The timeline was computed from these layers; one made from other words would put a group on screen at another's time.
   const same = t.cues.length === input.words.length && t.cues.every((c, i) => c.labels.join() === input.words[i]!.labels.join());
@@ -175,8 +187,10 @@ export async function joinMotion(input: MotionJoinInput, opts: { ffmpeg?: string
       const ran = await runFfmpeg(bin, args);
       if (!ran.ok) return { kind: "refused", refusal: ran.refusal, detail: ran.detail };
     }
-    const { width, height } = FORMAT_SIZE[MOTION_FORMAT];
-    return { kind: "joined", mp4: await readFile(files.out), width, height, fps: MOTION_FPS, duration_ms: t.duration_ms };
+    const { width, height } = MOTION_SIZE;
+    const mp4 = await readFile(files.out), max = opts.maxBytes ?? MOTION_FILE_MAX_BYTES;
+    if (mp4.length > max) return { kind: "refused", refusal: "too_large", detail: `${(mp4.length / 1048576).toFixed(1)} MB, over the ${(max / 1048576).toFixed(1)} MB an ad file may be` };
+    return { kind: "joined", mp4, width, height, fps: MOTION_FPS, duration_ms: t.duration_ms };
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

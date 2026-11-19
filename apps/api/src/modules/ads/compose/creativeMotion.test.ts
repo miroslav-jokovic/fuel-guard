@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { AD_FORMATS, adMotionSchema, FORMAT_SIZE, MOTION_FORMAT, MOTION_FPS, type AdBrandKit, type AdBrief, type AdClipRef, type AdPresetRecipe } from "@silvicom/shared";
+import { AD_FORMATS, adMotionSchema, MOTION_FORMAT, MOTION_FPS, MOTION_SIZE, type AdBrandKit, type AdBrief, type AdClipRef, type AdPresetRecipe } from "@silvicom/shared";
 import type { RenderInput, RenderOutcome } from "../creative/higgsfield/render.js";
 import { HIGGSFIELD_VIDEO_CANDIDATES } from "../creative/higgsfield/videoModels.js";
 import { clipKey, prepareClip } from "../creative/motion/motionClip.js";
@@ -27,7 +27,8 @@ const onFile = it;
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const IDS = { orgId: ORG, campaignId: "camp-1", creativeId: "cr-1" };
 const MODEL = "alibaba/wan-3.0/image-to-video";
-const { width: W, height: H } = FORMAT_SIZE[MOTION_FORMAT];
+/** Every file a motion ad is joined into is the motion frame (Q-APX17), whatever the model's clip was. */
+const { width: W, height: H } = MOTION_SIZE;
 const BASE = { sha256: "b".repeat(64), format: "png" as const };
 const overlays = (plate: string | null) => Object.fromEntries(AD_FORMATS.map((f) => [f, { zone: null, text_color: "#FFFFFF", plate_color: plate }])) as AdBrandKit["overlays"];
 const KIT = { overlays: overlays("#07130E"), phone: "(555) 010-0142", logo: null, colors: [{ name: "primary", hex: "#0B3D2E" }, { name: "accent", hex: "#F2B01E" }, { name: "white", hex: "#FFFFFF" }] } as unknown as AdBrandKit;

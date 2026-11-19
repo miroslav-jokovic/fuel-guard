@@ -7,7 +7,7 @@ import type { RenderInput, RenderOutcome } from "../creative/higgsfield/render.j
 import { clipKey } from "../creative/motion/motionClip.js";
 import { checkMotionFrames, type MotionFrameFinding } from "../creative/motion/motionFrames.js";
 import { joinMotion } from "../creative/motion/motionJoin.js";
-import { frameStill, renderMotionLayers, type MotionLayersOutcome, type OverlayFinding, type OverlayLanguage } from "../creative/overlay/overlay.js";
+import { renderMotionLayers, type MotionLayersOutcome, type OverlayFinding, type OverlayLanguage } from "../creative/overlay/overlay.js";
 import type { AdCopy } from "../workers/copywriter/copywriter.js";
 import { drawnCopy } from "./creativePictures.js";
 
@@ -92,12 +92,13 @@ export async function makeMotion(deps: MotionDeps, input: MotionInput): Promise<
   if (!slots) return stop("motion: the preset names no words to draw");
 
   // 1. The words first: they cost nothing, and an ad whose words cannot be timed must not buy a clip.
+  // The picture as stored: the painter cuts it at the motion frame's size (`renderMotionLayers`, Q-APX17). A cut made
+  // here at any other size would be stretched to 1440 there — one place decides the cut.
   const picture = await deps.readAsset(ids.orgId, input.base);
-  const still = await frameStill(picture, MOTION_FORMAT, recipe.layout);
   const logo = kit.logo ? await deps.readAsset(ids.orgId, kit.logo) : null;
   const drawn: Array<{ language: OverlayLanguage; layers: Layers; timeline: MotionTimeline }> = [];
   for (const language of LANGUAGES) {
-    const layers = await renderMotionLayers({ format: MOTION_FORMAT, language, base: still, brief, kit, logo, layout: recipe.layout, look: recipe.look, ...drawnCopy(slots, input.copy[language]) });
+    const layers = await renderMotionLayers({ format: MOTION_FORMAT, language, base: picture, brief, kit, logo, layout: recipe.layout, look: recipe.look, ...drawnCopy(slots, input.copy[language]) });
     if (layers.kind !== "rendered") return stop(`motion render check (${MOTION_FORMAT}, ${language}): ${findingWords(layers.findings)}`);
     const timed = motionTimeline(layers.words);
     if (!timed.ok) return stop(`motion timeline (${language}): ${timed.findings.map((f) => (f.kind === "too_long" ? `too long, ${f.duration_ms / 1000} s of ${f.max_ms / 1000}` : f.kind)).join(", ")}`);

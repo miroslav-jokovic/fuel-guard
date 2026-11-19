@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AD_FORMATS, FEED_FORMATS, type AdFormat } from "./renderGeometry.js";
+import { AD_FORMATS, FEED_FORMATS, FORMAT_SIZE, type AdFormat, type Size } from "./renderGeometry.js";
 
 /**
  * When each line of a motion ad appears (ADS-PLATFORM-V2-PLAN V4, Q-APX13). Pure: no image, no clock, no ffmpeg.
@@ -33,6 +33,19 @@ export const MOTION_HOLD_MS = 2_000;
  * feed's first format moves, the video moves with it.
  */
 export const MOTION_FORMAT: AdFormat = FEED_FORMATS[0]!;
+
+/**
+ * How much larger than its still a motion ad is painted (Q-APX17 (a), ruled by the owner 2026-11-18). Meta's "FB
+ * Video Ads" guide asks "Minimum width: 1200 pixels" of an uploaded video; its Ads Guide recommends 1440 × 1800 for a
+ * 4:5 feed video (both read 2026-11-16/17). Our still is 1080 wide (`FORMAT_SIZE`, an image's page). Whether Meta
+ * REFUSES a 1080-wide video or only advises against it is on neither page, so the video is made at the recommended
+ * size rather than at whatever passes. 4/3 exactly, so every measure of the still's layout maps to the motion
+ * frame by ONE number and the motion ad stays the still's layout, painted larger (`overlay.ts` `paint`).
+ */
+export const MOTION_SCALE = 4 / 3;
+
+/** The motion ad's frame: the still's, scaled. 1440 × 1800 for 4:5; even sides, as H.264 in yuv420p needs. */
+export const MOTION_SIZE: Size = { width: FORMAT_SIZE[MOTION_FORMAT].width * MOTION_SCALE, height: FORMAT_SIZE[MOTION_FORMAT].height * MOTION_SCALE };
 
 /** Words that arrive together: the overlay rows drawn at one moment (`labels`) and how many characters they are. */
 export interface MotionGroup { labels: string[]; chars: number }
@@ -109,7 +122,7 @@ export type AdClipRef = z.infer<typeof adClipRefSchema>;
 /**
  * A creative's motion ad, as `ads_creatives.motion` holds it (migration 0625; V4h). One model's clip, joined once
  * per language with that language's words. The still is not here: it stays in `assets`, where it always was, and
- * is the last frame of every file below.
+ * every file below ends on it — the same layout painted at `MOTION_SIZE` (Q-APX17).
  */
 export const adMotionSchema = z.object({
   format: z.enum(AD_FORMATS),

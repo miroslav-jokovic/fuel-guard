@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { AD_FORMATS, FORMAT_SIZE, MOTION_FORMAT, MOTION_FPS, motionTimeline, type AdBrandKit, type AdClaim, type MotionTimeline } from "@silvicom/shared";
+import { AD_ASSET_MAX_BYTES, AD_FORMATS, FORMAT_SIZE, MOTION_FORMAT, MOTION_FPS, MOTION_SCALE, MOTION_SIZE, motionTimeline, type AdBrandKit, type AdClaim, type MotionTimeline } from "@silvicom/shared";
 import { renderMotionLayers, type OverlayInput } from "../overlay/overlay.js";
-import { joinMotion, motionFfmpegArgs, silenceFfmpegArgs, SETTLE_MS, WORDS_IN_MS, type MotionJoinInput } from "./motionJoin.js";
+import { joinMotion, MOTION_FILE_MAX_BYTES, motionFfmpegArgs, silenceFfmpegArgs, SETTLE_MS, WORDS_IN_MS, WORDS_RISE_PX, type MotionJoinInput } from "./motionJoin.js";
 
 /**
  * The join is tested against a real ffmpeg, because what it promises is a property of the file: its codec, its
@@ -23,7 +23,8 @@ const KIT: OverlayInput["kit"] = {
   phone: "(555) 010-0142",
   colors: [{ name: "primary", hex: "#0B3D2E" }, { name: "accent", hex: "#F2B01E" }, { name: "white", hex: "#FFFFFF" }],
 };
-const { width: W, height: H } = FORMAT_SIZE[MOTION_FORMAT];
+/** The file's frame (Q-APX17); the layout's boxes are on the still's frame and are scaled to it (`boxOf`). */
+const { width: W, height: H } = MOTION_SIZE;
 
 let dir: string;
 let made: { input: MotionJoinInput; timeline: MotionTimeline; blocks: Array<{ label: string; box: { x: number; y: number; width: number; height: number } }> };
@@ -70,7 +71,10 @@ function differs(a: Buffer, b: Buffer, box: { x: number; y: number; width: numbe
   }
   return sum / n;
 }
-const boxOf = (label: string) => made.blocks.find((b) => b.label === label)!.box;
+const boxOf = (label: string) => {
+  const b = made.blocks.find((x) => x.label === label)!.box;
+  return { x: b.x * MOTION_SCALE, y: b.y * MOTION_SCALE, width: b.width * MOTION_SCALE, height: b.height * MOTION_SCALE };
+};
 
 describe("motionFfmpegArgs — the join's graph, read without running it", () => {
   const files = { clip: "clip.mp4", under: "under.png", words: ["w0.png", "w1.png"], still: "still.png", silence: "silence.aac", out: "out.mp4" };
@@ -119,8 +123,17 @@ describe("motionFfmpegArgs — the join's graph, read without running it", () =>
     }
   });
 
-  it("the picture is covered to the still's frame at our frame rate, whatever the model returned", () => {
+  it("the picture is covered to the motion frame, 1440 × 1800, at our frame rate, whatever the model returned (Q-APX17)", () => {
+    expect([W, H]).toEqual([1440, 1800]);
     expect(graph).toContain(`scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,fps=${MOTION_FPS}`);
+    expect(graph).toContain(`[end]`);
+    expect(graph).toContain(`scale=${W}:${H},setsar=1,fps=${MOTION_FPS},format=yuv444p[end]`);
+    expect(graph).not.toContain(`${FORMAT_SIZE[MOTION_FORMAT].width}:`);
+  });
+
+  it("a later group rises the same share of the ad as on the still's frame: 24 of 1080 is 32 of 1440", () => {
+    expect(WORDS_RISE_PX * MOTION_SCALE).toBe(32);
+    expect(graph).toContain("y='32*pow(");
   });
 });
 
@@ -143,7 +156,7 @@ describe("joinMotion — the file", () => {
     expect(Number(format.duration) * 1000).toBeCloseTo(made.timeline.duration_ms, 0);
   }, 120_000);
 
-  onFile("the picture is H.264, the still's size, square pixels, progressive, 30 frames a second throughout", () => {
+  onFile("the picture is H.264, 1440 × 1800, square pixels, progressive, 30 frames a second throughout", () => {
     const v = probe(file, "stream=codec_name,width,height,pix_fmt,r_frame_rate,avg_frame_rate,sample_aspect_ratio,field_order,has_b_frames,nb_frames", "v:0").streams[0];
     expect(v).toMatchObject({ codec_name: "h264", width: W, height: H, pix_fmt: "yuv420p", r_frame_rate: `${MOTION_FPS}/1`, avg_frame_rate: `${MOTION_FPS}/1`, has_b_frames: 0 });
     expect(["1:1", undefined]).toContain(v.sample_aspect_ratio);
@@ -212,6 +225,15 @@ describe("joinMotion — the file", () => {
     const out = await joinMotion(made.input, { ffmpeg: "/nonexistent/ffmpeg" });
     expect(out).toMatchObject({ kind: "refused", refusal: "ffmpeg_missing" });
   });
+
+  it("an ad file may be as large as ad-assets stores an object, and no larger", () => {
+    expect(MOTION_FILE_MAX_BYTES).toBe(AD_ASSET_MAX_BYTES);
+  });
+
+  onFile("a file over the limit is refused by name with its size, never handed on to be stored", async () => {
+    const out = await joinMotion(made.input, { maxBytes: 1000 });
+    expect(out).toMatchObject({ kind: "refused", refusal: "too_large", detail: expect.stringMatching(/^\d+\.\d MB, over the 0\.0 MB an ad file may be$/) });
+  }, 120_000);
 
   onFile("a clip ffmpeg cannot read is ffmpeg_failed with ffmpeg's own words, not a throw", async () => {
     const out = await joinMotion({ ...made.input, clip: Buffer.from("not a video") });
