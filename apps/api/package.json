@@ -21,7 +21,8 @@
     "mcleod:import-unit-papers": "tsx src/scripts/importMcleodUnitPapers.ts",
     "seed:psp-qa": "tsx src/scripts/seedPspQaDrivers.ts",
     "serve:web-dist": "tsx src/scripts/serveWebDist.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "//typecheck": "The heap is raised because the API program needs it, not to hide an error: on 2026-11-19 `tsc` peaked at 4.47 GB resident on a Mac and CI's run of main at d8f0127 (#2555) died at Node's ~4 GB default with 'JavaScript heap out of memory' (exit 134) while 55658ab passed. 6 GB still fits GitHub's smallest Linux runner (7 GB). If this limit is hit again, the program has grown 50% since then and the honest fix is to split the type graph (project references), not to raise it again.",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=6144 tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
