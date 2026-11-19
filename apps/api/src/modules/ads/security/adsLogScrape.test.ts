@@ -145,13 +145,13 @@ async function echoedRenderKey(): Promise<void> {
   const hf = new FakeHiggsfield({ keyId: key.id, keySecret: key.secret, webhookSecret: `whsec_${Buffer.alloc(32, 7).toString("base64")}`, balanceCents: 1_000, prices: { [model]: 40 } });
   const base = await hf.start();
   try {
-    const settings = { ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_credits_monthly: 1_000, agents_enabled: { renderer: true } } };
+    const settings = { ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_usd_cents_monthly: 1_000, agents_enabled: { renderer: true } } };
     const rec = createSupabaseRecorder({ tables: {
       ads_settings_versions: [{ id: "v1", org_id: ORG, version: 1, settings, kill_switch: false, kill_reason: null, created_at: T0, created_by_name: "X" }],
       ad_generations: (q) => (q.write?.method === "insert" ? [{ id: "00000000-0000-4000-8000-0000000000e1", ...(q.write.payload as object) }] : []),
     } });
     hf.inject(/higgsfield-ai/, { kind: "echo_key" });
-    const out = await renderStep({ admin: rec.client, client: new HiggsfieldClient(key, { baseUrl: base }), now: () => new Date(T0), prices: { [model]: 40 } },
+    const out = await renderStep({ admin: rec.client, client: new HiggsfieldClient(key, { baseUrl: base }), now: () => new Date(T0) },
       { orgId: ORG, campaignId: null, creativeId: "cr-scrape", attempt: 1, model, params: { prompt: "a road at dawn" }, reference: null });
     if (out.kind !== "pending") throw new Error(`the echoed render should stay pending, got ${out.kind}`);
     renderEchoed = out.why.includes("[key]");

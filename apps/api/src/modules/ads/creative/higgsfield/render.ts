@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AD_FORMATS, AD_OVERLAY_LAYOUTS, canonicalJson, creditGate, pictureKeyPart, type AdAssetRef, type AdClipRef, type AdFormat, type AdOverlayLayout, type CreditGateRefusal } from "@silvicom/shared";
+import { AD_FORMATS, AD_OVERLAY_LAYOUTS, canonicalJson, pictureKeyPart, renderGate, ticksAsDollars, usdTicks, type AdAssetRef, type AdClipRef, type AdFormat, type AdOverlayLayout } from "@silvicom/shared";
 import { settingsInForce } from "../../settings/settingsVersions.js";
-import { completeGeneration, generationByKey, higgsfieldCreditsThisMonth, insertGeneration, type GenerationRow } from "../../generations/generationLedger.js";
+import { completeGeneration, generationByKey, higgsfieldTicksThisMonth, insertGeneration, type GenerationRow } from "../../generations/generationLedger.js";
 import { AD_ASSETS_BUCKET, assetKey, prepareAsset, readAdAsset } from "../brandAssets.js";
 import { clipKey, prepareClip } from "../motion/motionClip.js";
 import { frameStill } from "../overlay/overlay.js";
@@ -25,11 +25,18 @@ import { clipImageField } from "./videoModels.js";
  * read. No webhook receiver is built: the docs make it optional, and a poll that recovers everything needs
  * no second, public door.
  *
- * ── THE MONTH: SWITCH, PRICE, BUDGET, BEFORE THE ROW ───────────────────────────────────────────────
- * `creditGate` (shared, pure). A model with no price (`HIGGSFIELD_CREDIT_PRICES`, empty until V4 measures
- * one) is refused, not guessed. The price is written on the `started` row, so renders in flight count
- * against the month at once (`higgsfieldCreditsThisMonth`). An unset or spent budget is a
- * `budget_exhausted` row, written INSTEAD of the call, as the Claude rail does.
+ * ── THE MONTH: SWITCH, PRICE, BUDGET, BEFORE THE ROW (Q-APX16 (a), 2026-11-18) ─────────────────────
+ * `renderGate` (shared, pure), in US dollars. The price is ASKED, never kept in a table: Higgsfield's
+ * `POST /estimate/<model>` with the request's final parameters — the reference's URL included, so the photo
+ * goes up first (free: billing-and-retention.md charges generations only) — answers the amount its own page
+ * calls authoritative for the account. It is written on the `started` row (`price_ticks`, hundredths of a
+ * cent), so renders in flight count against the month at once (`higgsfieldTicksThisMonth`), and a price
+ * change on their side cannot make the budget lie. An unset or spent budget is a `budget_exhausted` row,
+ * written INSTEAD of the call, as the Claude rail does. The switch, and a month already past its budget at any
+ * price, are judged BEFORE the upload and the estimate, so a refused render asks Higgsfield nothing.
+ * An estimate Higgsfield refuses (or answers without an amount) is a row that fails at no cost
+ * (`estimate_*`), never a render made at a guessed price — and never NO row, which would leave compose
+ * waiting on a render nobody will start.
  *
  * ── THE OUTPUT IS COPIED AT ONCE; ITS URL NEVER LEAVES THIS FUNCTION ───────────────────────────────
  * Higgsfield keeps a file seven days. The moment a status reads `completed`, each image is downloaded,
@@ -62,16 +69,13 @@ import { clipImageField } from "./videoModels.js";
  *     `<org>/<sha256>.mp4`; the row's output is `{ clip }`, the frame and length the model really returned.
  *     A server without ffprobe leaves the render pending — the clip is paid for and is not thrown away.
  *   · THE MODEL'S OWN FIELD takes the URL (`clipImageField`), read from that model's page.
- * The month is counted in the unit the settings hold. Higgsfield's API speaks dollars only (plan Q-APX16), so
- * until that is ruled no video model has a price here and a clip on a real key is refused `price_unknown`.
+ * Its price is asked of `/estimate` exactly as a still's is, with the clip's own parameters (length included).
  */
 
 export interface RenderDeps {
   admin: SupabaseClient;
   client: HiggsfieldClient;
   now: () => Date;
-  /** Credits per model path; a model missing here cannot be rendered (see `prices.ts`). */
-  prices: Readonly<Record<string, number>>;
 }
 
 export interface RenderInput {
@@ -99,7 +103,8 @@ const referenceField = (input: Pick<RenderInput, "model" | "clip">) => (input.cl
 /** A clip always starts from a picture; a still may be drawn from text. */
 const referenceRefused = (input: RenderInput) => (input.clip ? !input.reference || !referenceField(input) : Boolean(input.reference) && !referenceField(input));
 
-type StartRefusal = Extract<CreditGateRefusal, "agent_off" | "price_unknown"> | "reference_unsupported";
+/** What stops a render before any row: the renderer switched off, or a model with no documented image field. */
+type StartRefusal = "agent_off" | "reference_unsupported";
 
 export type RenderOutcome =
   /** `clip` is set, and `assets` empty, when a moving picture was asked for. */
@@ -115,21 +120,29 @@ export const renderKey = (creativeId: string | null, attempt: number, model: str
 /**
  * Where a render stands, READ-ONLY (C5b2): what compose asks before queueing an `ads_render` job. A finished
  * row answers as a replay; a `started` row is `pending`; no row is `absent` — unless the render could never
- * start, which `renderStep` refuses WITHOUT writing a row (a model nobody priced, the renderer switched off).
- * Those two are answered here from the same `creditGate`, so a caller that only queues jobs and reads rows
+ * start, which `renderStep` refuses WITHOUT writing a row (the renderer switched off, a reference the model
+ * cannot take). Both are answered here by the same rules, so a caller that only queues jobs and reads rows
  * cannot wait forever for a row that will never be written. The budget is not judged here: the job's own
  * gate does that and records its answer as a row.
  */
-export async function renderStatus(admin: SupabaseClient, prices: Readonly<Record<string, number>>, input: RenderInput): Promise<RenderOutcome | { kind: "absent" }> {
+export async function renderStatus(admin: SupabaseClient, input: RenderInput): Promise<RenderOutcome | { kind: "absent" }> {
   const prior = await generationByKey(admin, input.orgId, renderKey(input.creativeId, input.attempt, input.model, input.picture));
   if (prior && prior.status !== "started") return replayed(prior);
   if (prior) return { kind: "pending", generationId: prior.id, retryAfterSeconds: null, why: "rendering" };
   const { settings } = await settingsInForce(admin, input.orgId);
-  const gate = creditGate(settings, "renderer", 0, prices[input.model] ?? null);
-  if (!gate.open && (gate.refusal === "agent_off" || gate.refusal === "price_unknown")) return { kind: "refused", refusal: gate.refusal };
+  if (switchedOff(settings)) return { kind: "refused", refusal: "agent_off" };
   if (referenceRefused(input)) return { kind: "refused", refusal: "reference_unsupported" };
   return { kind: "absent" };
 }
+
+/** The renderer's own switch (D-RA9), read by the gate it answers to. */
+const switchedOff = (settings: Parameters<typeof renderGate>[0]) => {
+  const g = renderGate(settings, "renderer", 0, 0);
+  return !g.open && g.refusal === "agent_off";
+};
+
+/** What the row records of the money: the estimate as Higgsfield wrote it, and in ticks; or why there is none. */
+type Asked = { params?: Record<string, unknown>; upload_refused?: string | null; estimate_refused?: string | null; price_ticks?: number | null; price_credits?: number | null };
 
 /** The params with the uploaded photo in the field this model reads it from. */
 function withReference(params: Record<string, unknown>, field: { field: string; shape: "list" | "single" }, url: string): Record<string, unknown> {
@@ -143,29 +156,43 @@ export async function renderStep(deps: RenderDeps, input: RenderInput): Promise<
   if (prior && prior.status !== "started") return replayed(prior);
 
   let generationId = prior?.id;
-  const asked = prior?.request as { params?: Record<string, unknown>; upload_refused?: string | null } | null | undefined;
-  let params = asked?.params ?? input.params;
-  let uploadRefused = asked?.upload_refused ?? null;
+  let asked: Asked = (prior?.request ?? {}) as Asked;
+  let params = asked.params ?? input.params;
   if (!generationId) {
-    const price = deps.prices[input.model] ?? null;
     const { settings } = await settingsInForce(admin, orgId);
     const now = deps.now();
-    const gate = creditGate(settings, "renderer", await higgsfieldCreditsThisMonth(admin, orgId, now), price);
-    if (!gate.open && (gate.refusal === "agent_off" || gate.refusal === "price_unknown")) return { kind: "refused", refusal: gate.refusal };
+    const used = await higgsfieldTicksThisMonth(admin, orgId, now);
+    // Before anything goes to Higgsfield: the switch, and a month already past its budget at any price.
+    let gate = renderGate(settings, "renderer", used, 0);
+    if (!gate.open && gate.refusal === "agent_off") return { kind: "refused", refusal: "agent_off" };
     const field = input.reference ? referenceField(input) : undefined;
     if (referenceRefused(input)) return { kind: "refused", refusal: "reference_unsupported" };
-    if (gate.open && input.reference && field) {
-      const photo = await readAdAsset(admin, orgId, input.reference);
-      const up = input.clip
-        ? await deps.client.upload(await frameStill(photo, input.clip.format, input.clip.layout), "image/png")
-        : await deps.client.upload(photo, `image/${input.reference.format}`);
-      if (!up.ok && up.kind === "temporary") return { kind: "pending", generationId: "", retryAfterSeconds: up.retryAfterSeconds, why: `upload: ${up.detail}` };
-      if (up.ok) params = withReference(input.params, field, up.value.public_url);
-      else uploadRefused = up.kind === "balance" ? "upload_balance" : `upload_${up.status}`;
+    let uploadRefused: string | null = null;
+    let estimateRefused: string | null = null;
+    let estimate: { usd: string; ticks: number } | null = null;
+    if (gate.open) {
+      if (input.reference && field) {
+        const photo = await readAdAsset(admin, orgId, input.reference);
+        const up = input.clip
+          ? await deps.client.upload(await frameStill(photo, input.clip.format, input.clip.layout), "image/png")
+          : await deps.client.upload(photo, `image/${input.reference.format}`);
+        if (!up.ok && up.kind === "temporary") return { kind: "pending", generationId: "", retryAfterSeconds: up.retryAfterSeconds, why: `upload: ${up.detail}` };
+        if (up.ok) params = withReference(input.params, field, up.value.public_url);
+        else uploadRefused = up.kind === "balance" ? "upload_balance" : `upload_${up.status}`;
+      }
+      if (!uploadRefused) {
+        const est = await deps.client.estimate(input.model, params);
+        if (!est.ok && est.kind === "temporary") return { kind: "pending", generationId: "", retryAfterSeconds: est.retryAfterSeconds, why: `estimate: ${est.detail}` };
+        const ticks = est.ok ? usdTicks(est.value.usd) : null;
+        if (est.ok && ticks !== null) estimate = { usd: est.value.usd, ticks };
+        else estimateRefused = est.ok ? "estimate_unreadable" : est.kind === "balance" ? "estimate_balance" : `estimate_${est.status}`;
+      }
+      if (estimate) gate = renderGate(settings, "renderer", used, estimate.ticks);
     }
-    // A refused upload is written on the row too, so a replay after a crash fails the same way rather than
-    // submitting the params without the photo.
-    const request = { model: input.model, params, reference: input.reference?.sha256 ?? null, ...(input.clip ? { clip: input.clip } : {}), upload_refused: uploadRefused, price_credits: price };
+    // A refused upload or estimate is written on the row too, so a replay after a crash fails the same way
+    // rather than submitting without the photo, or at no price.
+    asked = { params, upload_refused: uploadRefused, estimate_refused: estimateRefused, price_ticks: estimate?.ticks ?? null };
+    const request = { model: input.model, params, reference: input.reference?.sha256 ?? null, ...(input.clip ? { clip: input.clip } : {}), upload_refused: uploadRefused, estimate_refused: estimateRefused, price_usd: estimate?.usd ?? null, price_ticks: estimate?.ticks ?? null };
     const row = {
       org_id: orgId, campaign_id: input.campaignId, creative_id: input.creativeId, agent: "renderer", provider: "higgsfield" as const,
       model: input.model, prompt_version: null, input_hash: createHash("sha256").update(canonicalJson(request)).digest("hex"),
@@ -180,11 +207,11 @@ export async function renderStep(deps: RenderDeps, input: RenderInput): Promise<
     if (ins === "duplicate") return renderStep(deps, input);
     generationId = ins.id;
   }
-  const price = deps.prices[input.model] ?? 0;
+  const cost = costOf(asked);
   const finish = (status: "succeeded" | "failed", f: { errorCode?: string; requestId?: string | null; charged: boolean; assets?: AdAssetRef[]; clip?: AdClipRef }) =>
     completeGeneration(admin, orgId, generationId!, {
       status, output: f.clip ? { clip: f.clip } : f.assets ? { assets: f.assets } : null, provider_request_id: f.requestId ?? null,
-      cost_units: f.charged ? price : 0, cost_unit: "credits", error_code: f.errorCode ?? null, finished_at: deps.now().toISOString(),
+      cost_units: f.charged ? cost.charged : cost.free, cost_unit: cost.unit, error_code: f.errorCode ?? null, finished_at: deps.now().toISOString(),
       asset_sha256: f.clip?.sha256 ?? f.assets?.[0]?.sha256 ?? null,
       asset_path: f.clip ? clipKey(orgId, f.clip) : f.assets?.[0] ? assetKey(orgId, f.assets[0]) : null,
     });
@@ -195,7 +222,8 @@ export async function renderStep(deps: RenderDeps, input: RenderInput): Promise<
   const pending = (why: string, after: number | null = null): RenderOutcome => ({ kind: "pending", generationId: generationId!, retryAfterSeconds: after, why });
 
   // Refused, not lost: nothing was submitted or charged, and asking again would be refused again.
-  if (uploadRefused) return fail(uploadRefused, false);
+  if (asked.upload_refused) return fail(asked.upload_refused, false);
+  if (asked.estimate_refused) return fail(asked.estimate_refused, false);
   const sub = await deps.client.submit(input.model, params, generationId);
   if (!sub.ok) {
     if (sub.kind === "temporary") return pending(`submit: ${sub.detail}`, sub.retryAfterSeconds);
@@ -236,6 +264,18 @@ export async function renderStep(deps: RenderDeps, input: RenderInput): Promise<
   }
   await finish("succeeded", { requestId, charged: true, assets });
   return { kind: "stored", generationId, assets, replayed: false };
+}
+
+/**
+ * What a finished render cost, in the unit its row was priced in. A row priced by `/estimate` completes in
+ * dollars (`usd`, four places, 0634). A row written before Q-APX16 still in flight carries `price_credits`
+ * and completes in credits, as it was begun: the ledger records what a row said, and the dollar month does
+ * not count it, because a credit was never a dollar.
+ */
+function costOf(asked: Asked): { unit: "usd" | "credits"; charged: string | number; free: string | number } {
+  if (typeof asked.price_ticks === "number") return { unit: "usd", charged: ticksAsDollars(asked.price_ticks), free: ticksAsDollars(0) };
+  if (typeof asked.price_credits === "number") return { unit: "credits", charged: asked.price_credits, free: 0 };
+  return { unit: "usd", charged: ticksAsDollars(0), free: ticksAsDollars(0) };
 }
 
 function replayed(row: GenerationRow): RenderOutcome {

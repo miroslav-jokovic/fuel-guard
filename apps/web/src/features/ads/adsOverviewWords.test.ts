@@ -32,5 +32,8 @@ describe("the Automation tab's words", () => {
   it("units stay in the ledger's own unit", () => {
     expect(agentUnits({ cost_units: 12_000, cost_unit: "tokens" })).toBe("12,000 tokens");
     expect(agentUnits({ cost_units: 0, cost_unit: null })).toBe("—");
+    // Dollars (Q-APX16): to the cent, a fraction of a cent rounded up; $0.094 is shown as $0.10, never $0.09.
+    expect(agentUnits({ cost_units: 0.094, cost_unit: "usd" })).toBe("$0.10");
+    expect(agentUnits({ cost_units: 12.5, cost_unit: "usd" })).toBe("$12.50");
   });
 });

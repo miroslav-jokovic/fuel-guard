@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { FEED_FORMATS } from "@silvicom/shared";
-import { HIGGSFIELD_ASPECT_INPUT, HIGGSFIELD_CREDIT_PRICES, HIGGSFIELD_IMAGE_INPUT, HIGGSFIELD_STILL_MODEL, SIMULATED_STILL_MODEL, stillParams } from "./prices.js";
+import { HIGGSFIELD_ASPECT_INPUT, HIGGSFIELD_IMAGE_INPUT, HIGGSFIELD_STILL_MODEL, SIMULATED_STILL_MODEL, stillParams } from "./prices.js";
 
 /**
- * What a still's request says about the frame (AG4; Q-AD75), and the three tables a chosen model must be in.
+ * What a still's request says about the frame (AG4; Q-AD75), and the two tables a chosen model must be in (its price
+ * is `/estimate`'s since Q-APX16, so there is no third).
  * No real model is chosen (V4, Q-AD20), so the last case passes today by `null` — it is here for the PR that
  * sets one.
  */
@@ -25,9 +26,8 @@ describe("stillParams — the picture is asked for in the frame it is shown in",
     }
   });
 
-  it("the still model, once one is chosen, has its price, its image field and its frame field read from its page in the same change", () => {
+  it("the still model, once one is chosen, has its image field and its frame field read from its page in the same change", () => {
     if (HIGGSFIELD_STILL_MODEL === null) return;
-    expect(HIGGSFIELD_CREDIT_PRICES[HIGGSFIELD_STILL_MODEL]).toBeGreaterThan(0);
     expect(HIGGSFIELD_IMAGE_INPUT[HIGGSFIELD_STILL_MODEL]).toBeDefined();
     expect(HIGGSFIELD_ASPECT_INPUT[HIGGSFIELD_STILL_MODEL]).toBeDefined();
   });

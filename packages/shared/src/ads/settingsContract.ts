@@ -49,7 +49,19 @@ export const adsApprovalsSchema = z.object({
 export const adsBudgetsSchema = z.object({
   /** Null refuses every Claude call (`aiRail.ts`), unlike `withinBudget`'s null, which means unlimited. */
   anthropic_tokens_monthly: z.number().int().min(0).max(1_000_000_000).nullable(),
-  higgsfield_credits_monthly: z.number().int().min(0).max(10_000_000).nullable(),
+  /**
+   * RETIRED by Q-APX16 (a), 2026-11-18: Higgsfield's API has no credits (it bills dollars), so nothing reads this.
+   * Kept, and defaulted, for one release: the code this replaces requires the key, and the default writes it (as
+   * null) into every version saved now, so a version saved during the deploy window still parses on the old code.
+   * Removed one release after `higgsfield_usd_cents_monthly` reaches production, with no data change (a JSON key).
+   */
+  higgsfield_credits_monthly: z.number().int().min(0).max(10_000_000).nullable().default(null),
+  /**
+   * What pictures and video may cost a month, in US cents (Q-APX16 (a)): each render's price is asked from
+   * Higgsfield's `/estimate` before it is made (`renderGate`). Null refuses every render, like the token budget.
+   * Defaulted, so a version saved before it existed parses — as unset, because nobody chose a dollar amount then.
+   */
+  higgsfield_usd_cents_monthly: z.number().int().min(0).max(100_000_000).nullable().default(null),
   /** 0–5, the same bounds as `ads_creatives.regenerations` (0537). */
   max_regenerations: z.number().int().min(0).max(5),
   /**
@@ -169,7 +181,7 @@ export const ADS_SETTINGS_UNSET: AdsSettings = {
   },
   creative_refresh: { retire: false, min_days: 7, ctr_drop_pct: 25, min_impressions: 2000 },
   approvals: { second_approver_above_cents: null },
-  budgets: { anthropic_tokens_monthly: null, higgsfield_credits_monthly: null, max_regenerations: 1, candidates_per_creative: 3, pictures_per_creative: 3, agents_enabled: {} },
+  budgets: { anthropic_tokens_monthly: null, higgsfield_credits_monthly: null, higgsfield_usd_cents_monthly: null, max_regenerations: 1, candidates_per_creative: 3, pictures_per_creative: 3, agents_enabled: {} },
   alerts: { recipients: {}, uncontacted_lead_minutes: 15 },
 };
 

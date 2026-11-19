@@ -10,7 +10,7 @@ import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type Supab
 import { testEnv } from "../../../testing/testEnv.js";
 import { assetKey } from "../creative/brandAssets.js";
 import { renderStep } from "../creative/higgsfield/render.js";
-import { drawSimulatedClip, renderChoiceFor, renderClientFor, SIMULATED_CLIP_FPS, SIMULATED_PUSH_IN, SIMULATED_RENDER_PRICES, stopSimulatedRenderForTests } from "../creative/higgsfield/simulatedRender.js";
+import { drawSimulatedClip, renderChoiceFor, renderClientFor, SIMULATED_CLIP_FPS, SIMULATED_PUSH_IN, SIMULATED_RENDER_CENTS, stopSimulatedRenderForTests } from "../creative/higgsfield/simulatedRender.js";
 import { clipImageField, HIGGSFIELD_VIDEO_CANDIDATES, HIGGSFIELD_VIDEO_MODEL, motionClipParams, SIMULATED_VIDEO_MODEL } from "../creative/higgsfield/videoModels.js";
 import { clipKey, prepareClip, readAdClip, storeAdClip } from "../creative/motion/motionClip.js";
 import { frameStill } from "../creative/overlay/overlay.js";
@@ -28,7 +28,7 @@ const onFile = HAS_FFMPEG ? it : it.skip;
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const STAGING = { DEPLOY_ENVIRONMENT: "staging" }, PRODUCTION = { DEPLOY_ENVIRONMENT: "production" };
 const { width: W, height: H } = FORMAT_SIZE[MOTION_FORMAT];
-const settings: AdsSettings = { ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_credits_monthly: 10, agents_enabled: { renderer: true } } };
+const settings: AdsSettings = { ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_usd_cents_monthly: 10, agents_enabled: { renderer: true } } };
 const KIT = { overlays: Object.fromEntries(AD_FORMATS.map((f) => [f, { zone: null, text_color: "#FFFFFF", plate_color: "#07130E" }])), phone: "(555) 010-0142", logo: null, colors: [{ name: "primary", hex: "#0B3D2E" }, { name: "accent", hex: "#F2B01E" }, { name: "white", hex: "#FFFFFF" }] } as unknown as AdBrandKit;
 const BRIEF = { claims: [{ kind: "money", cents: 68, per: "mile" }, { kind: "term", term: "home weekly" }] } as unknown as AdBrief;
 const RECIPE = { layout: "bottom_plate", look: "photo", overlay_slots: { headline: "hook", cta: "cta", subline: "support" } } as unknown as AdPresetRecipe;
@@ -59,7 +59,7 @@ function generations(q: RecordedQuery) {
     return row ? [row] : [];
   }
   if ("idempotency_key" in f) return ledger.filter((r) => r.org_id === f.org_id && r.idempotency_key === f.idempotency_key);
-  return ledger.filter((r) => r.org_id === f.org_id && r.provider === f.provider).map((r) => ({ ...r, price: (r.request as { price_credits?: number }).price_credits?.toString() ?? null }));
+  return ledger.filter((r) => r.org_id === f.org_id && r.provider === f.provider).map((r) => ({ ...r, price: (r.request as { price_ticks?: number | null }).price_ticks?.toString() ?? null }));
 }
 
 beforeAll(async () => {
@@ -103,8 +103,8 @@ describe("the simulator's video model — which, where, and how it is asked", ()
 
   it("its job is refused in production whatever queued it, needs no key on staging, and is priced like the simulated still", async () => {
     expect(await renderClientFor(db.client, testEnv(), ORG, SIMULATED_VIDEO_MODEL, PRODUCTION)).toMatchObject({ ok: false, reason: expect.stringMatching(/^simulator_not_allowed/) });
-    expect(await renderClientFor(db.client, testEnv(), ORG, SIMULATED_VIDEO_MODEL, STAGING)).toMatchObject({ ok: true, prices: SIMULATED_RENDER_PRICES });
-    expect(SIMULATED_RENDER_PRICES[SIMULATED_VIDEO_MODEL]).toBe(1);
+    expect(await renderClientFor(db.client, testEnv(), ORG, SIMULATED_VIDEO_MODEL, STAGING)).toMatchObject({ ok: true });
+    expect(SIMULATED_RENDER_CENTS[SIMULATED_VIDEO_MODEL]).toBe(1);
   });
 
   it("it is asked as a real model is — a first frame, whole seconds, no sound — and is not one of the sitting's candidates", () => {
@@ -144,10 +144,10 @@ describe("drawSimulatedClip — the frame it was sent, pushed in slowly", () => 
 });
 
 describe("a motion ad with no Higgsfield key: the real render step and the real join over the simulator", () => {
-  onFile("one step stores the clip under the simulator's name at one credit; makeMotion makes a video per language from it, and a second run buys nothing", async () => {
+  onFile("one step stores the clip under the simulator's name at one cent; makeMotion makes a video per language from it, and a second run buys nothing", async () => {
     const sim = await renderClientFor(db.client, testEnv(), ORG, SIMULATED_VIDEO_MODEL, STAGING);
     if (!sim.ok) throw new Error(sim.reason);
-    const render = (input: Parameters<typeof renderStep>[1]) => renderStep({ admin: db.client, client: sim.client, now: () => new Date("2026-11-17T18:00:00Z"), prices: sim.prices }, input);
+    const render = (input: Parameters<typeof renderStep>[1]) => renderStep({ admin: db.client, client: sim.client, now: () => new Date("2026-11-17T18:00:00Z") }, input);
     const run = () => makeMotion({
       videoModel: SIMULATED_VIDEO_MODEL, render,
       readAsset: async (org, ref) => objects.get(assetKey(org, ref))!,
@@ -159,7 +159,7 @@ describe("a motion ad with no Higgsfield key: the real render step and the real 
     expect(adMotionSchema.safeParse(out.motion).success).toBe(true);
     expect(out.motion).toMatchObject({ model: SIMULATED_VIDEO_MODEL, clip: { width: W, height: H, duration_ms: 5000, has_audio: false }, frames_checked: 11 });
     expect(ledger).toHaveLength(1);
-    expect(ledger[0]).toMatchObject({ model: SIMULATED_VIDEO_MODEL, status: "succeeded", cost_units: 1, asset_path: clipKey(ORG, out.motion.clip), output: { clip: out.motion.clip } });
+    expect(ledger[0]).toMatchObject({ model: SIMULATED_VIDEO_MODEL, status: "succeeded", cost_units: "0.0100", cost_unit: "usd", asset_path: clipKey(ORG, out.motion.clip), output: { clip: out.motion.clip } });
     // The clip and both languages' files are in our bucket under their own hashes.
     for (const key of [clipKey(ORG, out.motion.clip), ...out.motion.files.map((f) => f.path)]) {
       expect(key.endsWith(`${createHash("sha256").update(objects.get(key)!).digest("hex")}.mp4`), key).toBe(true);

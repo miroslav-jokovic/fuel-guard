@@ -20,7 +20,7 @@ import { motionClipParams } from "./videoModels.js";
  *
  * Each case runs one render to its end the way the `ads_render` job does — a step, and again until it is not
  * `pending` — while the process is KILLED once, just AFTER one side effect has happened and before the step
- * hears of it: the photo uploaded, the ledger row written, the submit accepted, a status read, the file
+ * hears of it: the photo uploaded, the price asked, the ledger row written, the submit accepted, a status read, the file
  * downloaded, the file stored, the row completed. The next step is the restarted job. Separately, every
  * transient fault FakeHiggsfield can inject is put on every call. Each case is run with and without a kit
  * photo (D-AD9), so the upload's own crash points are in the sweep.
@@ -57,22 +57,24 @@ const PRICES = { [MODEL]: PRICE, [VIDEO_MODEL]: PRICE };
 const START_BALANCE = 1_000;
 const PHOTO = readFileSync(new URL("../../workers/checker/fixtures/images/reference.jpg", import.meta.url));
 const PHOTO_REF = { sha256: createHash("sha256").update(PHOTO).digest("hex"), format: "jpeg" as const };
-const settings: AdsSettings = { ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_credits_monthly: 1_000, agents_enabled: { renderer: true } } };
+const settings: AdsSettings = { ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_usd_cents_monthly: 1_000, agents_enabled: { renderer: true } } };
 const sha = (b: Buffer) => createHash("sha256").update(b).digest("hex");
 
-const CLIENT_CALLS = ["upload", "submit", "status", "download"] as const;
+const CLIENT_CALLS = ["upload", "estimate", "submit", "status", "download"] as const;
 type Kill = { at: (typeof CLIENT_CALLS)[number] | "row_insert" | "row_complete" | "store"; nth: number };
 /** Every side effect, at its first occurrence and (for the polled read) a later one. */
 const KILLS: Kill[] = [
-  { at: "upload", nth: 1 }, { at: "row_insert", nth: 1 }, { at: "submit", nth: 1 }, { at: "status", nth: 1 }, { at: "status", nth: 2 },
+  { at: "upload", nth: 1 }, { at: "estimate", nth: 1 }, { at: "row_insert", nth: 1 }, { at: "submit", nth: 1 }, { at: "status", nth: 1 }, { at: "status", nth: 2 },
   { at: "download", nth: 1 }, { at: "store", nth: 1 }, { at: "row_complete", nth: 1 },
 ];
-/** Either model's own path: the still's or the clip's. */
-const SUBMIT = /qwen-image-3|wan-3\.0/;
+/** Either model's own path: the still's or the clip's — anchored, so the price ask (`/estimate/<model>`) is not it. */
+const SUBMIT = /^\/alibaba\/(?:qwen-image-3|wan-3\.0)/;
 /** [case, the path faulted, the fault, the call the job must have waited on because of it] */
 const FAULTS: Array<[string, RegExp, FakeHiggsfieldFault]> = [
   ["upload URL: queue full", /^\/files\/generate-upload-url/, { kind: "queue_full", retryAfterSeconds: 2 }],
   ["upload URL: server error", /^\/files\/generate-upload-url/, { kind: "server_error" }],
+  ["estimate: queue full", /^\/estimate\//, { kind: "queue_full", retryAfterSeconds: 2 }],
+  ["estimate: server error", /^\/estimate\//, { kind: "server_error" }],
   ["submit: queue full", SUBMIT, { kind: "queue_full", retryAfterSeconds: 2 }],
   ["submit: server error", SUBMIT, { kind: "server_error" }],
   ["submit: unavailable", SUBMIT, { kind: "unavailable" }],
@@ -132,7 +134,7 @@ function generations(q: RecordedQuery) {
     return ledger.filter((r) => r.org_id === f.org_id && r.idempotency_key === f.idempotency_key).map((r) => Object.fromEntries(cols.map((c) => [c, r[c]])));
   }
   return ledger.filter((r) => r.org_id === f.org_id && r.provider === f.provider)
-    .map((r) => ({ ...r, price: (r.request as { price_credits?: number }).price_credits?.toString() ?? null }));
+    .map((r) => ({ ...r, price: (r.request as { price_ticks?: number | null }).price_ticks?.toString() ?? null }));
 }
 
 /** The real client, with the process dying just after one of its calls has done its work. */
@@ -159,7 +161,7 @@ beforeEach(async () => {
   objects = new Map([[assetKey(ORG, PHOTO_REF), PHOTO]]);
   seq = 0;
   kill = null;
-  seen = { upload: 0, submit: 0, status: 0, download: 0, row_insert: 0, row_complete: 0, store: 0 };
+  seen = { upload: 0, estimate: 0, submit: 0, status: 0, download: 0, row_insert: 0, row_complete: 0, store: 0 };
   db = createSupabaseRecorder({
     tables: {
       ads_settings_versions: () => [{ id: "v1", org_id: ORG, version: 1, settings, kill_switch: false, kill_reason: null, created_at: "2026-11-01T00:00:00Z", created_by_name: "X" }],
@@ -186,7 +188,7 @@ async function runToEnd(input: RenderInput): Promise<{ out: RenderOutcome; death
   for (let i = 0; i < 25; i += 1) {
     let out: RenderOutcome;
     try {
-      out = await renderStep({ admin: db.client, client: dyingClient(), now: clock.now, prices: PRICES }, input);
+      out = await renderStep({ admin: db.client, client: dyingClient(), now: clock.now }, input);
     } catch (e) {
       if (!/^killed after /.test((e as Error).message)) throw e;
       deaths += 1;
@@ -217,7 +219,7 @@ function expectOneChargeAndTrueHashes(out: RenderOutcome, kind: Kind): void {
   expect(hf.balanceCents).toBe(START_BALANCE - PRICE);
   expect(ledger).toHaveLength(1);
   const row = ledger[0]!;
-  expect(row).toMatchObject({ status: "succeeded", cost_units: PRICE, idempotency_key: expect.stringMatching(/^render:cr-1:1:/) });
+  expect(row).toMatchObject({ status: "succeeded", cost_units: "0.4000", cost_unit: "usd", idempotency_key: expect.stringMatching(/^render:cr-1:1:/) });
   // Every object we hold is the bytes its name's hash says — the photo we seeded and the render we stored.
   for (const [k, bytes] of objects) expect(k, "an object stored under another file's hash").toContain(sha(bytes));
   if (kind === "clip") {
@@ -257,8 +259,9 @@ describe("Renderer L3 — a render cut short anywhere is charged once and stores
         const { out, deaths } = await runToEnd(input(kind));
         expect(deaths, "the kill point was never reached — the case proves nothing").toBe(1);
         expectOneChargeAndTrueHashes(out, kind);
-        // The photo goes up once — twice only if the process died between the upload and the row.
-        if (photo) expect(hf.uploads.size).toBe(k.at === "upload" ? 2 : 1);
+        // The photo goes up once — twice only if the process died between the upload and the row (after the upload
+        // itself, or after the price was asked with its URL: Q-APX16 asks before the row). Nothing was charged then.
+        if (photo) expect(hf.uploads.size).toBe(k.at === "upload" || k.at === "estimate" ? 2 : 1);
       },
     );
 
@@ -269,7 +272,9 @@ describe("Renderer L3 — a render cut short anywhere is charged once and stores
       const call = _name.split(":")[0] === "upload URL" ? "upload" : _name.split(":")[0]!;
       expect(waits.some((w) => w.startsWith(`${call}:`)), `no wait on ${call}: ${waits.join(" / ")}`).toBe(true);
       expectOneChargeAndTrueHashes(out, kind);
-      if (photo) expect(hf.uploads.size).toBe(1);
+      // A price ask that failed for a moment leaves no row, so the next run uploads the photo again: the same case
+      // as a death between the upload and the row, and as free (uploads are not charged). Every other fault: once.
+      if (photo) expect(hf.uploads.size).toBe(call === "estimate" ? 2 : 1);
     });
   });
 

@@ -20,7 +20,7 @@ const NOW = new Date("2026-11-15T18:00:00Z");
 const SETTINGS: AdsSettings = {
   ...ADS_SETTINGS_UNSET,
   limits: { ...ADS_SETTINGS_UNSET.limits, monthly_cap_cents: { meta: 300_000 }, daily_max_cents: 10_000, lifetime_max_cents: 200_000 },
-  budgets: { ...ADS_SETTINGS_UNSET.budgets, anthropic_tokens_monthly: 1_000_000, higgsfield_credits_monthly: 500 },
+  budgets: { ...ADS_SETTINGS_UNSET.budgets, anthropic_tokens_monthly: 1_000_000, higgsfield_usd_cents_monthly: 500 },
 };
 
 const hour = (campaign_id: string, at: string, spend_cents: number, leads = 0) => ({ campaign_id, hour: at, spend_cents, impressions: 100, clicks: 4, leads });
@@ -66,7 +66,10 @@ function db(opts: { reconciledAt?: string | null; hours?: Record<string, ReturnT
       },
       ad_generations: (q) => (val(q, "provider") === "anthropic"
         ? [{ id: "g1", cost_units: 12_000 }, { id: "g2", cost_units: 3_000 }]
-        : [{ id: "h1", status: "succeeded", cost_units: 40, price: "40" }]),
+        // Q-APX16: one finished render at $0.4000, one in flight at its estimate (940 ticks), one old credits row not counted.
+        : [{ id: "h1", status: "succeeded", cost_units: 0.4, cost_unit: "usd", price: "4000" },
+          { id: "h2", status: "started", cost_units: null, cost_unit: null, price: "940" },
+          { id: "h3", status: "succeeded", cost_units: 7, cost_unit: "credits", price: null }]),
       jobs: (q) => (val(q, "dedup_key") === `ads_reconcile:${META}` && opts.reconciledAt !== null
         ? [{ id: "j1", kind: "ads_reconcile", status: "done", started_at: opts.reconciledAt ?? "2026-11-15T07:00:00Z" }]
         : []),
@@ -122,7 +125,7 @@ describe("adsSpendView", () => {
   });
 
   it("AI: the ledger's month folds against the saved budgets", async () => {
-    expect((await adsSpendView(db().client, ORG, NOW)).ai).toEqual({ tokens_used: 15_000, tokens_budget: 1_000_000, credits_used: 40, credits_budget: 500 });
+    expect((await adsSpendView(db().client, ORG, NOW)).ai).toEqual({ tokens_used: 15_000, tokens_budget: 1_000_000, pictures_used_cents: 49.4, pictures_budget_cents: 500 });
   });
 
   it("reconcile: the last finished run per Meta connection, the changes since, and late when it has stopped", async () => {

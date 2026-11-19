@@ -62,8 +62,12 @@ export interface AdsSpendView {
   ai: {
     tokens_used: number;
     tokens_budget: number | null;
-    credits_used: number;
-    credits_budget: number | null;
+    /**
+     * Pictures and video this month, in US cents (Q-APX16): finished renders at what they cost and renders in
+     * flight at their estimate — the sum `renderGate` refuses on. May carry a fraction of a cent.
+     */
+    pictures_used_cents: number;
+    pictures_budget_cents: number | null;
   };
   reconcile: AdsSpendReconcile[];
 }

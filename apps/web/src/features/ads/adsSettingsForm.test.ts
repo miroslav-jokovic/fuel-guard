@@ -82,4 +82,14 @@ describe("adsSettingsForm", () => {
     const out = toSettings(SAVED, { ...v, agents_enabled: { ...v.agents_enabled, checker: true } });
     expect(out.ok && out.settings.budgets.agents_enabled).toEqual({ copywriter: true, checker: true });
   });
+
+  it("pictures and video are a dollar budget saved in cents, and the retired credits budget is saved as null (Q-APX16)", () => {
+    const old = { ...SAVED, budgets: { ...SAVED.budgets, higgsfield_credits_monthly: 500, higgsfield_usd_cents_monthly: 2_550 } };
+    const v = toFormValues(old);
+    expect(v.higgsfield_usd_monthly).toBe("25.50");
+    const out = toSettings(old, { ...v, higgsfield_usd_monthly: "$1,234.56" });
+    expect(out.ok && [out.settings.budgets.higgsfield_usd_cents_monthly, out.settings.budgets.higgsfield_credits_monthly]).toEqual([123_456, null]);
+    expect(toSettings(old, { ...v, higgsfield_usd_monthly: "" })).toMatchObject({ ok: true, settings: { budgets: { higgsfield_usd_cents_monthly: null } } });
+    expect(toSettings(old, { ...v, higgsfield_usd_monthly: "lots" })).toMatchObject({ ok: false, field: "budgets.higgsfield_usd_cents_monthly" });
+  });
 });

@@ -18,12 +18,15 @@ import { renderClientFor, stopSimulatedRenderForTests } from "./simulatedRender.
  * The Higgsfield client's render step (C3) over real HTTP against FakeHiggsfield, with `ad_generations` an
  * in-memory ledger that enforces what 0537 does and the step depends on: `unique (org_id, idempotency_key)`
  * as 23505 and AX011's one move from `started`. The fake counts every submit that reached a model and
- * reserves the price at submit — the reading under which a double charge is visible (its header).
+ * reserves the price at submit — the reading under which a double charge is visible (its header). Its `/estimate`
+ * answers that price as a dollar string (Q-APX16): `PRICE` cents is `"0.400"`, 4,000 ticks, `"0.4000"` on the row.
  */
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const MODEL = "higgsfield-ai/soul/v2/standard";
 const KEY = { id: "kid", secret: "ksecret" };
+/** US cents per render, as the fake prices it; the settings' budget is in cents too. */
 const PRICE = 40;
+const PRICE_TICKS = PRICE * 100;
 /** Two documented image-input models (`HIGGSFIELD_IMAGE_INPUT`): a list field and a single-URL field. */
 const EDIT = "alibaba/qwen-image-3/edit";
 const REMIX = "ideogram/v4.0";
@@ -31,7 +34,7 @@ const PHOTO = readFileSync(new URL("../../workers/checker/fixtures/images/refere
 const PHOTO_REF = { sha256: createHash("sha256").update(PHOTO).digest("hex"), format: "jpeg" as const };
 const settings = (budget: number | null, on = true): AdsSettings => ({
   ...ADS_SETTINGS_UNSET,
-  budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_credits_monthly: budget, agents_enabled: { renderer: on } },
+  budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_usd_cents_monthly: budget, agents_enabled: { renderer: on } },
 });
 
 let clock: FakeClock;
@@ -65,7 +68,7 @@ function generations(q: RecordedQuery) {
   }
   // The month fold: provider rows of this org, with the price read out of `request`, as PostgREST's `->>` would.
   return ledger.filter((r) => r.org_id === f.org_id && r.provider === f.provider)
-    .map((r) => ({ ...r, price: (r.request as { price_credits?: number }).price_credits?.toString() ?? null }));
+    .map((r) => ({ ...r, price: (r.request as { price_ticks?: number | null }).price_ticks?.toString() ?? null }));
 }
 
 beforeEach(async () => {
@@ -90,9 +93,8 @@ beforeEach(async () => {
 afterEach(async () => hf.stop());
 
 const input: RenderInput = { orgId: ORG, campaignId: null, creativeId: "cr-1", attempt: 1, model: MODEL, params: { prompt: "Our tractor at dawn, no text, no logos, no lettering" }, reference: null };
-const PRICES = { [MODEL]: PRICE, [EDIT]: PRICE, [REMIX]: PRICE };
-const step = (over: Partial<RenderInput> = {}, prices: Record<string, number> = PRICES, client = new HiggsfieldClient(KEY, { baseUrl: base })) =>
-  renderStep({ admin: db.client, client, now: clock.now, prices }, { ...input, ...over });
+const step = (over: Partial<RenderInput> = {}, client = new HiggsfieldClient(KEY, { baseUrl: base })) =>
+  renderStep({ admin: db.client, client, now: clock.now }, { ...input, ...over });
 const submitted = () => JSON.parse(onlyRequest().params.split("\n").slice(1).join("\n")) as Record<string, unknown>;
 const onlyRequest = () => [...hf.requests.values()][0]!;
 const row = () => ledger[0]!;
@@ -106,34 +108,35 @@ describe("renderStep — the simulator is the same step", () => {
   afterEach(async () => stopSimulatedRenderForTests());
 
   it("a simulated render stores its image in one step, its row names the simulator, and a replay asks nothing", async () => {
-    const { client, prices } = await simulated();
-    const done = await step({ model: SIMULATED_STILL_MODEL }, { ...prices }, client);
+    const { client } = await simulated();
+    const done = await step({ model: SIMULATED_STILL_MODEL }, client);
     expect(done).toMatchObject({ kind: "stored", replayed: false });
-    expect(row()).toMatchObject({ model: SIMULATED_STILL_MODEL, status: "succeeded" });
-    expect(await step({ model: SIMULATED_STILL_MODEL }, { ...prices }, client)).toMatchObject({ kind: "stored", replayed: true });
+    // The simulator's own `/estimate` prices it at one cent, so it meets the same dollar month (Q-APX16).
+    expect(row()).toMatchObject({ model: SIMULATED_STILL_MODEL, status: "succeeded", cost_units: "0.0100", cost_unit: "usd" });
+    expect(await step({ model: SIMULATED_STILL_MODEL }, client)).toMatchObject({ kind: "stored", replayed: true });
     expect(ledger).toHaveLength(1);
     expectOrgScoped(db, ORG);
   });
 
   it("a simulated render from a kit photo stores that photo's picture", async () => {
-    const { client, prices } = await simulated();
-    const done = await step({ model: SIMULATED_STILL_MODEL, reference: PHOTO_REF }, { ...prices }, client);
+    const { client } = await simulated();
+    const done = await step({ model: SIMULATED_STILL_MODEL, reference: PHOTO_REF }, client);
     const photo = await sharp(PHOTO).metadata();
     expect(done).toMatchObject({ kind: "stored", assets: [{ width: photo.width, height: photo.height }] });
   });
 
   it("a simulated render asked for a frame's shape stores a picture of that shape, with the kit photo and without (AG4)", async () => {
-    const { client, prices } = await simulated();
-    const tall = await step({ model: SIMULATED_STILL_MODEL, reference: PHOTO_REF, params: stillParams(SIMULATED_STILL_MODEL, "a tractor", "4:5") }, { ...prices }, client);
+    const { client } = await simulated();
+    const tall = await step({ model: SIMULATED_STILL_MODEL, reference: PHOTO_REF, params: stillParams(SIMULATED_STILL_MODEL, "a tractor", "4:5") }, client);
     expect(tall).toMatchObject({ kind: "stored", assets: [{ width: 1600, height: 2000 }] });
-    const square = await step({ model: SIMULATED_STILL_MODEL, attempt: 2, params: stillParams(SIMULATED_STILL_MODEL, "a road", "1:1") }, { ...prices }, client);
+    const square = await step({ model: SIMULATED_STILL_MODEL, attempt: 2, params: stillParams(SIMULATED_STILL_MODEL, "a road", "1:1") }, client);
     expect(square).toMatchObject({ kind: "stored", assets: [{ width: 1600, height: 1600 }] });
   });
 
   it("a simulated render meets the month's budget like a real one", async () => {
     saved = settings(0);
-    const { client, prices } = await simulated();
-    expect(await step({ model: SIMULATED_STILL_MODEL }, { ...prices }, client)).toMatchObject({ kind: "budget_exhausted" });
+    const { client } = await simulated();
+    expect(await step({ model: SIMULATED_STILL_MODEL }, client)).toMatchObject({ kind: "budget_exhausted" });
   });
 });
 
@@ -154,7 +157,7 @@ describe("renderStep — a replayed generation spends nothing", () => {
   });
 
   it("an answer lost after Higgsfield charged is found again under the same key, not made twice", async () => {
-    hf.inject(/higgsfield-ai/, { kind: "accepted_then_error" });
+    hf.inject(/^\/higgsfield-ai/, { kind: "accepted_then_error" });
     expect(await step()).toMatchObject({ kind: "pending", why: expect.stringMatching(/^submit:/) });
     expect(await step()).toMatchObject({ kind: "pending", why: "queued" });
     expect(hf.requests.size).toBe(1);
@@ -179,7 +182,7 @@ describe("renderStep — the output is ours, and an expired URL never reaches an
     const [asset] = out.assets;
     expect(asset).toMatchObject({ format: "png", source_format: "png", width: 2, height: 2 });
     expect(objects.has(`${ORG}/${asset!.sha256}.png`)).toBe(true);
-    expect(row()).toMatchObject({ status: "succeeded", asset_sha256: asset!.sha256, asset_path: `${ORG}/${asset!.sha256}.png`, cost_units: PRICE, cost_unit: "credits", provider_request_id: onlyRequest().request_id });
+    expect(row()).toMatchObject({ status: "succeeded", asset_sha256: asset!.sha256, asset_path: `${ORG}/${asset!.sha256}.png`, cost_units: "0.4000", cost_unit: "usd", provider_request_id: onlyRequest().request_id });
     expect(JSON.stringify(row())).not.toMatch(/https?:\/\//);
     expect(JSON.stringify(out)).not.toMatch(/https?:\/\//);
     // Content-addressed: a stored object is never replaced by other bytes under its hash.
@@ -191,7 +194,7 @@ describe("renderStep — the output is ours, and an expired URL never reaches an
     await hf.finish(onlyRequest().request_id, "completed");
     clock.advance({ days: 8 });
     expect(await step()).toMatchObject({ kind: "failed", errorCode: "output_expired" });
-    expect(row()).toMatchObject({ status: "failed", error_code: "output_expired", cost_units: PRICE, asset_path: null });
+    expect(row()).toMatchObject({ status: "failed", error_code: "output_expired", cost_units: "0.4000", asset_path: null });
     expect([...objects.keys()]).toEqual([assetKey(ORG, PHOTO_REF)]);
   });
 
@@ -199,15 +202,64 @@ describe("renderStep — the output is ours, and an expired URL never reaches an
     await step();
     await hf.finish(onlyRequest().request_id, "nsfw");
     expect(await step()).toMatchObject({ kind: "failed", errorCode: "nsfw" });
-    expect(row()).toMatchObject({ cost_units: 0, cost_unit: "credits" });
+    expect(row()).toMatchObject({ cost_units: "0.0000", cost_unit: "usd" });
   });
 });
 
-describe("renderStep — the credit budget is checked before the submit", () => {
-  it("refuses a model nobody has priced, with no row and no submit", async () => {
-    expect(await step({}, {})).toEqual({ kind: "refused", refusal: "price_unknown" });
-    expect(ledger).toEqual([]);
+describe("renderStep — the price is Higgsfield's estimate, asked before the submit (Q-APX16)", () => {
+  it("asks /estimate with the submit's own params and records its answer on the started row, before any submit", async () => {
+    const client = new HiggsfieldClient(KEY, { baseUrl: base });
+    const asked: Array<[string, Record<string, unknown>]> = [];
+    const real = client.estimate.bind(client);
+    client.estimate = async (model, params) => (asked.push([model, params]), real(model, params));
+    await step({}, client);
+    expect(asked).toEqual([[MODEL, input.params]]);
+    expect(row()).toMatchObject({ status: "started", request: { price_usd: "0.400", price_ticks: PRICE_TICKS } });
+    expect(submitted()).toEqual(input.params);
+    // A replay reads the row's price; it never asks again.
+    await step({}, client);
+    expect(asked).toHaveLength(1);
+  });
+
+  it("an estimate Higgsfield refuses fails the render at no cost, with a row, so compose is never left waiting", async () => {
+    const client = new HiggsfieldClient(KEY, { baseUrl: base });
+    client.estimate = async () => ({ ok: false, kind: "refused", status: 422, detail: "bad params" });
+    expect(await step({}, client)).toMatchObject({ kind: "failed", errorCode: "estimate_422" });
+    expect(row()).toMatchObject({ status: "failed", error_code: "estimate_422", cost_units: "0.0000", cost_unit: "usd", request: { price_ticks: null } });
     expect(hf.submits).toBe(0);
+    expect(await renderStatus(db.client, input)).toMatchObject({ kind: "failed", errorCode: "estimate_422", replayed: true });
+  });
+
+  it("an estimate with no readable amount is refused, never taken as free", async () => {
+    for (const [attempt, usd] of [[1, "free"], [2, "-0.10"]] as const) {
+      const client = new HiggsfieldClient(KEY, { baseUrl: base });
+      client.estimate = async () => ({ ok: true, value: { usd } });
+      expect(await step({ attempt }, client)).toMatchObject({ kind: "failed", errorCode: "estimate_unreadable" });
+    }
+    expect(hf.submits).toBe(0);
+  });
+
+  it("an estimate that fails for a moment writes no row, and the next run prices and submits", async () => {
+    hf.inject(/^\/estimate\//, { kind: "server_error" });
+    expect(await step()).toMatchObject({ kind: "pending", why: expect.stringMatching(/^estimate:/) });
+    expect(ledger).toEqual([]);
+    expect(await step()).toMatchObject({ kind: "pending", why: "queued" });
+    // The failed ask never reached the model's price (the fault answered first), so the fake counted one.
+    expect(hf.estimates).toBe(1);
+    expect(hf.submits).toBe(1);
+  });
+
+  it("a row begun before Q-APX16 completes in the credits it was priced in, and the dollar month does not count it", async () => {
+    saved = settings(PRICE);
+    // In flight across the deploy: written by the code this replaces, with a price in credits.
+    ledger.push({ id: "legacy", org_id: ORG, provider: "higgsfield", idempotency_key: renderKey("cr-old", 1, MODEL), status: "started", output: null,
+      request: { model: MODEL, params: input.params, reference: null, upload_refused: null, price_credits: 7 } });
+    expect(await step({ creativeId: "cr-old" })).toMatchObject({ kind: "pending", why: "queued" });
+    await hf.finish(onlyRequest().request_id, "completed");
+    await step({ creativeId: "cr-old" });
+    expect(ledger[0]).toMatchObject({ status: "succeeded", cost_units: 7, cost_unit: "credits" });
+    // The month's whole $0.40 is still there for a render priced in dollars.
+    expect(await step({ creativeId: "cr-new" })).toMatchObject({ kind: "pending", why: "queued" });
   });
 
   it("refuses when the renderer is switched off, with no row and no submit", async () => {
@@ -217,7 +269,7 @@ describe("renderStep — the credit budget is checked before the submit", () => 
   });
 
   it("writes budget_exhausted instead of submitting when the month cannot pay the price, counting renders still in flight", async () => {
-    saved = settings(PRICE + 10);
+    saved = settings(PRICE + PRICE - 1);
     await step({ creativeId: "cr-a" });
     expect(row().status).toBe("started");
     const out = await step({ creativeId: "cr-b" });
@@ -226,16 +278,28 @@ describe("renderStep — the credit budget is checked before the submit", () => 
     expect(hf.submits).toBe(1);
   });
 
-  it("an unset budget refuses as budget_unset", async () => {
+  it("the price fits to the hundredth of a cent: a month with exactly one render left makes it", async () => {
+    saved = settings(PRICE + PRICE);
+    await step({ creativeId: "cr-a" });
+    expect(await step({ creativeId: "cr-b" })).toMatchObject({ kind: "pending", why: "queued" });
+    expect(hf.submits).toBe(2);
+  });
+
+  it("an unset budget refuses as budget_unset, and asks Higgsfield nothing — not even the price", async () => {
     saved = settings(null);
     expect(await step()).toMatchObject({ kind: "budget_exhausted", refusal: "budget_unset" });
-    expect(hf.submits).toBe(0);
+    expect([hf.submits, hf.estimates]).toEqual([0, 0]);
+  });
+
+  it("the retired credits budget opens nothing", async () => {
+    saved = { ...settings(null), budgets: { ...settings(null).budgets, higgsfield_credits_monthly: 1_000_000 } };
+    expect(await step()).toMatchObject({ kind: "budget_exhausted", refusal: "budget_unset" });
   });
 
   it("a Higgsfield account that cannot pay completes failed, uncharged", async () => {
     hf.balanceCents = 1;
     expect(await step()).toMatchObject({ kind: "failed", errorCode: "provider_balance" });
-    expect(row()).toMatchObject({ status: "failed", cost_units: 0 });
+    expect(row()).toMatchObject({ status: "failed", cost_units: "0.0000", cost_unit: "usd" });
   });
 });
 
@@ -269,17 +333,36 @@ describe("renderStep — image-to-image from the kit photo (D-AD9)", () => {
 
   it("a model with no documented image field is refused before any row or upload, and renderStatus says so too", async () => {
     expect(await step({ ...fromPhoto, model: MODEL })).toEqual({ kind: "refused", refusal: "reference_unsupported" });
-    expect(await renderStatus(db.client, PRICES, { ...input, ...fromPhoto, model: MODEL })).toEqual({ kind: "refused", refusal: "reference_unsupported" });
+    expect(await renderStatus(db.client, { ...input, ...fromPhoto, model: MODEL })).toEqual({ kind: "refused", refusal: "reference_unsupported" });
     expect(ledger).toEqual([]);
     expect(hf.uploads.size).toBe(0);
     // A text-only scene on the same model renders as before.
-    expect(await renderStatus(db.client, PRICES, { ...input, model: MODEL })).toEqual({ kind: "absent" });
+    expect(await renderStatus(db.client, { ...input, model: MODEL })).toEqual({ kind: "absent" });
   });
 
-  it("the budget goes first: a spent month records budget_exhausted and uploads nothing", async () => {
+  it("a month already past its budget records budget_exhausted and uploads nothing, asks no price", async () => {
+    saved = settings(PRICE);
+    await step({ creativeId: "cr-a" });
+    clock.advance({ minutes: 1 });
     saved = settings(PRICE - 1);
-    expect(await step(fromPhoto)).toMatchObject({ kind: "budget_exhausted" });
-    expect(hf.uploads.size).toBe(0);
+    expect(await step({ ...fromPhoto, creativeId: "cr-b" })).toMatchObject({ kind: "budget_exhausted", refusal: "budget_spent" });
+    expect([hf.uploads.size, hf.estimates]).toEqual([0, 1]);
+  });
+
+  it("the estimate is asked with the photo's URL in the params, as the submit will send them", async () => {
+    const client = new HiggsfieldClient(KEY, { baseUrl: base });
+    const asked: Array<Record<string, unknown>> = [];
+    const real = client.estimate.bind(client);
+    client.estimate = async (model, params) => (asked.push(params), real(model, params));
+    await step(fromPhoto, client);
+    expect(asked).toEqual([submitted()]);
+    expect((asked[0]!.image_urls as string[])[0]).toMatch(/\/inputs\//);
+  });
+
+  it("a price that does not fit what is left submits nothing (the photo, which is free, went up to be priced)", async () => {
+    saved = settings(PRICE - 1);
+    expect(await step(fromPhoto)).toMatchObject({ kind: "budget_exhausted", refusal: "budget_spent" });
+    expect([hf.uploads.size, hf.submits]).toEqual([1, 0]);
   });
 
   it("an upload that fails for a moment writes no row, and the next run uploads and submits", async () => {
@@ -293,8 +376,8 @@ describe("renderStep — image-to-image from the kit photo (D-AD9)", () => {
   it("a refused upload fails the render uncharged, and a run after a crash before that completion still submits nothing", async () => {
     const client = new HiggsfieldClient(KEY, { baseUrl: base });
     client.upload = async () => ({ ok: false, kind: "refused", status: 422, detail: "unsupported" });
-    expect(await step(fromPhoto, PRICES, client)).toMatchObject({ kind: "failed", errorCode: "upload_422" });
-    expect(row()).toMatchObject({ status: "failed", error_code: "upload_422", cost_units: 0 });
+    expect(await step(fromPhoto, client)).toMatchObject({ kind: "failed", errorCode: "upload_422" });
+    expect(row()).toMatchObject({ status: "failed", error_code: "upload_422", cost_units: "0.0000" });
     Object.assign(row(), { status: "started", error_code: null, finished_at: null });
     expect(await step(fromPhoto)).toMatchObject({ kind: "failed", errorCode: "upload_422" });
     expect(hf.submits).toBe(0);
@@ -309,24 +392,26 @@ describe("renderStep — Higgsfield's key never leaves in an error (sec-fixes, G
   it("the client blanks the key, and its id:secret form, from every kind of failure it answers", async () => {
     const client = new HiggsfieldClient(KEY, { baseUrl: base });
     for (const status of [500, 403, 422]) {
-      hf.inject(/higgsfield-ai/, { kind: "echo_key", status });
+      hf.inject(/^\/higgsfield-ai/, { kind: "echo_key", status });
       const r = await client.submit(MODEL, { prompt: "x" }, `00000000-0000-4000-8000-00000000099${status % 10}`);
       if (r.ok) throw new Error("expected a failure");
       expect([r.kind, r.detail.includes("[key]"), r.detail.includes(KEY.secret)]).toEqual([{ 500: "temporary", 403: "balance", 422: "refused" }[status], true, false]);
     }
     // A vendor may quote the secret without its id: blanked as well.
-    hf.inject(/higgsfield-ai/, { kind: "echo_key", quote: "secret" });
+    hf.inject(/^\/higgsfield-ai/, { kind: "echo_key", quote: "secret" });
     const alone = await client.submit(MODEL, { prompt: "x" }, "00000000-0000-4000-8000-000000000999");
     expect(alone.ok ? null : [alone.detail.includes("[key]"), alone.detail.includes(KEY.secret)]).toEqual([true, false]);
   });
 
   const leaks = (texts: string[]) => texts.filter((t) => t.includes(KEY.secret) || t.includes(`${KEY.id}:${KEY.secret}`));
   it.each([
-    ["the submit, temporary", /higgsfield-ai/, 500, {}],
-    ["the submit, refused", /higgsfield-ai/, 401, {}],
-    ["the status read", /\/status$/, 503, {}],
-    ["the kit photo's upload", /generate-upload-url/, 500, { model: EDIT, reference: PHOTO_REF }],
-  ] as const)("a key Higgsfield echoes in %s reaches no job result, ledger row or log line", async (_road, path, status, over) => {
+    ["the submit, temporary", /^\/higgsfield-ai/, 500, {}, "provider"],
+    ["the submit, refused", /^\/higgsfield-ai/, 401, {}, "provider"],
+    ["the estimate, temporary", /^\/estimate\//, 500, {}, "estimate"],
+    ["the estimate, refused", /^\/estimate\//, 401, {}, "estimate"],
+    ["the status read", /\/status$/, 503, {}, "provider"],
+    ["the kit photo's upload", /generate-upload-url/, 500, { model: EDIT, reference: PHOTO_REF }, "provider"],
+  ] as const)("a key Higgsfield echoes in %s reaches no job result, ledger row or log line", async (_road, path, status, over, code) => {
     const lines: string[] = [];
     const spies = (["log", "info", "warn", "error", "debug"] as const).map((l) => vi.spyOn(console, l).mockImplementation((...a: unknown[]) => { lines.push(a.map((x) => inspect(x, { depth: 6 })).join(" ")); }));
     try {
@@ -337,7 +422,7 @@ describe("renderStep — Higgsfield's key never leaves in an error (sec-fixes, G
       const job = out.kind === "pending" ? `ads_render: still rendering (${out.why})` : JSON.stringify(out);
       // On the pending roads the echo came back and was blanked, not merely absent; a refusal keeps only its code.
       if (out.kind === "pending") expect(job).toContain("[key]");
-      else expect(out).toMatchObject({ kind: "failed", errorCode: `provider_${status}` });
+      else expect(out).toMatchObject({ kind: "failed", errorCode: `${code}_${status}` });
       expect(leaks([job, JSON.stringify(ledger), ...db.writes().map((q) => JSON.stringify(q.write?.payload ?? null)), ...lines])).toEqual([]);
     } finally {
       for (const s of spies) s.mockRestore();

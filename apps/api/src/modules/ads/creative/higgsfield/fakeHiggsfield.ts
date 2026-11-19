@@ -98,7 +98,7 @@ export interface FakeHiggsfieldOptions {
   /** `whsec_` + base64, as the console reveals it. */
   webhookSecret: string;
   balanceCents: number;
-  /** Price of one request per model path; a model not listed is 404. */
+  /** Price of one request per model path, in US cents (`/estimate` answers it as dollars); a model not listed is 404. */
   prices: Record<string, number>;
   /** The clock `expires_at` and webhook timestamps are read from (a FakeClock's `now` in scenarios). */
   now?: () => Date;
@@ -135,6 +135,8 @@ export class FakeHiggsfield {
   readonly uploads = new Map<string, { content_type: string; bytes: Buffer | null; made_at: number }>();
   /** Every submit that reached the model (after auth and faults), keyed or not — the "0 double charges" count. */
   submits = 0;
+  /** `/estimate` asks answered (free: no balance moves). */
+  estimates = 0;
   balanceCents: number;
 
   constructor(private readonly opts: FakeHiggsfieldOptions) {
@@ -251,12 +253,33 @@ export class FakeHiggsfield {
     const cancel = /^\/requests\/([^/]+)\/cancel$/.exec(url.pathname);
     if (req.method === "POST" && cancel) return this.cancel(res, cancel[1]!, corr);
     if (req.method === "POST" && url.pathname === "/files/generate-upload-url") return this.uploadUrl(res, await readBody(req), corr);
+    if (req.method === "POST" && url.pathname.startsWith("/estimate/")) {
+      const answer = this.estimate(url.pathname.slice("/estimate/".length), await readBody(req));
+      return send(res, answer.status, answer.body, corr);
+    }
     if (req.method === "POST") {
       const answer = this.submit(url, req.headers["idempotency-key"], await readBody(req));
       if (fault?.kind === "accepted_then_error" && answer.status === 200) return send(res, 500, { detail: "Internal Server Error" }, corr);
       return send(res, answer.status, answer.body, corr);
     }
     return send(res, 404, { detail: "Not Found" }, corr);
+  }
+
+  /**
+   * `POST /estimate/<model>` (billing-and-retention.md, read 2026-11-19): the same parameters as the submit, answered
+   * `{"usd":"0.094"}` — the amount as a STRING of dollars. It charges nothing and makes nothing, so it moves no
+   * balance and no request; `estimates` counts the asks so a test can see a price was asked before a submit.
+   */
+  private estimate(model: string, body: string): { status: number; body: unknown } {
+    this.estimates += 1;
+    const price = this.opts.prices[model];
+    if (price === undefined) return { status: 404, body: { detail: "Model not found" } };
+    try {
+      JSON.parse(body || "{}");
+    } catch {
+      return { status: 400, body: { detail: "Invalid JSON body" } };
+    }
+    return { status: 200, body: { usd: (price / 100).toFixed(3) } };
   }
 
   private submit(url: URL, rawKey: string | string[] | undefined, body: string): { status: number; body: unknown } {

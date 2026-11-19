@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { monthContext } from "@silvicom/shared";
+import { USD_TICKS_PER_DOLLAR, monthContext } from "@silvicom/shared";
 
 /**
  * `ad_generations` (0537) — the ads module's AI provenance (D-AD13; workflow §1.2-6). Every write the
@@ -70,12 +70,15 @@ export interface GenerationCompletion {
   status: "succeeded" | "failed";
   output: unknown;
   provider_request_id: string | null;
-  /** Tokens the call was billed, whatever its outcome — an off-schema answer still cost them. */
-  cost_units: number | null;
+  /**
+   * Tokens the call was billed, whatever its outcome — an off-schema answer still cost them. Dollars (`usd`) go as
+   * a four-place string (`ticksAsDollars`), which PostgREST hands to `numeric` unchanged; a float could not.
+   */
+  cost_units: number | string | null;
   error_code: string | null;
   finished_at: string;
-  /** What `cost_units` counts: Claude bills tokens (the default), Higgsfield credits (C3). */
-  cost_unit?: "tokens" | "credits";
+  /** What `cost_units` counts: Claude bills tokens (the default), Higgsfield dollars (Q-APX16, 0634; `credits` before it). */
+  cost_unit?: "tokens" | "credits" | "usd";
   /** C3: the stored asset — our copy, never the provider's URL. */
   asset_sha256?: string | null;
   asset_path?: string | null;
@@ -129,18 +132,19 @@ export async function anthropicTokensThisMonth(admin: SupabaseClient, orgId: str
 }
 
 /**
- * Higgsfield credits the ads module has committed in the carrier's month (C3, D-AD13): a finished render at
- * what it cost (0 for `failed`/`nsfw` — Higgsfield does not charge them), and a render still `started` at the
- * price recorded on its row when it was submitted. Counting the in-flight ones is what lets `creditGate`
- * promise the month never overshoots. Same keyset fold as the tokens' above.
+ * What the ads module has committed to Higgsfield in the carrier's month, in hundredths of a cent (C3, D-AD13;
+ * Q-APX16): a finished render at what it cost (0 for `failed`/`nsfw` — Higgsfield does not charge them), and a
+ * render still `started` at the estimate recorded on its row when it was asked (`price_ticks`). Counting the
+ * in-flight ones is what lets `renderGate` promise the month never overshoots. Rows in `credits` — written
+ * before Q-APX16, by the simulator only — are not dollars and are not counted. Same keyset fold as the tokens'.
  */
-export async function higgsfieldCreditsThisMonth(admin: SupabaseClient, orgId: string, now: Date): Promise<number> {
+export async function higgsfieldTicksThisMonth(admin: SupabaseClient, orgId: string, now: Date): Promise<number> {
   const month = monthContext(now);
   let total = 0;
   for (let after: string | null = null; ; ) {
     let q = admin
       .from("ad_generations")
-      .select("id, status, cost_units, price:request->>price_credits")
+      .select("id, status, cost_units, cost_unit, price:request->>price_ticks")
       .eq("org_id", orgId)
       .eq("provider", "higgsfield")
       .gte("started_at", month.start)
@@ -148,8 +152,11 @@ export async function higgsfieldCreditsThisMonth(admin: SupabaseClient, orgId: s
     if (after !== null) q = q.gt("id", after);
     const { data, error } = await q.order("id", { ascending: true }).limit(TOKEN_FOLD_PAGE);
     if (error) throw new Error(`ad_generations month: ${error.message}`);
-    const rows = (data ?? []) as Array<{ id: string; status: string; cost_units: number | string | null; price: string | null }>;
-    for (const r of rows) total += Number((r.status === "started" ? r.price : r.cost_units) ?? 0);
+    const rows = (data ?? []) as Array<{ id: string; status: string; cost_units: number | string | null; cost_unit: string | null; price: string | null }>;
+    for (const r of rows) {
+      if (r.status === "started") total += Number(r.price ?? 0);
+      else if (r.cost_unit === "usd") total += Math.round(Number(r.cost_units ?? 0) * USD_TICKS_PER_DOLLAR);
+    }
     if (rows.length < TOKEN_FOLD_PAGE) return total;
     after = rows[rows.length - 1]!.id;
   }

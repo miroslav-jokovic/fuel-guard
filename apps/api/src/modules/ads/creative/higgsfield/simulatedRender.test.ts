@@ -5,9 +5,9 @@ import { createSupabaseRecorder, expectOrgScoped } from "../../../../testing/sup
 import { testEnv } from "../../../../testing/testEnv.js";
 import { AD_FORMATS } from "@silvicom/shared";
 import { frameStill } from "../overlay/overlay.js";
-import { HIGGSFIELD_CREDIT_PRICES, HIGGSFIELD_STILL_MODEL, SIMULATED_STILL_MODEL } from "./prices.js";
+import { HIGGSFIELD_STILL_MODEL, SIMULATED_STILL_MODEL } from "./prices.js";
 import { HIGGSFIELD_VIDEO_MODEL, SIMULATED_VIDEO_MODEL } from "./videoModels.js";
-import { drawSimulatedStill, renderChoiceFor, renderClientFor, SIMULATED_RENDER_PRICES, stopSimulatedRenderForTests } from "./simulatedRender.js";
+import { drawSimulatedStill, renderChoiceFor, renderClientFor, stopSimulatedRenderForTests } from "./simulatedRender.js";
 
 /**
  * The render half of the simulator: reachable from a simulator connection off production, and from nothing else.
@@ -26,16 +26,16 @@ afterEach(async () => stopSimulatedRenderForTests());
 describe("renderChoiceFor — the campaign's connection decides, and only off production", () => {
   it("a simulator connection on staging draws with the simulated still", async () => {
     const rec = connections("simulator");
-    expect(await renderChoiceFor(rec.client, ORG, "conn-1", STAGING)).toEqual({ model: SIMULATED_STILL_MODEL, prices: SIMULATED_RENDER_PRICES, videoModel: SIMULATED_VIDEO_MODEL });
+    expect(await renderChoiceFor(rec.client, ORG, "conn-1", STAGING)).toEqual({ model: SIMULATED_STILL_MODEL, videoModel: SIMULATED_VIDEO_MODEL });
     expectOrgScoped(rec, ORG);
   });
 
   it("a real Meta connection on staging keeps the real choice, so it still stops at V4", async () => {
-    expect(await renderChoiceFor(connections("meta").client, ORG, "conn-1", STAGING)).toEqual({ model: HIGGSFIELD_STILL_MODEL, prices: HIGGSFIELD_CREDIT_PRICES, videoModel: HIGGSFIELD_VIDEO_MODEL });
+    expect(await renderChoiceFor(connections("meta").client, ORG, "conn-1", STAGING)).toEqual({ model: HIGGSFIELD_STILL_MODEL, videoModel: HIGGSFIELD_VIDEO_MODEL });
   });
 
   it("a simulator connection in production, or on a nameless built server, keeps the real choice", async () => {
-    const real = { model: HIGGSFIELD_STILL_MODEL, prices: HIGGSFIELD_CREDIT_PRICES, videoModel: HIGGSFIELD_VIDEO_MODEL };
+    const real = { model: HIGGSFIELD_STILL_MODEL, videoModel: HIGGSFIELD_VIDEO_MODEL };
     expect(await renderChoiceFor(connections("simulator").client, ORG, "conn-1", PRODUCTION)).toEqual(real);
     expect(await renderChoiceFor(connections("simulator").client, ORG, "conn-1", { NODE_ENV: "production" })).toEqual(real);
   });
@@ -55,7 +55,7 @@ describe("renderClientFor — the job asks the gate again", () => {
 
   it("the simulated model needs no key on staging and carries the simulated price", async () => {
     const rec = createSupabaseRecorder({ tables: { ads_platform_connections: [] } });
-    expect(await renderClientFor(rec.client, env, ORG, SIMULATED_STILL_MODEL, STAGING)).toMatchObject({ ok: true, prices: SIMULATED_RENDER_PRICES });
+    expect(await renderClientFor(rec.client, env, ORG, SIMULATED_STILL_MODEL, STAGING)).toMatchObject({ ok: true });
   });
 
   it("any other model on staging needs the carrier's own key", async () => {

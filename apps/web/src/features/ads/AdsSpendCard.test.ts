@@ -17,7 +17,7 @@ const VIEW: AdsSpendView = {
     id: "c1", name: "CDL-A Dallas", state: "live", platform: "meta", daily_budget_cents: 5_000, lifetime_cap_cents: 150_000,
     today_spend_cents: 1_500, month_spend_cents: 5_500, month_leads: 2, lifetime_spend_cents: 14_500, lifetime_leads: 4, lifetime_cost_per_lead_cents: 3_625,
   }],
-  ai: { tokens_used: 15_000, tokens_budget: 1_000_000, credits_used: 40, credits_budget: null },
+  ai: { tokens_used: 15_000, tokens_budget: 1_000_000, pictures_used_cents: 49.4, pictures_budget_cents: null },
   reconcile: [{ connection_id: "m", provider: "meta", last_run_at: null, late: true, changes_since: 0 }],
 };
 
@@ -33,7 +33,7 @@ describe("AdsSpendCard", () => {
     for (const s of [
       "$80 of $3,000 spent this month", "On course for $880", "CDL-A Dallas", "Live",
       "$15 of $50", "$145 of $1,500", "$36.25", "15,000 of 1,000,000 AI tokens used this month.",
-      "No monthly budget is saved, so the agents cannot use any.", "Never checked against Meta yet.",
+      "$0.50 spent on pictures and video. No monthly budget is saved, so no picture can be made.", "Never checked against Meta yet.",
     ]) expect(text, s).toContain(s);
   });
 

@@ -24,10 +24,21 @@ export function platformLine(p: AdsSpendPlatform, daysLeft: number): { spent: st
     : { spent, forecast: `${course}.`, tone: "ok" };
 }
 
-/** Used of budget, for the AI tokens and picture credits. A budget never saved stops the agents (`aiRail.ts`). */
+/** Used of budget, for the AI tokens. A budget never saved stops the agents (`aiRail.ts`). */
 export function budgetLine(used: number, budget: number | null, unit: string): { text: string; tone: Tone } {
   if (budget === null) return { text: `${count(used)} ${unit} used. No monthly budget is saved, so the agents cannot use any.`, tone: "stop" };
   return { text: `${count(used)} of ${count(budget)} ${unit} used this month.`, tone: used >= budget ? "warn" : "ok" };
+}
+
+/**
+ * Pictures and video against their dollar budget (Q-APX16). The amount used may carry a fraction of a cent (each
+ * price is Higgsfield's to the hundredth of a cent); it is shown rounded UP to the cent, so the line can only
+ * overstate what was spent, as the month's fold does.
+ */
+export function pictureBudgetLine(usedCents: number, budgetCents: number | null): { text: string; tone: Tone } {
+  const used = usd(Math.ceil(usedCents));
+  if (budgetCents === null) return { text: `${used} spent on pictures and video. No monthly budget is saved, so no picture can be made.`, tone: "stop" };
+  return { text: `${used} of ${usd(budgetCents)} spent on pictures and video this month.`, tone: usedCents >= budgetCents ? "warn" : "ok" };
 }
 
 export function reconcileLine(r: AdsSpendReconcile, when: (iso: string) => string): { text: string; tone: Tone } {

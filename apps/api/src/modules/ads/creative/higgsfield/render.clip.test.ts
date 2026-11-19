@@ -37,7 +37,7 @@ const PHOTO = readFileSync(new URL("../../workers/checker/fixtures/images/refere
 const PHOTO_REF = { sha256: createHash("sha256").update(PHOTO).digest("hex"), format: "jpeg" as const };
 const MODELS = Object.keys(HIGGSFIELD_VIDEO_CANDIDATES);
 const WAN = "alibaba/wan-3.0/image-to-video";
-const settings: AdsSettings = { ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_credits_monthly: 1_000, agents_enabled: { renderer: true } } };
+const settings: AdsSettings = { ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_usd_cents_monthly: 1_000, agents_enabled: { renderer: true } } };
 const PRICES = Object.fromEntries([...MODELS, STILL_MODEL].map((m) => [m, PRICE]));
 
 let dir: string;
@@ -76,7 +76,7 @@ function generations(q: RecordedQuery) {
   }
   if ("idempotency_key" in f) return ledger.filter((r) => r.org_id === f.org_id && r.idempotency_key === f.idempotency_key);
   return ledger.filter((r) => r.org_id === f.org_id && r.provider === f.provider)
-    .map((r) => ({ ...r, price: (r.request as { price_credits?: number }).price_credits?.toString() ?? null }));
+    .map((r) => ({ ...r, price: (r.request as { price_ticks?: number | null }).price_ticks?.toString() ?? null }));
 }
 
 async function start(clip: Buffer | undefined) {
@@ -109,7 +109,7 @@ const clipInput = (model = WAN): RenderInput => {
   if (!asked.ok) throw new Error(asked.refusal);
   return { orgId: ORG, campaignId: null, creativeId: "cr-1", attempt: 1, model, params: asked.params, reference: PHOTO_REF, clip: { format: MOTION_FORMAT, layout: "bottom_plate" } };
 };
-const step = (input: RenderInput) => renderStep({ admin: db.client, client: new HiggsfieldClient(KEY, { baseUrl: base }), now: clock.now, prices: PRICES }, input);
+const step = (input: RenderInput) => renderStep({ admin: db.client, client: new HiggsfieldClient(KEY, { baseUrl: base }), now: clock.now }, input);
 const onlyRequest = () => [...hf.requests.values()][0]!;
 const submitted = () => JSON.parse(onlyRequest().params.split("\n").slice(1).join("\n")) as Record<string, unknown>;
 
@@ -153,7 +153,7 @@ describe("renderStep — a motion ad's clip", () => {
     expect(key).toBe(`${ORG}/${sha}.mp4`);
     expect(objects.get(key)!.bytes.equals(CLIP)).toBe(true);
     expect(objects.get(key)!.contentType).toBe("video/mp4");
-    expect(ledger[0]).toMatchObject({ status: "succeeded", output: { clip }, asset_sha256: sha, asset_path: key, cost_units: PRICE, cost_unit: "credits", provider_request_id: onlyRequest().request_id });
+    expect(ledger[0]).toMatchObject({ status: "succeeded", output: { clip }, asset_sha256: sha, asset_path: key, cost_units: "0.4000", cost_unit: "usd", provider_request_id: onlyRequest().request_id });
     // No Higgsfield URL is written anywhere on the row.
     expect(JSON.stringify(ledger[0]!.output)).not.toContain(base);
     expectOrgScoped(db, ORG);
@@ -166,7 +166,7 @@ describe("renderStep — a motion ad's clip", () => {
     const balance = hf.balanceCents;
     const again = await step(clipInput());
     expect(again).toEqual({ ...first, replayed: true });
-    expect(await renderStatus(db.client, PRICES, clipInput())).toEqual({ ...first, replayed: true });
+    expect(await renderStatus(db.client, clipInput())).toEqual({ ...first, replayed: true });
     expect({ submits: hf.submits, uploads: hf.uploads.size, rows: ledger.length, balance: hf.balanceCents }).toEqual({ submits: 1, uploads: 1, rows: 1, balance });
   });
 
@@ -185,7 +185,7 @@ describe("renderStep — a motion ad's clip", () => {
     await step(clipInput());
     await hf.finish(onlyRequest().request_id, "completed", { kind: "video" });
     expect(await step(clipInput())).toMatchObject({ kind: "failed", errorCode: "output_unsupported_format" });
-    expect(ledger[0]).toMatchObject({ status: "failed", cost_units: PRICE, output: null, asset_path: null });
+    expect(ledger[0]).toMatchObject({ status: "failed", cost_units: "0.4000", output: null, asset_path: null });
     expect([...objects.keys()]).toEqual([assetKey(ORG, PHOTO_REF)]);
   });
 
@@ -197,7 +197,7 @@ describe("renderStep — a motion ad's clip", () => {
     await step(still);
     await hf.finish([...hf.requests.values()][1]!.request_id, "completed", { kind: "video" });
     expect(await step(still)).toMatchObject({ kind: "failed", errorCode: "no_image" });
-    expect(ledger.map((r) => r.cost_units)).toEqual([PRICE, PRICE]);
+    expect(ledger.map((r) => r.cost_units)).toEqual(["0.4000", "0.4000"]);
   });
 
   it("a clip with no picture to start from, or on a model whose page was not read, is refused before any row", async () => {
@@ -205,15 +205,20 @@ describe("renderStep — a motion ad's clip", () => {
     const unread = { ...clipInput(), model: STILL_MODEL };
     for (const input of [noPicture, unread]) {
       expect(await step(input)).toEqual({ kind: "refused", refusal: "reference_unsupported" });
-      expect(await renderStatus(db.client, PRICES, input)).toEqual({ kind: "refused", refusal: "reference_unsupported" });
+      expect(await renderStatus(db.client, input)).toEqual({ kind: "refused", refusal: "reference_unsupported" });
     }
     expect({ rows: ledger.length, submits: hf.submits, uploads: hf.uploads.size }).toEqual({ rows: 0, submits: 0, uploads: 0 });
   });
 
-  it("a video model nobody priced is refused as an unpriced still model is: no upload, no row", async () => {
-    const out = await renderStep({ admin: db.client, client: new HiggsfieldClient(KEY, { baseUrl: base }), now: clock.now, prices: {} }, clipInput());
-    expect(out).toEqual({ kind: "refused", refusal: "price_unknown" });
-    expect({ rows: ledger.length, uploads: hf.uploads.size }).toEqual({ rows: 0, uploads: 0 });
+  it("a clip is priced by /estimate with its own params, length included; one Higgsfield will not price is a failed row, never a submit", async () => {
+    const client = new HiggsfieldClient(KEY, { baseUrl: base });
+    const asked: Array<Record<string, unknown>> = [];
+    client.estimate = async (_model, params) => (asked.push(params), { ok: false, kind: "refused", status: 404, detail: "Model not found" });
+    const out = await renderStep({ admin: db.client, client, now: clock.now }, clipInput());
+    expect(out).toMatchObject({ kind: "failed", errorCode: "estimate_404" });
+    expect(asked).toEqual([(ledger[0]!.request as { params: Record<string, unknown> }).params]);
+    expect(asked[0]).toHaveProperty("duration");
+    expect({ rows: ledger.length, submits: hf.submits, cost: ledger[0]!.cost_units }).toEqual({ rows: 1, submits: 0, cost: "0.0000" });
   });
 
   it("the job's payload carries the cut, and one naming a frame or layout we do not draw throws", () => {

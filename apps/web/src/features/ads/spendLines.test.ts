@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AdsSpendPlatform, AdsSpendReconcile } from "@silvicom/shared";
-import { budgetLine, platformLine, reconcileLine, usd } from "./spendLines";
+import { budgetLine, pictureBudgetLine, platformLine, reconcileLine, usd } from "./spendLines";
 
 /** "Spend control live" in words (E1c): which state is a warning, and that each figure is shown as given. */
 const meta = (over: Partial<AdsSpendPlatform> = {}): AdsSpendPlatform => ({
@@ -47,7 +47,13 @@ describe("spendLines", () => {
   it("an AI budget never saved stops the agents; one used up warns", () => {
     expect(budgetLine(15_000, null, "AI tokens").tone).toBe("stop");
     expect(budgetLine(15_000, 1_000_000, "AI tokens")).toEqual({ text: "15,000 of 1,000,000 AI tokens used this month.", tone: "ok" });
-    expect(budgetLine(500, 500, "picture credits").tone).toBe("warn");
+    expect(budgetLine(1_000_000, 1_000_000, "AI tokens").tone).toBe("warn");
+  });
+
+  it("pictures and video read in dollars, a fraction of a cent rounded UP, and unset stops them (Q-APX16)", () => {
+    expect(pictureBudgetLine(49.4, 500)).toEqual({ text: "$0.50 of $5 spent on pictures and video this month.", tone: "ok" });
+    expect(pictureBudgetLine(500, 500).tone).toBe("warn");
+    expect(pictureBudgetLine(0, null)).toEqual({ text: "$0 spent on pictures and video. No monthly budget is saved, so no picture can be made.", tone: "stop" });
   });
 
   it("reconcile: never run, run and quiet, differences found, and stopped", () => {

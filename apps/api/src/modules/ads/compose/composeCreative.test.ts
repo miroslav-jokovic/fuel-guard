@@ -480,10 +480,10 @@ describe("composeCreative — what stops at once, never regenerated", () => {
     expect(h.create).not.toHaveBeenCalled();
   });
 
-  it("a render model nobody has priced stops visibly as price_unknown", async () => {
-    const h = harness({ render: () => ({ kind: "refused", refusal: "price_unknown" }) });
-    expect(await h.run()).toEqual({ kind: "check_failed", reason: "render: price_unknown" });
-    expect(h.creativeWrites().at(-1)!.write!.payload).toMatchObject({ state: "check_failed", last_error: "render: price_unknown" });
+  it("a renderer switched off stops visibly as agent_off", async () => {
+    const h = harness({ render: () => ({ kind: "refused", refusal: "agent_off" }) });
+    expect(await h.run()).toEqual({ kind: "check_failed", reason: "render: agent_off" });
+    expect(h.creativeWrites().at(-1)!.write!.payload).toMatchObject({ state: "check_failed", last_error: "render: agent_off" });
   });
 
   it("with no still model chosen yet (V4) it stops at the render, asking Higgsfield nothing", async () => {

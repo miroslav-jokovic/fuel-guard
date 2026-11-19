@@ -1117,7 +1117,10 @@ export const READINESS = [
             "none ready fails the compose with every creative's reason",
           ] }, { file: "apps/api/src/modules/ads/orchestrator/queuedRender.test.ts", titles: [
             "no render yet: queues one ads_render job for this creative and attempt, and answers pending",
-            "a model nobody priced, or the renderer switched off, is refused at once — never a job that writes no row",
+            // Q-APX16 (2026-11-19): there is no price table, so "unpriced" is no longer a refusal before a row; the
+            // promise (never a job that writes no row) is held by the switch here and by the estimate's failed row.
+            "the renderer switched off is refused at once — never a job that writes no row",
+            "a model with no table price is queued all the same: its price is the job's /estimate, and a refused one is a row (Q-APX16)",
           ] }],
         },
       ],
@@ -1454,7 +1457,10 @@ export const READINESS = [
           tests: [
             { file: RENDER, titles: [
               "copies the image into ad-assets by its hash and records our path and the price — no Higgsfield URL anywhere",
-              "refuses a model nobody has priced, with no row and no submit",
+              // Q-APX16: the price is Higgsfield's /estimate, asked before the row; one it refuses is a failed row at no cost.
+              "asks /estimate with the submit's own params and records its answer on the started row, before any submit",
+              "an estimate Higgsfield refuses fails the render at no cost, with a row, so compose is never left waiting",
+              "an estimate with no readable amount is refused, never taken as free",
               "refuses when the renderer is switched off, with no row and no submit",
             ] },
             { file: "apps/api/src/modules/ads/creative/higgsfield/higgsfieldKey.test.ts", titles: [
@@ -1472,7 +1478,7 @@ export const READINESS = [
               "the picture goes up cut to the ad's frame, as frameStill cuts the still, and its URL goes in the model's own field",
               "every later run submits the ROW's params, so the picture goes up once however often the job runs",
               "a clip with no picture to start from, or on a model whose page was not read, is refused before any row",
-              "a video model nobody priced is refused as an unpriced still model is: no upload, no row",
+              "a clip is priced by /estimate with its own params, length included; one Higgsfield will not price is a failed row, never a submit",
             ] },
             { file: MOTION_MAKE, titles: [
               "in CI ffmpeg is installed: a run without it fails here instead of skipping the file tests",
