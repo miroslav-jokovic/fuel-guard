@@ -322,7 +322,8 @@ export interface MedstopOrderPreview {
 export type MedstopOrderAppointment = "filled" | "site_unread" | "not_filled";
 
 export interface MedstopOrderPlaced {
-  requestId: string;
+  /** Med-Stop's new request; null when its answer did not name one — placed all the same (see `placedRequestIdOf`). */
+  requestId: string | null;
   appointment: MedstopOrderAppointment | null;
 }
 

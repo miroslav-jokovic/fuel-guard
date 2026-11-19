@@ -1290,3 +1290,15 @@ SQL, counts only). Nothing was ordered.
   (`mirrorPlacedRequest`), so it is on the list to close straight away. "Order again" there opens the header's
   drawer unseeded, because no seed fits an employee's re-order. Read-only check of the person in the office's test: on
   Med-Stop's active roster, DOT FMCSA, CDL A, hired 2026-09-29, gender on file, one completed pre-employment test.
+- 2026-11-19 — **A placed order is named by Med-Stop's `msg.recordid`, never by its form's id (no migration).** Read-only
+  `GET /Request/new/{eeid}` on the office's test person: the form's `id` IS the employee's id (upper-cased), with
+  `requestdate` today, `dotstatus` Y, `dotagency` FMCSA and `tosms` prefilled. `placeOrder` used to file
+  `data.id ?? formId` as the new request, and the tests' fake form carried a made-up `REQ-FORM-1`. If Med-Stop's
+  answer had no `data.id`, the person's id would have become the order's: the mirror, the In-progress row,
+  Cancel order and the hiring appointment would all have pointed at a request that does not exist. Med-Stop's own
+  walk-through (API-Key-access.md, step 6) says "POST /request/new → create; read msg.recordid". Now
+  `placedRequestIdOf` reads `msg.recordid` (object or array), then `data.recordid` / `data.id`, never the person's,
+  form's or selection's id. With none, it reads the person's open orders of that test: `prepareOrder` refused while one was
+  open, so a single open one is ours. Otherwise `requestId: null`: the order is reported placed, nothing is
+  read back or filled, and the office is told to check Med-Stop. The form still goes back with its `id`, as
+  issued. Whether Med-Stop reads that `id` is the one thing left for the first real order to show.
