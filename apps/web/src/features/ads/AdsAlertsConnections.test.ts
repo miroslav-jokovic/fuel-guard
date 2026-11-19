@@ -93,7 +93,8 @@ describe("Ads control — alerts", () => {
     const w = form(view({ recipients: { ads_brief: [ANA, BO] }, uncontacted_lead_minutes: 15 }), null);
     expect(row(w, "ads_brief").text()).toContain("2 people chosen");
     expect(w.text()).not.toContain("Bo Recruiter");
-    expect(w.findAll("select")).toHaveLength(0);
+    // No person can be added: no picker in any alert's row (the form's other selects — a step's mode, V5 — are not this).
+    expect(w.findAll("[data-alert] select")).toHaveLength(0);
   });
 
   it("a suspended member is not offered, and a chosen id that left the company is named as such", () => {
@@ -101,6 +102,8 @@ describe("Ads control — alerts", () => {
     const w = form(view({ recipients: { ads_rejected: [GONE] }, uncontacted_lead_minutes: 15 }), MEMBERS);
     expect(row(w, "ads_rejected").text()).toContain("Someone no longer in the company");
     expect(row(w, "ads_overspend").findAll("option").map((o) => o.text())).toEqual(["Add someone…", "Ana Admin", "Bo Recruiter"]);
+    // The selector the "cannot add" case counts finds these pickers, so its zero there is not a selector that matches nothing.
+    expect(w.findAll("[data-alert] select").length).toBeGreaterThan(0);
   });
 
   it("minutes outside 5–1,440 are not sent, and the field says why", async () => {

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ADS_AUTHORITY } from "./adsPolicy.js";
-import { AD_STEP_KEYS, AD_STEPS, CAMPAIGN_EVENT_ACT, modeOpen } from "./adsSteps.js";
+import { CAMPAIGN_LIST_LIMIT } from "./campaignContract.js";
+import { AD_STEP_KEYS, AD_STEPS, CAMPAIGN_EVENT_ACT, modeOpen, openingsAwaitingCampaign } from "./adsSteps.js";
 import { CAMPAIGN_EVENTS, CAMPAIGN_TRANSITIONS } from "./campaignMachine.js";
-import { ADS_SETTINGS_UNSET } from "./settingsContract.js";
+import { ADS_SETTINGS_UNSET, adsSettingsSchema, modesOf } from "./settingsContract.js";
 
 describe("the campaign machine answers to the authority table (V5, Q-APX21)", () => {
   it("the machine lets nobody act whom the authority table forbids", () => {
@@ -54,5 +55,36 @@ describe("the steps and their modes", () => {
     const step = AD_STEPS.find((s) => s.key === "replace_tired_ad")!;
     expect(step.modeIn(ADS_SETTINGS_UNSET)).toBe("manual");
     expect(step.modeIn({ ...ADS_SETTINGS_UNSET, creative_refresh: { ...ADS_SETTINGS_UNSET.creative_refresh, retire: true } })).toBe("assisted");
+  });
+});
+
+describe("starting a campaign, Manual or Assisted (V5 part 3)", () => {
+  const start = AD_STEPS.find((s) => s.key === "start_campaign")!;
+
+  it("reads the saved mode; a version saved before V5 has none and is Manual, as every carrier was", () => {
+    expect(start.modeIn(ADS_SETTINGS_UNSET)).toBe("manual");
+    expect(start.modeIn({ ...ADS_SETTINGS_UNSET, modes: { start_campaign: "assisted" } })).toBe("assisted");
+    expect(modesOf(adsSettingsSchema.parse(ADS_SETTINGS_UNSET))).toEqual({ start_campaign: "manual" });
+  });
+
+  it("Assisted still leaves starting to a person: the act is a person's in both modes", () => {
+    for (const m of start.modes) expect(m.acts, m.mode).toEqual(["start_campaign"]);
+  });
+
+  it("offers an open opening with no campaign, and none that has one still standing", () => {
+    const openings = [{ value: "op-1", label: "Dallas" }, { value: "op-2", label: "Joliet" }, { value: "op-3", label: "Tulsa" }, { value: "op-4", label: "Ames" }];
+    const campaigns = [
+      { brief_source: "recruiting_opening", brief_ref: "op-1", state: "live" },
+      { brief_source: "recruiting_opening", brief_ref: "op-2", state: "archived" },
+      { brief_source: "recruiting_opening", brief_ref: "op-3", state: "failed" },
+      { brief_source: "fuel_card_offer", brief_ref: "op-4", state: "live" },
+    ];
+    expect(openingsAwaitingCampaign(openings, campaigns, "recruiting_opening")!.map((o) => o.label)).toEqual(["Joliet", "Ames"]);
+  });
+
+  it("with a list the door may have cut off, it says it cannot tell rather than offer an opening twice", () => {
+    const full = Array.from({ length: CAMPAIGN_LIST_LIMIT }, (_, i) => ({ brief_source: "recruiting_opening", brief_ref: `x-${i}`, state: "live" }));
+    expect(openingsAwaitingCampaign([{ value: "op-9", label: "Waco" }], full, "recruiting_opening")).toBeNull();
+    expect(openingsAwaitingCampaign([{ value: "op-9", label: "Waco" }], full.slice(1), "recruiting_opening")).toHaveLength(1);
   });
 });

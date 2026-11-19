@@ -37,7 +37,8 @@ this section is what is true today and what comes next. When the two disagree, t
 | V4 video (motion ad) | done; driver clip not started | simulator (FakeMeta, the simulated video model) |
 | V8 health read (API) and token expiry (A-8, A-9) | built 2026-11-18: `GET /api/ads/health`; the token read daily with the reconcile, admins told 14 days before it lapses. Its page is V6's Automation tab | FakeMeta's `debug_token` |
 | V6 workspace | screens built 2026-11-19: Ads is its own sidebar section (Q-APX18 (a)) with Overview, Campaigns, Creative studio (brand kit, presets, swipe file), Automation (the health read) and Settings; the two old addresses redirect | web tests; not yet walked on staging |
-| V5 modes · V7 lead engine | not built | — |
+| V5 modes | built 2026-11-19: one enforced authority table, the steps and their modes, lowering a budget, Assisted start, the Automation tab; the agent's own lower waits on Q-APX23 | tests; not walked on staging |
+| V7 lead engine | not built | — |
 
 Scorecard (`pnpm ads:readiness`): nine workers at L3, six at L2 (Copywriter, Art director, Craft judge,
 Finished-ad judge, Checker, Strategist), **none at L4**. `scripts/ads-certifications.json` is empty, so Launch
@@ -1083,6 +1084,16 @@ compare-and-set, so the daily reconcile does not read our own lower as someone e
 not pre-checked: its reference names four minimums by optimization type and says neither which a lead ad set takes
 nor their unit, so Meta's own refusal answers. "Raise a budget" stays an approver's with no door, as before. The
 agent may lower by the table but no rule does: Q-APX23. Progress: `ads-progress/2026-11-19-1630-W-V5-lower-budget.md`.
+
+**Built 2026-11-19 (V5 parts 3 and 4, Assisted start and the Automation tab).** Settings gain `modes.start_campaign`
+(Manual or Assisted; absent reads Manual, as every carrier had), edited in Ads › Settings with the rest. With Assisted,
+every open opening with no standing campaign is listed under the Overview's "Needs you" and on Campaigns; Start opens
+the create form with the opening chosen, and nothing is created until a person presses Start in it
+(`start_campaign` stays a person's in both modes). The rule is shared (`openingsAwaitingCampaign`): an archived
+campaign frees its opening, any other state holds it, and a campaign list the door may have cut off (200, now a
+shared constant) offers nothing rather than an opening that may already have one. Ads › Automation's first card shows
+every step, its mode in force, and each other mode — open with "Change in Settings", or locked with what opens it.
+Progress: `ads-progress/2026-11-19-1800-W-V5-assisted-start.md`. **V5 is built**, except what Q-APX23 decides.
 
 ## 6. Open, in one place
 

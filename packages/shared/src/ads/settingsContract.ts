@@ -159,6 +159,21 @@ export const adsLeadQualitySchema = z.object({
 export type AdsLeadQuality = z.infer<typeof adsLeadQualitySchema>;
 export const ADS_LEAD_QUALITY_DEFAULT: AdsLeadQuality = { enabled: true, min_attempted: 10, wrong_number_pct: 40, not_qualified_pct: 40 };
 
+/**
+ * The modes a carrier chooses for the steps that offer two (V5 part 3; Q-APX21 (a), 2026-11-19). Today one:
+ * starting a campaign for an opening. Replacing a tired ad has its mode in `creative_refresh.retire`, which already
+ * chose it and is read, not copied (`adsSteps.ts`).
+ *
+ * ── OPTIONAL, AND WHY (the replace-whole-object trap, as `outcome_feed`) ──────────────────────────────
+ * Every version saved before V5 has no `modes`, and must parse; `modesOf` reads an absent group as Manual — what
+ * every carrier had. The form must round-trip it, because a save replaces the whole settings object.
+ */
+export const adsModesSchema = z.object({
+  start_campaign: z.enum(["manual", "assisted"]),
+});
+export type AdsModes = z.infer<typeof adsModesSchema>;
+export const ADS_MODES_UNSET: AdsModes = { start_campaign: "manual" };
+
 export const adsSettingsSchema = z.object({
   limits: adsSpendLimitsSchema,
   auto_pause: adsAutoPauseSchema,
@@ -169,6 +184,7 @@ export const adsSettingsSchema = z.object({
   alerts: adsAlertsSchema,
   outcome_feed: adsOutcomeFeedSchema.optional(),
   lead_quality: adsLeadQualitySchema.optional(),
+  modes: adsModesSchema.optional(),
 });
 export type AdsSettings = z.infer<typeof adsSettingsSchema>;
 
@@ -188,6 +204,11 @@ export const ADS_SETTINGS_UNSET: AdsSettings = {
 /** The outcome feed a version says, an absent group (any version saved before Q-AD40) being OFF. */
 export function outcomeFeedOf(settings: AdsSettings): AdsOutcomeFeed {
   return settings.outcome_feed ?? ADS_OUTCOME_FEED_OFF;
+}
+
+/** The modes in force: the saved group, else Manual for every step (what every carrier had before V5). */
+export function modesOf(settings: AdsSettings): AdsModes {
+  return settings.modes ?? ADS_MODES_UNSET;
 }
 
 /** The lead-quality alert in force: the saved group, else the ruled defaults (on). */

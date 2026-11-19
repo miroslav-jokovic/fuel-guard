@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  AD_NAME_LANGUAGES, ADS_PERSON_DOOR_EXCLUDED, adBriefSchema, mayAct, platformText, stepCampaign,
+  AD_NAME_LANGUAGES, ADS_PERSON_DOOR_EXCLUDED, adBriefSchema, CAMPAIGN_LIST_LIMIT, mayAct, platformText, stepCampaign,
   type AdBriefSource, type AdsCampaignCreate, type AdsCampaignCreateRefusal, type AdsCampaignLaunch, type AdsCampaignMove,
   type AdsCampaignSummary, type AdsCampaignView, type AdsCreativeView, type CampaignState, type PlatformSlots,
 } from "@silvicom/shared";
@@ -69,8 +69,6 @@ export async function createCampaign(deps: CreateDeps, orgId: string, userId: st
 
 const SUMMARY = "id, name, state, state_changed_at, brief_source, brief_ref, connection_id, brand_kit_id, daily_budget_cents, lifetime_cap_cents, last_error, created_at";
 const CREATIVE = "id, preset_version_id, brand_kit_version_id, supersedes_id, state, platform_status, copy, assets, checks, candidates, pairings, motion, regenerations, last_error, created_at";
-/** Newest first; the list is a page of a person's recent work, not an export. */
-export const CAMPAIGN_LIST_LIMIT = 200;
 
 export async function listCampaigns(admin: SupabaseClient, orgId: string): Promise<AdsCampaignSummary[]> {
   const { data, error } = await admin.from("ads_campaigns").select(SUMMARY).eq("org_id", orgId).order("created_at", { ascending: false }).limit(CAMPAIGN_LIST_LIMIT);
