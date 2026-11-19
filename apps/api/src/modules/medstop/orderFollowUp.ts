@@ -88,17 +88,21 @@ export async function followUpPlacedOrder(
   orgId: string,
   userId: string,
   input: MedstopOrderInput,
-  placed: { requestId: string; driverId: string },
+  placed: { requestId: string | null; driverId: string },
   today: CalendarDay,
   fill: FillOrderedAppointment,
 ): Promise<MedstopOrderPlaced> {
+  // Placed, but Med-Stop's answer did not name the request (`placedRequestIdOf`): nothing here can be read
+  // back or mirrored by id. The hourly sweep finds the order, and the office is told to look in Med-Stop.
+  if (!placed.requestId) return { requestId: null, appointment: input.reason === "PRE-EMPLOYMENT" ? "site_unread" : null };
+  const requestId = placed.requestId;
   let appointment: MedstopOrderAppointment | null = null;
   if (input.reason === "PRE-EMPLOYMENT") {
     let collection: MedstopOrderedCollection | null = null;
     try {
-      collection = orderedCollectionOf(await client.read(`/Request/${encodeURIComponent(placed.requestId)}`), placed.requestId, input);
+      collection = orderedCollectionOf(await client.read(`/Request/${encodeURIComponent(requestId)}`), requestId, input);
     } catch (e) {
-      console.warn(`[medstop] order ${placed.requestId} placed; its request could not be read back: ${e instanceof Error ? e.message : String(e)}`);
+      console.warn(`[medstop] order ${requestId} placed; its request could not be read back: ${e instanceof Error ? e.message : String(e)}`);
     }
     if (!collection) appointment = "site_unread";
     else {
@@ -106,16 +110,16 @@ export async function followUpPlacedOrder(
         const filled = await fill(admin, orgId, userId, placed.driverId, collection);
         appointment = "appointmentId" in filled ? "filled" : "not_filled";
       } catch (e) {
-        console.warn(`[medstop] order ${placed.requestId} placed; the appointment was not written: ${e instanceof Error ? e.message : String(e)}`);
+        console.warn(`[medstop] order ${requestId} placed; the appointment was not written: ${e instanceof Error ? e.message : String(e)}`);
         appointment = "not_filled";
       }
     }
   }
   try {
-    await mirrorPlacedRequest(admin, client, orgId, placed.requestId, today);
+    await mirrorPlacedRequest(admin, client, orgId, requestId, today);
   } catch (e) {
     // The hourly sweep writes the same row; until then the step shows the order a little late.
-    console.warn(`[medstop] order ${placed.requestId} placed; not yet mirrored: ${e instanceof Error ? e.message : String(e)}`);
+    console.warn(`[medstop] order ${requestId} placed; not yet mirrored: ${e instanceof Error ? e.message : String(e)}`);
   }
-  return { requestId: placed.requestId, appointment };
+  return { requestId: requestId, appointment };
 }

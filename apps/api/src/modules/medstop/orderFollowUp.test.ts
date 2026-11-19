@@ -85,6 +85,15 @@ describe("followUpPlacedOrder", () => {
     expect(calls.every((c) => c.method === "GET")).toBe(true);
   });
 
+  it("an order Med-Stop placed without naming it reads nothing back and writes no appointment — site_unread, for the office to check", async () => {
+    const m = medstop();
+    const fill = vi.fn(filled);
+    expect(await followUpPlacedOrder(db().client as unknown as SupabaseClient, m.client, ORG, "u-1", input, { requestId: null, driverId: "d-app" }, TODAY, fill))
+      .toEqual({ requestId: null, appointment: "site_unread" });
+    expect(fill).not.toHaveBeenCalled();
+    expect(m.client.requests).toBe(0);
+  });
+
   it("never fails a placed order: an unreadable request is site_unread, a refused or broken fill is not_filled, a failed mirror is nothing", async () => {
     const rec = db();
     const unread = medstop({ request: () => new Response("{}", { status: 500 }), list: () => new Response("{}", { status: 500 }) });

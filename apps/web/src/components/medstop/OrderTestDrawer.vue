@@ -210,11 +210,15 @@ async function confirm(): Promise<void> {
   try {
     const placed = await place.mutateAsync(input.value);
     const name = reviewed.value.person.name;
-    if (placed.appointment === "filled")
-      toast.success("Test ordered", `Med-Stop request ${placed.requestId} for ${name}. The step's appointment now holds the site, the deadline and the code — text it to the applicant from there.`);
+    // Med-Stop placed it but did not name the request: say so, rather than quote an id we do not have.
+    const which = placed.requestId ? `Med-Stop request ${placed.requestId}` : "The order";
+    if (!placed.requestId)
+      toast.success("Test ordered", `The order for ${name} was placed, but Med-Stop's answer did not name it. Check it in Med-Stop; it appears under In progress after the next hourly read.`);
+    else if (placed.appointment === "filled")
+      toast.success("Test ordered", `${which} for ${name}. The step's appointment now holds the site, the deadline and the code — text it to the applicant from there.`);
     else if (placed.appointment)
-      toast.success("Test ordered", `Med-Stop request ${placed.requestId} for ${name}. Med-Stop's site details could not be copied into the appointment, so write it in the step before texting the applicant.`);
-    else toast.success("Test ordered", `Med-Stop request ${placed.requestId} for ${name}. It is listed under In progress.`);
+      toast.success("Test ordered", `${which} for ${name}. Med-Stop's site details could not be copied into the appointment, so write it in the step before texting the applicant.`);
+    else toast.success("Test ordered", `${which} for ${name}. It is listed under In progress.`);
     emit("placed");
     emit("close");
   } catch (e) {

@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MedstopOrderInput } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { MedstopClient } from "./client.js";
-import { findSites, placeOrder, prepareOrder, siteObservedFor } from "./order.js";
+import { findSites, placeOrder, placedRequestIdOf, prepareOrder, siteObservedFor } from "./order.js";
 
 /**
  * Ordering a Med-Stop test (MEDSTOP-PLAN.md §7A.4, UX3). Every order is billed and real — there is no
@@ -50,9 +50,12 @@ function medstop(opts: { open?: unknown[]; post?: () => Response; gender?: strin
       return new Response(JSON.stringify({ data: { id: u.pathname.slice(10), gender: opts.gender === undefined ? "MALE" : opts.gender } }), { status: 200 });
     if (u.pathname === "/Request/location") return new Response(JSON.stringify({ rows: [[{ id: "LOC-7", name: "Observed site" }]] }), { status: 200 });
     if (u.pathname.startsWith("/Request/new/"))
-      // Measured 2026-10-13: the prefilled form already carries the DRIVER's phone in `tosms`.
-      return new Response(JSON.stringify({ data: { id: "REQ-FORM-1", eeid: "ee-ann", tosms: "7735550199", toemail: "" } }), { status: 200 });
-    if (init?.method === "POST" && u.pathname === "/Request/new") return opts.post ? opts.post() : new Response(JSON.stringify({ data: { id: "REQ-FORM-1" } }), { status: 200 });
+      // Measured 2026-10-13: the prefilled form already carries the DRIVER's phone in `tosms`. Measured
+      // 2026-11-19: the form's `id` IS the employee's id (upper-cased), not a request's.
+      return new Response(JSON.stringify({ data: { id: "EE-ANN", eeid: "ee-ann", tosms: "7735550199", toemail: "" } }), { status: 200 });
+    if (init?.method === "POST" && u.pathname === "/Request/new")
+      // Med-Stop's guide: the created request's id is in `msg.recordid`.
+      return opts.post ? opts.post() : new Response(JSON.stringify({ msg: { msg: "Saved", recordid: "REQ-NEW-1" }, data: { id: "EE-ANN" } }), { status: 200 });
     return new Response("{}", { status: 404 });
   }) as unknown as typeof fetch;
   return { client: new MedstopClient({ apiKey: "k", baseUrl: "https://api.med-stop.com", fetchImpl, maxRetries: 0, sleep: async () => {} }), calls };
@@ -136,12 +139,12 @@ describe("placeOrder — the one write", () => {
   it("sends the office's contact over the driver's prefilled phone, texts and e-mails off, once", async () => {
     const { client, calls } = medstop();
     const r = await placeOrder(db().client as unknown as SupabaseClient, client, office, ORG, base, TODAY);
-    expect(r).toMatchObject({ requestId: "REQ-FORM-1" });
+    expect(r).toMatchObject({ requestId: "REQ-NEW-1" });
     const posts = calls.filter((c) => c.method !== "GET");
     expect(posts).toHaveLength(1);
     expect(posts[0]!.path).toBe("/Request/new");
     expect(posts[0]!.body).toMatchObject({
-      id: "REQ-FORM-1", eeid: "EE-ANN", category: "TD", reason: "POST-ACCIDENT", payment: "EMPLOYER",
+      id: "EE-ANN", eeid: "EE-ANN", category: "TD", reason: "POST-ACCIDENT", payment: "EMPLOYER",
       sendsms: "N", sendemail: "N", tosms: "3125550100", toemail: "der@silvicom.test",
     });
   });
@@ -171,6 +174,23 @@ describe("placeOrder — the one write", () => {
     await placeOrder(db().client as unknown as SupabaseClient, client, office, ORG, base, TODAY);
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
   });
+
+  it("never files the person's id as the order's: the request is found among the open orders when the answer names none", async () => {
+    let posted = false;
+    const listed = { id: "REQ-LISTED", status: "OPEN", service: "TD" };
+    const { client } = medstop({
+      post: () => { posted = true; return new Response(JSON.stringify({ msg: { msg: "Saved", recordid: "" }, data: { id: "EE-ANN" } }), { status: 200 }); },
+    });
+    const read = client.read.bind(client);
+    client.read = async (path: string) => (posted && path.startsWith("/Request/for/") ? { rows: [[listed]] } : read(path));
+    expect(await placeOrder(db().client as unknown as SupabaseClient, client, office, ORG, base, TODAY)).toMatchObject({ requestId: "REQ-LISTED" });
+  });
+
+  it("says it cannot name the order rather than guess, when neither the answer nor the open orders settle it", async () => {
+    const { client } = medstop({ post: () => new Response(JSON.stringify({ msg: { msg: "Saved" }, data: { id: "EE-ANN" } }), { status: 200 }) });
+    const r = await placeOrder(db().client as unknown as SupabaseClient, client, office, ORG, base, TODAY);
+    expect(r).toMatchObject({ requestId: null, person: { medstopId: "EE-ANN" } });
+  });
 });
 
 /**
@@ -184,7 +204,7 @@ describe("observed orders (UX5d)", () => {
   it("reads the donor's gender from Med-Stop live and sends the order observed — with no gender in it", async () => {
     const { client, calls } = medstop();
     const r = await placeOrder(db().client as unknown as SupabaseClient, client, office, ORG, rtd, TODAY);
-    expect(r).toMatchObject({ requestId: "REQ-FORM-1", payload: { observed: "Y" } });
+    expect(r).toMatchObject({ requestId: "REQ-NEW-1", payload: { observed: "Y" } });
     expect(calls.filter((c) => c.path === "/Employee/EE-ANN")).toHaveLength(1);
     const post = calls.find((c) => c.method === "POST")!;
     expect(post.body).toMatchObject({ reason: "RETURN TO DUTY", observed: "Y", observedreason: expect.stringContaining("40.67(b)"), sendsms: "N", sendemail: "N" });
@@ -295,5 +315,16 @@ describe("findSites — what Med-Stop's rows really hold (measured 2026-11-19)",
     expect(await findSites(answering([row]), { ...q, zip: "60601" })).toEqual([
       { id: "6AF9D85C", name: "MED-STOP DIVERSEY", address: "5356 W DIVERSEY AVE", city: "CHICAGO", state: "IL", zip: "60639", booked: 2 },
     ]);
+  });
+});
+
+describe("placedRequestIdOf — Med-Stop's answer to an order", () => {
+  it("reads msg.recordid (object or array), then data, and never an id that is the person's, the form's or the selection's", () => {
+    expect(placedRequestIdOf({ msg: { recordid: "REQ-1" }, data: { id: "EE-1" } }, ["EE-1"])).toBe("REQ-1");
+    expect(placedRequestIdOf({ msg: [{ recordid: "" }, { recordid: "REQ-2" }] }, ["EE-1"])).toBe("REQ-2");
+    expect(placedRequestIdOf({ msg: { recordid: "" }, data: { id: "REQ-3" } }, ["EE-1"])).toBe("REQ-3");
+    expect(placedRequestIdOf({ msg: { recordid: "" }, data: { id: "ee-1" } }, ["EE-1"])).toBeNull();
+    expect(placedRequestIdOf({ msg: { recordid: "SEL-1" } }, ["EE-1", "SEL-1"])).toBeNull();
+    expect(placedRequestIdOf(null, [])).toBeNull();
   });
 });

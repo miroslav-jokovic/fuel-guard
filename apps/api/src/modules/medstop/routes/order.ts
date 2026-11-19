@@ -146,7 +146,7 @@ export function registerOrderRoutes(router: Router, deps: OrderRouteDeps): void 
         actorId: req.auth!.userId,
         action: "medstop.order.placed",
         entity: "medstop_requests",
-        entityId: placed.requestId,
+        ...(placed.requestId ? { entityId: placed.requestId } : {}),
         meta: { ...input.data, requestId: placed.requestId, driverId: placed.person.driverId, payment: placed.payload.payment, sendsms: "N", sendemail: "N" },
       });
       // After the audit, never before: the order is placed and recorded whatever the follow-up comes to.

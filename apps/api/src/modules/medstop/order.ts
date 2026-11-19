@@ -246,7 +246,38 @@ export async function prepareOrder(
   return { payload: buildMedstopOrderPayload(input, contact), person };
 }
 
-/** Place the order: re-check, take a request form for its id, POST once. */
+/**
+ * The new request's id, from Med-Stop's answer to `POST /Request/new`. Med-Stop's own guide (API-Key-access.md,
+ * "schedule a test" walk-through, step 6): "POST /request/new → create; read msg.recordid". Every answer carries
+ * a `msg` (an object, or an array on a refusal) with a `recordid` — "" on a read (measured 2026-11-19).
+ *
+ * NEVER the form's own id. `GET /Request/new/{eeid}` answers with `id` = the EMPLOYEE's id (measured 2026-11-19
+ * on a real active driver: id === eeid), so the fallback this replaced — `data.id ?? formId` — would have filed
+ * the person's id as the order's: the In-progress row, Cancel order and the hiring step's appointment would all
+ * have pointed at a request that does not exist. `data.id` is taken only when it is neither of those ids.
+ */
+export function placedRequestIdOf(answer: unknown, notThese: readonly string[]): string | null {
+  const a = answer as { msg?: unknown; data?: { id?: unknown; recordid?: unknown } } | null;
+  const msgs = Array.isArray(a?.msg) ? a.msg : [a?.msg];
+  const fromMsg = msgs.map((m) => text((m as { recordid?: unknown } | null)?.recordid)).find((v) => v !== null) ?? null;
+  const excluded = new Set(notThese.map((v) => v.toLowerCase()));
+  return [fromMsg, text(a?.data?.recordid), text(a?.data?.id)].find((v): v is string => v !== null && !excluded.has(v.toLowerCase())) ?? null;
+}
+
+/**
+ * When the answer named no request: the one open order of this test for this person. `prepareOrder` refused
+ * to place this order while one was open, so an open one now is the one just placed. Null if Med-Stop's list
+ * does not settle it (none, or more than one) — the caller then says it cannot name the order, never a wrong id.
+ */
+async function placedRequestFromList(client: MedstopClient, input: MedstopOrderInput): Promise<string | null> {
+  const open = (await client.read(`/Request/for/${encodeURIComponent(input.medstopId)}?page=1&pagesize=100`)) as { rows?: unknown[][] } | null;
+  const ours = ((open?.rows?.[0] ?? []) as Array<{ id?: unknown; status?: string; service?: string; category?: string }>).filter(
+    (r) => medstopRequestIsOpen(r.status) && medstopRequestService(r) === input.service && text(r.id),
+  );
+  return ours.length === 1 ? text(ours[0]!.id) : null;
+}
+
+/** Place the order: re-check, take Med-Stop's request form, POST it once, then name the request it made. */
 export async function placeOrder(
   admin: SupabaseClient,
   client: MedstopClient,
@@ -254,17 +285,20 @@ export async function placeOrder(
   orgId: string,
   input: MedstopOrderInput,
   today: CalendarDay,
-): Promise<({ requestId: string } & MedstopOrderPreview) | { refusal: OrderRefusal }> {
+): Promise<({ requestId: string | null } & MedstopOrderPreview) | { refusal: OrderRefusal }> {
   const prepared = await prepareOrder(admin, client, contact, orgId, input, today);
   if ("refusal" in prepared) return prepared;
+  let sent: unknown;
+  let notIds: string[];
   try {
     // Seeded from the selection when there is one — Med-Stop links that selection to the request.
     const form = (await client.read(`/Request/new/${encodeURIComponent(input.selectionId ?? input.medstopId)}`)) as { data?: { id?: unknown; eeid?: unknown } } | null;
     const formId = text(form?.data?.id);
     if (!formId || text(form?.data?.eeid)?.toLowerCase() !== input.medstopId.toLowerCase())
       return refuse(502, "medstop_form", "Med-Stop did not open a request form for this person, so nothing was ordered.");
-    const sent = (await client.write("POST", "/Request/new", { id: formId, ...prepared.payload })) as { data?: { id?: unknown } } | null;
-    return { requestId: text(sent?.data?.id) ?? formId, ...prepared };
+    // The form goes back as Med-Stop issued it, its `id` included ("GET the /new form, POST submits it").
+    sent = await client.write("POST", "/Request/new", { id: formId, ...prepared.payload });
+    notIds = [formId, input.medstopId, ...(input.selectionId ? [input.selectionId] : [])];
   } catch (e) {
     const ambiguous = e instanceof MedstopError && e.kind === "transport";
     return refuse(
@@ -275,4 +309,14 @@ export async function placeOrder(
         : `Med-Stop refused the order: ${e instanceof Error ? e.message : String(e)}`,
     );
   }
+  // ⚠ Placed from here on: nothing below may report the order as not placed.
+  let requestId = placedRequestIdOf(sent, notIds);
+  if (!requestId) {
+    try {
+      requestId = await placedRequestFromList(client, input);
+    } catch (e) {
+      console.warn(`[medstop] order placed; its request could not be found: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return { requestId, ...prepared };
 }
