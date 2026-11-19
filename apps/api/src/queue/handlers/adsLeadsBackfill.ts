@@ -28,7 +28,7 @@ export const adsLeadsBackfillHandler: JobHandler = async (ctx, job) => {
   const lastDoneAt = last?.started_at ? new Date(last.started_at) : null;
   const since = asked ?? catchUpSince(now, lastDoneAt);
   const r = await backfillConnectionLeads(
-    { admin: ctx.admin, env: ctx.env, now: () => now, sink: leadSinkFor(ctx.admin) },
+    { admin: ctx.admin, env: ctx.env, now: () => now, sink: leadSinkFor(ctx.admin, ctx.env) },
     job.org_id, connectionId, { since },
   ).catch(async (error: unknown) => {
     await alertBackfillStale(ctx.admin, job.org_id, connectionId, lastDoneAt, now);

@@ -4,6 +4,7 @@ import { readLeadVerdicts, recordLeadVerdicts } from "./verdicts.js";
 import { ringNewLead, type ConfiguredRecipients } from "./leadNotify.js";
 import { assignFromOpening } from "./leadAssignment.js";
 import { suppressedPhones } from "../smsSuppressions.js";
+import { lookUpPhones, type PhoneLookupDeps } from "./phoneLookup.js";
 
 /**
  * Recruiting's `LeadSink` (D-AD17; ADS-AGENT-BUILD-WORKFLOW.md D1): the one door every lead comes in by,
@@ -38,6 +39,10 @@ import { suppressedPhones } from "../smsSuppressions.js";
  * In every case the lead is stored, owned, judged and listed: nothing here hides a row. A read that fails rings
  * anyway (`failsHardRequirement`'s rule, and the hold's below): a missed bell costs more than a false one, and
  * the queue still shows the hold beside the number before anybody dials.
+ *
+ * V7a / LQ8b: AFTER the ring, the number is looked up (`phoneLookup.ts`), so the bell never waits on Telnyx. A
+ * lookup that fails is logged and left to the sweep's retry; it never fails the accept, for the same reason a
+ * failed assignment does not. On a duplicate nothing is asked: the first accept asked, or the sweep will.
  */
 
 export interface LeadMatches {
@@ -73,6 +78,7 @@ export function recruitingLeadSink(
   admin: SupabaseClient,
   configured: ConfiguredRecipients,
   clock: () => Date = () => new Date(),
+  lookup: PhoneLookupDeps | null = null,
 ): LeadSink {
   return {
     async accept(orgId, lead) {
@@ -95,6 +101,7 @@ export function recruitingLeadSink(
           failsHard: contactable && (await failsHardRequirement(admin, orgId, r.lead_id)),
         });
         if (bell !== "none") await ringNewLead(admin, orgId, r.lead_id, configured, owner, bell === "again");
+        if (lookup) await lookUpLeadPhone(admin, orgId, r.lead_id, projection.phone_e164, lookup, clock());
       }
       return { stored: r.stored, ref: r.lead_id, contactable };
     },
@@ -133,5 +140,17 @@ export async function failsHardRequirement(admin: SupabaseClient, orgId: string,
   } catch (err) {
     console.error(`[lead-notify] org ${orgId}: lead ${leadId} verdicts unreadable, ringing anyway: ${err instanceof Error ? err.message : String(err)}`);
     return false;
+  }
+}
+
+/** The sink's and the manual door's lookup: never throws, since the lead is stored by then (V7a). */
+export async function lookUpLeadPhone(
+  admin: SupabaseClient, orgId: string, leadId: string, phone: string | null, lookup: PhoneLookupDeps, now: Date,
+): Promise<void> {
+  if (phone === null) return;
+  try {
+    await lookUpPhones(admin, orgId, [phone], lookup, now);
+  } catch (err) {
+    console.error(`[phone-lookup] org ${orgId}: lead ${leadId} not looked up, the sweep will retry: ${err instanceof Error ? err.message : String(err)}`);
   }
 }

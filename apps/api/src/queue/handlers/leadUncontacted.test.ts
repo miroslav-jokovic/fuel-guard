@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 /** The handler is where the ads settings reach recruiting's sweep (D-AD17). */
 const ads = vi.hoisted(() => ({ uncontactedLeadMinutes: vi.fn(async () => 25), configuredAlertRecipients: vi.fn(async () => ["u-dana"]) }));
-const recruiting = vi.hoisted(() => ({ sweepUncontactedLeads: vi.fn(), recruitingLeadSink: vi.fn() }));
+const recruiting = vi.hoisted(() => ({
+  sweepUncontactedLeads: vi.fn(), recruitingLeadSink: vi.fn(), lookUpMissingPhones: vi.fn(),
+  phoneLookupFor: vi.fn((env: { TELNYX_API_KEY?: string }) => (env.TELNYX_API_KEY ? { client: { tag: "telnyx" }, dailyMax: 500 } : null)),
+}));
 vi.mock("../../modules/ads/index.js", () => ads);
 vi.mock("../../modules/recruiting/index.js", () => recruiting);
 
@@ -25,5 +28,22 @@ describe("leadUncontactedHandler", () => {
   it("fails the job when the sweep cannot read", async () => {
     recruiting.sweepUncontactedLeads.mockRejectedValue(new Error("Could not read the uncontacted leads: down"));
     await expect(leadUncontactedHandler(ctx, job, vi.fn())).rejects.toThrow(/uncontacted leads/);
+  });
+
+  it("with the lookup on, asks again for the numbers a lookup missed, after the sweep (V7a)", async () => {
+    recruiting.sweepUncontactedLeads.mockResolvedValue({ overdue: 0, rung: 0 });
+    recruiting.lookUpMissingPhones.mockResolvedValue({ asked: 2, stored: 2 });
+    const on = { ...ctx, env: { TELNYX_API_KEY: "k" } } as unknown as JobContext;
+    const r = await leadUncontactedHandler(on, job, vi.fn());
+    const [admin, org, deps] = recruiting.lookUpMissingPhones.mock.calls.at(-1)!;
+    expect([admin, org, deps.dailyMax]).toEqual([ctx.admin, "org-1", 500]);
+    expect(JSON.parse((r as { detail: string }).detail).phone_lookups).toEqual({ asked: 2, stored: 2 });
+  });
+
+  it("with the lookup off, asks nothing", async () => {
+    recruiting.lookUpMissingPhones.mockClear();
+    recruiting.sweepUncontactedLeads.mockResolvedValue({ overdue: 0, rung: 0 });
+    await leadUncontactedHandler(ctx, job, vi.fn());
+    expect(recruiting.lookUpMissingPhones).not.toHaveBeenCalled();
   });
 });
