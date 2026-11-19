@@ -11,6 +11,7 @@ import {
   medstopRequestIsOpen,
   medstopRequestService,
   medstopTestOutcome,
+  medstopWireTime,
   type CalendarDay,
   type MedstopDonorGender,
   type MedstopOrderInput,
@@ -137,22 +138,37 @@ export async function siteObservedFor(
   return { observed: medstopSiteObserved(true, gender), eeid: q.medstopId };
 }
 
-/** Collection sites near a ZIP or a point, ranked by Med-Stop (its own sites first, then distance, rating). */
+/**
+ * Collection sites near a ZIP or a point, ranked by Med-Stop (its own sites first, then distance, rating).
+ * The time goes in Med-Stop's 12-hour form (`medstopWireTime`) — "16:00" is refused. A refusal comes back
+ * in Med-Stop's words, as a refusal: before 2026-11-19 it was thrown, and the office read "Malformed request".
+ */
 export async function findSites(
   client: MedstopClient,
   q: { service: MedstopOrderInput["service"]; requestDate: string; requestTime: string; observed: "N" | "M" | "F"; eeid?: string } & ({ zip: string } | { lat: number; lng: number }),
-): Promise<MedstopSite[]> {
+): Promise<MedstopSite[] | { refusal: OrderRefusal }> {
   const params = new URLSearchParams({
-    service: MEDSTOP_ORDER_SERVICE_CODE[q.service], dotstatus: "Y", observed: q.observed, requestdate: q.requestDate, requesttime: q.requestTime,
+    service: MEDSTOP_ORDER_SERVICE_CODE[q.service], dotstatus: "Y", observed: q.observed, requestdate: q.requestDate, requesttime: medstopWireTime(q.requestTime),
     ...(q.eeid ? { eeid: q.eeid } : {}),
     ...("zip" in q ? { zip: q.zip } : { lat: String(q.lat), lng: String(q.lng) }),
   });
-  const body = (await client.read(`/Request/location?${params}`)) as { rows?: unknown[][] } | null;
-  return ((body?.rows?.[0] ?? []) as Array<Record<string, unknown>>)
+  let body: { rows?: unknown[][] } | null;
+  try {
+    body = (await client.read(`/Request/location?${params}`)) as { rows?: unknown[][] } | null;
+  } catch (e) {
+    if (e instanceof MedstopError && e.kind === "validation") return refuse(502, "medstop_sites_refused", `Med-Stop refused the site search: ${e.message}`);
+    throw e;
+  }
+  const rows = (body?.rows?.[0] ?? []) as Array<Record<string, unknown>>;
+  // A place Med-Stop cannot find answers 200 with ONE row `{ id: "", text: "LOCATION NOT FOUND" }` (measured
+  // 2026-11-19, ZIP 00000 and 99950) — said as such, not as "0 sites near ZIP 00000".
+  if (rows.length > 0 && rows.every((r) => !text(r.id)) && rows.some((r) => /location not found/i.test(text(r.text) ?? "")))
+    return refuse(404, "medstop_location_not_found", "Med-Stop could not find that place. Check the ZIP, or search near the driver's truck.");
+  return rows
     .filter((r) => text(r.id))
     .map((r) => ({
       id: text(r.id)!, name: text(r.name) ?? "Unnamed site", address: text(r.address), city: text(r.city), state: text(r.state),
-      zip: text(r.zip), distance: text(r.text), booked: typeof r.requests === "number" ? r.requests : null,
+      zip: text(r.zip), booked: typeof r.requests === "number" ? r.requests : null,
     }));
 }
 

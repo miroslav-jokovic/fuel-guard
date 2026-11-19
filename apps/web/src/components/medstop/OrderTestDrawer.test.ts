@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { computed, ref, shallowRef } from "vue";
-import type { MedstopOrderInput } from "@silvicom/shared";
+import { medstopWireTime, type MedstopOrderInput } from "@silvicom/shared";
 
 /**
  * The order drawer (MEDSTOP-PLAN.md §7A.4, UX3). Pinned: it is two steps — nothing is placed until
@@ -31,8 +31,8 @@ vi.mock("@/composables/useMedstopOrder", () => ({
     return { data: computed(() => live.context!.value), isLoading: ref(false) };
   },
   searchSites: async (q: Record<string, unknown>) => (api.searched.push(q), { sites: [
-    { id: "LOC-1", name: "Med-Stop Loop", address: "1 Main St", city: "Chicago", state: "IL", zip: "60601", distance: "1.2 mi", booked: 0 },
-    { id: "LOC-2", name: "Concentra Joliet", address: "1051 Essington Rd", city: "Joliet", state: "IL", zip: "60435", distance: "30 mi", booked: 0 },
+    { id: "LOC-1", name: "Med-Stop Loop", address: "1 Main St", city: "Chicago", state: "IL", zip: "60601", booked: 0 },
+    { id: "LOC-2", name: "Concentra Joliet", address: "1051 Essington Rd", city: "Joliet", state: "IL", zip: "60435", booked: 0 },
   ], near: null }),
   useOrderPreview: () => ({
     isPending: ref(false),
@@ -41,7 +41,8 @@ vi.mock("@/composables/useMedstopOrder", () => ({
       return {
         person: { medstopId: input.medstopId, driverId: "d-ann", name: "Ann Pooled" },
         payload: { eeid: input.medstopId, category: "TD", reason: input.reason, dotstatus: "Y", observed: input.reason === "RETURN TO DUTY" ? "Y" : "N", requestdate: input.requestDate,
-          requesttime: input.requestTime, locationid: input.locationId, payment: "EMPLOYER", notifyby: input.notifyBy,
+          // What the api really returns: Med-Stop's 12-hour "04:00 PM", not the input's "16:00".
+          requesttime: medstopWireTime(input.requestTime), locationid: input.locationId, payment: "EMPLOYER", notifyby: input.notifyBy,
           sendsms: "N", sendemail: "N", tosms: "3125550100", toemail: "der@silvicom.test" },
       };
     },

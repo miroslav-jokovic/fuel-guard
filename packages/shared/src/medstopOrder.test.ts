@@ -11,6 +11,8 @@ import {
   medstopDonorGender,
   medstopOrderIsObserved,
   medstopSiteObserved,
+  medstopTimeOfDay,
+  medstopWireTime,
   MEDSTOP_HEADER_ORDER_REASONS,
   MEDSTOP_ORDER_ROSTER,
   type MedstopOrderInput,
@@ -36,7 +38,7 @@ describe("buildMedstopOrderPayload", () => {
   it("bills the company, as a DOT unobserved collection, in Med-Stop's own codes", () => {
     expect(buildMedstopOrderPayload(input, office)).toEqual({
       eeid: "EE-1", category: "TD", reason: "POST-ACCIDENT", dotstatus: "Y", observed: "N",
-      requestdate: "2026-10-14", requesttime: "09:30", locationid: "LOC-9", payment: "EMPLOYER",
+      requestdate: "2026-10-14", requesttime: "09:30 AM", locationid: "LOC-9", payment: "EMPLOYER",
       notifyby: "PHONE CALL", sendsms: "N", sendemail: "N", tosms: "3125550100", toemail: "der@silvicom.test",
     });
     expect(buildMedstopOrderPayload({ ...input, service: "alcohol" }, office).category).toBe("TA");
@@ -196,3 +198,25 @@ describe("a recollection after a negative-dilute result (MSO3, D-MSO4)", () => {
   });
 });
 
+
+describe("Med-Stop's clock time (measured 2026-11-19)", () => {
+  it("writes the zero-padded 12-hour time Med-Stop's E_VALID_TIME accepts, for every hour", () => {
+    expect(medstopWireTime("16:00")).toBe("04:00 PM");
+    expect(medstopWireTime("09:30")).toBe("09:30 AM");
+    expect(medstopWireTime("12:00")).toBe("12:00 PM");
+    expect(medstopWireTime("00:00")).toBe("12:00 AM");
+    expect(medstopWireTime("23:59")).toBe("11:59 PM");
+    for (let h = 0; h < 24; h++) {
+      const ours = `${String(h).padStart(2, "0")}:15`;
+      expect(medstopWireTime(ours)).toMatch(/^(0[1-9]|1[0-2]):15 (AM|PM)$/);
+      expect(medstopTimeOfDay(medstopWireTime(ours))).toBe(ours);
+    }
+  });
+
+  it("refuses to guess at a time that is not ours", () => {
+    expect(() => medstopWireTime("4:00 PM")).toThrow();
+    expect(() => medstopWireTime("24:00")).toThrow();
+    expect(medstopTimeOfDay("16:00")).toBeNull();
+    expect(medstopTimeOfDay("00:30 AM")).toBeNull();
+  });
+});

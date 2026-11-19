@@ -1,6 +1,6 @@
 import type { Router } from "express";
 import { z } from "zod";
-import { MEDSTOP_ORDER_REASONS, MEDSTOP_ORDER_ROLES, canReadTestingRecords, medstopDefaultGoBy, medstopOrderInputSchema, type CalendarDay, recordId } from "@silvicom/shared";
+import { MEDSTOP_ORDER_REASONS, MEDSTOP_ORDER_ROLES, canReadTestingRecords, medstopDefaultGoBy, medstopOrderInputSchema, medstopTimeOfDaySchema, type CalendarDay, recordId } from "@silvicom/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireRole } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
@@ -21,7 +21,7 @@ import { followUpPlacedOrder, type FillOrderedAppointment } from "../orderFollow
  */
 // The reason (and, for an observed test, the person) decides which sites can collect — UX5d.
 const planned = {
-  service: z.enum(["drug", "alcohol"]), reason: z.enum(MEDSTOP_ORDER_REASONS), medstopId: z.string().trim().min(1).optional(), requestDate: z.string(), requestTime: z.string(),
+  service: z.enum(["drug", "alcohol"]), reason: z.enum(MEDSTOP_ORDER_REASONS), medstopId: z.string().trim().min(1).optional(), requestDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), requestTime: medstopTimeOfDaySchema,
   // MSO3: a recollection the office chose to have observed searches for this donor's observer too.
   observed: z.enum(["true", "false"]).transform((v) => v === "true").optional(),
 };
@@ -98,6 +98,7 @@ export function registerOrderRoutes(router: Router, deps: OrderRouteDeps): void 
       const observed = await siteObservedFor(admin, opened.client, orgId, q.data);
       if ("refusal" in observed) return void refused(res, observed.refusal);
       const sites = await findSites(opened.client, { service: q.data.service, requestDate: q.data.requestDate, requestTime: q.data.requestTime, ...observed, ...near });
+      if ("refusal" in sites) return void refused(res, sites.refusal);
       res.json({ ok: true, data: { sites, near: where } });
     }),
   );
