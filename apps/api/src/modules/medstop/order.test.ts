@@ -234,6 +234,8 @@ describe("observed orders (UX5d)", () => {
     await findSites(client, { service: "drug", requestDate: "2026-10-15", requestTime: "09:30", observed: "F", eeid: "EE-ANN", zip: "60601" });
     const search = new URL(`https://x${calls.at(-1)!.path}`).searchParams;
     expect([search.get("observed"), search.get("eeid")]).toEqual(["F", "EE-ANN"]);
+    // Med-Stop refuses "09:30" with E_VALID_TIME (measured 2026-11-19); only "09:30 AM" is a time to it.
+    expect(search.get("requesttime")).toBe("09:30 AM");
   });
 
   it("org-scopes the observed person's roster read", async () => {
@@ -259,5 +261,39 @@ describe("MedstopClient.write — the allow-list", () => {
     expect([...MEDSTOP_WRITES].sort()).toEqual(["POST /Employee/new", "POST /Request/new", "POST /Request/{id}/status"]);
     expect(medstopWriteAllowed("POST", "/Request/1f2e-AB/status")).toBe(true);
     expect(medstopWriteAllowed("GET", "/Request/1f2e-AB/status")).toBe(false);
+  });
+});
+
+describe("findSites — a refused search (2026-11-19)", () => {
+  it("returns Med-Stop's own reason as a refusal instead of throwing it to the error handler", async () => {
+    // The 400 body exactly as Med-Stop sent it for requesttime=16:00: `msg` is an ARRAY on a refusal.
+    const body = JSON.stringify({
+      errors: { requesttime: "requesttime is not a valid time" },
+      msg: [{ msg: "requesttime is not a valid time", type: "E", code: "E_VALID_TIME", category: "validation", status: "400", source: "requesttime" }],
+    });
+    const fetchImpl = (async () => new Response(body, { status: 400 })) as unknown as typeof fetch;
+    const client = new MedstopClient({ apiKey: "k", baseUrl: "https://api.med-stop.com", fetchImpl, maxRetries: 0, sleep: async () => {} });
+    expect(await findSites(client, { service: "drug", requestDate: "2026-11-20", requestTime: "16:00", observed: "N", zip: "60601" })).toEqual({
+      refusal: { status: 502, code: "medstop_sites_refused", message: "Med-Stop refused the site search: requesttime is not a valid time" },
+    });
+  });
+});
+
+describe("findSites — what Med-Stop's rows really hold (measured 2026-11-19)", () => {
+  const answering = (rows: unknown[]) => {
+    const fetchImpl = (async () => new Response(JSON.stringify({ msg: { msg: `Selected: ${rows.length}` }, rows: [rows] }), { status: 200 })) as unknown as typeof fetch;
+    return new MedstopClient({ apiKey: "k", baseUrl: "https://api.med-stop.com", fetchImpl, maxRetries: 0, sleep: async () => {} });
+  };
+  const q = { service: "drug", requestDate: "2026-11-20", requestTime: "16:00", observed: "N", zip: "00000" } as const;
+
+  it("says Med-Stop could not find the place, rather than listing no sites", async () => {
+    expect(await findSites(answering([{ id: "", text: "LOCATION NOT FOUND" }]), q)).toMatchObject({ refusal: { status: 404, code: "medstop_location_not_found" } });
+  });
+
+  it("keeps a real site and never reads its `text` (the address again) as a distance", async () => {
+    const row = { id: "6AF9D85C", text: "5356 W DIVERSEY AVE CHICAGO IL 60639", pref: "Y", name: "MED-STOP DIVERSEY", address: "5356 W DIVERSEY AVE", city: "CHICAGO", state: "IL", zip: "60639", rating: "5", requests: 2 };
+    expect(await findSites(answering([row]), { ...q, zip: "60601" })).toEqual([
+      { id: "6AF9D85C", name: "MED-STOP DIVERSEY", address: "5356 W DIVERSEY AVE", city: "CHICAGO", state: "IL", zip: "60639", booked: 2 },
+    ]);
   });
 });

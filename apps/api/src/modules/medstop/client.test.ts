@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MedstopClient, MedstopError, medstopSelectionRow } from "./client.js";
+import { MedstopClient, MedstopError, medstopMessage, medstopSelectionRow } from "./client.js";
 
 /** Med-Stop's conventions as measured on 2026-10-13 (MEDSTOP-PLAN.md §5A) — the client's whole job. */
 
@@ -63,5 +63,28 @@ describe("MedstopClient.list", () => {
   it("fails loudly on a row it cannot read rather than storing half a list", async () => {
     const f = fake([{ status: 200, body: JSON.stringify({ data: { pagemax: 1 }, rows: [[{ noid: true }]] }) }]);
     await expect(f.client.list("/x", medstopSelectionRow)).rejects.toBeInstanceOf(MedstopError);
+  });
+});
+
+describe("Med-Stop's refusal sentence (2026-11-19)", () => {
+  const refusal = {
+    errors: { requesttime: "requesttime is not a valid time" },
+    msg: [{ msg: "requesttime is not a valid time", type: "E", code: "E_VALID_TIME", source: "requesttime" }],
+  };
+
+  it("reads a refusal's msg ARRAY and errors map, and an answer's single msg object", () => {
+    expect(medstopMessage(refusal)).toBe("requesttime is not a valid time");
+    expect(medstopMessage({ msg: { msg: "Selected: 30", code: "C_RECORDS" } })).toBe("Selected: 30");
+    expect(medstopMessage({ errors: { a: "first", b: "second" } })).toBe("first; second");
+    expect(medstopMessage({})).toBeNull();
+  });
+
+  it("gives a refused read Med-Stop's reason, and never a `status` the error handler would call the browser's fault", async () => {
+    const f = fake([{ status: 400, body: JSON.stringify(refusal) }]);
+    const err = await f.client.read("/Request/location?zip=60601").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(MedstopError);
+    expect(err).toMatchObject({ kind: "validation", upstreamStatus: 400, message: "requesttime is not a valid time" });
+    // errorResponder answers any thrown 4xx `status` with "Malformed request" — what the office saw.
+    expect("status" in (err as object)).toBe(false);
   });
 });

@@ -10,6 +10,7 @@ import {
   MEDSTOP_ORDER_REASON_LABEL,
   formatDisplayDate,
   formatDisplayWallTime,
+  medstopTimeOfDay,
   medstopDefaultGoBy,
   medstopOrderIsObserved,
   shiftDay,
@@ -145,7 +146,7 @@ const siteOptions = computed(() =>
   sites.value.map((s) => ({
     value: s.id,
     label: s.name,
-    description: [s.address, [s.city, s.state].filter(Boolean).join(", "), s.distance, s.booked ? `${s.booked} booked then` : null].filter(Boolean).join(" · "),
+    description: [s.address, [s.city, s.state].filter(Boolean).join(", "), s.booked ? `${s.booked} booked then` : null].filter(Boolean).join(" · "),
   })),
 );
 
@@ -234,7 +235,8 @@ const reviewFacts = computed((): Fact[] => {
     ...(recollection.value
       ? [{ label: "Recollects", value: `The negative-dilute drug test${recollection.value.collectedOn ? ` collected ${formatDisplayDate(recollection.value.collectedOn)}` : ""}` }]
       : []),
-    { label: "Go by", value: formatDisplayWallTime(`${p.requestdate}T${p.requesttime}`) },
+    // The payload carries Med-Stop's "04:00 PM" (`medstopWireTime`); read back, so the line shows what is sent.
+    { label: "Go by", value: formatDisplayWallTime(`${p.requestdate}T${medstopTimeOfDay(p.requesttime) ?? p.requesttime}`) },
     { label: "Where", value: site.value ? `${site.value.name}${site.value.city ? `, ${site.value.city}` : ""}` : p.locationid },
     { label: "Paid by", value: "Billed to the company's Med-Stop credit" },
     { label: "Notices", value: `Med-Stop will not text or e-mail the ${applicant.value ? "applicant" : "driver"}. Its notices go to ${p.toemail} and ${p.tosms}.` },

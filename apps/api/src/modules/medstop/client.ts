@@ -40,7 +40,13 @@ export class MedstopError extends Error {
   constructor(
     message: string,
     readonly kind: MedstopErrorKind,
-    readonly status: number | null,
+    /**
+     * Med-Stop's HTTP status — deliberately NOT named `status`. The terminal `errorResponder` reads any
+     * thrown error's `status` 4xx as the BROWSER's fault and answers "Malformed request"; that is what the
+     * office saw on 2026-11-19 when Med-Stop refused a site search with a 400 (`requesttime`, see
+     * `medstopWireTime`). Med-Stop refusing us is never the caller sending us a bad request.
+     */
+    readonly upstreamStatus: number | null,
   ) {
     super(message);
     this.name = "MedstopError";
@@ -125,7 +131,7 @@ export class MedstopClient {
           return body;
         }
         if (res.status === 404) return null;
-        error = errorFor(res.status, body);
+        error = withMedstopSentence(errorFor(res.status, body), body);
       } catch (e) {
         if (e instanceof MedstopError) throw e;
         error = new MedstopError(
@@ -166,10 +172,8 @@ export class MedstopClient {
       });
       const parsed = parseJson(await res.text());
       if (res.ok) return parsed ?? null;
-      const err = errorFor(res.status, parsed);
       // Med-Stop's own sentence for a refused order (a closed site, a duplicate) is what the office needs.
-      const said = medstopMessage(parsed);
-      throw said ? new MedstopError(said, err.kind, err.status) : err;
+      throw withMedstopSentence(errorFor(res.status, parsed), parsed, "any");
     } catch (e) {
       if (e instanceof MedstopError) throw e;
       throw new MedstopError(
@@ -215,11 +219,34 @@ function parseJson(text: string): unknown | undefined {
 }
 
 /** Med-Stop's envelope carries `msg.{code,msg}`; the text, when it has one, is the useful part. */
-function medstopMessage(body: unknown): string | null {
-  const msg = (body as { msg?: { msg?: unknown; code?: unknown } } | null)?.msg;
-  const text = typeof msg?.msg === "string" && msg.msg.trim() ? msg.msg.trim() : typeof msg?.code === "string" ? msg.code : null;
+/**
+ * Med-Stop's own sentence from a refusal. Two shapes, both measured: an ANSWER carries one `msg` object
+ * (`{ msg: "Selected: 30", code: "C_RECORDS" }`), a REFUSAL carries a `msg` ARRAY plus an `errors` map by
+ * field (`{ errors: { requesttime: "requesttime is not a valid time" }, msg: [{ msg, code: "E_VALID_TIME",
+ * type: "E", source: "requesttime" }] }` — 400 from `/Request/location`, 2026-11-19). Reading only the object
+ * shape threw every refusal's reason away, which is how a 400 reached the office with no reason at all.
+ */
+export function medstopMessage(body: unknown): string | null {
+  const b = body as { msg?: unknown; errors?: unknown } | null;
+  const said = (m: unknown): string | null => {
+    const o = m as { msg?: unknown; code?: unknown } | null;
+    return typeof o?.msg === "string" && o.msg.trim() ? o.msg.trim() : typeof o?.code === "string" && o.code ? o.code : null;
+  };
+  const fromMsg = Array.isArray(b?.msg) ? b.msg.map(said).filter((t): t is string => t !== null) : [said(b?.msg)].filter((t): t is string => t !== null);
+  const fromErrors = b?.errors && typeof b.errors === "object" ? Object.values(b.errors).filter((v): v is string => typeof v === "string" && v.trim() !== "") : [];
+  const all = [...new Set([...fromMsg, ...fromErrors])];
   // Med-Stop's own sentence, bare: the caller says what was refused (an order, an applicant — UX5c).
-  return text ? text.slice(0, 300) : null;
+  return all.length ? all.join("; ").slice(0, 300) : null;
+}
+
+/**
+ * Med-Stop's sentence in place of ours. A READ takes it on a validation refusal only — for auth, the
+ * firewall and the rate limit our words say more than Med-Stop's code. A WRITE (an order) takes it on any
+ * refusal, as it always has: "Site closed" on a 500 is what the office needs about a billed order.
+ */
+function withMedstopSentence(err: MedstopError, body: unknown, when: "validation" | "any" = "validation"): MedstopError {
+  const said = when === "any" || err.kind === "validation" ? medstopMessage(body) : null;
+  return said ? new MedstopError(said, err.kind, err.upstreamStatus) : err;
 }
 
 function errorFor(status: number, body: unknown): MedstopError {

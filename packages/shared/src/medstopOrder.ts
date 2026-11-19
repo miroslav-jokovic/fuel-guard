@@ -128,6 +128,39 @@ export const MEDSTOP_NOTIFY_BY_LABEL: Record<MedstopNotifyBy, string> = {
 /** A collection date this far ahead at most — Med-Stop's site search answers 30 days (spec, `d+30`). */
 export const MEDSTOP_ORDER_MAX_DAYS_AHEAD = 30;
 
+/** Our time of day, 24-hour "HH:MM" — what the drawer sends and both the order and the site search accept. */
+export const medstopTimeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+
+/**
+ * Med-Stop's clock time, from ours. We hold a time of day as 24-hour "HH:MM" (the browser's time input,
+ * the "Go by" default); Med-Stop's `E_VALID_TIME` — the validator on BOTH `/Request/location`'s and
+ * `/Request/new`'s `requesttime` (spec: `Dto.RequestLocation`, `Dto.WizRequest`) — accepts only a
+ * zero-padded 12-hour time with a space before the meridiem.
+ *
+ * Measured live on 2026-11-19, read-only `GET /Request/location`, after the office's first site search
+ * failed: "04:00 PM", "04:15 PM", "11:30 AM", "12:00 PM", "12:00 AM", "04:00 pm" → 200; "16:00", "16:00:00",
+ * "09:00", "9:00", "4:00 PM", "04:00PM", "1600", "16:00:00.000", "2026-11-20T16:00:00" → 400 "requesttime is
+ * not a valid time". The spec says only `format: time`, which reads as ISO and is not what it checks. Sending
+ * our own "16:00" failed the first site search ever run (no order had been placed yet), and would have
+ * failed the order itself the same way.
+ */
+export function medstopWireTime(hhmm: string): string {
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm);
+  if (!m) throw new Error(`Not a 24-hour HH:MM time: ${hhmm}`);
+  const h = Number(m[1]);
+  return `${String(h % 12 || 12).padStart(2, "0")}:${m[2]} ${h < 12 ? "AM" : "PM"}`;
+}
+
+/** Ours, from Med-Stop's ("04:00 PM" → "16:00"); `null` for anything `medstopWireTime` would not have written. */
+export function medstopTimeOfDay(wire: string): string | null {
+  const m = /^(0\d|1[0-2]):([0-5]\d) (AM|PM)$/i.exec(wire.trim());
+  if (!m) return null;
+  const h12 = Number(m[1]);
+  if (h12 === 0) return null;
+  const h = (h12 % 12) + (m[3]!.toUpperCase() === "PM" ? 12 : 0);
+  return `${String(h).padStart(2, "0")}:${m[2]}`;
+}
+
 export const medstopOrderInputSchema = z
   .object({
     medstopId: z.string().trim().min(1),
@@ -136,7 +169,7 @@ export const medstopOrderInputSchema = z
     selectionId: z.string().trim().min(1).optional(),
     locationId: z.string().trim().min(1),
     requestDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    requestTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+    requestTime: medstopTimeOfDaySchema,
     notifyBy: z.enum(MEDSTOP_NOTIFY_BY),
     /**
      * MSO3 (D-MSO4): the Med-Stop TEST this order recollects — a negative-dilute drug result. The api checks it
@@ -179,6 +212,7 @@ export interface MedstopOrderPayload {
   /** Only on an observed order: why, for the collector (Med-Stop's `observedreason`, ≤ 1000). */
   observedreason?: string;
   requestdate: string;
+  /** Med-Stop's 12-hour "04:00 PM" (`medstopWireTime`), not the input's "16:00". */
   requesttime: string;
   locationid: string;
   payment: "EMPLOYER";
@@ -214,7 +248,7 @@ export function buildMedstopOrderPayload(input: MedstopOrderInput, contact: Meds
         ? { observed: "Y" as const, observedreason: MEDSTOP_RECOLLECTION_OBSERVED_REASON }
         : { observed: "N" as const }),
     requestdate: input.requestDate,
-    requesttime: input.requestTime,
+    requesttime: medstopWireTime(input.requestTime),
     locationid: input.locationId,
     payment: "EMPLOYER",
     notifyby: input.notifyBy,
@@ -258,8 +292,9 @@ export interface MedstopSite {
   city: string | null;
   state: string | null;
   zip: string | null;
-  /** Med-Stop's own distance text, e.g. "3.2 mi". */
-  distance: string | null;
+  // No distance: Med-Stop sends none. Its row is `id, text, pref, name, address, city, state, zip, rating,
+  // requests`, and `text` — once read here as "distance text" — is the whole address again (measured
+  // 2026-11-19, ZIP 60601, 73301 and a lat/lng search). The order of the list is Med-Stop's distance ranking.
   /** Requests already booked in the chosen slot. */
   booked: number | null;
 }

@@ -1258,3 +1258,26 @@ SQL, counts only). Nothing was ordered.
   second copy of its filter rules at the page — not worth it for a number nobody is looking at.
 - 2026-11-10 — **Results' Collected range drops the preset list** (owner: no "Last 30 days"-style
   presets, pick the range on the date picker). `DateRangeFilter :presets="false"`, as FleetPeriodRail.
+- 2026-11-19 — **First real site search failed: "Malformed request" (no migration).** The office switched ordering
+  on in Settings and searched for a collection site near a ZIP for a test order (an employee; the order is to be
+  cancelled). Read-only probes of `GET /Request/location` from the workstation found three faults:
+  1. **Time format.** Med-Stop answered 400 `E_VALID_TIME` "requesttime is not a valid time" to our `16:00`. Its
+     validator accepts only a zero-padded 12-hour time with a space before AM/PM: `04:00 PM`, `11:30 AM`,
+     `12:00 PM`, `12:00 AM` → 200; `16:00`, `16:00:00`, `09:00`, `4:00 PM`, `04:00PM`, `1600`, an ISO time → 400. The
+     spec's `format: time` says nothing about this. The same validator guards `Dto.WizRequest.requesttime`
+     (required), so the ORDER would have failed the same way. Fix: `medstopWireTime` (shared) converts our 24-hour
+     time for both the search and the order payload; `medstopTimeOfDay` reads it back for the review line. The
+     order POST itself was not sent (it is billed); its format is inferred from the shared validator code. That is
+     why the first real order is still watched (§7A.11).
+  2. **Med-Stop's reason was thrown away, then mislabelled.** A refusal's `msg` is an ARRAY, plus an `errors`
+     map by field; an answer's `msg` is one object. `medstopMessage` read only the object shape. And
+     `MedstopError.status` = 400 reached `errorResponder`, which answers any thrown 4xx as the browser's fault:
+     "Malformed request". Now `MedstopError.upstreamStatus`, reads carry Med-Stop's sentence on a validation
+     refusal, and the site search returns `502 medstop_sites_refused` "Med-Stop refused the site search: …".
+  3. **Site rows.** A row is `id, text, pref, name, address, city, state, zip, rating, requests`. There is no
+     distance. `text` (shown as "distance") is the address again, so `MedstopSite.distance` is removed. A place
+     Med-Stop cannot find answers 200 with one row `{ id: "", text: "LOCATION NOT FOUND" }` (ZIP 00000, 99950),
+     now `404 medstop_location_not_found` instead of "0 sites".
+  Checked against live lists, all matching what we send: CATEGORYSERVICE TA|TD|TM, STATUSDOTYN Y, REASONTEST (our six
+  are among its nine), CATEGORYNOTIFY (our four = its four), CATEGORYPAYMENTTEST EMPLOYER, BOOLEAN Y|N. Date window:
+  search today..+30, order today..+120 (ours: +30).
