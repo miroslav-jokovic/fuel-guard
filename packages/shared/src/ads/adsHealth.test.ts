@@ -60,4 +60,13 @@ describe("foldAgents", () => {
     expect(out.find((a) => a.agent === "renderer")).toMatchObject({ enabled: false, cost_unit: "credits", cost_units: 4 });
     expect(out.find((a) => a.agent === "researcher")).toMatchObject({ calls: 0, in_shape_share: null });
   });
+
+  it("a month holding old credits and dollars shows the dollars alone, never their sum (Q-APX16)", () => {
+    const out = foldAgents([
+      { agent: "renderer", status: "succeeded", error_code: null, cost_units: 4, cost_unit: "credits" },
+      { agent: "renderer", status: "succeeded", error_code: null, cost_units: "0.0940", cost_unit: "usd" },
+      { agent: "renderer", status: "failed", error_code: "nsfw", cost_units: "0.0000", cost_unit: "usd" },
+    ], {});
+    expect(out.find((a) => a.agent === "renderer")).toMatchObject({ calls: 3, cost_unit: "usd", cost_units: 0.094 });
+  });
 });

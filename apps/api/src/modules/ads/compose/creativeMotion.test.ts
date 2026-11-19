@@ -114,8 +114,8 @@ describe("makeMotion — before anything is bought", () => {
   });
 
   it("a clip the render road refused, failed, or answered with no video stops the motion ad with the road's own word", async () => {
-    answer = { kind: "refused", refusal: "price_unknown" };
-    expect(await makeMotion(deps(), input())).toEqual({ kind: "stop", reason: "motion clip: price_unknown" });
+    answer = { kind: "refused", refusal: "agent_off" };
+    expect(await makeMotion(deps(), input())).toEqual({ kind: "stop", reason: "motion clip: agent_off" });
     answer = { kind: "failed", generationId: "g", errorCode: "output_unsupported_format", replayed: true };
     expect(await makeMotion(deps(), input())).toEqual({ kind: "stop", reason: "motion clip: output_unsupported_format" });
     answer = { kind: "budget_exhausted", generationId: "g", refusal: "budget_spent", replayed: false };

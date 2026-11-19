@@ -18,11 +18,11 @@ import { MOTION_CLIP_MS } from "@silvicom/shared";
  *   frame is not stated on any of the pages; it is the first thing the sitting reads off the files, and the join
  *   covers the clip to the frame whatever comes back.
  *
- * ── THE PRICES ARE DOLLARS A SECOND, AND NOT YET A BUDGET ─────────────────────────────────────────
+ * ── THE PRICES ARE DOLLARS A SECOND, AND ONLY SIZE THE SITTING ───────────────────────────────────
  * Read from https://open.higgsfield.ai/pricing on 2026-11-16. Two are marked as a floor: the page gives Wan as
- * "from", and Seedance's figure beside "480p" — what 1080p costs is not on the page. They size the sitting. They
- * are NOT wired to `creditGate`: the settings' monthly budget is in Higgsfield credits and the page speaks in
- * dollars, and how one becomes the other is read from the owner's account, not assumed (open, with Q-AD20).
+ * "from", and Seedance's figure beside "480p" — what 1080p costs is not on the page. They size the sitting and
+ * nothing else: what a clip is charged against the month is `/estimate`'s answer for that request (Q-APX16 (a),
+ * `render.ts`), never these figures.
  */
 export const HIGGSFIELD_VIDEO_MODEL: string | null = null;
 

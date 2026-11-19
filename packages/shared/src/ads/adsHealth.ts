@@ -61,9 +61,13 @@ export interface AdsHealthAgent {
   in_shape_share: number | null;
   /** The failure codes, most frequent first. */
   failures: Array<{ code: string; count: number }>;
-  /** Tokens billed (Claude) or credits (Higgsfield), from the ledger's own unit. */
+  /**
+   * Tokens billed (Claude) or US dollars (Higgsfield since Q-APX16; `credits` on rows written before it), from the
+   * ledger's own unit. Only rows in that one unit are summed: a month that holds both a simulator's old credits and
+   * dollars shows the dollars, because adding the two would print a figure in neither.
+   */
   cost_units: number;
-  cost_unit: "tokens" | "credits" | null;
+  cost_unit: "tokens" | "credits" | "usd" | null;
 }
 
 export interface AdsHealthView {
@@ -131,13 +135,14 @@ export function foldAgents(rows: readonly HealthGenerationRow[], enabled: Partia
     const codes = new Map<string, number>();
     for (const f of failed) codes.set(f.error_code ?? "unknown", (codes.get(f.error_code ?? "unknown") ?? 0) + 1);
     const asked = inShape + failed.length;
-    const unit = mine.find((r) => r.cost_unit)?.cost_unit;
+    const units = new Set(mine.map((r) => r.cost_unit).filter((u): u is string => Boolean(u)));
+    const unit = units.has("usd") ? "usd" : [...units][0];
     return {
       agent, enabled: enabled[agent] === true, calls: mine.length, in_shape: inShape, failed: failed.length, budget_refused: refused,
       in_shape_share: asked === 0 ? null : Math.round((inShape / asked) * 1000) / 1000,
       failures: [...codes].map(([code, count]) => ({ code, count })).sort((a, b) => b.count - a.count || (a.code < b.code ? -1 : 1)),
-      cost_units: mine.reduce((n, r) => n + (r.cost_units === null ? 0 : Number(r.cost_units)), 0),
-      cost_unit: unit === "tokens" || unit === "credits" ? unit : null,
+      cost_units: mine.reduce((n, r) => n + (r.cost_units === null || r.cost_unit !== unit ? 0 : Number(r.cost_units)), 0),
+      cost_unit: unit === "tokens" || unit === "credits" || unit === "usd" ? unit : null,
     };
   });
 }

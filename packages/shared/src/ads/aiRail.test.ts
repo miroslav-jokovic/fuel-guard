@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { withinBudget } from "../ai.js";
-import { adsTokensLeft, aiGate, creditGate } from "./aiRail.js";
+import { adsTokensLeft, aiGate, renderGate, ticksAsDollars, usdTicks } from "./aiRail.js";
 import { AD_AI_AGENTS } from "./contracts.js";
 import { ADS_SETTINGS_UNSET, adsSettingsSchema, type AdsSettings } from "./settingsContract.js";
 
@@ -71,15 +71,49 @@ describe("settings contract — agents_enabled", () => {
   });
 });
 
-describe("creditGate — Higgsfield credits (C3)", () => {
-  const s = (budget: number | null, on = true) => ({ ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_credits_monthly: budget, agents_enabled: { renderer: on } } });
-  it("refuses an unpriced model, a switched-off renderer and an unset budget, in that order of reasons", () => {
-    expect(creditGate(s(100, false), "renderer", 0, 10)).toEqual({ open: false, refusal: "agent_off" });
-    expect(creditGate(s(100), "renderer", 0, null)).toEqual({ open: false, refusal: "price_unknown" });
-    expect(creditGate(s(null), "renderer", 0, 10)).toEqual({ open: false, refusal: "budget_unset" });
+describe("renderGate — Higgsfield renders in US dollars (C3; Q-APX16)", () => {
+  // A budget of $1.00 is 100 cents, 10,000 ticks.
+  const s = (cents: number | null, on = true) => ({ ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_usd_cents_monthly: cents, agents_enabled: { renderer: on } } });
+  it("refuses a switched-off renderer, an unread price and an unset budget, in that order of reasons", () => {
+    expect(renderGate(s(100, false), "renderer", 0, 940)).toEqual({ open: false, refusal: "agent_off" });
+    expect(renderGate(s(100), "renderer", 0, null)).toEqual({ open: false, refusal: "price_unknown" });
+    expect(renderGate(s(null), "renderer", 0, 940)).toEqual({ open: false, refusal: "budget_unset" });
   });
-  it("opens only when the price fits what is left: used + price ≤ budget", () => {
-    expect(creditGate(s(100), "renderer", 90, 10)).toEqual({ open: true });
-    expect(creditGate(s(100), "renderer", 91, 10)).toEqual({ open: false, refusal: "budget_spent" });
+  it("opens only when the price fits what is left: used + price ≤ budget, to the hundredth of a cent", () => {
+    expect(renderGate(s(100), "renderer", 9_060, 940)).toEqual({ open: true });
+    expect(renderGate(s(100), "renderer", 9_061, 940)).toEqual({ open: false, refusal: "budget_spent" });
+  });
+  it("the retired credits budget opens nothing", () => {
+    const old = { ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_credits_monthly: 1_000_000, agents_enabled: { renderer: true } } };
+    expect(renderGate(old, "renderer", 0, 1)).toEqual({ open: false, refusal: "budget_unset" });
+  });
+});
+
+describe("usdTicks — the estimate's dollar string, read exactly", () => {
+  it("reads the documented answer and whole dollars", () => {
+    expect(usdTicks("0.094")).toBe(940);
+    expect(usdTicks("1")).toBe(10_000);
+    expect(usdTicks("12.3456")).toBe(123_456);
+  });
+  it("rounds a price finer than a hundredth of a cent UP, so a month never understates", () => {
+    expect(usdTicks("0.00001")).toBe(1);
+    expect(usdTicks("0.12340")).toBe(1_234);
+  });
+  it("refuses anything that is not a plain amount", () => {
+    for (const bad of ["", "-0.1", "1e-3", "$0.10", "0,10", "abc", ".5"]) expect(usdTicks(bad), bad).toBeNull();
+  });
+  it("writes ticks back as dollars to four places", () => {
+    expect(ticksAsDollars(940)).toBe("0.0940");
+    expect(ticksAsDollars(123_456)).toBe("12.3456");
+  });
+});
+
+describe("a settings version saved before Q-APX16", () => {
+  it("parses, with no dollar budget (nobody chose one), and a version saved now still carries the retired key", () => {
+    const { higgsfield_usd_cents_monthly: _usd, ...before } = ADS_SETTINGS_UNSET.budgets;
+    const parsed = adsSettingsSchema.parse({ ...ADS_SETTINGS_UNSET, budgets: before });
+    expect(parsed.budgets.higgsfield_usd_cents_monthly).toBeNull();
+    const { higgsfield_credits_monthly: _c, ...now } = ADS_SETTINGS_UNSET.budgets;
+    expect("higgsfield_credits_monthly" in adsSettingsSchema.parse({ ...ADS_SETTINGS_UNSET, budgets: now }).budgets).toBe(true);
   });
 });

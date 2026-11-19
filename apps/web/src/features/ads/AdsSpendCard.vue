@@ -3,7 +3,7 @@ import { computed } from "vue";
 import type { AdPlatform, AdsSpendCampaign } from "@silvicom/shared";
 import { AppCard as BaseCard, DataTable, QueryState, type DataTableColumn } from "@silvicom/ui";
 import { formatDateTime } from "@/lib/format";
-import { budgetLine, count, platformLine, reconcileLine, usd, type Tone } from "./spendLines";
+import { budgetLine, count, pictureBudgetLine, platformLine, reconcileLine, usd, type Tone } from "./spendLines";
 import { useAdsSpend } from "./useAdsSettings";
 import { PLATFORM_LABEL } from "./adsLabels";
 
@@ -76,8 +76,8 @@ const rows = computed(() => (view.value?.campaigns ?? []).map((c: AdsSpendCampai
           <p :class="TONE[budgetLine(view.ai.tokens_used, view.ai.tokens_budget, 'AI tokens').tone]">
             {{ budgetLine(view.ai.tokens_used, view.ai.tokens_budget, "AI tokens").text }}
           </p>
-          <p :class="TONE[budgetLine(view.ai.credits_used, view.ai.credits_budget, 'picture credits').tone]">
-            {{ budgetLine(view.ai.credits_used, view.ai.credits_budget, "picture credits").text }}
+          <p :class="TONE[pictureBudgetLine(view.ai.pictures_used_cents, view.ai.pictures_budget_cents).tone]" data-test="picture-budget">
+            {{ pictureBudgetLine(view.ai.pictures_used_cents, view.ai.pictures_budget_cents).text }}
           </p>
           <p v-for="r in view.reconcile" :key="r.connection_id" :class="TONE[reconcileLine(r, formatDateTime).tone]" data-reconcile>
             {{ reconcileLine(r, formatDateTime).text }}

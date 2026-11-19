@@ -57,7 +57,8 @@ export interface AdsSettingsFormValues {
   pause_when_filled: boolean;
   second_approver_above: string;
   anthropic_tokens_monthly: string;
-  higgsfield_credits_monthly: string;
+  /** Pictures and video, in dollars as typed (Q-APX16); saved in cents. */
+  higgsfield_usd_monthly: string;
   max_regenerations: string;
   agents_enabled: Record<AdAiAgent, boolean>;
   /** Member ids per alert, in the order they were added; empty = the alert's default audience. */
@@ -92,7 +93,7 @@ export function toFormValues(s: AdsSettings): AdsSettingsFormValues {
     pause_when_filled: s.auto_pause.pause_when_filled,
     second_approver_above: dollars(s.approvals.second_approver_above_cents),
     anthropic_tokens_monthly: count(s.budgets.anthropic_tokens_monthly),
-    higgsfield_credits_monthly: count(s.budgets.higgsfield_credits_monthly),
+    higgsfield_usd_monthly: dollars(s.budgets.higgsfield_usd_cents_monthly),
     max_regenerations: String(s.budgets.max_regenerations),
     agents_enabled: Object.fromEntries(AD_AI_AGENTS.map((a) => [a, s.budgets.agents_enabled[a] === true])) as Record<AdAiAgent, boolean>,
     recipients: Object.fromEntries(ADS_ALERT_CATEGORIES.map((c) => [c, [...(s.alerts.recipients[c] ?? [])]])) as Record<AdsAlertCategory, string[]>,
@@ -171,7 +172,9 @@ export function toSettings(base: AdsSettings, v: AdsSettingsFormValues): FormRes
     budgets: {
       ...base.budgets,
       anthropic_tokens_monthly: num(v.anthropic_tokens_monthly),
-      higgsfield_credits_monthly: num(v.higgsfield_credits_monthly),
+      // Retired (Q-APX16): written as null so the version still parses on the code it replaces; nothing reads it.
+      higgsfield_credits_monthly: null,
+      higgsfield_usd_cents_monthly: cents(v.higgsfield_usd_monthly),
       max_regenerations: num(v.max_regenerations) ?? Number.NaN,
       // Only the agents switched on: the contract reads an absent agent as off, so writing every `false` would
       // store a different object for the same choice, and a saved version would not read back as itself.
@@ -217,7 +220,7 @@ const FIELD_LABELS: Record<string, string> = {
   "creative_refresh.min_impressions": "Impressions per week before a rate counts: a whole number from 100 to 1,000,000.",
   "approvals.second_approver_above_cents": "The second-approver amount must be a dollar amount above zero.",
   "budgets.anthropic_tokens_monthly": "AI tokens a month must be a whole number.",
-  "budgets.higgsfield_credits_monthly": "Image credits a month must be a whole number.",
+  "budgets.higgsfield_usd_cents_monthly": "Pictures and video a month must be a dollar amount.",
   "budgets.max_regenerations": "Tries per ad must be a whole number from 0 to 5.",
   "alerts.recipients": "One alert can go to at most 50 people.",
   "alerts.uncontacted_lead_minutes": "The minutes must be a whole number from 5 to 1,440 (a day).",

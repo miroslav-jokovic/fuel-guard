@@ -7,6 +7,7 @@ import {
   monthContext,
   monthlyCapFor,
   wallClockInZone,
+  USD_TICKS_PER_CENT,
   wallClockToUtc,
   type AdPlatform,
   type AdsSpendCampaign,
@@ -16,7 +17,7 @@ import {
 } from "@silvicom/shared";
 import { lastDoneJobByKey } from "../../org/index.js";
 import { platformSpend } from "../guard/budgetGuard.js";
-import { anthropicTokensThisMonth, higgsfieldCreditsThisMonth } from "../generations/generationLedger.js";
+import { anthropicTokensThisMonth, higgsfieldTicksThisMonth } from "../generations/generationLedger.js";
 import { ADS_RECONCILE_MS, adsReconcileDedupKey } from "../monitor/reconcileTick.js";
 import { settingsInForce } from "../settings/settingsVersions.js";
 
@@ -27,7 +28,7 @@ import { settingsInForce } from "../settings/settingsVersions.js";
  *   per platform   `platformSpend` (the guard's own month and live budgets, B5b's "one fold"), the cap from
  *                  `monthlyCapFor`, the forecast from `forecastMonthCents` (the launch check's formula);
  *   per campaign   `foldCampaignSpend` over the campaign's hourly rows, for today, this month and its lifetime;
- *   AI             the generation ledger's month folds, the numbers `aiGate` / `creditGate` refuse on;
+ *   AI             the generation ledger's month folds, the numbers `aiGate` / `renderGate` refuse on;
  *   reconcile      the last finished `ads_reconcile` job per connection, and the `external_change` rows since.
  *
  * Every read is org-filtered here: the service role bypasses RLS.
@@ -104,9 +105,9 @@ export async function adsSpendView(admin: SupabaseClient, orgId: string, now: Da
     });
   }
 
-  const [tokens, credits, reconcile] = await Promise.all([
+  const [tokens, pictureTicks, reconcile] = await Promise.all([
     anthropicTokensThisMonth(admin, orgId, now),
-    higgsfieldCreditsThisMonth(admin, orgId, now),
+    higgsfieldTicksThisMonth(admin, orgId, now),
     Promise.all(connections.filter((c) => c.provider === "meta").map((c) => reconcileStatus(admin, orgId, c, now))),
   ]);
 
@@ -114,7 +115,7 @@ export async function adsSpendView(admin: SupabaseClient, orgId: string, now: Da
     month: month.month, today: month.today, days_left: month.days_left, platforms, campaigns,
     ai: {
       tokens_used: tokens, tokens_budget: settings.budgets.anthropic_tokens_monthly,
-      credits_used: credits, credits_budget: settings.budgets.higgsfield_credits_monthly,
+      pictures_used_cents: pictureTicks / USD_TICKS_PER_CENT, pictures_budget_cents: settings.budgets.higgsfield_usd_cents_monthly,
     },
     reconcile,
   };

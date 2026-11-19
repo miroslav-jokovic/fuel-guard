@@ -11,7 +11,6 @@ import { readAdAsset, storeAdAsset } from "../creative/brandAssets.js";
 import { publishCampaign, publishReplacement } from "../platforms/meta/publishCampaign.js";
 import { refreshCampaign } from "../compose/refreshCampaign.js";
 import { composeCreative } from "../compose/composeCreative.js";
-import { HIGGSFIELD_CREDIT_PRICES } from "../creative/higgsfield/prices.js";
 import { readAdClip, storeAdClip } from "../creative/motion/motionClip.js";
 import { renderChoiceFor } from "../creative/higgsfield/simulatedRender.js";
 import { renderStatus, type RenderInput, type RenderOutcome } from "../creative/higgsfield/render.js";
@@ -98,7 +97,7 @@ export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
       return composeCampaign({
         admin: deps.admin, now: deps.now, client: anthropicClient(deps.env),
         renderModel: choice.model,
-        render: queuedRender(deps.admin, undefined, choice.prices),
+        render: queuedRender(deps.admin),
         readAsset: (orgId, ref) => readAdAsset(deps.admin, orgId, ref),
         storeAsset: (orgId, bytes) => storeAdAsset(deps.admin, orgId, bytes),
         motion: motionDeps(deps.admin, choice.videoModel),
@@ -123,7 +122,7 @@ export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
       const choice = await renderChoiceFor(deps.admin, campaign.org_id, campaign.connection_id);
       const composeDeps = {
         admin: deps.admin, now: deps.now, client: anthropicClient(deps.env), renderModel: choice.model,
-        render: queuedRender(deps.admin, undefined, choice.prices),
+        render: queuedRender(deps.admin),
         readAsset: (orgId: string, ref: Parameters<typeof readAdAsset>[2]) => readAdAsset(deps.admin, orgId, ref),
         storeAsset: (orgId: string, bytes: Buffer) => storeAdAsset(deps.admin, orgId, bytes),
         motion: motionDeps(deps.admin, choice.videoModel),
@@ -154,7 +153,7 @@ const motionDeps = (admin: SupabaseClient, videoModel: string | null) => ({
 /**
  * Compose's render: read where it stands, and if it is not finished, make sure an `ads_render` job is
  * queued for it, then answer `pending`. The job, not this step, calls Higgsfield, because the job runs ONE
- * AT A TIME (`KIND_CAPS.ads_render` 1) and `creditGate` counts renders in flight: two submitted at once
+ * AT A TIME (`KIND_CAPS.ads_render` 1) and `renderGate` counts renders in flight: two submitted at once
  * could both pass the month's budget and overspend it by one render. `ads_step` runs two at a time, so a
  * render called from here would reopen that race. The job's dedup key holds one job per creative, picture and
  * attempt — and, since V4h, per KIND of output: a motion ad's clip is asked for the same creative, picture and
@@ -162,9 +161,9 @@ const motionDeps = (admin: SupabaseClient, videoModel: string | null) => ({
  * The job goes in as a queue row (`pgQueueDriver`), never `dispatchJob`, which in production's in-process
  * mode would run the render inline, inside this step (B4b's trap).
  */
-export function queuedRender(admin: SupabaseClient, driver: QueueDriver = pgQueueDriver(admin), prices: Readonly<Record<string, number>> = HIGGSFIELD_CREDIT_PRICES): (input: RenderInput) => Promise<RenderOutcome> {
+export function queuedRender(admin: SupabaseClient, driver: QueueDriver = pgQueueDriver(admin)): (input: RenderInput) => Promise<RenderOutcome> {
   return async (input) => {
-    const status = await renderStatus(admin, prices, input);
+    const status = await renderStatus(admin, input);
     if (status.kind !== "absent" && status.kind !== "pending") return status;
     const r = await driver.enqueue("ads_render", { orgId: input.orgId, payload: { ...input }, dedupKey: `ads_render:${input.creativeId}:${pictureKeyPart(input.picture ?? 1)}${input.attempt}${input.clip ? ":clip" : ""}` });
     return { kind: "pending", generationId: status.kind === "pending" ? status.generationId : "", retryAfterSeconds: null, why: "conflict" in r ? "render queued" : "render job queued" };

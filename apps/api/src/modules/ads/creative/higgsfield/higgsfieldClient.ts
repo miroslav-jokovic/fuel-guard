@@ -87,6 +87,23 @@ export class HiggsfieldClient {
     return { ok: true, value: { public_url } };
   }
 
+  /**
+   * What this request would cost the account, asked before it is made (Q-APX16): `POST /estimate/{model}` with the
+   * submit's own parameters, answered `{"usd":"0.094"}` — "use the estimate returned for your authenticated account
+   * as the authoritative amount" (billing-and-retention.md, read 2026-11-17 and 2026-11-19). The amount is a STRING
+   * of dollars and is handed on as one, so `usdTicks` reads it exactly where a float would not. An answer without it
+   * is `refused`, never a price of zero. The page names no error codes, so they are read as every other call's.
+   */
+  estimate(model: string, params: Record<string, unknown>): Promise<HfAnswer<{ usd: string }>> {
+    return this.scrubbed(this.estimateOnce(model, params));
+  }
+
+  private async estimateOnce(model: string, params: Record<string, unknown>): Promise<HfAnswer<{ usd: string }>> {
+    const a = await this.call<{ usd?: unknown }>("POST", `/estimate/${model.replace(/^\//, "")}`, { "content-type": "application/json" }, JSON.stringify(params));
+    if (!a.ok) return a;
+    return typeof a.value.usd === "string" ? { ok: true, value: { usd: a.value.usd } } : { ok: false, kind: "refused", status: 200, detail: "estimate answer without its usd amount" };
+  }
+
   status(requestId: string): Promise<HfAnswer<HfRequestState>> {
     return this.scrubbed(this.call("GET", `/requests/${encodeURIComponent(requestId)}/status`, {}, undefined));
   }

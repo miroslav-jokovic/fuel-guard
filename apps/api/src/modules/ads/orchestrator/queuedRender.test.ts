@@ -12,7 +12,7 @@ import { queuedRender } from "./workers.js";
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const MODEL = "fixture/still";
 const input: RenderInput = { orgId: ORG, campaignId: "c-1", creativeId: "cr-1", attempt: 2, model: MODEL, params: { prompt: "a road, no text, no logos, no lettering" }, reference: null };
-const settings = (on: boolean): AdsSettings => ({ ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_credits_monthly: 100, agents_enabled: { renderer: on } } });
+const settings = (on: boolean): AdsSettings => ({ ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_usd_cents_monthly: 100, agents_enabled: { renderer: on } } });
 
 function world(row: Record<string, unknown> | null, on = true) {
   const rec = createSupabaseRecorder({
@@ -23,7 +23,7 @@ function world(row: Record<string, unknown> | null, on = true) {
   });
   const enqueue = vi.fn(async () => ({ jobId: "j-1" }));
   const driver = { enqueue } as unknown as QueueDriver;
-  return { rec, enqueue, render: queuedRender(rec.client, driver, { [MODEL]: 3 }) };
+  return { rec, enqueue, render: queuedRender(rec.client, driver) };
 }
 
 describe("queuedRender — compose never calls Higgsfield itself", () => {
@@ -37,7 +37,7 @@ describe("queuedRender — compose never calls Higgsfield itself", () => {
   it("a motion ad's clip is its own job: the same creative, picture and attempt as its still, never taken for the still's", async () => {
     const w = world(null);
     const clip = { ...input, model: "alibaba/wan-3.0/image-to-video", reference: { sha256: "a".repeat(64), format: "png" as const }, clip: { format: "4:5" as const, layout: "bottom_plate" as const } };
-    const render = queuedRender(w.rec.client, { enqueue: w.enqueue } as unknown as QueueDriver, { [clip.model]: 3 });
+    const render = queuedRender(w.rec.client, { enqueue: w.enqueue } as unknown as QueueDriver);
     expect(await render(clip)).toMatchObject({ kind: "pending" });
     expect(w.enqueue).toHaveBeenCalledWith("ads_render", { orgId: ORG, payload: clip, dedupKey: "ads_render:cr-1:2:clip" });
   });
@@ -55,12 +55,14 @@ describe("queuedRender — compose never calls Higgsfield itself", () => {
     expect(w.enqueue).not.toHaveBeenCalled();
   });
 
-  it("a model nobody priced, or the renderer switched off, is refused at once — never a job that writes no row", async () => {
-    const unpriced = world(null);
-    expect(await queuedRender(unpriced.rec.client, { enqueue: unpriced.enqueue } as unknown as QueueDriver, {})(input)).toEqual({ kind: "refused", refusal: "price_unknown" });
+  it("the renderer switched off is refused at once — never a job that writes no row", async () => {
     const off = world(null, false);
     expect(await off.render(input)).toEqual({ kind: "refused", refusal: "agent_off" });
-    expect(unpriced.enqueue).not.toHaveBeenCalled();
     expect(off.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("a model with no table price is queued all the same: its price is the job's /estimate, and a refused one is a row (Q-APX16)", async () => {
+    const w = world(null);
+    expect(await w.render({ ...input, model: "some/model-nobody-listed" })).toMatchObject({ kind: "pending", why: "render job queued" });
   });
 });

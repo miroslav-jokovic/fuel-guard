@@ -821,6 +821,14 @@ is nothing to convert to. (Credits are the unit of Higgsfield's consumer plans, 
 
 Until this is ruled no video model has a price and a clip on a real key is refused before any call.
 
+**Built 2026-11-19.** Migration 0634 lets the ledger write `usd` (#2558, one merge ahead of its writer). The
+settings gain `higgsfield_usd_cents_monthly`; `higgsfield_credits_monthly` is read by nothing and stays, defaulted,
+for one release so a version saved now parses on the code it replaces. Every render asks `POST /estimate/<model>`
+with its final parameters (the photo's URL included, so the free upload comes first) and writes the answer on the
+`started` row; `renderGate` counts the month in hundredths of a cent, exact. The price table is gone, and so is
+`price_unknown` before a row: an estimate Higgsfield refuses is a failed row at no cost. Progress:
+`ads-progress/2026-11-19-1100-W-QAPX16-dollars.md`.
+
 ### Q-APX17 · Our video is 1080 pixels wide; Meta's video-ads page says 1,200 at least — RULED (a), 2026-11-18
 
 **What was read (2026-11-17).** Meta's "FB Video Ads" guide (Marketing API), which the pages read on 2026-11-16
@@ -941,7 +949,7 @@ is 100%."*** Taken as:
 | Q-APX5 | Speech-to-text provider | **ruled (a) Amazon Transcribe, 2026-11-18, §5a** | — |
 | Q-APX6 | Planning mandatory, or the carrier's choice | **ruled (b) 2026-11-15, §5a** | — |
 | Q-APX7–15 | — | **ruled 2026-11-16 as proposed, §5a**; Q-APX12's sitting still waits on the Higgsfield key | — |
-| Q-APX16 | The picture budget is in "credits"; Higgsfield's API bills dollars and has a price call | **ruled (a) 2026-11-18, §5a**: budget in dollars, price asked from `/estimate` | — |
+| Q-APX16 | The picture budget is in "credits"; Higgsfield's API bills dollars and has a price call | **ruled (a) 2026-11-18, §5a**: budget in dollars, price asked from `/estimate`; **built 2026-11-19** | — |
 | Q-APX17 | Our video is 1080 wide; Meta's video-ads page says 1,200 at least | **ruled (a) 2026-11-18, §5a**: paint the motion ad at 1440 × 1800 | — |
 | Q-APX18 | Where the Ads workspace sits, and whether Leads and Openings move into it | **ruled (a) 2026-11-18, §5a**: its own sidebar section; Leads and Openings stay Recruitment's and are linked | — |
 | Q-APX19 | What the next three days hold | **ruled (a) 2026-11-18, §5a**: sandbox when credentials arrive, the research (V2r), then the health read | — |

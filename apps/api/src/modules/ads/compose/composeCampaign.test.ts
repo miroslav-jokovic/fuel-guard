@@ -317,9 +317,9 @@ describe("composeCampaign — the campaign's verdict", () => {
   });
 
   it("none ready fails the compose with every creative's reason", async () => {
-    outcomes.set(order[0]!, { kind: "check_failed", reason: "render: price_unknown" });
+    outcomes.set(order[0]!, { kind: "check_failed", reason: "render: agent_off" });
     outcomes.set(order[1]!, { kind: "check_failed", reason: "render: no still model chosen yet (V4)" });
     outcomes.set(order[2]!, { kind: "check_failed", reason: "copy check: too_long (es hook)" });
-    expect(await composeCampaign(deps(world()), campaign)).toEqual({ ok: false, error: "no creative passed its checks: render: price_unknown | render: no still model chosen yet (V4) | copy check: too_long (es hook)" });
+    expect(await composeCampaign(deps(world()), campaign)).toEqual({ ok: false, error: "no creative passed its checks: render: agent_off | render: no still model chosen yet (V4) | copy check: too_long (es hook)" });
   });
 });

@@ -144,8 +144,8 @@ async function submit(): Promise<void> {
         <FormField v-slot="{ id }" label="AI tokens a month" :error="errorOn('budgets.anthropic_tokens_monthly')">
           <BaseInput :id="id" v-model="values.anthropic_tokens_monthly" type="number" inputmode="numeric" step="1" min="0" :disabled="!editable" />
         </FormField>
-        <FormField v-slot="{ id }" label="Picture credits a month" :error="errorOn('budgets.higgsfield_credits_monthly')">
-          <BaseInput :id="id" v-model="values.higgsfield_credits_monthly" type="number" inputmode="numeric" step="1" min="0" :disabled="!editable" />
+        <FormField v-slot="{ id }" label="Pictures and video, dollars a month" hint="What Higgsfield may charge. Each picture is priced by Higgsfield before it is made." :error="errorOn('budgets.higgsfield_usd_cents_monthly')">
+          <BaseInput :id="id" v-model="values.higgsfield_usd_monthly" type="text" inputmode="decimal" :disabled="!editable" />
         </FormField>
         <FormField v-slot="{ id }" label="Tries per ad before it stops" hint="From 0 to 5." :error="errorOn('budgets.max_regenerations')">
           <BaseInput :id="id" v-model="values.max_regenerations" type="number" inputmode="numeric" step="1" min="0" max="5" :disabled="!editable" />

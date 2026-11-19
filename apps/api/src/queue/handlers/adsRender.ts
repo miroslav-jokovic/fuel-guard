@@ -14,7 +14,7 @@ export const adsRenderHandler: JobHandler = async (ctx, job) => {
   const input = renderInputFromPayload(job.org_id, job.payload);
   const renderer = await renderClientFor(ctx.admin, ctx.env, job.org_id, input.model);
   if (!renderer.ok) return { ok: false, detail: `higgsfield ${renderer.reason}` };
-  const out = await renderStep({ admin: ctx.admin, client: renderer.client, now: () => new Date(), prices: renderer.prices }, input);
+  const out = await renderStep({ admin: ctx.admin, client: renderer.client, now: () => new Date() }, input);
   if (out.kind === "pending") throw new Error(`ads_render: still rendering (${out.why})`);
   return { ok: out.kind === "stored", detail: JSON.stringify(out) };
 };
