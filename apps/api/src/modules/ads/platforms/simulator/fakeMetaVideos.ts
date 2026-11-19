@@ -33,8 +33,9 @@ import { graphError, pick } from "./fakeMetaShapes.js";
  *   · the guide's samples do not agree with each other or with the Reels guide's on small things, and a
  *     reader must survive each: `fate` below plays them — a phase spelt `completed`, an error said only by an
  *     `error` object while `video_status` still reads `processing`, and the two failing words.
- *   · the guide's table asks a width of 1,200 pixels at least. This fake does not measure the file: whether
- *     Meta refuses our 1080 is Q-APX17's question and is answered on the sandbox, not by a guess here.
+ *   · the guide's table asks a width of 1,200 pixels at least. Since Q-APX17 (a) our video is 1440 × 1800, so
+ *     either reading of that row — a refusal or advice — is met. This fake still does not measure the file: what
+ *     Meta does below 1,200 is not on its page, and a guess here would be our reading posing as Meta's.
  */
 
 type Answer = { status: number; body: unknown };

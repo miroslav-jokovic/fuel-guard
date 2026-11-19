@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
-import { AD_FORMATS, FORMAT_SIZE, MOTION_FORMAT, MOTION_FPS, MOTION_MIN_CUE_MS, motionTimeline, type AdBrandKit, type AdClaim, type AdLook, type MotionTimeline, type Rect } from "@silvicom/shared";
+import { AD_FORMATS, MOTION_FORMAT, MOTION_FPS, MOTION_MIN_CUE_MS, MOTION_SIZE, motionTimeline, type AdBrandKit, type AdClaim, type AdLook, type MotionTimeline, type Rect } from "@silvicom/shared";
 import { renderMotionLayers, type OverlayInput } from "../overlay/overlay.js";
 import { arrivesAt, checkMotionFrames, FRAME_CHECK_EVERY_MS, frameCheckFfmpegArgs, judgeMotionFrame, motionSampleFrames, type MotionFramesInput } from "./motionFrames.js";
 import { motionFfmpegArgs, motionPictureChain, WORDS_IN_MS } from "./motionJoin.js";
@@ -15,7 +15,7 @@ import { motionFfmpegArgs, motionPictureChain, WORDS_IN_MS } from "./motionJoin.
  * still passes, with a white box switched on over one line for a stretch of time — the white cab that rolls
  * under a headline approved on dark road.
  */
-// Each file test encodes five seconds of 1080 × 1350 video and reads eleven raw frames back. On a loaded machine
+// Each file test encodes five seconds of 1440 × 1800 video and reads eleven raw frames back. On a loaded machine
 // that passed the default five seconds (measured 2026-11-17 at a load average of 25: 5.0 to 5.6 s) and the tests
 // failed as timeouts, not as wrong answers.
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
@@ -34,7 +34,8 @@ const KIT: OverlayInput["kit"] = {
  * (`overlay.ts`). This is the kit the frame check exists for — see the measurement in the last test.
  */
 const BARE: OverlayInput["kit"] = { ...KIT, overlays: Object.fromEntries(AD_FORMATS.map((f) => [f, { zone: null, text_color: "#FFFFFF", plate_color: null }])) as AdBrandKit["overlays"] };
-const { width: W, height: H } = FORMAT_SIZE[MOTION_FORMAT];
+/** The motion frame (Q-APX17): the clip, the frames read back and `layers.lines` are all in its pixels. */
+const { width: W, height: H } = MOTION_SIZE;
 const DARK = "0x1C2228";
 
 type Made = { input: Omit<MotionFramesInput, "clip">; timeline: MotionTimeline; lines: Record<string, Rect[]>; on: Record<string, boolean> };
@@ -75,6 +76,15 @@ beforeAll(async () => {
   made.scrimmed = await layersOf("photo", KIT);
 });
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+describe("judgeMotionFrame — a row with no line boxes is our bug, said", () => {
+  it("throws rather than read the still's box on a 1440 frame, which would judge the wrong pixels and pass", () => {
+    const frame = Buffer.alloc(W * H * 3, 0x20);
+    const block = { label: "headline", box: { x: 65, y: 900, width: 950, height: 80 }, needed_width: 900, px: 96, bold: true, color: [255, 255, 255] as [number, number, number], background_samples: [] };
+    const timeline = { clip_ms: 5000, hold_ms: 2000, duration_ms: 7000, cues: [{ labels: ["headline"], from_ms: 0 }] };
+    expect(() => judgeMotionFrame(frame, 0, { timeline, blocks: [block], lines: {} })).toThrow(/no line boxes for headline/);
+  });
+});
 
 describe("which frames are judged, and which lines on each", () => {
   it("one frame every half of the shortest reading time, from the first, and the motion's last frame", () => {

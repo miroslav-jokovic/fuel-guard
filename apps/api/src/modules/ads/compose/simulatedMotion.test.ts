@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { AD_FORMATS, ADS_SETTINGS_UNSET, adMotionSchema, FORMAT_SIZE, MOTION_FORMAT, MOTION_FPS, type AdBrandKit, type AdBrief, type AdPresetRecipe, type AdsSettings } from "@silvicom/shared";
+import { AD_FORMATS, ADS_SETTINGS_UNSET, adMotionSchema, FORMAT_SIZE, MOTION_FORMAT, MOTION_FPS, MOTION_SIZE, type AdBrandKit, type AdBrief, type AdPresetRecipe, type AdsSettings } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { testEnv } from "../../../testing/testEnv.js";
 import { assetKey } from "../creative/brandAssets.js";
@@ -27,6 +27,7 @@ const onFile = HAS_FFMPEG ? it : it.skip;
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const STAGING = { DEPLOY_ENVIRONMENT: "staging" }, PRODUCTION = { DEPLOY_ENVIRONMENT: "production" };
+/** The simulator's clip is the still's frame: it is drawn from the picture the model is sent, cut at the still's size. */
 const { width: W, height: H } = FORMAT_SIZE[MOTION_FORMAT];
 const settings: AdsSettings = { ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_usd_cents_monthly: 10, agents_enabled: { renderer: true } } };
 const KIT = { overlays: Object.fromEntries(AD_FORMATS.map((f) => [f, { zone: null, text_color: "#FFFFFF", plate_color: "#07130E" }])), phone: "(555) 010-0142", logo: null, colors: [{ name: "primary", hex: "#0B3D2E" }, { name: "accent", hex: "#F2B01E" }, { name: "white", hex: "#FFFFFF" }] } as unknown as AdBrandKit;
@@ -164,7 +165,8 @@ describe("a motion ad with no Higgsfield key: the real render step and the real 
     for (const key of [clipKey(ORG, out.motion.clip), ...out.motion.files.map((f) => f.path)]) {
       expect(key.endsWith(`${createHash("sha256").update(objects.get(key)!).digest("hex")}.mp4`), key).toBe(true);
     }
-    expect(out.motion.files.map((f) => [f.language, f.width, f.height])).toEqual([["en", W, H], ["es", W, H]]);
+    // The joined files are the motion frame (Q-APX17): the clip covered up to it, the words painted at it.
+    expect(out.motion.files.map((f) => [f.language, f.width, f.height])).toEqual([["en", MOTION_SIZE.width, MOTION_SIZE.height], ["es", MOTION_SIZE.width, MOTION_SIZE.height]]);
     // Each file is the five seconds of motion and the still held after it, in whole frames of the ad's rate.
     for (const f of out.motion.files) {
       expect(f.duration_ms).toBeGreaterThanOrEqual(7000);

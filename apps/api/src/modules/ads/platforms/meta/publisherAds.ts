@@ -31,7 +31,8 @@ import { ensureVideo, type PublishVideoFile } from "./publisherVideo.js";
  * Ads guide's video sample puts the link INSIDE the button's value, so it is sent there. The thumbnail is
  * the creative's own feed still, named by `image_hash`: the Ad Creative Video Data reference lists it
  * ("Hash of an image in your image library with Facebook to use as thumbnail", read 2026-11-17), the still
- * is uploaded by the image road below either way, and it is the motion ad's own last frame. The guide's
+ * is uploaded by the image road below either way, and the motion ad's last frame is that same ad — its layout,
+ * painted at 1440 rather than 1080 (Q-APX17, `overlay.ts` `paint`). The guide's
  * sample uses `image_url` instead, which would need a public address for a file we keep private. Whether
  * a lead ad takes the hash is L4's to settle; nothing here guesses a URL. A motion ad missing a language's
  * file is refused before any call (`motion_file_missing`), never published as its still: the plan asked

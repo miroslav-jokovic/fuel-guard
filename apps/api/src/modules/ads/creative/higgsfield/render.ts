@@ -64,7 +64,9 @@ import { clipImageField } from "./videoModels.js";
  *   · THE PICTURE IS CUT BEFORE IT GOES UP. No candidate model can be asked for 4:5 (`videoModels.ts`), so the
  *     reference is covered to the ad's frame by `frameStill` — the function that frames the still — and the
  *     model starts from exactly the pixels the approved ad is made of. A clip with no reference is refused: a
- *     moving picture drawn from words alone is not this carrier's truck.
+ *     moving picture drawn from words alone is not this carrier's truck. The cut is the STILL's size, 1080 × 1350,
+ *     though the motion ad is painted at 1440 (Q-APX17): those are the approved ad's pixels, the join covers any
+ *     frame the model returns up to 1440, and what input size each model accepts has not been read off its page.
  *   · THE ANSWER IS `video.url`, NOT `images`. It is read with ffprobe (`prepareClip`) and stored at
  *     `<org>/<sha256>.mp4`; the row's output is `{ clip }`, the frame and length the model really returned.
  *     A server without ffprobe leaves the render pending — the clip is paid for and is not thrown away.

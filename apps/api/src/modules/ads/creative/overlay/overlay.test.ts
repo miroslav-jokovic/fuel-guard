@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { motionTimeline, AD_FORMATS, AD_LOOKS, AD_OVERLAY_LAYOUTS, FORMAT_SIZE, contains, safeZone, type AdBrandKit, type AdFormat, type AdClaim, type AdLook, type AdOverlayLayout } from "@silvicom/shared";
+import { motionTimeline, AD_FORMATS, AD_LOOKS, AD_OVERLAY_LAYOUTS, FORMAT_SIZE, MOTION_SCALE, MOTION_SIZE, contains, safeZone, type AdBrandKit, type AdFormat, type AdClaim, type AdLook, type AdOverlayLayout } from "@silvicom/shared";
 import { frameStill, overlayFit, renderMotionLayers, renderOverlay, type OverlayInput } from "./overlay.js";
 import { inkOn, LOOKS, paletteOf, SCRIM_STEPS } from "./overlayLooks.js";
 
@@ -389,7 +389,16 @@ describe("motion layers — the still taken apart (V4, Q-APX13)", () => {
   };
   const raw = (png: Buffer) => sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const together = async (i: OverlayInput, o: Layers, layers: Buffer[] = [o.under, ...o.words.map((w) => w.png)]) =>
-    sharp(await frameStill(i.base, i.format, i.layout ?? "bottom_plate")).composite(layers.map((layer) => ({ input: layer }))).png().toBuffer();
+    sharp(await frameStill(i.base, i.format, i.layout ?? "bottom_plate", MOTION_SIZE)).composite(layers.map((layer) => ({ input: layer }))).png().toBuffer();
+  /** A box on the still's frame, in the motion frame's pixels. */
+  const big = (b: { x: number; y: number; width: number; height: number }) => ({ x: b.x * MOTION_SCALE, y: b.y * MOTION_SCALE, width: b.width * MOTION_SCALE, height: b.height * MOTION_SCALE });
+  /** Soft edge pixels per solid pixel of a layer's ink: how blurred its letters are. */
+  async function softness(png: Buffer): Promise<number> {
+    const { data } = await raw(png);
+    let full = 0, part = 0;
+    for (let n = 3; n < data.length; n += 4) if (data[n] === 255) full += 1; else if (data[n]! > 0) part += 1;
+    return part / full;
+  }
   /** The largest difference of any channel of any pixel. */
   async function worst(a: Buffer, b: Buffer): Promise<number> {
     const [x, y] = await Promise.all([raw(a), raw(b)]);
@@ -414,8 +423,73 @@ describe("motion layers — the still taken apart (V4, Q-APX13)", () => {
     const i = await input("4:5", { look, headline: FIGURE_FIRST });
     const o = await layersOf(i);
     expect(o.look).toBe(look);
-    expect(o.still.equals((await rendered(i)).png)).toBe(true);
     expect(await worst(await together(i, o), o.still)).toBeLessThanOrEqual(3);
+  });
+
+  it.each([...AD_LOOKS])("%s: the motion ad ends on the approved still's own layout, painted at 1440 × 1800 (Q-APX17)", async (look) => {
+    const i = await input("4:5", { look, headline: FIGURE_FIRST });
+    const [o, still] = [await layersOf(i), await rendered(i)];
+    const meta = await sharp(o.still).metadata();
+    expect([meta.width, meta.height]).toEqual([MOTION_SIZE.width, MOTION_SIZE.height]);
+    // The same decisions, not a second layout: every row, box, size and measured width is the still's.
+    const layout = (b: (typeof still.blocks)[number]) => [b.label, b.box, b.px, b.bold, b.color, b.needed_width];
+    expect(o.blocks.map(layout)).toEqual(still.blocks.map(layout));
+    expect([o.look, o.stack, o.scrim]).toEqual([still.look, still.stack, still.scrim]);
+    // Brought back to 1080 it is the still but for antialiased edges: 0.3 % to 0.5 % of pixels past 48 levels, measured 2026-11-19.
+    expect(await differs(await sharp(o.still).resize(FORMAT_SIZE["4:5"].width, FORMAT_SIZE["4:5"].height).png().toBuffer(), still.png)).toBeLessThan(0.01);
+  });
+
+  it("the words are painted at 1440, not a 1080 painting stretched: a stretched layer is far softer", async () => {
+    const o = await layersOf(await input("4:5"));
+    const layer = o.words[0]!.png;
+    const stretched = await sharp(await sharp(layer).resize(FORMAT_SIZE["4:5"].width, FORMAT_SIZE["4:5"].height).png().toBuffer()).resize(MOTION_SIZE.width, MOTION_SIZE.height).png().toBuffer();
+    const [own, soft] = [await softness(layer), await softness(stretched)];
+    expect(own).toBeLessThan(0.15);
+    expect(soft).toBeGreaterThan(own * 2);
+  });
+
+  it("the lines the frame check reads are each row's own lines, in the motion frame's pixels", async () => {
+    const o = await layersOf(await input("4:5"));
+    const headline = o.blocks.find((b) => b.label === "headline")!;
+    expect(o.lines.headline!.length).toBeGreaterThan(0);
+    for (const line of o.lines.headline!) {
+      expect(line.x).toBeCloseTo(headline.box.x * MOTION_SCALE, 6);
+      expect(line.y + line.height).toBeLessThanOrEqual((headline.box.y + headline.box.height) * MOTION_SCALE + 1e-6);
+    }
+  });
+
+  it("photo's darkening is as smooth at 1440 as on the still: down the clear margin, no more turns than the still has", async () => {
+    // Measured 2026-11-19 on the 1080 still: three turns, all its own — two a 2-level wobble where each channel of the
+    // easing rounds on its own, one the lightening past the words. A scrim painted in strips 4/3 of a pixel tall
+    // would add a band at every overlap.
+    const light = await sharp({ create: { width: 1080, height: 1350, channels: 3, background: "#E8EEF4" } }).png().toBuffer();
+    const i = await input("4:5", { look: "photo", base: light });
+    const [o, still] = [await layersOf(i), await rendered(i)];
+    expect(o.scrim).toBeGreaterThan(0);
+    // Four pixels in from the left: inside the frame, outside the safe zone, so nothing but the picture and the scrim.
+    const turns = async (png: Buffer) => {
+      const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      const luma = Array.from({ length: info.height }, (_, y) => { const at = (y * info.width + 4) * 3; return data[at]! + data[at + 1]! + data[at + 2]!; });
+      const steps = luma.slice(1).map((v, y) => Math.sign(v - luma[y]!)).filter((d) => d !== 0);
+      return steps.reduce((n, d, k) => n + (k > 0 && d !== steps[k - 1] ? 1 : 0), 0);
+    };
+    expect(await turns(o.still)).toBeLessThanOrEqual(await turns(still.png));
+  });
+
+  it("contrast is read under where each line IS on the 1440 frame: a white patch exactly there refuses, as on the still", async () => {
+    const bare: OverlayInput["kit"] = { ...KIT, overlays: Object.fromEntries(AD_FORMATS.map((f) => [f, { zone: null, text_color: "#FFFFFF", plate_color: null }])) as AdBrandKit["overlays"] };
+    const dark = await sharp({ create: { width: 1080, height: 1350, channels: 3, background: "#20262C" } }).png().toBuffer();
+    const head = (await rendered(await input("4:5", { look: "photo", kit: bare, base: dark }))).blocks.find((b) => b.label === "headline")!.box;
+    const patch = await sharp({ create: { width: Math.ceil(head.width) + 16, height: Math.ceil(head.height) + 16, channels: 3, background: "#FFFFFF" } }).png().toBuffer();
+    const base = await sharp(dark).composite([{ input: patch, left: Math.floor(head.x) - 8, top: Math.floor(head.y) - 8 }]).png().toBuffer();
+    const i = await input("4:5", { look: "photo", kit: bare, base });
+    const still = await renderOverlay(i), motion = await renderMotionLayers(i);
+    expect(still.kind === "refused" && still.findings).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "low_contrast", label: "headline" })]));
+    expect(motion.kind === "refused" && motion.findings).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "low_contrast", label: "headline" })]));
+  });
+
+  it("is made in the motion format only: another frame would not be the size the join expects", async () => {
+    await expect(renderMotionLayers(await input("1:1"))).rejects.toThrow(/motion ad is made in 4:5/);
   });
 
   it("without its words layers the frame is not the still: the words are in them and nowhere else", async () => {
@@ -430,8 +504,8 @@ describe("motion layers — the still taken apart (V4, Q-APX13)", () => {
     expect(o.words.map((w) => w.labels)).toEqual([["headline"], ["subline"]]);
     const always = o.blocks.filter((b) => b.label === "eeo" || b.label === "phone");
     expect(always.map((b) => b.label)).toEqual(["eeo", "phone"]);
-    expect((await inked(o.under, always.map((b) => b.box), { x: 0, y: 0 })).inside).toBeGreaterThan(200);
-    for (const w of o.words) expect((await inked(w.png, always.map((b) => b.box), { x: 0, y: 0 })).inside).toBe(0);
+    expect((await inked(o.under, always.map((b) => big(b.box)), { x: 0, y: 0 })).inside).toBeGreaterThan(200);
+    for (const w of o.words) expect((await inked(w.png, always.map((b) => big(b.box)), { x: 0, y: 0 })).inside).toBe(0);
   });
 
   it("a kicker standing in for the second line is drawn under the headline and arrives after it", async () => {
@@ -449,8 +523,9 @@ describe("motion layers — the still taken apart (V4, Q-APX13)", () => {
   it("each words layer holds its own rows and is transparent everywhere else", async () => {
     const o = await layersOf(await input("4:5"));
     for (const w of o.words) {
-      const own = o.blocks.filter((b) => w.labels.includes(b.label)).map((b) => b.box);
-      const ink = await inked(w.png, own);
+      const own = o.blocks.filter((b) => w.labels.includes(b.label)).map((b) => big(b.box));
+      // The reach past a cap-height box is the glyphs', on the still's frame (8, 40), so it scales with them.
+      const ink = await inked(w.png, own, { x: 8 * MOTION_SCALE, y: 40 * MOTION_SCALE });
       expect(ink.inside).toBeGreaterThan(500);
       expect(ink.outside).toBe(0);
     }
@@ -464,7 +539,7 @@ describe("motion layers — the still taken apart (V4, Q-APX13)", () => {
   });
 
   it("is refused exactly when the still is, with the same findings", async () => {
-    const i = await input("1:1", { headline: "Earn $0.68/mile 🚚" });
+    const i = await input("4:5", { headline: "Earn $0.68/mile 🚚" });
     expect(await renderMotionLayers(i)).toEqual(await renderOverlay(i));
   });
 });

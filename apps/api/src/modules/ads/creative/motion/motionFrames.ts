@@ -1,7 +1,7 @@
 import { mkdtemp, open, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { checkRender, FORMAT_SIZE, MOTION_FORMAT, MOTION_FPS, MOTION_MIN_CUE_MS, type MotionTimeline, type PlacedText, type Rect, type Rgb } from "@silvicom/shared";
+import { checkRender, MOTION_FORMAT, MOTION_FPS, MOTION_MIN_CUE_MS, MOTION_SIZE, type MotionTimeline, type PlacedText, type Rect, type Rgb } from "@silvicom/shared";
 import { motionPictureChain, runFfmpeg, SETTLE_MS, WORDS_IN_MS, type FfmpegRefusal } from "./motionJoin.js";
 
 /**
@@ -29,7 +29,7 @@ import { motionPictureChain, runFfmpeg, SETTLE_MS, WORDS_IN_MS, type FfmpegRefus
  * · Every `FRAME_CHECK_EVERY_MS` from the first frame, plus the motion's last frame, which is held under the
  *   dissolve. Half the shortest time a group of words is given to be read (`MOTION_MIN_CUE_MS`), so every reading
  *   window is looked at twice or more. The figure is OURS: something bright that crosses a line between two
- *   samples is not seen. Every frame would see it, at 150 frames of 4 MB each; nothing published says how many
+ *   samples is not seen. Every frame would see it, at 150 frames of 7.8 MB each; nothing published says how many
  *   are enough, and a real clip has not been looked at yet (Q-APX12).
  * · A line is judged from the moment it has arrived: its cue, plus `WORDS_IN_MS` when it fades in. Before that it
  *   is not on screen, and while it fades and rises it is neither where nor as strong as it will be.
@@ -53,7 +53,7 @@ export interface MotionFramesInput {
   /** The model's clip, as given to the join. */
   clip: Buffer;
   timeline: MotionTimeline;
-  /** `renderMotionLayers`' `ground`, `blocks` and `lines`. */
+  /** `renderMotionLayers`' `ground`, `blocks` and `lines` (the lines in the motion frame's pixels). */
   ground: Buffer;
   blocks: readonly PlacedText[];
   lines: Readonly<Record<string, Rect[]>>;
@@ -106,14 +106,21 @@ function samplesUnder(frame: Buffer, width: number, height: number, box: Rect): 
 
 /** One frame's verdict: every block that has arrived, judged on what lies under its lines on this frame. */
 export function judgeMotionFrame(frame: Buffer, atMs: number, input: Pick<MotionFramesInput, "timeline" | "blocks" | "lines">): Array<{ label: string; worst: number; required: number }> {
-  const { width, height } = FORMAT_SIZE[MOTION_FORMAT];
-  const placed = input.blocks.filter((b) => arrivesAt(input.timeline, b.label) <= atMs)
-    .map((b) => ({ ...b, background_samples: (input.lines[rowOf(b.label)] ?? [b.box]).flatMap((box) => samplesUnder(frame, width, height, box)) }));
+  const { width, height } = MOTION_SIZE;
+  const placed = input.blocks.filter((b) => arrivesAt(input.timeline, b.label) <= atMs).map((b) => {
+    // The lines are in the frame's pixels; the block's own box is on the still's frame. Falling back to it would read
+    // the wrong place on a 1440 frame and pass a line nobody looked under — so a row with no lines is our bug, said.
+    const lines = input.lines[rowOf(b.label)];
+    if (!lines?.length) throw new Error(`motion frame check: no line boxes for ${b.label}`);
+    return { ...b, background_samples: lines.flatMap((box) => samplesUnder(frame, width, height, box)) };
+  });
+  // The blocks' boxes and sizes are the still's frame's, so its own safe zone is the one they are held to; only the
+  // contrast verdict is taken here, read off this frame's pixels.
   return checkRender(MOTION_FORMAT, placed).flatMap((f) => (f.kind === "low_contrast" ? [{ label: f.label, worst: f.worst, required: f.required }] : []));
 }
 
 export async function checkMotionFrames(input: MotionFramesInput, opts: { ffmpeg?: string } = {}): Promise<MotionFramesOutcome> {
-  const { width, height } = FORMAT_SIZE[MOTION_FORMAT], size = width * height * 3;
+  const { width, height } = MOTION_SIZE, size = width * height * 3;
   const frames = motionSampleFrames(input.timeline);
   const dir = await mkdtemp(join(tmpdir(), "ads-motion-frames-"));
   try {
@@ -122,7 +129,7 @@ export async function checkMotionFrames(input: MotionFramesInput, opts: { ffmpeg
     const ran = await runFfmpeg(opts.ffmpeg ?? "ffmpeg", frameCheckFfmpegArgs(input.timeline, frames, files));
     if (!ran.ok) return { kind: "refused", refusal: ran.refusal, detail: ran.detail };
 
-    // One frame in memory at a time: a frame is 4 MB and there are a dozen.
+    // One frame in memory at a time: a frame is 7.8 MB at 1440 × 1800 and there are a dozen.
     const file = await open(files.out, "r");
     const byLabel = new Map<string, MotionFrameFinding>();
     try {

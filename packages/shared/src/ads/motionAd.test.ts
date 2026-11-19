@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { FEED_FORMATS } from "./renderGeometry.js";
+import { FEED_FORMATS, FORMAT_SIZE } from "./renderGeometry.js";
 import {
-  CAPTION_CHARS_PER_SECOND, MOTION_CLIP_MS, MOTION_FORMAT, MOTION_FPS, MOTION_HOLD_MS, MOTION_MAX_MS, MOTION_MIN_CUE_MS,
+  CAPTION_CHARS_PER_SECOND, MOTION_CLIP_MS, MOTION_FORMAT, MOTION_FPS, MOTION_HOLD_MS, MOTION_MAX_MS, MOTION_MIN_CUE_MS, MOTION_SIZE,
   motionTimeline, readMs,
 } from "./motionAd.js";
 
@@ -76,5 +76,12 @@ describe("motionTimeline", () => {
   it("is made in the feed's first format, the 4:5 Meta recommends for a feed video", () => {
     expect(MOTION_FORMAT).toBe(FEED_FORMATS[0]);
     expect(MOTION_FORMAT).toBe("4:5");
+  });
+
+  it("is painted at 1440 × 1800 (Q-APX17): the still's frame by one scale, above Meta's 1,200-pixel minimum, even-sided", () => {
+    expect(MOTION_SIZE).toEqual({ width: 1440, height: 1800 });
+    expect(MOTION_SIZE.width / MOTION_SIZE.height).toBe(FORMAT_SIZE[MOTION_FORMAT].width / FORMAT_SIZE[MOTION_FORMAT].height);
+    expect(MOTION_SIZE.width).toBeGreaterThanOrEqual(1200);
+    for (const side of [MOTION_SIZE.width, MOTION_SIZE.height]) expect(Number.isInteger(side) && side % 2 === 0, String(side)).toBe(true);
   });
 });

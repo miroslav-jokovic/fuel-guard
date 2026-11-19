@@ -854,6 +854,19 @@ Whether Meta REFUSES a 1080-wide video or only advises against it is not on eith
 
 Nothing is changed until this is ruled. It must be settled before the publisher's video road is certified (L4).
 
+**Built 2026-11-19.** `MOTION_SCALE` (4/3) and `MOTION_SIZE` (1440 × 1800) in shared `motionAd.ts`. The motion ad is the
+still's OWN layout, painted at 1440 through the canvas's transform — not laid out again at 1440. Measured that day: a
+line is 1,280.53 px scaled and 1,280.41 px set at the larger size, so a second layout could wrap or step down
+differently at a line's margin and the video would end on an ad nobody approved; drawn through the transform it is
+as sharp as text set at that size (8,561 soft edge pixels against 8,574), where the 1080 painting stretched has
+24,321. The size of a line is still judged on the 1080 frame (WCAG's "large text" is how large it looks; judged in
+1440 pixels an 18 px line would pass at 3:1), and contrast is read in the 1440 frame's own pixels. The join, the
+frame check and the words' rise take the size from one place. The picture sent to the video model stays the still's
+1080 cut: those are the approved ad's pixels, and no candidate model's input limit has been read. **Measured, the
+file:** 2.8–5.9 MB for 7–15 s of a photo pushed in; a clip of fresh noise every frame, 135–175 MB — so the join
+now refuses a file over the 15 MB store limit by name (`too_large`), where before it threw at the store. Q-APX20.
+Progress: `ads-progress/2026-11-19-1300-W-QAPX17-1440.md`.
+
 
 ### Q-APX18 · Where the Ads workspace sits, and what moves into it — RULED (a), 2026-11-18
 
@@ -896,6 +909,23 @@ timeline) and V8's health read are API work with the same content under any of t
   waits on nothing.
 
 Whichever is ruled, the full plan is not done in three days (§0.4).
+
+### Q-APX20 · A motion ad's file has no size cap; the store takes 15 MB — OPEN, 2026-11-19
+
+**What was measured (2026-11-19, while building Q-APX17).** The join asks the encoder for a quality (`-crf 18`), not a
+size, so the file is as large as the picture is busy. At 1440 × 1800: a photo pushed in, as the simulator moves it,
+joins to 2.8–5.9 MB for 7 to 15 seconds; a clip with fresh noise on every frame — the ceiling, not a model's clip — to
+135–175 MB. `ad-assets` takes 15 MB an object (0562). Today a file over it is refused by name (`too_large`) and the
+motion ad stops; the still is kept. No real model's clip has been seen (Q-APX12), so how often a real one comes
+near the limit is not known.
+
+- **(a) Keep the quality setting and the refusal; read the size of the sitting's real clips, then decide —
+  recommended.** The realistic case measured is a third of the limit or less, and a cap chosen now would be a
+  number with nothing behind it. Costs nothing today; a busy real clip would stop its motion ad, visibly.
+- (b) Cap the bitrate now (`-maxrate`/`-bufsize`, about 7.5 Mbit/s for 15 s under 15 MB). Never over the limit, but
+  the busiest clips lose detail, by a rule nobody has looked at on a real clip.
+- (c) Raise the store's limit by a migration. Moves the line rather than holding it; a 175 MB file is not one Meta's
+  upload is known to want either.
 
 ## 5a. Ruled
 
@@ -950,9 +980,10 @@ is 100%."*** Taken as:
 | Q-APX6 | Planning mandatory, or the carrier's choice | **ruled (b) 2026-11-15, §5a** | — |
 | Q-APX7–15 | — | **ruled 2026-11-16 as proposed, §5a**; Q-APX12's sitting still waits on the Higgsfield key | — |
 | Q-APX16 | The picture budget is in "credits"; Higgsfield's API bills dollars and has a price call | **ruled (a) 2026-11-18, §5a**: budget in dollars, price asked from `/estimate`; **built 2026-11-19** | — |
-| Q-APX17 | Our video is 1080 wide; Meta's video-ads page says 1,200 at least | **ruled (a) 2026-11-18, §5a**: paint the motion ad at 1440 × 1800 | — |
+| Q-APX17 | Our video is 1080 wide; Meta's video-ads page says 1,200 at least | **ruled (a) 2026-11-18, §5a**: paint the motion ad at 1440 × 1800; **built 2026-11-19** | — |
 | Q-APX18 | Where the Ads workspace sits, and whether Leads and Openings move into it | **ruled (a) 2026-11-18, §5a**: its own sidebar section; Leads and Openings stay Recruitment's and are linked | — |
 | Q-APX19 | What the next three days hold | **ruled (a) 2026-11-18, §5a**: sandbox when credentials arrive, the research (V2r), then the health read | — |
+| Q-APX20 | A motion ad's file has no size cap; the store takes 15 MB | **(a)** keep quality and the named refusal; decide on the sitting's real clips | owner |
 | — | Meta app (id `META_APP_ID` and secret), system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 **2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want
