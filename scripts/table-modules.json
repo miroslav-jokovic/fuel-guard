@@ -3115,6 +3115,28 @@
       "why": "TOLLS-PER-TRUCK-PLAN TL4a (0627): one row per statement file the office uploads, three providers sending one a week each, plus a six-month backfill once (owner 2026-11-17). Never deleted: every per-truck toll traces to a line of one of these files (D-TL8); a wrong file is marked removed."
     }
   },
+  "toll_line_observations": {
+    "module": "tolls",
+    "layer": "core",
+    "lifecycle": {
+      "growth": "time",
+      "retention_days": null,
+      "partition": null,
+      "budget_rows_per_day": 700,
+      "why": "TOLLS-PER-TRUCK-PLAN TL8a (0636, D-TL14, D-TL21): what Samsara saw at the plaza when each toll was printed, one row per toll line and checkpoint (exit, and entry where printed; 31,043 checkpoints over the April–October statements). ~1.1 KB a row: the ids of every asset that reported in the window (~140 of 252 measured 2026-11-19) are what let a later verdict prove a truck was elsewhere. ~35 MB for the backfill, ~5 MB a month after. Evidence kept with its line: Samsara's history is the only other copy and it expires (Q-TL10)."
+    }
+  },
+  "toll_plazas": {
+    "module": "tolls",
+    "layer": "core",
+    "lifecycle": {
+      "growth": "time",
+      "retention_days": null,
+      "partition": null,
+      "budget_rows_per_day": 50,
+      "why": "TOLLS-PER-TRUCK-PLAN TL8a (0636, D-TL21): one row per attempt to place a toll plaza (1,409 plazas in the April–October statements), with the samples it used. A plaza is tried again only when it has more known tolls than at its last attempt, or at a new engine version, so rows grow with new plazas and new evidence, not with time. Evidence: never changed or deleted (TG101/TG102)."
+    }
+  },
   "toll_statement_lines": {
     "module": "tolls",
     "layer": "core",

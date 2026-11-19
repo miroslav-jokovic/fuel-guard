@@ -1,6 +1,6 @@
 # Finance — toll expenses per truck, from the toll providers' own statements
 
-**Status:** IN BUILD — TL1–TL3, TL2b and TL4a built; TL4c, TL5 and TL4b built (statements read line by line, server-side); TL8a next, then TL8b and TL6. **Owner:**
+**Status:** IN BUILD — TL1–TL3, TL2b and TL4a built; TL4c, TL5 and TL4b built (statements read line by line, server-side); TL8a built (plazas placed and every toll observed by GPS, 0636); TL8b next, then TL6. **Owner:**
 Miki. **Written:** 2026-11-16, from the owner's request that day and a read-only measurement of
 production Supabase taken the same afternoon.
 
@@ -307,6 +307,51 @@ held to the two definitions below, so that it can be checked, not just claimed.
   disputed on a date) is an append-only row. A tag or plate seen on a statement that is in none of our
   records triggers that list the day the statement is read, not at month end.
 
+- **D-TL21 — How TL8a learns a plaza and keeps an observation (measured 2026-11-19 on the 18
+  statements and Samsara).** What the statements print decides the key. No line on any of the three
+  providers prints a direction except ExpressToll's lane (218 of 831 lines), so a plaza is provider +
+  agency + plaza + location, and the role: an E-ZPass entry plaza is learned apart from the exit plaza
+  with the same code, because nothing measured says they stand in one place. That makes 1,263 exit
+  plazas and 146 entry plazas. 808 exit plazas have at least 3 tolls on 2 days, and they hold 97.9% of
+  the tolls. K-TAG bills Houston (HCTRA), Florida (FTE) and Oklahoma (OTA) tolls too, so an agency names
+  no zone. The time zone is found by trying every US zone's reading of the printed time against the
+  known truck's track (one Samsara call a sample covers all five). Only a reading under which the
+  samples cluster within 3 km can place a plaza. The zone stored is the tz dataset's zone at that point
+  (`@photostructure/tz-lookup`), and every sample must read the same instant in it. Two readings that
+  both cluster mean the plaza is not placed. A printed time in the autumn's repeated hour is not used
+  to learn, and its toll is observed as `clock_ambiguous` (D-TL14's `near_swap` rule). A plaza attempt
+  is one append-only row carrying its samples, so a refusal says why ("2 samples on 1 day", "spread
+  4.1 km"). A plaza not placed is tried again when it has more known tolls than at its last try. An
+  observation stores every Samsara vehicle within 10 km of the plaza and the ids of every vehicle that
+  reported in the window. The second part is what lets `absent` be proven later: it means the truck
+  reported and was not there, not that it was silent. Measured: 116–146 of 252 Samsara vehicles report
+  in a given 20 minutes, about 1.1 KB a toll, ~35 MB for April–October. The backfill is 12–17 thousand
+  fetch windows (~2,000 fleet-hours), oldest first because April is at the edge of Samsara's history.
+  Trailer gateways are fetched only for windows that hold a toll billed by plate.
+  **Run on the real statements before any code was built on it (2026-11-19, 60 plazas: the 30
+  busiest and 30 spread over the rest, tags known from the owner's two lists, real Samsara tracks):**
+  the first rules placed 28. Four things the data showed changed them, each now a rule with a test.
+  (1) An hour early, the trucks of a plaza near the yard are AT the yard, which clusters as tightly
+  as a gantry: a sample votes only if its truck was moving. (2) On a lane run at one speed, an hour
+  early the same trucks meet 100 km up the same road: the tz zone where a reading's trucks meet must
+  read every printed time as that reading's instant (that is what decides, not tightness). (3) Offsets
+  in one agency ran from −150 s to +299 s, because the point found along a road and its offset are a
+  pair, so each plaza keeps its own clock and D-TL14's per-agency offset is dropped. (4) Asked for the
+  point of least scatter, the search walked to where trucks slow down (a yard ten minutes past the
+  exit), which would call a truck that paid and turned the other way `absent`. So the printed clock is
+  trusted within its own resolution (30 s), on the trucks' paths (100 m). Result: **55 of 60 placed,
+  every zone the agency's real one** (Illinois Tollway, Kansas Turnpike, Oklahoma, Houston and Dallas
+  → Central; Ohio, Pennsylvania, West Virginia, New York, North Carolina, Massachusetts and Florida →
+  Eastern; E-470 → Mountain). Spreads are 2–157 m except one at 849 m, and offsets 0–38 s (a truncated
+  printed minute) except one. Refused, with the reason stored: Indiana Toll Road at Portage, where the
+  road crosses from Central to Eastern ("two readings both place it, each in a zone that agrees"), and
+  four plazas whose list-known trucks were never near them, which is the lists' staleness, not the plaza.
+  The window of an observation is the plaza's printed instant + its offset ± its spread, bounded to
+  1.5–5 minutes. **The observation, run the same way on 40 of those placed plazas** (one known toll each,
+  the whole fleet's GPS in the window, as the worker fetches it): the truck the lists name came within
+  2 km in 40 of 40, mostly within 10 m, and was the only company truck within 4 km in all 40; a median
+  of 108 vehicles reported in a window, and a stored row is ~950 bytes.
+
 ---
 
 ## 3. Build order
@@ -322,7 +367,7 @@ held to the two definitions below, so that it can be checked, not just claimed.
 | **TL5** | Three pure readers in `@silvicom/shared/tolls/readers/`, one file per provider plus a shared row/column layer (500-line budget), run on words from `readPdfWords`. NJ E-ZPass: tag and `ILP` plate lines, the non-toll kinds, the sign from the balance step, the running balance on every line, the printed "Tolls, Non-Tolls and Fees" and "Payments and Credits". DriveKS K-TAG: transponder/plate groups that continue across pages, every "Sub-Total", the "Tolls" summary. ExpressToll: device groups, each line's own plate, status codes, every "Total:", "Grand Total" and "Total Tolls". Each returns lines, period, account and printed totals, or refuses with the sentence. CI fixtures are word lists with the real layout and every account, tag and plate replaced. A local-only check (`pnpm tolls:check-real <folder>`, not in CI, files outside the repo) runs the readers on the owner's 18 statements and must tie every one, every subtotal and every balance step to the cent before TL5 merges | — (Q-TL1, Q-TL2 answered 11-18) |
 | **TL4b** | Migration: `toll_statement_lines` (D-TL8 key with occurrence, kind (D-TL18, incl. violation/admin fee), tag or plate as printed, agency, plaza in/out with direction, local entry/exit times, class, signed amount, balance where printed, posted date, page and line in the file). 0627 already holds the statement's read columns. API `POST /api/tolls/statements/:id/lines`: the browser reads the kept file and sends lines, and the API re-runs every D-TL6 tie before storing anything, org-scoped (`expectOrgScoped`). Web: "Read" on each kept statement, and new uploads are read straight away | TL5 |
 | **TL8a** | `toll_plazas` (org-scoped, RLS: position, spread, samples, zone from position, per-agency clock offset, version) and `toll_line_observations` (D-TL14: trucks and trailer gateways near the plaza at the toll minute). The worker groups tolls into ~10-minute windows and makes one paginated `/fleet/vehicles/stats/history` (and trailers) call per window for all assets, with 429 backoff, on the general lane. The backfill from April runs as soon as TL4b lands (Q-TL10: April sits at the edge of retention) | TL4b |
-| **TL8b** | Verdicts derived at read time (D-TL14). Evidence per line (D-TL13). Plate history table with 0622-style guards, and trailer plates by trailer gateway (D-TL16). GPS proposals for unmatched, absent and contradicted tags and plates (D-TL15). An append-only decision table for accept, reject and office attribution | TL8a |
+| **TL8b** | Verdicts derived at read time (D-TL14). Evidence per line (D-TL13). Plate history table with 0622-style guards, and trailer plates by trailer gateway (D-TL16). GPS proposals for unmatched, absent and contradicted tags and plates (D-TL15). An append-only decision table for accept, reject and office attribution. Plate history is also what lets TL8a learn ExpressToll's own plazas: its lines are 98% camera tolls by plate and print no tag, so until a plate has a dated history no ExpressToll toll is known and its plazas are not placed | TL8a |
 | **TL6** | Toll review page under Finance: per month and provider, the four D-TL12 checks as numbers, the D-TL19 McLeod tie with every finding listed, the D-TL20 not-ours list, the "closed — N% confirmed" line, the review queue with each line's reason, proposals to accept, the same truck charged twice at one plaza within minutes, a provider × month grid of statements so a missing month shows, and the GL tie on the side Q-TL11 measured. A month closes only at 60 days and $0.00 review | TL8b, Q-TL11 |
 | **TL7** | P&L: tolls per truck per month and per mile in `computeTruckPnl` (TRUCK-DRIVER-PNL-PLAN P3), with the GL remainder as a labelled spread | TL6, P3 |
 | **TL8c** | Ongoing: each new statement is verified on read, and a tag whose tolls stop matching its truck is raised the same day (a moved tag is caught before month end) | TL8b |
@@ -424,3 +469,5 @@ reopens it, with that line named.
 - 2026-11-18 · Owner: per-truck tolls must agree with what is entered in McLeod, every mismatch caught and recorded, and no transaction counted that is not ours. Measured (§1.4): McLeod's toll lines name no truck (0 of 216) and book card payments 1–2 months late, plus PrePass ($11.7k), other agencies, violations and driver lines, so the tie is line-to-line plus a balance roll (D-TL19), with findings stored as rows. Of $299,703.72 of statement tolls, 99.2% is identified as ours by list, GPS, truck plate or trailer plate; $2,360.93 on 20 identifiers is not yet, and is held out of every total until decided (D-TL20). Q-TL11 answered, Q-TL12 (PrePass in the toll account) and Q-TL13 (disputes) opened.
 - 2026-11-18 · Owner: "proceed as recommended and proposed … without any assumptions". Q-TL7, Q-TL8, Q-TL9, Q-TL10, Q-TL12 and Q-TL13 ruled as recommended. Three plates (P973445, P1297493, P1358597) are still undecided, so under D-TL20 they stay `not_ours_or_unknown` until the office decides them.
 - 2026-11-18 · TL4b built. Migration 0633: `toll_statement_reads` (every attempt, read or refused with the reader's sentence; one read per statement; toll count and sum computed by the database) and `toll_statement_lines` (every printed line, never changed or deleted, with a `match_key` carrying the occurrence within the statement), written all-or-nothing by `record_toll_statement_read`, which checks the positions run 0..n-1 (matrix: 35 checks, 8 guards mutation-tested). The API reads the bytes it stored, held to the kept SHA-256, with pdf.js on the server (`lib/pdfWords.ts`), so nothing about a statement's contents is taken from the browser. Non-PDF statements and scans are refused in words. Uploads are read at once, and a Read button covers files kept before. The page names a refused statement apart from an unread one and shows each read statement's tolls, total, account ending and every tie. Run end to end on the owner's 18 real statements (server decode, reader, 0633's function, in PGlite, outside the repo): 18 stored, 28,294 lines, 28,243 tolls, $299,703.72, which equals the §1.4 census, and no line repeats across statements.
+- 2026-11-19 · TL8a built. Migration 0636: `toll_plazas` (one append-only row per attempt to place a plaza: position, tz zone, clock offset and spread, or the sentence why not, with the samples and every reading of the clock tried) and `toll_line_observations` (per toll line and checkpoint at a placed plaza: every Samsara vehicle, and for a plate-billed toll every trailer gateway, within 10 km with how close and when, and the ids of every asset that reported in the window; `clock_ambiguous` / `clock_skipped` for the autumn's repeated and the spring's skipped hour). Guards: an observation is of its line's org, at a placed plaza of the line's provider and role (TG103, TG104); both tables never changed or deleted (TG101, TG102); matrix 28 checks. Shared `tollGps` (namespace export): checkpoints, plaza learning, observation, pure. API `modules/tolls/gps/`: plaza pass (known tolls from the tag history, busiest plaza first, ≤20 a tick) and observation pass (oldest window first, ≤4 minutes a tick, nothing stored from a window Samsara did not finish), on a new general-lane scheduler `toll-gps` every 10 minutes (`TOLL_GPS_MINUTES`). The learning rules were run on the owner's real statements and Samsara before anything was built on them, and changed four times by what that showed (D-TL21): 28 → 55 of 60 plazas placed, every zone the agency's real one. ExpressToll's own plazas wait for TL8b's plate history. What runs in production: nothing until the owner uploads the statements and loads the tags (both on Finance › Tolls); the tick after, plazas start placing, and the observations follow, April first.
+

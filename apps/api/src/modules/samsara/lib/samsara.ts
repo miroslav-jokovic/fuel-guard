@@ -103,7 +103,7 @@ async function fetchAssetGpsHistory(
   startIso: string,
   endIso: string,
   priority: "live" | "backfill" = "backfill",
-): Promise<{ data: AssetGpsRaw[] }> {
+): Promise<{ data: AssetGpsRaw[]; complete: boolean }> {
   const merged = new Map<string, AssetGpsRaw>();
   let after: string | undefined;
   let pages = 0;
@@ -132,14 +132,16 @@ async function fetchAssetGpsHistory(
     after = page.pagination?.hasNextPage ? page.pagination.endCursor : undefined;
     pages += 1;
   } while (after && pages < MAX_STATS_PAGES);
-  return { data: [...merged.values()] };
+  // `complete` is false when the page cap stopped the walk: a caller that stores what it read as
+  // evidence (the toll GPS check) must not store a window it did not finish.
+  return { data: [...merged.values()], complete: after == null };
 }
 
 export type AssetGpsFetcher = (
   ids: string[],
   startIso: string,
   endIso: string,
-) => Promise<{ data: AssetGpsRaw[] }>;
+) => Promise<{ data: AssetGpsRaw[]; complete: boolean }>;
 
 /** Trailer GPS history (Asset-Gateway location) — the reefer's own position over time. */
 export function makeSamsaraTrailerGpsFetcher(env: Env, token: string): AssetGpsFetcher {

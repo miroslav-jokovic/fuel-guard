@@ -6,3 +6,5 @@
  * uploads. A toll's truck is never stored: it is read from the tag's dated history (D-TL3).
  */
 export { tollsRouter } from "./routes/tolls.js";
+// The GPS check (TL8a): plaza learning and observations, run on the general scheduler lane.
+export { startTollGpsScheduler } from "./gps/scheduler.js";

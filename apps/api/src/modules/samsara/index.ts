@@ -24,6 +24,15 @@ export { syncDriversFromSamsara } from "./samsaraDriverSync.js";
 // every page as Samsara sent it, so `inspections` hashes bytes, not our parse of them.
 export { makeSamsaraRawFetcher, type SamsaraRawAnswer, type SamsaraRawFetcher } from "./lib/samsaraEvidence.js";
 export { loadSamsaraToken } from "./lib/samsaraToken.js";
+// GPS history and the asset lists, for the toll GPS check (TOLLS-PER-TRUCK-PLAN TL8a): every vehicle
+// and trailer gateway near a plaza when a toll was printed, sold units included.
+export {
+  makeSamsaraVehiclesGpsFetcher,
+  makeSamsaraTrailerGpsFetcher,
+  makeSamsaraVehicleLister,
+  makeSamsaraTrailerLister,
+  type AssetGpsFetcher,
+} from "./lib/samsara.js";
 // The owner's read for `vehicle_positions` — a raw table `check-table-access.mjs` seals to this
 // module, so the live map reaches it through here rather than selecting from it (LM6, D-ARC3).
 export {

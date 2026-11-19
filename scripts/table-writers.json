@@ -779,6 +779,12 @@
   "tms_movements": [
     "apps/api/src/modules/mcleod/tmsIngest.ts"
   ],
+  "toll_line_observations": [
+    "apps/api/src/modules/tolls/gps/store.ts"
+  ],
+  "toll_plazas": [
+    "apps/api/src/modules/tolls/gps/store.ts"
+  ],
   "toll_statements": [
     "apps/api/src/modules/tolls/statements.ts"
   ],
