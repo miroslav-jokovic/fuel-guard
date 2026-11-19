@@ -154,3 +154,11 @@ is attached stays in the drawer until Q-RR4.
   owner's own act — attach any file to one existing invoice in FleetPal and say which — and waits on it; no
   write to FleetPal is made from here. Build order: RR3 late work orders (engine, after RR1), RR4 the history
   split, RR5 the named repair-alert recipients.
+- **2026-11-19 · RR1–RR5 merged; staging serves all five.** RR1 the match mark and ranking (#2545, engine
+  ic11.2) · RR2 invoice counts per candidate (#2547) · RR5 the repair alert's recipients in Settings →
+  Notifications, defaulting to today's set (#2551) · RR4 "Before the repair record", cut-off 2026-10-16
+  (#2554) · RR3 work orders opened up to `REPAIR_FOLLOW_DAYS` after the due date, certified as late (#2556,
+  engine ic11.3). Production takes them with the next approved release, which carries migration 0631 first;
+  the first hourly inspection check after it re-proposes every open unit once — expected. Still open: Q-RR4
+  waits on the owner attaching a file to one existing FleetPal invoice and naming it; about a week after the
+  release, re-measure decisions made and alerts read against §1.1–§1.2 (3 decisions ever; 27 of 197 read).
