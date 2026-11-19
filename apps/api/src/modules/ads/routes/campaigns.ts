@@ -59,6 +59,7 @@ const DECISION_REFUSAL: Record<Extract<DecisionOutcome, { kind: "refused" }>["re
   approval_not_found: "The decision could not be recorded. Try again.",
   approval_mismatch: "The decision could not be recorded. Try again.",
   approval_withdrawn: "The decision could not be recorded. Try again.",
+  not_permitted: "The ads policy does not let a person decide on an ad.",
 };
 
 const CHOICE_REFUSAL: Record<Extract<CopyChoiceOutcome, { kind: "refused" }>["reason"], string> = {
@@ -86,6 +87,7 @@ const refusalText: Record<AdsCampaignCreateRefusal, [number, string]> = {
   connection_unusable: [409, "That ad account is not connected. Connect or test it in Settings › Ads control."],
   brand_kit_unusable: [409, "That brand kit is archived or has nothing saved yet."],
   id_taken: [409, "This request id was already used for something else. Reload and try again."],
+  not_permitted: [403, "The ads policy does not let a person start a campaign."],
 };
 
 export function mountCampaignRoutes(router: Router, deps: CampaignRouteDeps): void {
@@ -142,7 +144,7 @@ export function mountCampaignRoutes(router: Router, deps: CampaignRouteDeps): vo
     if (!parsed.success) return void res.status(400).json(apiError("bad_request", parsed.error.issues[0]?.message ?? "Invalid decision"));
     const out = await decideOnCreative(admin(req), req.auth!.orgId!, await deps.actorOf(req), id, creativeId, parsed.data, new Date());
     if (out.kind === "not_found") return void res.status(404).json(apiError("not_found", "Ad not found"));
-    if (out.kind === "refused") return void res.status(409).json(apiError(out.reason, DECISION_REFUSAL[out.reason]));
+    if (out.kind === "refused") return void res.status(out.reason === "not_permitted" ? 403 : 409).json(apiError(out.reason, DECISION_REFUSAL[out.reason]));
     res.json({ state: out.state });
   }));
 

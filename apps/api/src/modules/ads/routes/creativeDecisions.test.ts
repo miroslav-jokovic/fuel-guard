@@ -7,6 +7,7 @@ import { loadEnv } from "../../../env.js";
 import { postgrestFixture, type FixtureRow } from "../../../testing/postgrestFixture.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { withAuthority } from "../../../testing/withAuthority.js";
 
 /**
  * A person approves or rejects one creative (`POST /api/ads/campaigns/:id/creatives/:creativeId/decision`, Track S
@@ -106,6 +107,13 @@ describe("POST …/creatives/:id/decision — a person's decision, recorded, the
     expect(decisions()).toEqual([expect.objectContaining({ kind: "approve_creative", creative_id: CR, campaign_id: C, approved_by: `u-${RECRUITER}`, settings_version_id: "sv1" })]);
     // `user_profiles` is keyed by the caller's own user id (`displayNameFor`): a person's name, not org data.
     expectOrgScoped(db, ORG, { exempt: ["user_profiles"] });
+  });
+
+  it("the door reads the authority table: with approving an ad not a person's, it is refused 403 and nothing is recorded", async () => {
+    const res = await withAuthority("approve_creative", ["never"], () => call(`${C}/creatives/${CR}/decision`, { decision: "approve" }));
+    expect(res.status).toBe(403);
+    expect(await code(res)).toBe("not_permitted");
+    expect([creative().state, tables.ads_approvals]).toEqual(["ready", []]);
   });
 
   it("a rejection needs a reason, and is recorded with it", async () => {

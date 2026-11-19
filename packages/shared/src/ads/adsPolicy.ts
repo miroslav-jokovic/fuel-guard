@@ -145,14 +145,34 @@ export function needsSecondApprover(settings: AdsSettings, daily_cents: number):
  * is any member allowed on the brief's section; `approver` is a person holding the named capability
  * `ads.spend` whose approval row the act cites; `admin` holds `ads.connection` or edits settings;
  * `never` has no code path at all — the request builders have no field for it.
+ *
+ * ── THE ONE STATEMENT OF WHO ACTS (V5, Q-APX21 (a), ruled 2026-11-19) ────────────────────────────────────
+ * Until then this table was read by nothing but its own test, and the machine, the doors and the guard each said
+ * who acts on their own. Now: every campaign move the machine allows is bound to an act here, and the machine may
+ * not allow anyone this table does not (`CAMPAIGN_EVENT_ACT`, `adsSteps.ts`; pinned by "the machine lets nobody act
+ * whom the authority table forbids"); the acts outside the machine — a decision on an ad, starting a campaign,
+ * retiring a tired ad, turning on its replacement — ask `mayAct` at their own door. The acts added that day are
+ * the ones the code already performed with no row here.
  */
 export type AdsAuthority = "agent" | "person" | "approver" | "admin" | "never";
 
 export const ADS_AUTHORITY = {
+  // A person starts a campaign for an opening (`createCampaign`); nothing creates one on its own.
+  start_campaign: ["person"],
+  // The Strategist writes the plan from the evidence pack; a person approves it, edits it, or asks for another (Q-APX6).
+  write_plan: ["agent"],
+  approve_plan: ["person"],
   draft_copy: ["agent"],
   check_claims: ["agent"],
   pick_presets_compose_render_check: ["agent"],
+  // Compose's own retry of a picture that failed its check, inside one composing pass, up to `max_regenerations`.
   regenerate_once: ["agent"],
+  // The campaign's `regenerate` move: a person sends a campaign in review back to be made again.
+  regenerate: ["person"],
+  // Leaving `failed` (plan, compose or create again): a person's act, never a silent retry loop.
+  resume_after_failure: ["person"],
+  // What a worker or the platform answered — planned, made, created, launched, paused, or failed at it. Not a choice.
+  record_outcome: ["agent"],
   create_paused: ["agent", "person"],
   read_insights: ["agent", "person"],
   pause: ["agent", "person"],
@@ -162,6 +182,11 @@ export const ADS_AUTHORITY = {
   report: ["agent"],
   recommend: ["agent"],
   approve_creative: ["person"],
+  // The Monitor retires a tired ad when the carrier switched `creative_refresh.retire` on (D-AD23).
+  retire_tired_ad: ["agent"],
+  // A replacement a person approved goes on with no further person (Q-AD68; Q-APX22 (a), 2026-11-19: it adds no
+  // budget, and Q-APX1's Level B "after the canary" is the launch of a new campaign, not this).
+  turn_on_approved_replacement: ["agent"],
   launch: ["approver"],
   raise_budget: ["approver"],
   change_area: ["approver"],

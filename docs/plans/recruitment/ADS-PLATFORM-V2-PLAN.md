@@ -910,7 +910,7 @@ timeline) and V8's health read are API work with the same content under any of t
 
 Whichever is ruled, the full plan is not done in three days (§0.4).
 
-### Q-APX21 · What V5's "mode per step" is, once the six steps are read in the code — OPEN, 2026-11-19
+### Q-APX21 · What V5's "mode per step" is, once the six steps are read in the code — RULED (a), 2026-11-19
 
 **Why it is asked.** V5 is two sentences (§4): "a versioned policy in ads settings: step × mode", six steps, and the
 modes Manual · Assisted · Autopilot (§1), which are never defined. Before building, each step was read in the code
@@ -952,7 +952,7 @@ modes Manual · Assisted · Autopilot (§1), which are never defined. Before bui
 - (c) Leave modes until after the canary and do V7 (the lead engine) now. Loses nothing that waits on V5, but the
   disagreements above stay in the code.
 
-### Q-APX22 · Turning on an approved replacement runs today; Q-APX1 put it after the canary — OPEN, 2026-11-19
+### Q-APX22 · Turning on an approved replacement runs today; Q-APX1 put it after the canary — RULED (a), 2026-11-19
 
 **What was read.** Q-AD68 was ruled (a) on 2026-11-11 ("Yes, build Q-AD68"): on a live campaign a retired ad's
 replacement is made, a person approves it, and the orchestrator publishes it into the running ad set and turns it on
@@ -1037,6 +1037,26 @@ is 100%."*** Taken as:
 - **V5 next**, Manual and Assisted first, as §0.3 row 6 orders it. Reading the six steps in the code first raised
   Q-APX21 and Q-APX22, which wait on the owner before V5 is built.
 
+**2026-11-19, the owner, to Q-APX21 and Q-APX22: *"Ok proceed as recommended."*** Taken as:
+
+- **Q-APX21 RULED (a).** V5 is ONE statement of who takes each step, which the code obeys, with a mode only where two
+  are real. Built in four pieces: (1) the table — `ADS_AUTHORITY` is now what the machine and the doors answer to; (2)
+  lowering a budget end to end; (3) starting a campaign gains Assisted (the agent drafts, a person starts it); (4) the
+  Automation tab shows every step and its mode. "Move budget between ads" is not a step: Meta has no per-ad budget.
+- **Q-APX22 RULED (a).** An approved replacement keeps going on by itself (Q-AD68 as built). Q-APX1's Level B line
+  "turn on a person-approved replacement" is read as the launch of a NEW campaign only; it is written into
+  `ADS_AUTHORITY.turn_on_approved_replacement` as the agent's, with this ruling cited.
+
+**Built 2026-11-19 (V5 part 1, the table).** `ADS_AUTHORITY` gained the acts the code already performed with no row:
+`start_campaign`, `write_plan`, `approve_plan`, `regenerate`, `resume_after_failure`, `record_outcome`,
+`retire_tired_ad`, `turn_on_approved_replacement`. Every move of the campaign machine is bound to an act
+(`CAMPAIGN_EVENT_ACT`, shared `adsSteps.ts`), and a test refuses a machine row that lets anyone the table does not. The
+four acts outside the machine ask the table at their own door — creating a campaign and deciding on an ad (a person;
+403 `not_permitted` otherwise), retiring a tired ad and turning on its replacement (the agent; not attempted otherwise).
+The steps and their modes (`AD_STEPS`) name acts and never say who: a locked Autopilot is locked because the table
+gives none of its acts to the agent. Replacing a tired ad reads the existing switch (`creative_refresh.retire`)
+for its mode rather than a second copy. Progress: `ads-progress/2026-11-19-1500-W-V5-step-table.md`.
+
 ## 6. Open, in one place
 
 | Id | Question | Recommendation | Who |
@@ -1050,8 +1070,8 @@ is 100%."*** Taken as:
 | Q-APX18 | Where the Ads workspace sits, and whether Leads and Openings move into it | **ruled (a) 2026-11-18, §5a**: its own sidebar section; Leads and Openings stay Recruitment's and are linked | — |
 | Q-APX19 | What the next three days hold | **ruled (a) 2026-11-18, §5a**: sandbox when credentials arrive, the research (V2r), then the health read | — |
 | Q-APX20 | A motion ad's file has no size cap; the store takes 15 MB | **ruled (a) 2026-11-19, §5a**: keep quality and the named refusal; decide on the sitting's real clips | — |
-| Q-APX21 | What V5's modes are, step by step; step 6 cannot exist on Meta | **(a)** one enforced table of who acts, a mode only where two are real; lowering a budget built; `ADS_AUTHORITY` replaced | owner |
-| Q-APX22 | Approved replacements are turned on today (Q-AD68); Q-APX1 put that after the canary | **(a)** keep it; Level B means launching a new campaign | owner |
+| Q-APX21 | What V5's modes are, step by step; step 6 cannot exist on Meta | **ruled (a) 2026-11-19, §5a**: one enforced table of who acts, a mode only where two are real; lowering a budget built | — |
+| Q-APX22 | Approved replacements are turned on today (Q-AD68); Q-APX1 put that after the canary | **ruled (a) 2026-11-19, §5a**: keep it; Level B means launching a new campaign | — |
 | — | Meta app (id `META_APP_ID` and secret), system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 **2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want

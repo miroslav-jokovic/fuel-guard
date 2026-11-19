@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fatigueVerdict, type AdHour, type AdsCreativeRefresh, type FatigueVerdict } from "@silvicom/shared";
+import { fatigueVerdict, mayAct, type AdHour, type AdsCreativeRefresh, type FatigueVerdict } from "@silvicom/shared";
 import { settingsInForce } from "../settings/settingsVersions.js";
 import { completeAction, startAction } from "../actions/actionLedger.js";
 import { sendAdsAlert } from "../alerts/adsAlerts.js";
@@ -23,8 +23,12 @@ import type { PlatformCampaignRef } from "../platforms/adapter.js";
  * alert-only first weeks the owner chose for every other new rule (Q-AD51).
  *
  * ── WHAT ENTERS NEXT ─────────────────────────────────────────────────────────────────────────────
- * Nothing here. Entering the next concept on a live campaign is Q-AD68 (plan §5): compose runs only in `composing`
- * and the publisher makes a whole campaign. The bell says a concept is due; a person acts until Q-AD68 is built.
+ * Nothing here. The replacement is the orchestrator's `live` step (Q-AD68, built 2026-11-11: `compose/refreshCampaign.ts`
+ * makes it, a person approves it, and it is turned on). This file only retires.
+ *
+ * ── WHO MAY RETIRE ────────────────────────────────────────────────────────────────────────────────
+ * The agent, by the authority table (`ADS_AUTHORITY.retire_tired_ad`, V5). Asked before the ledger row: an act the
+ * table does not give the agent is not attempted, and the verdict says so (`not_permitted`).
  */
 
 export interface RetireDeps extends RegistryDeps {
@@ -39,7 +43,7 @@ export interface AdVerdict {
   meta_ad_id: string;
   verdict: FatigueVerdict;
   /** What was done about a `retire`: paused at the platform, already retired (duplicate), refused by the platform, or not asked (switch off). */
-  acted: "retired" | "already" | "refused" | "switch_off" | "not_tired";
+  acted: "retired" | "already" | "refused" | "switch_off" | "not_tired" | "not_permitted";
   error_code?: string;
 }
 
@@ -80,6 +84,7 @@ export async function retireTiredAds(deps: RetireDeps, orgId: string, connection
       result.verdicts.push(line);
       if (verdict.kind !== "retire") continue;
       if (!settings.retire) { line.acted = "switch_off"; continue; }
+      if (!mayAct("retire_tired_ad", "agent")) { line.acted = "not_permitted"; continue; }
 
       // The ledger row first: a duplicate means an earlier run already retired this ad (or is doing so now).
       const at = now.toISOString();

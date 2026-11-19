@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AdsCreativeDecision } from "@silvicom/shared";
+import { mayAct, type AdsCreativeDecision } from "@silvicom/shared";
 import { campaignAcceptsDecision, decideCreative, type DecideCreativeRefusal } from "../compose/decideCreative.js";
 import { recordApproval } from "../guard/approvals.js";
 import type { Actor } from "../settings/settingsVersions.js";
@@ -18,11 +18,13 @@ import type { Actor } from "../settings/settingsVersions.js";
 export type DecisionOutcome =
   | { kind: "decided"; state: "approved" | "rejected"; moved: boolean }
   | { kind: "not_found" }
-  | { kind: "refused"; reason: DecideCreativeRefusal | "settings_not_saved" };
+  | { kind: "refused"; reason: DecideCreativeRefusal | "settings_not_saved" | "not_permitted" };
 
 export async function decideOnCreative(
   admin: SupabaseClient, orgId: string, actor: Actor, campaignId: string, creativeId: string, ask: AdsCreativeDecision, now: Date,
 ): Promise<DecisionOutcome> {
+  // A decision on an ad is a person's by the authority table (V5, Q-APX21); asked before anything is read or written.
+  if (!mayAct("approve_creative", "person")) return { kind: "refused", reason: "not_permitted" };
   const to = ask.decision === "approve" ? "approved" : "rejected";
   const [{ data: campaign, error: cErr }, { data: creative, error: crErr }] = await Promise.all([
     admin.from("ads_campaigns").select("state").eq("org_id", orgId).eq("id", campaignId).maybeSingle(),

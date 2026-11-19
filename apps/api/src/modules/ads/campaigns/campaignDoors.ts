@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  AD_NAME_LANGUAGES, ADS_PERSON_DOOR_EXCLUDED, adBriefSchema, platformText, stepCampaign,
+  AD_NAME_LANGUAGES, ADS_PERSON_DOOR_EXCLUDED, adBriefSchema, mayAct, platformText, stepCampaign,
   type AdBriefSource, type AdsCampaignCreate, type AdsCampaignCreateRefusal, type AdsCampaignLaunch, type AdsCampaignMove,
   type AdsCampaignSummary, type AdsCampaignView, type AdsCreativeView, type CampaignState, type PlatformSlots,
 } from "@silvicom/shared";
@@ -41,6 +41,8 @@ export interface CreateDeps {
 export async function createCampaign(deps: CreateDeps, orgId: string, userId: string, ask: AdsCampaignCreate): Promise<CreateOutcome> {
   const { admin } = deps;
   const refuse = (refusal: AdsCampaignCreateRefusal): CreateOutcome => ({ kind: "refused", refusal });
+  // Who may start a campaign is the authority table's (V5, Q-APX21), asked before anything is read.
+  if (!mayAct("start_campaign", "person")) return refuse("not_permitted");
   const source = deps.briefSources.find((s) => s.source === ask.brief_source);
   if (!source) return refuse("brief_source_unknown");
   const raw = await source.briefFor(orgId, ask.brief_ref);

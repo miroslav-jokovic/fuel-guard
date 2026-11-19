@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ADS_SETTINGS_UNSET, REFRESH_ATTEMPTS, type CreativeState } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 import { postgrestFixture, type FixtureRow } from "../../../testing/postgrestFixture.js";
+import { withAuthority } from "../../../testing/withAuthority.js";
 import { ART_DIRECTOR_EVAL, COPYWRITER_EVAL, loadFixtures } from "../workers/agentFixtures.js";
 import type { PlatformAdapter } from "../platforms/adapter.js";
 import type { CampaignRow } from "../orchestrator/transitions.js";
@@ -177,6 +178,12 @@ describe("refreshCampaign — an approved replacement is published and turned on
     ]);
     expect(w.creatives.find((c) => c.id === "cr-new")!.platform_status).toBe("active");
     expectOrgScoped(w.rec, ORG);
+  });
+
+  it("the orchestrator reads the authority table: with turning on not the agent's, nothing is published or turned on (Q-APX22)", async () => {
+    const w = approvedWorld();
+    expect(await withAuthority("turn_on_approved_replacement", ["person"], () => w.run())).toMatchObject({ ok: false, error: expect.stringContaining("does not let the agent turn on") });
+    expect([w.publishOne.mock.calls.length, w.activateAd.mock.calls.length, w.actions.length]).toEqual([0, 0, 0]);
   });
 
   it("once active, a re-run publishes and turns on nothing", async () => {
