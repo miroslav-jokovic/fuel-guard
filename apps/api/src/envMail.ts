@@ -39,6 +39,11 @@ export const mailEnvFields = {
   // applicant sender (`lib/sms.ts` SMS_LINES has the reason). Same account, key and webhook.
   TELNYX_ALERTS_FROM: z.string().optional(),
   TELNYX_ALERTS_MESSAGING_PROFILE_ID: z.string().optional(),
+  // V7a / LQ8b: Telnyx Number Lookup (`type=carrier`) on a lead's number, once per number per 180 days. A ceiling
+  // per carrier per UTC day, so a flood of submitted leads cannot run up a bill: at about $0.0015–$0.0025 a lookup
+  // (telnyx.com/pricing/number-lookup, 2026-11-19), 500 a day is at most $1.25. 0 turns the lookup off. It runs
+  // only where `TELNYX_API_KEY` is set; `SMS_PROVIDER` is about sending and does not gate it.
+  TELNYX_LOOKUP_DAILY_MAX: z.coerce.number().int().min(0).max(100_000).default(500),
 
   // Phase 8 — email notifications. Default 'none' = no-op (the app still runs).
   // Auto-detected: if RESEND_API_KEY or BREVO_API_KEY is set and MAIL_PROVIDER is not explicitly

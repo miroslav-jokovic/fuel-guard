@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const ads = vi.hoisted(() => ({ fetchWebhookLead: vi.fn() }));
 const sinkMarker = vi.hoisted(() => ({ sink: { accept: vi.fn() } }));
 vi.mock("../../modules/ads/index.js", () => ({ fetchWebhookLead: ads.fetchWebhookLead }));
-vi.mock("../../modules/recruiting/index.js", () => ({ recruitingLeadSink: () => sinkMarker.sink }));
+vi.mock("../../modules/recruiting/index.js", () => ({ recruitingLeadSink: () => sinkMarker.sink, phoneLookupFor: () => null }));
 
 import { adsLeadFetchHandler } from "./adsLeadFetch.js";
 import type { JobContext, QueueJob } from "../types.js";

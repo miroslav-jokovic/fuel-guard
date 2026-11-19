@@ -7,7 +7,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import PhoneContact from "@/components/PhoneContact.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { leadMatchBadge, leadStatusTone } from "@/lib/badges.recruiting";
+import { leadMatchBadge, leadStatusTone, phoneLineBadge } from "@/lib/badges.recruiting";
 import { formatDateTime } from "@/lib/format";
 import AddLeadDrawer from "@/features/recruitment/AddLeadDrawer.vue";
 import LeadDrawer from "@/features/recruitment/LeadDrawer.vue";
@@ -129,6 +129,7 @@ const personName = (row: LeadQueueRow) => row.full_name ?? (row.phone_e164 || ro
           <p class="text-xs text-ink-muted">
             <PhoneContact v-if="row.phone_e164" :phone="row.phone_e164" :name="personName(row)" :contactable="!row.do_not_contact" />
             <template v-else>{{ row.email_lower }}</template>
+            <span v-if="phoneLineBadge(row.phone_line)" :class="[BADGE_BASE, toneClass(phoneLineBadge(row.phone_line)!.tone), 'ml-2']" data-test="phone-line">{{ phoneLineBadge(row.phone_line)!.label }}</span>
           </p>
         </template>
         <template #cell-source="{ row }">

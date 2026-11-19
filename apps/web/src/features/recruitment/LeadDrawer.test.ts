@@ -34,7 +34,7 @@ vi.mock("@/stores/session", () => ({ useSessionStore: () => session }));
 const LEAD: LeadRecord = {
   id: "lead-1", channel: "meta", source: "instant_form", campaign_ref: null, opening_id: null, full_name: "Ray Driver",
   phone_e164: "+17082365732", email_lower: null, status: "new", assigned_to: null, received_at: "2026-11-03T15:00:00Z",
-  answers: {}, also: [], drivers: [], verdicts: [], summary: null, do_not_contact: false, purged_at: null,
+  answers: {}, also: [], drivers: [], verdicts: [], summary: null, do_not_contact: false, phone_line: null, purged_at: null,
 };
 const ok = (data: unknown) => ({ ok: true, data });
 const refused = (message: string) => ({ ok: false, error: { code: "x", message } });
@@ -411,5 +411,15 @@ describe("the recruiter's verdict (LQ5c over 0578)", () => {
     expect(rows[1]).toContain("Closed · Wrong number");
     expect(rows[1]).toContain("Koni");
     expect(has(w, "decision-note-removed")).toBe(true);
+  });
+});
+
+describe("the number's line (V7a)", () => {
+  it("says in words what Telnyx said, and says when nothing was asked yet", async () => {
+    const looked = { line_type: "landline" as const, valid: true, carrier: "AT&T", looked_up_at: "2026-11-19T14:00:00Z" };
+    expect((await render({ ...LEAD, phone_line: looked })).w.text()).toContain("Landline · AT&T");
+    expect((await render({ ...LEAD, phone_line: { ...looked, valid: false } })).w.text()).toContain("Telnyx says this number is not valid");
+    expect((await render(LEAD)).w.text()).toContain("Not looked up yet");
+    expect((await render({ ...LEAD, phone_e164: null })).w.text()).not.toContain("Not looked up yet");
   });
 });

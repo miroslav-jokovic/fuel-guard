@@ -3,6 +3,7 @@ import { isRecordId, recordId } from "../../recordId.js";
 import type { PlatformLead } from "../../ads/contracts.js";
 import { META_FORM_CATALOGUE } from "../../ads/metaLeadForm.js";
 import type { LeadMatchSummary, LeadMatchVerdict } from "./leadMatch.js";
+import type { PhoneLine } from "./phoneLookupContract.js";
 import { normalisePhone } from "../../smsConsentContract.js";
 
 /**
@@ -218,6 +219,11 @@ export interface LeadQueueRow {
    * texted STOP. Read from the number's own record, so a re-submission shows it as the first row did.
    */
   do_not_contact: boolean;
+  /**
+   * What the phone provider says about the number (`phone_lookups`, V7a / LQ8b), or null while it has not been
+   * looked up. A flag beside the number, never a filter (Q-AD62).
+   */
+  phone_line: PhoneLine | null;
 }
 
 export interface LeadQueuePage {

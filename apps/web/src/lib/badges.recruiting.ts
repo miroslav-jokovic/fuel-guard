@@ -1,6 +1,6 @@
 import {
-  HIRING_PHASE_LABELS, HIRING_STEP_STATE_LABELS,
-  type HiringPhase, type HiringStepState, type LeadMatchSummary, type LeadStatus, type Verdict,
+  HIRING_PHASE_LABELS, HIRING_STEP_STATE_LABELS, PHONE_LINE_TYPE_LABELS,
+  type HiringPhase, type HiringStepState, type LeadMatchSummary, type LeadStatus, type PhoneLine, type Verdict,
 } from "@silvicom/shared";
 import { CheckCircleIcon, ClockIcon, ExclamationTriangleIcon, NoSymbolIcon } from "@silvicom/ui/icons";
 import type { Icon } from "@silvicom/ui/icons";
@@ -288,4 +288,25 @@ export function leadMatchBadge(summary: LeadMatchSummary | null): DqBadge {
   if (summary.hardUnmet > 0) return { label: `${summary.hardUnmet} not met`, tone: "danger" };
   if (summary.unknown > 0) return { label: `${summary.unknown} to check`, tone: "warning" };
   return { label: "Meets all", tone: "success" };
+}
+
+/**
+ * The number's line in one badge beside it on the queue (V7a / LQ8b; Q-AD62: a flag, never a filter), or null when
+ * there is nothing worth a recruiter's eye: a mobile is the ordinary case, and a number not yet looked up or one
+ * Telnyx could not type says nothing either way (the drawer still shows both in words). A number Telnyx says
+ * cannot ring is a warning — it is the likeliest wrong number; a landline (cannot be texted) and an internet line
+ * are neutral facts.
+ */
+export function phoneLineBadge(line: PhoneLine | null): DqBadge | null {
+  if (!line) return null;
+  if (line.valid === false) return { label: "Number not valid", tone: "warning" };
+  if (line.line_type === "landline" || line.line_type === "voip") return { label: PHONE_LINE_TYPE_LABELS[line.line_type], tone: "neutral" };
+  return null;
+}
+
+/** The drawer's sentence for the number's line: every case in words, including "not looked up yet". */
+export function phoneLineText(line: PhoneLine | null): string {
+  if (!line) return "Not looked up yet";
+  if (line.valid === false) return "Telnyx says this number is not valid";
+  return [PHONE_LINE_TYPE_LABELS[line.line_type], line.carrier].filter(Boolean).join(" · ");
 }

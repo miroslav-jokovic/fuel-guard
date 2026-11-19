@@ -25,7 +25,7 @@ import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import PhoneContact from "@/components/PhoneContact.vue";
 import { useStepUpRetry } from "@/composables/useStepUpRetry";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { leadStatusTone, leadVerdictTone } from "@/lib/badges.recruiting";
+import { leadStatusTone, leadVerdictTone, phoneLineText } from "@/lib/badges.recruiting";
 import { formatDateTime, formatPhone } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -75,6 +75,8 @@ const source = computed(() => (lead.value ? leadChannelLabel(lead.value.channel)
 const facts = computed(() => [
   { key: "name", label: "Name", value: lead.value?.full_name },
   { key: "phone", label: "Phone", value: lead.value?.phone_e164 ? formatPhone(lead.value.phone_e164) : null },
+  // V7a / LQ8b: what Telnyx says about the number, in words; only for a lead with a number.
+  ...(lead.value?.phone_e164 ? [{ key: "line", label: "Line", value: phoneLineText(lead.value.phone_line) }] : []),
   { key: "email", label: "Email", value: lead.value?.email_lower },
 ]);
 const answers = computed(() => leadAnswerRows(lead.value?.answers ?? {}));
@@ -282,7 +284,8 @@ const runPurge = (): Promise<void> =>
                   :contactable="!lead.do_not_contact"
                 />
                 <template v-else>{{ fact.value }}</template>
-                <span class="ml-2 whitespace-nowrap text-xs font-normal text-ink-muted" data-test="source">{{ source }}</span>
+                <!-- The line is Telnyx's reading, not something the person gave on the source's form. -->
+                <span v-if="fact.key !== 'line'" class="ml-2 whitespace-nowrap text-xs font-normal text-ink-muted" data-test="source">{{ source }}</span>
               </template>
               <span v-else class="text-ink-tertiary">Not given</span>
             </template>

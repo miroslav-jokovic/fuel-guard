@@ -76,7 +76,7 @@ function world() {
     return "queued" as const;
   };
   const admin = rec.client as never;
-  const deps = { admin, sink: leadSinkFor(admin), env, processEnv: { NODE_ENV: "test" }, now: () => new Date(), metaGraphBase: t.base };
+  const deps = { admin, sink: leadSinkFor(admin, env), env, processEnv: { NODE_ENV: "test" }, now: () => new Date(), metaGraphBase: t.base };
   return { rec, rows, queue, enqueue, admin, deps };
 }
 

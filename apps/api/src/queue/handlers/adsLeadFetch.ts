@@ -18,7 +18,7 @@ export const adsLeadFetchHandler: JobHandler = async (ctx, job) => {
     throw new Error("ads_lead_fetch: payload.leadgenId and payload.formId are required");
   }
   const r = await fetchWebhookLead(
-    { admin: ctx.admin, env: ctx.env, now: () => new Date(), sink: leadSinkFor(ctx.admin) },
+    { admin: ctx.admin, env: ctx.env, now: () => new Date(), sink: leadSinkFor(ctx.admin, ctx.env) },
     job.org_id, { leadgenId: p.leadgenId, formId: p.formId },
   );
   return { ok: true, detail: JSON.stringify(r) };

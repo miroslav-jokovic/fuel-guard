@@ -17,7 +17,13 @@ import { z } from "zod";
  * The queue and the quality alert need a word a recruiter acts on: a landline cannot be texted, a VoIP line is
  * the one most often behind a wrong number, a mobile is the normal case. Anything Telnyx says that is not one
  * of those — "toll free", "pager", an empty answer, an `error_code` — is `unknown`, with Telnyx's own word kept
- * in `raw`. A number Telnyx calls invalid is `unknown` too, with `valid = false` beside it.
+ * in `raw`. A number Telnyx calls invalid is `unknown` too, with `valid = false` beside it. *
+ * Re-read 2026-11-19 (Telnyx's OpenAPI page for `LookupNumber`): `carrier.type`'s enum is `fixed line`, `mobile`,
+ * `voip`, `fixed line or mobile`, `toll free`, `premium rate`, `shared cost`, `personal number`, `pager`, `uan`,
+ * `voicemail`, `unknown`. "fixed line or mobile" says Telnyx cannot tell which, so it folds to `unknown` — calling
+ * it either would be our guess. `carrier.error_code` is documented as "Unused"; a non-null one is still read as no
+ * answer. The documented failures are 422 (the number cannot be processed — e.g. a Canadian number on an account
+ * not enabled for Canada) and an "Unexpected error" default; 404 and 429 are not documented.
  */
 
 export const PHONE_LINE_TYPES = ["mobile", "landline", "voip", "unknown"] as const;
@@ -47,6 +53,14 @@ export const telnyxLookupSchema = z.object({
   }),
 });
 export type TelnyxLookup = z.infer<typeof telnyxLookupSchema>;
+
+/** What the queue and the drawer show beside a number (V7a): the stored lookup, or null while none exists. */
+export interface PhoneLine {
+  line_type: PhoneLineType;
+  valid: boolean | null;
+  carrier: string | null;
+  looked_up_at: string;
+}
 
 export interface PhoneLookupProjection {
   line_type: PhoneLineType;

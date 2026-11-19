@@ -38,7 +38,7 @@ this section is what is true today and what comes next. When the two disagree, t
 | V8 health read (API) and token expiry (A-8, A-9) | built 2026-11-18: `GET /api/ads/health`; the token read daily with the reconcile, admins told 14 days before it lapses. Its page is V6's Automation tab | FakeMeta's `debug_token` |
 | V6 workspace | screens built 2026-11-19: Ads is its own sidebar section (Q-APX18 (a)) with Overview, Campaigns, Creative studio (brand kit, presets, swipe file), Automation (the health read) and Settings; the two old addresses redirect | web tests; not yet walked on staging |
 | V5 modes | built 2026-11-19: one enforced authority table, the steps and their modes, lowering a budget, Assisted start, the Automation tab; the agent's own lower ruled out until the canary (Q-APX23 (a)) | tests; not walked on staging |
-| V7 lead engine | not built | — |
+| V7 lead engine | read at its call sites 2026-11-19 (§4 V7); V7a–e being built around Q-APX24–28 | — |
 
 Scorecard (`pnpm ads:readiness`): nine workers at L3, six at L2 (Copywriter, Art director, Craft judge,
 Finished-ad judge, Checker, Strategist), **none at L4**. `scripts/ads-certifications.json` is empty, so Launch
@@ -456,6 +456,48 @@ an ad, launch, replace a tired ad, move budget between ads. What Autopilot may e
 - **Meta's qualified-lead goal** (`QUALITY_LEAD`, documented for Instant Forms): Meta asks for a CRM dataset, 200
   or more leads a month, daily uploads and 60 % lead coverage. At the $26.86 median that is about $5,400 a month,
   so the switch is offered only when a carrier's volume reaches it. Whether EMPLOYMENT accepts it stays Q-AD17.
+
+#### V7 read at its call sites (2026-11-19), before anything was designed
+
+What each of V7's five lines meets in the code today (main 431057018):
+
+| Line | What is there | What is missing |
+|---|---|---|
+| Sources through `LeadSink` | One implementation (`recruiting/leads/leadSink.ts` `recruitingLeadSink`); callers are Meta's webhook fetch and the hourly backfill. A typed-in lead goes to `ingestLead` directly and rings nobody, by design. Pure facts readers exist for Indeed and Tenstreet (`facts/indeed.ts`, `facts/tenstreet.ts`) | No Tenstreet receiver, no Indeed listener, and **no public apply page that makes a lead**: `/apply/:token` is the invite a recruiter sends to an applicant who already exists (LEAD-SOURCING-PLAN §1: "There is no public open-apply link") |
+| Score from pure rules (D-LS2) | The fit verdicts per requirement (`leadMatch`, stored append-only in `lead_match_verdicts`, shown as the Match column and the "does not qualify by their answer" lane); the returning-person and current-driver match (LR2, `recruiting_lead_matches` by phone or e-mail, never by name; `newLeadBell`) | **No phone line type**: `phone_lookups` (0583) is a table nothing writes; LQ8b's reader, its fake, its quota and its queue badge were never built. No one reading that puts the three together |
+| 15-minute first alert | **Already built**: the `lead-uncontacted` sweep rings `lead_uncontacted` after `alerts.uncontacted_lead_minutes`, whose default is 15 (`ADS_SETTINGS_UNSET`), once per lead, to the carrier's list or the section's managers | Nothing for this line. The plan's other promise in that sweep — "a lookup miss is retried by the sweep" (LQ8b) — goes in with LQ8b |
+| One report: cost per qualified lead and per hire, by source and angle | Cost per lead per campaign (`adsReport.ts`), per preset and language (`conceptPerformance.ts`); the stage reader `recruitingLeadOutcomes` (`qualified` = a recruiter's qualify, `hired` = `drivers.hire_date`), read for ad leads only | A lead knows its campaign (`campaign_ref`) but not its AD: Meta's `ad_id` is fetched and kept only inside `raw`. The publisher's own record (`ads_campaigns.platform_refs.ads[]`: Meta ad id → creative, language) and each creative's preset already say which angle an ad is, so the angle is DERIVED, not stored again. Spend exists for Meta alone |
+| `QUALITY_LEAD` at 200+ a month | The Conversions API outcome feed (B6), off until a dataset id is set; the publisher sends `LEAD_GENERATION` | Whether an EMPLOYMENT campaign may use it is Q-AD17, answered only on Meta's sandbox |
+
+**The order V7 is built in**, each one PR, each around its open question:
+
+1. **V7a · Phone line type (LQ8b as written in ADS-LEAD-INTAKE-PLAN).** Telnyx Number Lookup after the store, once per
+   number, re-read after 180 days; a fake Telnyx server in the tests; the daily quota; the miss retried by the
+   uncontacted sweep; the typed-in lead's door; the queue's line-type badge. Flag, never filter (Q-AD62).
+2. **V7b · The lead's standing (Q-APX24).** One pure function in shared over what is already read — the verdict
+   summary, the line type, the matches — giving an ordered standing and its reasons in words. The queue sorts by it
+   and the drawer says why.
+3. **V7c · Which ad, which angle.** A lead's ad is read from `raw.ad_id` against the publisher's record; its angle
+   from that ad's creative. Derived on read; no column (Q-APX25 if a column is ever needed for speed).
+4. **V7d · The report (Q-APX26).** Leads, qualified, applied, hired, spend, cost per qualified lead and cost per hire,
+   by source and by angle, for a chosen range, on the Ads Overview and as a read for the Analyst.
+5. **V7e · The qualified-lead switch's readiness.** Shown, not offered: the carrier's last-30-day lead count against
+   Meta's 200, the outcome feed's state, and Q-AD17's sandbox answer. The switch itself waits on Q-AD17.
+6. **Tenstreet and the apply page wait (Q-APX27, Q-APX28).** Indeed waits on Indeed's approval, as before.
+
+**Built 2026-11-19 (V7a, the number's line).** `recruiting/leads/phoneLookup.ts` asks Telnyx Number Lookup
+(`type=carrier` only) after a lead is stored and rung — by the sink for a platform lead, by `POST /recruitment/leads`
+for a typed-in one — and the uncontacted sweep's job asks again for the last week's numbers with no fresh row (at most
+100 a run). Telnyx's documented answers decide what is stored: a 200 is folded to four words, a 422 (Telnyx will not
+answer for that number) is stored as `unknown` so it is not asked every five minutes, and anything else — the
+documented "Unexpected error", and the undocumented 401/404/429/5xx/timeout — stores nothing and is asked again.
+"fixed line or mobile" folds to `unknown`. `TELNYX_LOOKUP_DAILY_MAX` (default 500, 0 = off) caps a carrier's
+lookups per UTC day, counted from the table; with no `TELNYX_API_KEY` the lookup is off. The queue shows "Landline",
+"Internet line" or "Number not valid" beside the number (a mobile, or a number not yet asked, shows nothing); the
+drawer says it in words. **One departure from LQ8b as written:** it asked for a `lead_intake_failing` bell when the
+ceiling is reached; that bell reads "Ad leads not arriving", which is not what happened, so the count is on the
+sweep job's detail instead and no bell rings under a wrong name. Not yet: the wrong-number share by line type in
+`LeadQuality` (it rides with V7d's report). Progress: `ads-progress/2026-11-19-2000-S-V7a-phone-line.md`.
 
 ### V8 · What makes it enterprise grade
 
@@ -986,6 +1028,77 @@ lead-volume curve of ours to set it from.
   benchmarks (Boostpoint's middle half, §2a.7). Automatic, but its three numbers would be guesses on our own fleet.
 - (c) Lower instead of pause on the daily-cap rule. Changes a rule the owner chose as a pause (`pause_at_daily_cap`).
 
+### Q-APX24 · What a lead's "score" is — OPEN, 2026-11-19
+
+**What was read.** D-LS2: rules decide, no model. `leadMatch` already gives one verdict per requirement with its
+evidence, `summariseLeadMatch` counts hard requirements unmet and unknown, and `compareLeadMatch` sorts without
+filtering. Q-AD62 rules a phone's line type a flag, never a filter. A recruiter acts on "who do I call first, and
+why" — a number out of 100 says neither, and its weights would be invented (no lead has run through a real campaign).
+
+- **(a) An ordered standing with its reasons, no number — recommended.** Four standings, first rule that holds wins:
+  *Does not qualify by their answer* (a hard requirement failed — they are still listed, as today); *Check first*
+  (the number cannot ring, or is not a mobile, or the person already drives for the carrier); *Call* (everything
+  else); within each, fewer unknowns first, then oldest first. Each lead carries the sentences that put it there.
+  Every input is already stored or built in V7a; nothing is weighed by a guess.
+- (b) A 0–100 score from weights (e.g. 40 fit, 20 line type, 20 returning, 20 freshness). One sortable figure; its
+  weights have nothing of ours behind them, and HB 3773's audit asks why one person ranked over another.
+- (c) No score; the queue keeps today's order. V7's line goes unbuilt.
+
+### Q-APX25 · Should a lead keep its ad in a column? — OPEN, 2026-11-19
+
+**What was read.** `recruiting_leads` is frozen after insert (RL013, 0553) and has no ad column; Meta's `ad_id`
+is in `raw` on every platform lead (`LEAD_FIELDS`). The publisher's record (`platform_refs.ads[]`) maps each Meta ad
+to its creative and language, and the creative names its preset.
+
+- **(a) Derive on read, no column — recommended.** One source for "which ad": `raw` plus the publisher's record.
+  The report reads at most a few thousand leads a month per carrier. A column is the later answer if the read is
+  measured slow.
+- (b) A column filled at intake, beside `campaign_ref`. A second copy of a fact in `raw`; needs a migration, the
+  two-merge rule, and a backfill of every existing lead.
+
+### Q-APX26 · What the report counts as "qualified", and what a source without spend shows — OPEN, 2026-11-19
+
+**What was read.** `qualified` is a recruiter's qualify after a reached call (0578, Q-AD64 (a)); `applied` and `hired`
+are read from the application and the driver (`leadOutcomes.ts`). Spend is known for Meta only: Tenstreet, Indeed and
+a typed-in lead carry none.
+
+- **(a) Qualified = a recruiter's qualify, or any later stage reached (applied, hired); a source with no spend shows
+  its counts and "no spend recorded", never a cost of $0 — recommended.** A verdict of all-met is the person's own
+  answer, not a qualification; counting it would let a form with easy questions look cheap.
+- (b) Qualified = every hard requirement met by the person's answer. Available on every lead at once; measures the
+  form, not the person.
+- (c) Add a typed monthly spend per source now. A screen and a table for figures nobody has asked to type.
+
+### Q-APX27 · Tenstreet waits on its own plan's answers — OPEN, 2026-11-19
+
+**What was read.** `TENSTREET-INTAKE-PLAN.md` (TS0–TS6, D-TS1–10, Q-TS1–10) and its meeting prep of 2026-11-19 sit in
+the owner's working copy, not on main. Its own order: TS1–TS3 may start before Tenstreet answers authentication
+(Q-TS1), but D-TS4 (SSN), D-TS5 (EEO) and D-TS8 (Tenstreet's status shown, never obeyed) are the owner's, and the
+meeting with Tenstreet was on 2026-11-19 with its outcome not yet written down.
+
+- **(a) Build Tenstreet as its own track from its own plan, after the meeting's answers and D-TS4/5/8 are written
+  into it — recommended.** It is a public endpoint taking personal data; the three owner rulings decide what the
+  parser keeps, and they cannot be added back once stored. V7's report already counts a `tenstreet` lead the day one
+  arrives, since it reads every channel.
+- (b) Build TS1–TS3 now with the plan's recommendations (SSN and EEO dropped by the parser, status shown only). Fast;
+  rules on the owner's three questions by building them.
+
+### Q-APX28 · "Our own apply page" does not exist — OPEN, 2026-11-19
+
+**What was read.** The only apply page is the invite (`/apply/:token`): a recruiter creates the applicant first,
+then sends a link. Nothing public makes a lead. A public page is a new unauthenticated door taking a name, a phone and
+answers: it needs a rate limit and bot defence, the texting-consent wording counsel has not settled (Q-AD52), the
+form's questions (the online form is the paper application's prefill, and a lead form is shorter), and a place on the
+carrier's web site to be linked from.
+
+- **(a) Design it as its own step after V7a–e, with Q-AD52's answer — recommended.** One public page per opening
+  (`/jobs/<opening>`), the opening's requirements stated first as Meta's form does (LQ1), the same questions as the
+  Instant Form so `factsFor` reads it unchanged, a `LeadSink` caller with channel `apply_page`, behind the `/api`
+  limiter and a challenge. About 3 days once consent wording exists.
+- (b) Build it now with today's Instant Form consent text. The wording was written for Meta's form, where Meta shows
+  its own terms; on our page it would be ours alone, which is the question counsel holds.
+- (c) Drop it: leads come from ads, Tenstreet and Indeed, and the invite stays the only apply page.
+
 ### Q-APX20 · A motion ad's file has no size cap; the store takes 15 MB — RULED (a), 2026-11-19
 
 **What was measured (2026-11-19, while building Q-APX17).** The join asks the encoder for a quality (`-crf 18`), not a
@@ -1119,6 +1232,11 @@ Progress: `ads-progress/2026-11-19-1800-W-V5-assisted-start.md`. **V5 is built**
 | Q-APX21 | What V5's modes are, step by step; step 6 cannot exist on Meta | **ruled (a) 2026-11-19, §5a**: one enforced table of who acts, a mode only where two are real; lowering a budget built | — |
 | Q-APX22 | Approved replacements are turned on today (Q-AD68); Q-APX1 put that after the canary | **ruled (a) 2026-11-19, §5a**: keep it; Level B means launching a new campaign | — |
 | Q-APX23 | When the agent should lower a budget on its own (Level A allows it; no rule exists) | **ruled (a) 2026-11-19, §5a**: none until the canary's data; lowering stays a person's step | — |
+| Q-APX24 | What a lead's "score" is | **(a)** an ordered standing with its reasons, no number | owner |
+| Q-APX25 | Whether a lead keeps its ad in a column | **(a)** derive on read from `raw` and the publisher's record | owner |
+| Q-APX26 | What "qualified" counts in the report; a source with no spend | **(a)** a recruiter's qualify or later; "no spend recorded", never $0 | owner |
+| Q-APX27 | Tenstreet's receiver | **(a)** its own track, after the meeting's answers and D-TS4/5/8 | owner |
+| Q-APX28 | A public apply page | **(a)** its own step after V7a–e, with Q-AD52's consent answer | owner |
 | — | Meta app (id `META_APP_ID` and secret), system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 **2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want

@@ -11,7 +11,8 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { displayNameFor } from "../../../lib/memberLabels.js";
-import { ingestLead } from "../leads/leadSink.js";
+import { ingestLead, lookUpLeadPhone } from "../leads/leadSink.js";
+import { phoneLookupFor } from "../leads/phoneLookup.js";
 import { logLeadContact, readLeadContacts } from "../leads/leadContacts.js";
 import { liftDoNotContact, markDoNotContact, type DoNotContactOutcome } from "../leads/doNotContact.js";
 import { closeLead, qualifyLead, readLeadClosures, reopenLead, type LeadActOutcome } from "../leads/leadClosures.js";
@@ -87,7 +88,11 @@ export function recruitmentLeadsRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const input = res.locals.body as ManualLead;
-      const result = await ingestLead(admin, orgId, leadFromManual(input), new Date());
+      const projection = leadFromManual(input);
+      const result = await ingestLead(admin, orgId, projection, new Date());
+      // V7a / LQ8b: a typed-in lead's number is looked up too, after the store; a failure is the sweep's to retry.
+      const lookup = phoneLookupFor(getAppLocals(req).env);
+      if (lookup && result.stored === "new") await lookUpLeadPhone(admin, orgId, result.lead_id, projection.phone_e164, lookup, new Date());
       await writeAudit(admin, {
         orgId, actorId: req.auth!.userId, action: "recruitment.lead_added",
         entity: "recruiting_leads", entityId: result.lead_id, meta: { channel: input.channel },

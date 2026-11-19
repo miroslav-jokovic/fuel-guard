@@ -14,7 +14,7 @@ vi.mock("../../modules/ads/index.js", async () => {
   const { catchUpSince } = await import("../../modules/ads/leads/backfill.js");
   return { backfillConnectionLeads: ads.backfillConnectionLeads, alertBackfillStale: ads.alertBackfillStale, alertNoContactDetail: ads.alertNoContactDetail, catchUpSince, adsLeadsBackfillDedupKey: (c: string) => `ads_leads_backfill:${c}` };
 });
-vi.mock("../../modules/recruiting/index.js", () => ({ recruitingLeadSink: () => sinkMarker.sink }));
+vi.mock("../../modules/recruiting/index.js", () => ({ recruitingLeadSink: () => sinkMarker.sink, phoneLookupFor: () => null }));
 
 import { adsLeadsBackfillHandler } from "./adsLeadsBackfill.js";
 import type { JobContext, QueueJob } from "../types.js";

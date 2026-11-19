@@ -30,7 +30,7 @@ vi.mock("@/lib/api", () => ({
 const ROW = {
   id: "lead-1", channel: "meta", source: "instant_form", campaign_ref: "c-1", opening_id: "o-1", full_name: "Ray Driver",
   phone_e164: "+17082365732", email_lower: "ray@example.com", status: "new", assigned_to: null, received_at: "2026-11-03T15:00:00Z",
-  answers: { class_a_years: "2to5" }, also: [], drivers: [], do_not_contact: false,
+  answers: { class_a_years: "2to5" }, also: [], drivers: [], do_not_contact: false, phone_line: null,
   verdicts: [{ requirement: "class_a_experience", hard: true, verdict: "unknown", evidence: null, detail: { min_years: 2, stated: { lower: 2, upper: 5, upperInclusive: true }, needs: "verification" } }],
   summary: { hardUnmet: 0, unknown: 1, met: 0 },
 };
@@ -96,6 +96,21 @@ describe("the lead queue", () => {
     for (const s of ["Ray Driver", "Meta ad", "1 to check", "New"]) expect(text).toContain(s);
     expect(w.find('a[href*="lead=lead-1"]').exists()).toBe(true);
     expect(api.calls[0]).toBe("/api/recruitment/leads?limit=50");
+  });
+
+  it("a landline or an invalid number is flagged beside it; a mobile and a number not looked up are not (V7a)", async () => {
+    const line = (line_type: string, valid: boolean | null) => ({ line_type, valid, carrier: null, looked_up_at: "2026-11-19T14:00:00Z" });
+    const cases: Array<[unknown, string | null]> = [
+      [line("landline", true), "Landline"], [line("voip", true), "Internet line"], [line("mobile", false), "Number not valid"],
+      [line("mobile", true), null], [line("unknown", null), null], [null, null],
+    ];
+    for (const [phone_line, label] of cases) {
+      api.answer = (path) => (path.includes("/leads?") ? ok({ leads: [{ ...ROW, phone_line }], next: null }) : world(path));
+      const { w } = await render("/recruitment/leads");
+      const badge = w.find('[data-test="phone-line"]');
+      expect(badge.exists() ? badge.text() : null).toBe(label);
+      w.unmount();
+    }
   });
 
   it("a requirement they told us they miss outranks what is still to check", async () => {
