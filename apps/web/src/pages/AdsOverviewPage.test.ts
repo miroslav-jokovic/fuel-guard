@@ -14,6 +14,8 @@ vi.mock("@/features/ads/useAdsOverview", () => ({
     state.positions.push(position);
     return { isLoading: ref(false), isFetching: ref(false), data: ref(state.data), error: ref(state.error), refetch: () => {} };
   },
+  // V7d's card has its own read and its own test (`AdsLeadCostCard.test.ts`).
+  useAdsLeadCost: () => ({ isLoading: ref(true), isFetching: ref(false), data: ref(undefined), error: ref(null), refetch: () => {} }),
 }));
 // V5 part 3: the reads behind the Assisted-start rows — the carrier's mode, the open openings and the campaigns.
 const start = vi.hoisted(() => ({ mode: "manual" as "manual" | "assisted", manages: true, openings: [] as unknown[], campaigns: [] as unknown[] }));

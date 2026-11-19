@@ -60,8 +60,34 @@ export const leadOutcomeSchema = z.object({
 }).strict();
 export type LeadOutcome = z.infer<typeof leadOutcomeSchema>;
 
+/**
+ * A lead from ANY source, for the cost report (V7d): the same stages, and where it came from — the channel
+ * (`recruiting_leads.channel`), the ad campaign when there was one, and the platform's own id for the AD (Meta's
+ * `ad_id`, kept in the lead's `raw` by both intake roads), so ads can name the creative and its angle from the
+ * publisher's own record (Q-APX25 (a): derived on read, no column).
+ */
+export const leadSourceOutcomeSchema = z.object({
+  lead_id: recordId(),
+  channel: z.string().trim().min(1).max(40),
+  campaign_id: z.string().trim().min(1).max(200).nullable(),
+  platform_ad_ref: z.string().regex(/^[0-9]{1,40}$/).nullable(),
+  arrived_at: instant,
+  reached: z.partialRecord(z.enum(LEAD_OUTCOME_STAGES), instant),
+}).strict();
+export type LeadSourceOutcome = z.infer<typeof leadSourceOutcomeSchema>;
+
 /** Recruiting implements this (D-AD17); ads is handed it at the composition root. */
 export interface LeadOutcomes {
   /** Every lead that came from an ad campaign and arrived at or after `since` (an ISO instant), this org's only. */
   outcomesSince(orgId: string, since: string): Promise<LeadOutcome[]>;
+}
+
+/**
+ * The cost report's read (V7d): its own interface beside `LeadOutcomes`, not a second method on it, because the
+ * outcome feed and the brief read ad leads only and have no use for a typed-in or Tenstreet lead. Recruiting
+ * implements both over the same reading (`recruiting/leads/leadOutcomes.ts`).
+ */
+export interface LeadSources {
+  /** Every lead of every source that arrived in [`from`, `to`) (ISO instants), this org's only. */
+  everyLeadBetween(orgId: string, from: string, to: string): Promise<LeadSourceOutcome[]>;
 }

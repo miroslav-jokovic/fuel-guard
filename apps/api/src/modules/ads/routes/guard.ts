@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
-import { adsKillSwitchSchema, adsSettingsSaveSchema, adsSpendApprovalSchema, isRecordId, parseLedgerCursor, type AdsSettingsView } from "@silvicom/shared";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { adsKillSwitchSchema, adsSettingsSaveSchema, adsSpendApprovalSchema, isRecordId, parseLedgerCursor, type AdsSettingsView, type LeadSources } from "@silvicom/shared";
 import { requireAdminOnly, requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
@@ -13,6 +14,7 @@ import { mountBrandKitRoutes } from "./brandKits.js";
 import { mountCampaignRoutes, type CampaignRouteDeps } from "./campaigns.js";
 import { mountPlanRoutes } from "./plans.js";
 import { mountSwipeRoutes } from "./swipe.js";
+import { mountReportRoutes } from "./report.js";
 import { adsHealthView } from "../health/healthView.js";
 import { adsOverviewView } from "../overview/overviewView.js";
 import { adsSpendView } from "../spend/spendView.js";
@@ -46,8 +48,11 @@ function conflict(res: Response): void {
   res.status(409).json(apiError("ads_settings_conflict", "Someone saved the ads settings at the same moment. Reload and try again."));
 }
 
-/** What the composition root hands in: the brief sources (D-AD17), so ads never imports recruiting. */
-export type AdsRouterDeps = Pick<CampaignRouteDeps, "briefSourcesFor">;
+/**
+ * What the composition root hands in: the brief sources and the lead sources (D-AD17), so ads never imports
+ * recruiting.
+ */
+export type AdsRouterDeps = Pick<CampaignRouteDeps, "briefSourcesFor"> & { leadSourcesFor: (admin: SupabaseClient) => LeadSources };
 
 export function adsRouter(deps: AdsRouterDeps): Router {
   const router = Router();
@@ -166,6 +171,7 @@ export function adsRouter(deps: AdsRouterDeps): Router {
   mountCampaignRoutes(router, { section: BRIEF_SECTION, briefSourcesFor: deps.briefSourcesFor, actorOf });
   mountPlanRoutes(router, { section: BRIEF_SECTION, actorOf });
   mountSwipeRoutes(router, { section: BRIEF_SECTION, actorOf });
+  mountReportRoutes(router, { section: BRIEF_SECTION, leadSourcesFor: deps.leadSourcesFor });
   return router;
 }
 

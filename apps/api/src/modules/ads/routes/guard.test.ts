@@ -159,3 +159,22 @@ describe("GET /api/ads/overview — the ledger's cursor", () => {
     }
   });
 });
+
+describe("GET /api/ads/report/leads — the days asked (V7d)", () => {
+  it("refuses a missing, malformed, backwards or over-long range before any read", async () => {
+    for (const q of ["", "from=2026-11-01", "from=2026-11-1&to=2026-11-30", "from=2026-11-30&to=2026-11-01", "from=2025-01-01&to=2026-01-02"]) {
+      const res = await call("GET", `report/leads?${q}`);
+      expect(res.status, q).toBe(400);
+    }
+    expect(db.forTable("ads_spend_hourly")).toEqual([]);
+  });
+
+  it("answers a year to the day, read for this carrier; a role that cannot see recruitment is refused", async () => {
+    const res = await call("GET", "report/leads?from=2025-11-20&to=2026-11-19");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ from: "2025-11-20", to: "2026-11-19", by_source: [], by_angle: [] });
+    expectOrgScoped(db, ORG);
+    caller = as(OUTSIDER);
+    expect((await call("GET", "report/leads?from=2026-11-01&to=2026-11-30")).status).toBe(403);
+  });
+});

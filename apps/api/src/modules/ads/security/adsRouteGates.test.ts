@@ -49,6 +49,7 @@ const LEDGER: Record<string, string> = {
   "POST /api/ads/campaigns/:campaignId/approvals": SPEND,
   "GET /api/ads/spend": VIEW,
   "GET /api/ads/overview": VIEW, // V6: running, spent, leads, "Needs you" and the ledger — gated as the spend read is
+  "GET /api/ads/report/leads": VIEW, // V7d: cost per qualified lead and per hire — a read of spend already made, gated as the Overview is
   "GET /api/ads/health": VIEW, // V8: a read of connections, jobs and agents, gated as the spend read is // a read of the guard's own figures, gated as the settings read is (E1c)
   "GET /api/ads/connections": VIEW,
   "POST /api/ads/connections/meta": CONNECTION,

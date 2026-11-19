@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { AppButton as BaseButton, DataTable, DataWorkspace, FilterBar, TablePagination, useQueryState, type DataTableColumn } from "@silvicom/ui";
-import { LEAD_STATUSES, LEAD_STATUS_LABELS, leadChannelLabel, type LeadQueueRow } from "@silvicom/shared";
+import { LEAD_STANDING_LABELS, LEAD_STATUSES, LEAD_STATUS_LABELS, compareLeadStanding, leadChannelLabel, leadStanding, type LeadQueueRow } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import PhoneContact from "@/components/PhoneContact.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -16,7 +16,8 @@ import { LEADS_CLOSED, LEADS_EVERYONE, LEADS_MINE, LEADS_OPEN, LEADS_PAGE_SIZE, 
 import { useSessionStore } from "@/stores/session";
 
 /**
- * The lead queue (E4b): people who answered an ad or were typed in, one person per row, newest first.
+ * The lead queue (E4b): people who answered an ad or were typed in, one person per row, newest first by page; within
+ * a page, by the lead's standing (V7b, below).
  *
  * Working a lead happens in its drawer (`LeadDrawer.vue`); adding one by hand is `AddLeadDrawer.vue`.
  *
@@ -62,8 +63,16 @@ const pageRows = computed<LeadQueueRow[]>(() => query.data.value?.pages[page.val
  * Closed view a close for a requirement is the point, so nothing is split there.
  */
 const splitByAnswer = computed(() => show.value !== LEADS_CLOSED && show.value !== "not_qualified");
-const qualifyingRows = computed(() => (splitByAnswer.value ? pageRows.value.filter((r) => !(r.summary && r.summary.hardUnmet > 0)) : pageRows.value));
-const disqualifiedRows = computed(() => (splitByAnswer.value ? pageRows.value.filter((r) => r.summary !== null && r.summary.hardUnmet > 0) : []));
+/**
+ * V7b (Q-APX24 (a)): the lane and the order both come from the lead's standing (shared `leadStanding`, the one
+ * rule): "does not qualify by their answer" is the lane above, and the rest of the page is ordered Call, then Check
+ * first, fewer requirements still to check first. Only within this page — the pages themselves stay by arrival,
+ * since the queue's cursor is (received_at, id). The Closed view keeps arrival order: nobody is being called there.
+ */
+const qualifyingRows = computed(() =>
+  splitByAnswer.value ? pageRows.value.filter((r) => leadStanding(r).standing !== "does_not_qualify").sort(compareLeadStanding) : pageRows.value,
+);
+const disqualifiedRows = computed(() => (splitByAnswer.value ? pageRows.value.filter((r) => leadStanding(r).standing === "does_not_qualify") : []));
 const hasNext = computed(() => page.value < fetchedPages.value || query.hasNextPage.value);
 async function goTo(n: number): Promise<void> {
   if (n > fetchedPages.value) {
@@ -138,6 +147,8 @@ const personName = (row: LeadQueueRow) => row.full_name ?? (row.phone_e164 || ro
         </template>
         <template #cell-match="{ row }">
           <span :class="[BADGE_BASE, toneClass(leadMatchBadge(row.summary).tone)]">{{ leadMatchBadge(row.summary).label }}</span>
+          <span v-if="leadStanding(row).standing === 'check_first'" :class="[BADGE_BASE, toneClass('warning'), 'ml-2']" data-test="standing">{{ LEAD_STANDING_LABELS.check_first }}</span>
+          <p v-if="leadStanding(row).reasons.length > 0" class="mt-1 text-xs text-ink-muted" data-test="standing-why">{{ leadStanding(row).reasons.join(" · ") }}</p>
         </template>
         <template #cell-status="{ row }">
           <span :class="[BADGE_BASE, leadStatusTone(row.status)]">{{ LEAD_STATUS_LABELS[row.status] }}</span>
