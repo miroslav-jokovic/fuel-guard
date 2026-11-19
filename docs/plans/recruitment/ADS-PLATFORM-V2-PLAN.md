@@ -492,7 +492,7 @@ a person sees every ad.
 
 | Level | What runs alone | When |
 |---|---|---|
-| A | Pause, lower a budget, retire a tired ad. | Ruled and built. |
+| A | Pause, lower a budget, retire a tired ad. | Ruled and built — **except lowering a budget, which is not built (found 2026-11-19, Q-APX21).** |
 | B | Launch a campaign whose plan and ads a person approved, inside a monthly envelope an admin approved once. Turn on a person-approved replacement for a retired ad. | After the canary (L5). **Reverses Q-AD2 for this case only.** |
 | C | Publish an ad no person saw. | Locked in code by a certification record, like Launch. Opens only at ≥ 50 real ads decided by a person with the judge agreeing at κ ≥ 0.8, counsel's wording list complete (G12), and one ad in ten still shown to a person afterwards. |
 
@@ -910,7 +910,65 @@ timeline) and V8's health read are API work with the same content under any of t
 
 Whichever is ruled, the full plan is not done in three days (§0.4).
 
-### Q-APX20 · A motion ad's file has no size cap; the store takes 15 MB — OPEN, 2026-11-19
+### Q-APX21 · What V5's "mode per step" is, once the six steps are read in the code — OPEN, 2026-11-19
+
+**Why it is asked.** V5 is two sentences (§4): "a versioned policy in ads settings: step × mode", six steps, and the
+modes Manual · Assisted · Autopilot (§1), which are never defined. Before building, each step was read in the code
+(2026-11-19, every claim at its call site) and Meta's own reference was read for the sixth.
+
+**What each step does today** — every decision is fixed in code; no carrier can change who takes it.
+
+| Step | Today | Who | Is a second mode real? |
+|---|---|---|---|
+| 1 Start a campaign for an opening | A person creates it (`POST /api/ads/campaigns`, recruitment manage). Nothing creates one when an opening opens. | person | Yes: **Assisted** = when an opening opens with no campaign, the agent drafts one and "Needs you" offers *Start it*; nothing is planned or spent until a person presses. New, small. |
+| 2 Approve the plan | The Strategist writes it; a person approves, edits (`savePlanEdit`) or asks for a new one. | person | **No Manual**: a person writing a plan from nothing is not built, and Q-APX6 made the Strategist's plan mandatory. Autopilot is not in Q-APX1's levels. |
+| 3 Approve an ad | The workers make and check each ad; a person approves or rejects each. | person | **No Manual** (a person making the ad is not built). Autopilot = Level C, locked. |
+| 4 Launch | An admin approves (fresh sign-in, second approver above the setting) and launches; the guard checks again. | approver | Autopilot = Level B, after the canary, locked until then. |
+| 5 Replace a tired ad | `creative_refresh.retire` off: an alert only. On: the Monitor retires it, a replacement is made, a person approves it, and it is **turned on with no further person** (Q-AD68). | agent + person | Yes: the existing switch IS this step's two modes — **Manual** (alert only) and **Assisted** (retire, make, approve, turn on). |
+| 6 Move budget between ads | **No code exists, and it cannot.** Meta's Ad object has no budget field ("all ads in a set have the same daily or lifetime budget"; bid on an ad is deprecated, "set `bid_amount` for the ad set", read 2026-11-19); each of our campaigns is one ad set; Meta itself spreads delivery across its ads. | — | **Not a step.** The real budget acts are on the ad set: *lower* (Level A) and *raise* (approver). |
+
+**Found while reading — two places the plan says something the code does not:**
+
+- **Level A says "Pause, lower a budget, retire a tired ad — Ruled and built." Lowering a budget is not built:**
+  `PlatformSafe` has no lower method, no worker lowers one, and the Monitor and Meta's rules only pause. Pause and
+  retire are built. (Raising is fenced end to end but no door calls it either — `guardedPlatform.ts` "Raise and area
+  change are not offered".)
+- **`ADS_AUTHORITY` (shared `adsPolicy.ts`) is read by nothing but its own test** (`mayAct` has no other caller): the
+  routes, the machine and the guard each restate who may act. It has no row for approving a plan; it says `archive` is
+  an agent's, which no code does; it lists `edit_live_copy` and `lower_budget`, which have no code path. A V5 policy
+  would be a THIRD statement of who acts unless it replaces this one.
+
+**Proposals.**
+
+- **(a) V5 is the ONE enforced table of who takes each real step, with a mode only where a second mode is real —
+  recommended.** The steps: start a campaign (Manual · Assisted), approve the plan (Assisted), approve an ad
+  (Assisted · Autopilot locked), launch (Assisted · Autopilot locked until the canary), replace a tired ad (Manual ·
+  Assisted — the existing switch moves here), lower a budget (Assisted · Autopilot = Level A, built as its own piece),
+  raise a budget (approver). It replaces `ADS_AUTHORITY`: the doors read it, so it cannot drift from what runs. The
+  Automation tab shows every step, its mode, and for a locked one the gate that opens it. Cost ≈ the plan's 5 days:
+  the table and its enforcement (2), step 1's Assisted draft (1), lowering a budget end to end (1–2), the screen (1).
+- (b) Build V5 as written: Manual and Assisted for all six. Needs a person-authored plan and ad (new tools nobody
+  asked for, against Q-APX6) and a budget move Meta does not have. Not recommended.
+- (c) Leave modes until after the canary and do V7 (the lead engine) now. Loses nothing that waits on V5, but the
+  disagreements above stay in the code.
+
+### Q-APX22 · Turning on an approved replacement runs today; Q-APX1 put it after the canary — OPEN, 2026-11-19
+
+**What was read.** Q-AD68 was ruled (a) on 2026-11-11 ("Yes, build Q-AD68"): on a live campaign a retired ad's
+replacement is made, a person approves it, and the orchestrator publishes it into the running ad set and turns it on
+— an `activate_ad` row by the agent, citing the person's approval (`compose/refreshCampaign.ts` `turnOn`; fenced in the
+database by 0587). Q-APX1 was ruled (b) on 2026-11-14 and lists "Turn on a person-approved replacement for a retired ad"
+under **Level B, "after the canary"**. Both are the owner's; the code runs the earlier. It runs only for a carrier that
+switched `creative_refresh.retire` on, adds no budget (the ad joins the ad set's existing budget), and no carrier has
+run a real campaign, so nothing has turned on yet.
+
+- **(a) Keep Q-AD68 as built, and record that Level B's line meant only the LAUNCH of a new campaign — recommended.**
+  Turning on an approved replacement spends nothing new: the ad set's budget, caps and kill switch are unchanged and
+  fence it; a person saw and approved the ad; the alternative is a running campaign left on a tired ad while it waits.
+- (b) Hold it until the canary, as Q-APX1's table reads: the replacement waits in "Needs you" for a person to turn it on.
+  One more door and a screen; the campaign keeps the tired ad's slot empty meanwhile.
+
+### Q-APX20 · A motion ad's file has no size cap; the store takes 15 MB — RULED (a), 2026-11-19
 
 **What was measured (2026-11-19, while building Q-APX17).** The join asks the encoder for a quality (`-crf 18`), not a
 size, so the file is as large as the picture is busy. At 1440 × 1800: a photo pushed in, as the simulator moves it,
@@ -971,6 +1029,14 @@ is 100%."*** Taken as:
   empty before it was replaced; details in ADS-CREATIVE-QUALITY-PLAN §8.
 - **The staging walk waits** until the feature is complete; nothing is switched on for staging before then.
 
+**2026-11-19, the owner, to Q-APX20 and to the next step: *"Ok proceed as recommended and proposed."*** Taken as:
+
+- **Q-APX20 RULED (a).** The join keeps asking for a quality (`-crf 18`), not a size; a file over the store's 15 MB
+  stops its motion ad by name (`too_large`) and the still is kept. The sitting reads the size of every real clip it
+  joins, and the cap is decided on those files — nothing is capped on a guess before then.
+- **V5 next**, Manual and Assisted first, as §0.3 row 6 orders it. Reading the six steps in the code first raised
+  Q-APX21 and Q-APX22, which wait on the owner before V5 is built.
+
 ## 6. Open, in one place
 
 | Id | Question | Recommendation | Who |
@@ -983,7 +1049,9 @@ is 100%."*** Taken as:
 | Q-APX17 | Our video is 1080 wide; Meta's video-ads page says 1,200 at least | **ruled (a) 2026-11-18, §5a**: paint the motion ad at 1440 × 1800; **built 2026-11-19** | — |
 | Q-APX18 | Where the Ads workspace sits, and whether Leads and Openings move into it | **ruled (a) 2026-11-18, §5a**: its own sidebar section; Leads and Openings stay Recruitment's and are linked | — |
 | Q-APX19 | What the next three days hold | **ruled (a) 2026-11-18, §5a**: sandbox when credentials arrive, the research (V2r), then the health read | — |
-| Q-APX20 | A motion ad's file has no size cap; the store takes 15 MB | **(a)** keep quality and the named refusal; decide on the sitting's real clips | owner |
+| Q-APX20 | A motion ad's file has no size cap; the store takes 15 MB | **ruled (a) 2026-11-19, §5a**: keep quality and the named refusal; decide on the sitting's real clips | — |
+| Q-APX21 | What V5's modes are, step by step; step 6 cannot exist on Meta | **(a)** one enforced table of who acts, a mode only where two are real; lowering a budget built; `ADS_AUTHORITY` replaced | owner |
+| Q-APX22 | Approved replacements are turned on today (Q-AD68); Q-APX1 put that after the canary | **(a)** keep it; Level B means launching a new campaign | owner |
 | — | Meta app (id `META_APP_ID` and secret), system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 **2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want
