@@ -76,6 +76,11 @@ export const samsaraEnvFields = {
   // PARALLEL with today's idle numbers and nothing reads it yet, so turning it off loses nothing a
   // later nightly run cannot rebuild for the last two days.
   IDLE_ENGINE_SYNC_MINUTES: z.coerce.number().min(0).default(60),
+  // The toll GPS check (TOLLS-PER-TRUCK-PLAN TL8a, `toll-gps`): every tick learns up to 20 plazas and
+  // observes tolls for up to four minutes, oldest first, on the backfill lane. On by default because
+  // the owner ruled the evidence is fetched as soon as a statement is read (Q-TL10) and April is at the
+  // edge of Samsara's history; with nothing read and nothing due a tick is three small reads. 0 disables it.
+  TOLL_GPS_MINUTES: z.coerce.number().min(0).default(10),
   // Central Samsara client rate limiting (shared per org token across schedulers + recon + backfill).
   // Steady request cadence (requests/sec) — stays well under Samsara's per-token limits while letting a
   // large backfill finish in minutes. Retries honor Retry-After + exponential backoff before failing.

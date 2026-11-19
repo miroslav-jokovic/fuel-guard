@@ -24,6 +24,7 @@ import { startMedstopScheduler } from "./modules/medstop/index.js";
 import { recruitingLeadQuality, startLeadUncontacted, startSmsOutboxScheduler } from "./modules/recruiting/index.js";
 import { startBoardEtaRecorder, startHomeTimeScheduler } from "./modules/livemap/index.js";
 import { startFmcsaFeedScheduler } from "./modules/inspections/index.js";
+import { startTollGpsScheduler } from "./modules/tolls/index.js";
 import { startLumperReminderScheduler, startMcleodRelinkScheduler } from "./modules/mcleod/index.js";
 import { startAdsDailyBrief, startAdsInsights, startAdsLeadsBackfill, startAdsOrchestrator, startAdsOutcomeFeed, startAdsReconcile } from "./modules/ads/index.js";
 import { startInprocessJobDrain } from "./queue/inprocessDrain.js";
@@ -85,6 +86,7 @@ export const SCHEDULERS: readonly ScheduledTask[] = [
   { name: "home-time", lane: "general", start: startHomeTimeScheduler }, // HOME-TIME D-HT13: every 15 min, ends finished home time and sends its three alerts
 
   { name: "lumper-reminders", lane: "general", start: startLumperReminderScheduler }, // LUMPER-REVISED-RC LRC4: weekdays 08:00 carrier time, only for carriers that switched it on (D-LRC9)
+  { name: "toll-gps", lane: "general", start: startTollGpsScheduler }, // TOLLS TL8a (0636): learns toll plazas and stores what Samsara saw at each toll, oldest first
   { name: "fmcsa-feed", lane: "general", start: startFmcsaFeedScheduler }, // IC1 (0457): daily snapshot of FMCSA's public record of our roadside inspections
   { name: "mcleod-relink", lane: "general", start: startMcleodRelinkScheduler }, // D-LA3 via D-RLY12: every 10 min, re-make the links of loads whose codes resolve now
   { name: "financial-freshness", lane: "general", start: startFinancialFreshnessScheduler }, // D-FIN3: six-hourly — a stale McLeod financial sweep or a failed finance job becomes a finding

@@ -490,6 +490,10 @@ const API_ALLOW = new Set([
   //   asked of Samsara and frozen as received through the collector's own `makeSamsaraRawFetcher` and
   //   `loadSamsaraToken`. samsara imports nothing of inspections'.
   "inspections -> samsara",
+  // · tolls -> samsara — TL8a (TOLLS-PER-TRUCK-PLAN D-TL14, D-TL21): where each toll plaza stands and
+  //   which trucks were at it when a toll was printed, read through the collector's own GPS-history
+  //   fetchers, asset listers and `loadSamsaraToken` (its public index). samsara imports nothing of tolls'.
+  "tolls -> samsara",
   // · inspections -> evidence — IC2 (INSPECTION-CHALLENGE-PLAN D-IC12): an inspection's ticket, court
   //   result and officer's copy are filed through `registerDocument` and listed through `listDocuments`,
   //   the DQ file's own door to `documents` (0476 adds the subject). evidence imports nothing of inspections'.
