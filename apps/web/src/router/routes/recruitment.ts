@@ -58,14 +58,7 @@ export const recruitmentRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/RecruitmentLeadsPage.vue"),
     meta: { requiresAuth: true, title: "Leads", parent: "/recruitment" },
   },
-  {
-    // E3: the ads agent's campaigns, and where a person reviews and launches one.
-    path: "/recruitment/campaigns",
-    name: "recruitment-campaigns",
-    component: () => import("@/pages/RecruitmentCampaignsPage.vue"),
-    meta: { requiresAuth: true, title: "Campaigns", parent: "/recruitment" },
-  },
-
+  // E3's `/recruitment/campaigns` moved to the Ads workspace (Q-APX18 (a)); its redirect is in `ads.ts`.
   {
     // Q-AD43 (b): what the carrier hires for, each opening the brief a campaign is made from.
     path: "/recruitment/openings",

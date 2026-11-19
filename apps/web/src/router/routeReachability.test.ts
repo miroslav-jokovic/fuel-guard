@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { NAV_SURFACES, SURFACES } from "@silvicom/shared";
 import { SETTINGS_CARDS } from "@/lib/settingsCards";
+import { adsWorkspaceTabs } from "@/features/ads/adsWorkspace";
 
 /**
  * Fitness function — every page a person can reach is a page something LINKS to (R8).
@@ -123,10 +124,15 @@ const quoted = (needle: string) =>
  * each link from the card's surface key, so `/settings/org` no longer appears as a literal anywhere
  * in this app. Only KEYS that have a card count — a catalogued screen with no card is exactly the
  * orphan this file exists to find.
+ *
+ * And the Ads workspace's tab strip, for the same reason a third time (Q-APX18 (a), 2026-11-18): `AdsTabs` draws its
+ * tabs from the catalogue through `adsWorkspaceTabs`, so `/ads/studio` is a literal nowhere in this app. Read through
+ * that same function, never a copy of its list.
  */
 const navPaths = new Set([
   ...NAV_SURFACES.map((s) => s.path),
   ...SETTINGS_CARDS.flatMap((c) => SURFACES.filter((s) => s.key === c.key).map((s) => s.path)),
+  ...adsWorkspaceTabs(SURFACES).map((t) => t.path),
 ]);
 
 describe("every page is reachable from somewhere", () => {

@@ -4,7 +4,8 @@ import { useRoute, useRouter } from "vue-router";
 import { AppTabs } from "@silvicom/ui";
 
 /**
- * One recruitment page, seven views (D-HUI8, B4; Templates since MV2, Leads since E4b, Openings since Q-AD43).
+ * One recruitment page, six views (D-HUI8, B4; Templates since MV2, Leads since E4b, Openings since Q-AD43). Campaigns
+ * was the seventh until 2026-11-18, when it moved to the Ads workspace with the rest of the ads (Q-APX18 (a)).
  *
  * ── WHAT THIS REPLACES, AND WHY IT IS NOT A DELETION ──────────────────────────────────────────
  * `/recruitment`, `/recruitment/screening` and `/recruitment/inquiries` were three sidebar entries
@@ -51,7 +52,6 @@ const TABS = [
   { value: "recruitment-leads", label: "Leads" },
   // Q-AD43 (b): before Campaigns, because a campaign is made from an open opening.
   { value: "recruitment-openings", label: "Openings" },
-  { value: "recruitment-campaigns", label: "Campaigns" },
   { value: "screening-readiness", label: "Screening readiness" },
   { value: "inquiry-queue", label: "Safety-history inquiries" },
   // MV2 (D-MVR2): the fourth view, and the same shape as the other two — a real route with its own

@@ -65,7 +65,7 @@ async function settle(w: { vm: { $nextTick: () => Promise<void> } }) {
 async function render(at: string) {
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: ["recruitment", "recruitment-leads", "recruitment-openings", "recruitment-campaigns", "screening-readiness", "inquiry-queue", "recruitment-templates"]
+    routes: ["recruitment", "recruitment-leads", "recruitment-openings", "screening-readiness", "inquiry-queue", "recruitment-templates"]
       .map((name) => ({ path: name === "recruitment-openings" ? "/recruitment/openings" : `/x/${name}`, name, component: { template: "<div />" } })),
   });
   await router.push(at);

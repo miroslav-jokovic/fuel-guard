@@ -1,4 +1,5 @@
 import {
+  AdsIcon,
   ArchiveBoxIcon,
   BeakerIcon,
   MicroscopeIcon,
@@ -102,6 +103,10 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   // gate doing its job: a glyph nothing renders is the first half of a sidebar entry coming back.
   "recruitment.applicants": UserListIcon,
 
+  // Q-APX18 (a): the Ads workspace's one entry. The megaphone is Settings' "Ads control" card's glyph already, and
+  // nothing in the menu wears it, so the entry and the card it absorbed read as one place.
+  "ads.overview": AdsIcon,
+
   "fleet.vehicles": VehicleIcon,
   "fleet.trailers": TrailerIcon,
   "fleet.drivers": UserGroupIcon,
@@ -138,6 +143,7 @@ export const GROUP_ICONS: Record<string, Icon> = {
   dispatch: MapIcon,
   safety: ShieldCheckIcon,
   recruitment: ClipboardDocumentListIcon,
+  ads: AdsIcon,
   fleet: TruckIcon,
   finance: CurrencyDollarIcon,
   maintenance: WrenchIcon,

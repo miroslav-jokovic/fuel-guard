@@ -1,5 +1,5 @@
 import {
-  ADS_PERSON_DOOR_EXCLUDED, campaignEventsFrom,
+  ADS_PERSON_DOOR_EXCLUDED, CAMPAIGN_STATES_AGENT_WORKING, campaignEventsFrom,
   type AdCheckVerdict, type AdCreativeCheck, type CampaignEvent, type CampaignState, type CreativeState,
 } from "@silvicom/shared";
 
@@ -31,8 +31,11 @@ export const CHECK_LABEL: Record<AdCreativeCheck, string> = { copy: "Words", ren
 export const CHECK_VERDICT_LABEL: Record<AdCheckVerdict, string> = { passed: "Passed", failed: "Failed", not_run: "Not checked" };
 export const CHECK_VERDICT_TONE: Record<AdCheckVerdict, string> = { passed: "success", failed: "danger", not_run: "neutral" };
 
-/** The agent is working: the page reads the campaign again until it stops. */
-const WORKING: ReadonlySet<CampaignState> = new Set<CampaignState>(["draft", "planning", "composing", "approved", "creating", "launching", "pausing"]);
+/**
+ * The agent is working: the page reads the campaign again until it stops. The set is the machine's
+ * (`CAMPAIGN_STATES_AGENT_WORKING`, derived from `CAMPAIGN_TRANSITIONS`), never a list kept here.
+ */
+const WORKING: ReadonlySet<CampaignState> = new Set<CampaignState>(CAMPAIGN_STATES_AGENT_WORKING);
 export const isWorking = (s: CampaignState): boolean => WORKING.has(s);
 
 const MOVE_LABEL: Partial<Record<CampaignEvent, string>> = {

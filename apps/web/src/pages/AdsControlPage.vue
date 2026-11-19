@@ -2,22 +2,24 @@
 import { computed } from "vue";
 import { QueryState } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import AdsBrandKitCard from "@/features/ads/AdsBrandKitCard.vue";
 import AdsConnectionsCard from "@/features/ads/AdsConnectionsCard.vue";
 import AdsKillSwitchCard from "@/features/ads/AdsKillSwitchCard.vue";
-import AdsPresetCard from "@/features/ads/AdsPresetCard.vue";
 import AdsSettingsForm from "@/features/ads/AdsSettingsForm.vue";
 import AdsSpendCard from "@/features/ads/AdsSpendCard.vue";
+import AdsTabs from "@/features/ads/AdsTabs.vue";
 import { useAdsSettings } from "@/features/ads/useAdsSettings";
 import { useMembersQuery } from "@/features/permissions/usePermissions";
 import { useSessionStore } from "@/stores/session";
 
 /**
- * Settings › Ads control (ADS-AGENT-PLAN §4b; ADS-AGENT-BUILD-WORKFLOW E1). The recruiting ads agent's
- * limits, automatic pauses, approvals, AI budgets, alerts, ad accounts, spend so far and kill switch, on one page.
+ * Ads › Settings (ADS-AGENT-PLAN §4b; ADS-AGENT-BUILD-WORKFLOW E1), Settings › Ads control until 2026-11-18. The
+ * recruiting ads agent's limits, automatic pauses, approvals, AI budgets, alerts, ad accounts, spend so far and kill
+ * switch, on one page. The brand kit and the concepts went to the Creative studio with the move (Q-APX18 (a)): they
+ * are what an ad is made FROM, not what it may spend.
  *
  * ── WHO REACHES IT ────────────────────────────────────────────────────────────────────────────
- * The catalogue's `admin.recruiting.ads`, `section("recruitment")`, as Settings › Recruiting is: anyone
+ * The catalogue's `admin.recruiting.ads` — still that key, its own grant and its card on Settings; only the address
+ * moved — `section("recruitment")`, as Settings › Recruiting is: anyone
  * who can view recruiting reads it (plan §4b, "readable by recruiters"); writes are the API's to refuse
  * and the page's to hide by the same rules — saving, clearing the switch and every ad-account act are an
  * admin's; pressing the switch is anyone who manages recruiting.
@@ -42,6 +44,7 @@ const membersFailed = computed(() => Boolean(members?.error.value));
 <template>
   <div class="space-y-6">
     <PageHeader description="How much the ads may spend, when they pause themselves, who hears about it, and the switch that stops them all." />
+    <AdsTabs />
     <QueryState
       :loading="settings.isLoading.value"
       :error="settings.error.value"
@@ -53,8 +56,6 @@ const membersFailed = computed(() => Boolean(members?.error.value));
         <AdsKillSwitchCard :view="settings.data.value" />
         <AdsSpendCard />
         <AdsConnectionsCard />
-        <AdsBrandKitCard />
-        <AdsPresetCard />
         <AdsSettingsForm :view="settings.data.value" :members="memberList" :members-failed="membersFailed" />
       </div>
     </QueryState>

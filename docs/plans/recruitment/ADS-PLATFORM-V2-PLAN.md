@@ -32,11 +32,12 @@ this section is what is true today and what comes next. When the two disagree, t
 | Step | State | Proven on |
 |---|---|---|
 | V1 any current model per agent | done | recorded fixtures, each agent's baseline met twice |
-| V2 planning stage | done; V2r (2026-11-18): market pay from BLS, the swipe file's API, the Researcher and the Swipe reader at L2. The swipe file's screen comes with V6 | simulator; BLS read live once |
+| V2 planning stage | done; V2r (2026-11-18): market pay from BLS, the swipe file's API, the Researcher and the Swipe reader at L2. The swipe file's screen built with V6 (Creative studio, 2026-11-19) | simulator; BLS read live once |
 | V3 design quality | done, except the story frame, Meta's own preview and the reference set | simulator |
 | V4 video (motion ad) | done; driver clip not started | simulator (FakeMeta, the simulated video model) |
-| V8 health read (API) and token expiry (A-8, A-9) | built 2026-11-18: `GET /api/ads/health`; the token read daily with the reconcile, admins told 14 days before it lapses. The page comes with V6 | FakeMeta's `debug_token` |
-| V5 modes · V6 workspace · V7 lead engine | not built | — |
+| V8 health read (API) and token expiry (A-8, A-9) | built 2026-11-18: `GET /api/ads/health`; the token read daily with the reconcile, admins told 14 days before it lapses. Its page is V6's Automation tab | FakeMeta's `debug_token` |
+| V6 workspace | screens built 2026-11-19: Ads is its own sidebar section (Q-APX18 (a)) with Overview, Campaigns, Creative studio (brand kit, presets, swipe file), Automation (the health read) and Settings; the two old addresses redirect | web tests; not yet walked on staging |
+| V5 modes · V7 lead engine | not built | — |
 
 Scorecard (`pnpm ads:readiness`): nine workers at L3, six at L2 (Copywriter, Art director, Craft judge,
 Finished-ad judge, Checker, Strategist), **none at L4**. `scripts/ads-certifications.json` is empty, so Launch

@@ -5,6 +5,7 @@ import { AppCard as BaseCard, DataTable, QueryState, type DataTableColumn } from
 import { formatDateTime } from "@/lib/format";
 import { budgetLine, count, platformLine, reconcileLine, usd, type Tone } from "./spendLines";
 import { useAdsSpend } from "./useAdsSettings";
+import { PLATFORM_LABEL } from "./adsLabels";
 
 /**
  * Settings › Ads control's "spend control live" (ADS-AGENT-PLAN §4b; Track S, E1c): month-to-date per
@@ -16,7 +17,6 @@ import { useAdsSpend } from "./useAdsSettings";
 const spend = useAdsSpend();
 const view = computed(() => spend.data.value);
 
-const PLATFORM: Record<AdPlatform, string> = { meta: "Meta (Facebook, Instagram)", tiktok: "TikTok", x: "X", simulator: "Simulator" };
 const SHORT: Record<AdPlatform, string> = { meta: "Meta", tiktok: "TikTok", x: "X", simulator: "Simulator" };
 const STATE: Record<string, string> = { paused: "Paused", launching: "Launching", live: "Live", pausing: "Pausing", archived: "Archived", failed: "Failed" };
 const TONE: Record<Tone, string> = { ok: "text-ink-muted", warn: "text-warning-700", stop: "text-danger-700" };
@@ -65,7 +65,7 @@ const rows = computed(() => (view.value?.campaigns ?? []).map((c: AdsSpendCampai
         <p v-if="view.platforms.length === 0" class="text-sm text-ink-muted">No ad account is connected, so nothing has spent.</p>
         <ul v-else class="divide-y divide-edge-subtle">
           <li v-for="p in view.platforms" :key="p.platform" class="py-2" :data-platform="p.platform">
-            <p class="text-sm text-ink"><span class="font-medium">{{ PLATFORM[p.platform] }}:</span> {{ platformLine(p, view.days_left).spent }}</p>
+            <p class="text-sm text-ink"><span class="font-medium">{{ PLATFORM_LABEL[p.platform] }}:</span> {{ platformLine(p, view.days_left).spent }}</p>
             <p :class="['text-sm', TONE[platformLine(p, view.days_left).tone]]">{{ platformLine(p, view.days_left).forecast }}</p>
           </li>
         </ul>

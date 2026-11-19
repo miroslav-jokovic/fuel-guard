@@ -6,6 +6,7 @@ import { hazmatRoutes } from "./routes/hazmat";
 import { fleetRoutes } from "./routes/fleet";
 import { driverRoutes } from "./routes/drivers";
 import { recruitmentRoutes } from "./routes/recruitment";
+import { adsRoutes } from "./routes/ads";
 import { fuelRoutes } from "./routes/fuel";
 import { financeRoutes } from "./routes/finance";
 import { maintenanceRoutes } from "./routes/maintenance";
@@ -45,6 +46,7 @@ export const ROUTE_TABLE: readonly RouteRecordRaw[] = [
   ...fleetRoutes,
   ...driverRoutes,
   ...recruitmentRoutes,
+  ...adsRoutes,
   ...fuelRoutes,
   ...financeRoutes,
   ...maintenanceRoutes,

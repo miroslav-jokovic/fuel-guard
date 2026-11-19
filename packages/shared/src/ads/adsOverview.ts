@@ -40,6 +40,30 @@ export const CAMPAIGN_STATES_AWAITING_PERSON: readonly CampaignState[] = (() => 
   return [...steps].filter(([, ts]) => ts.every((t) => !t.by.includes("agent"))).map(([s]) => s).sort();
 })();
 
+/**
+ * The moves that do not carry a campaign forward on their own. Besides the kill switch and archive, a pause:
+ * it is open from every state that may be delivering (`CAN_DELIVER`, "the safe direction") to agent and person
+ * alike, so it would make `live` read as "being worked on" when nobody is about to move it.
+ */
+const NOT_A_FORWARD_STEP: ReadonlySet<CampaignEvent> = new Set<CampaignEvent>([...NOT_A_NEXT_STEP, "pause"]);
+
+/**
+ * A state is the agent's to leave when it has a forward step and an agent may take every one of them: the
+ * orchestrator moves it without anyone pressing anything, so a page watching it reads it again until it stops
+ * (the web's `isWorking`). The mirror of `CAMPAIGN_STATES_AWAITING_PERSON`, derived from the same table, so a
+ * row added to `CAMPAIGN_TRANSITIONS` cannot leave a screen polling a state that waits on a person, or still on a
+ * state the agent is moving (pinned by "the states the agent is moving are the machine's"). `live`, `paused`,
+ * `archived` and the person's states are neither: they sit until something outside the orchestrator happens.
+ */
+export const CAMPAIGN_STATES_AGENT_WORKING: readonly CampaignState[] = (() => {
+  const steps = new Map<CampaignState, Array<(typeof CAMPAIGN_TRANSITIONS)[number]>>();
+  for (const t of CAMPAIGN_TRANSITIONS) {
+    if (NOT_A_FORWARD_STEP.has(t.event) || t.by.every((b) => b === "platform")) continue;
+    steps.set(t.from, [...(steps.get(t.from) ?? []), t]);
+  }
+  return [...steps].filter(([, ts]) => ts.every((t) => t.by.includes("agent"))).map(([s]) => s).sort();
+})();
+
 // ── the contract ────────────────────────────────────────────────────────────────────────────────────────
 export interface AdsOverviewCampaign {
   id: string;

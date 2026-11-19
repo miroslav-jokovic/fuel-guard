@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  CAMPAIGN_STATES_AWAITING_PERSON, foldNeedsYou, ledgerCursor, ledgerEntry, ledgerPageCursors, parseLedgerCursor, pausedReading,
+  CAMPAIGN_STATES_AGENT_WORKING, CAMPAIGN_STATES_AWAITING_PERSON, foldNeedsYou, ledgerCursor, ledgerEntry, ledgerPageCursors, parseLedgerCursor, pausedReading,
   type NeedsYouInput, type TransitionRow,
 } from "./adsOverview.js";
 import type { AdsHealthConnection } from "./adsHealth.js";
@@ -22,6 +22,18 @@ describe("CAMPAIGN_STATES_AWAITING_PERSON", () => {
     // plan_review (approve or replan), review (approve or regenerate), paused (only an approver launches), failed
     // (leaving a failure is a person's act). `approved` is not: the agent may create it paused.
     expect(CAMPAIGN_STATES_AWAITING_PERSON).toEqual(["failed", "paused", "plan_review", "review"]);
+  });
+});
+
+describe("CAMPAIGN_STATES_AGENT_WORKING", () => {
+  it("the states the agent is moving are the machine's", () => {
+    // draft (the agent plans), planning, composing, approved (the agent may create it paused), creating, launching,
+    // pausing. `live` is not: its only forward move is a pause, which is the safe direction, not progress.
+    expect(CAMPAIGN_STATES_AGENT_WORKING).toEqual(["approved", "composing", "creating", "draft", "launching", "pausing", "planning"]);
+  });
+
+  it("no state both waits on a person and is being moved by the agent", () => {
+    expect(CAMPAIGN_STATES_AGENT_WORKING.filter((s) => CAMPAIGN_STATES_AWAITING_PERSON.includes(s))).toEqual([]);
   });
 });
 

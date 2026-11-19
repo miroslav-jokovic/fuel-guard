@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AD_AI_AGENTS, AD_PLATFORMS, ADS_BENCHMARK_SUGGESTIONS, type AdAiAgent, type AdPlatform, type AdsSettingsView, type OrgMember } from "@silvicom/shared";
+import { AD_AI_AGENTS, AD_PLATFORMS, ADS_BENCHMARK_SUGGESTIONS, type AdsSettingsView, type OrgMember } from "@silvicom/shared";
 import {
   AppButton as BaseButton, AppCard as BaseCard, AppFormField as FormField, AppInput as BaseInput, AppSwitch as BaseSwitch,
 } from "@silvicom/ui";
@@ -14,6 +14,7 @@ import { toFormValues, toSettings, type AdsSettingsFormValues } from "./adsSetti
 import { useSaveAdsSettings } from "./useAdsSettings";
 import AdsAlertsSection from "./AdsAlertsSection.vue";
 import AdsOutcomeFeedSection from "./AdsOutcomeFeedSection.vue";
+import { AGENT_LABEL, PLATFORM_LABEL } from "./adsLabels";
 import AdsLeadQualitySection from "./AdsLeadQualitySection.vue";
 
 /**
@@ -38,14 +39,6 @@ const error = ref<{ field: string; message: string } | null>(null);
 watch(() => props.view, (v) => { values.value = toFormValues(v.settings); }, { deep: false });
 
 const editable = computed(() => session.admin);
-const PLATFORM_LABEL: Record<AdPlatform, string> = { meta: "Meta (Facebook, Instagram)", tiktok: "TikTok", x: "X", simulator: "Simulator" };
-const AGENT_LABEL: Record<AdAiAgent, string> = {
-  copywriter: "Writes the ad's words", art_director: "Describes the picture", renderer: "Draws the picture",
-  checker: "Checks the picture", analyst: "Writes the daily report", craft_judge: "Ranks the copies the writer offers", finished_ad_judge: "Gives a second opinion on each finished ad",
-  strategist: "Plans the campaign — no ad is made without a plan",
-  researcher: "Reads the job pages your recruiters save to the swipe file",
-  swipe_reader: "Reads the ad pictures your recruiters save to the swipe file",
-};
 const PAUSE_TOGGLES = [
   { key: "pause_at_daily_cap", label: "Pause at the daily budget" },
   { key: "pause_when_filled", label: "Pause when the opening is filled" },
