@@ -1,3 +1,6 @@
+/// <reference types="node" />
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   loadDataset,
@@ -115,5 +118,25 @@ describe("loadDataset — parsed once per version, frozen (TWO-CLICK-READER-PLAN
     expect(Object.isFrozen(ds)).toBe(true);
     expect(Object.isFrozen(ds.entries[0]!.pgRows[0]!)).toBe(true);
     expect(() => { (ds.entries[0] as { psnPrinted: string }).psnPrinted = "x"; }).toThrow(TypeError);
+  });
+});
+
+describe("dataset JSON stays out of the type checker (src/index.ts, above RAW)", () => {
+  const datasets = fileURLToPath(new URL("../datasets/", import.meta.url));
+  const imported = [...readFileSync(fileURLToPath(new URL("./index.ts", import.meta.url)), "utf8")
+    .matchAll(/from "\.\.\/datasets\/([^"]+\.json)"/g)].map((m) => m[1]!);
+
+  it("reads the dataset imports from src/index.ts", () => {
+    expect(imported).toContain(`${LATEST_DATASET_VERSION}.json`);
+  });
+
+  it("every imported dataset over 400 KB has a declaration typing it unknown", () => {
+    const big = imported.filter((f) => statSync(`${datasets}${f}`).size > 400_000);
+    expect(big.length).toBeGreaterThanOrEqual(6);
+    const missing = big.filter((f) => {
+      const decl = `${datasets}${f.replace(/\.json$/, ".d.json.ts")}`;
+      return !existsSync(decl) || !readFileSync(decl, "utf8").includes("declare const raw: unknown;");
+    });
+    expect(missing).toEqual([]);
   });
 });

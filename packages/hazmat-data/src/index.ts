@@ -34,6 +34,14 @@ export * from "./interpretations.js";
 export * from "./citations.js";
 export { paragraphAt } from "./citationParagraph.js";
 
+// Each dataset above ~0.4 MB has a `<file>.d.json.ts` beside it declaring the JSON `unknown`
+// (`allowArbitraryExtensions`, tsconfig.base.json). Without it, every project that type-checks this
+// package — apps/api above all — built a literal type for every row of ~14 MB of regulatory JSON that
+// nothing reads: RAW is `unknown` and parseDataset is the only door in. Measured on apps/api,
+// 2026-11-19: 4.15 GB and 96 s with the inferred types, 3.48 GB and 33 s without; main's CI typecheck
+// had died at Node's default 4 GB heap (exit 134) on d8f0127, one 15 MB commit past the edge.
+// import/buildDataset.ts writes the declaration with every new cut, and index.test.ts refuses a
+// registered dataset that has none.
 const RAW: Readonly<Record<string, unknown>> = {
   "2026.02": raw202602,
   "2026.07.0": raw202607,

@@ -86,7 +86,8 @@ Run everything from `packages/hazmat-data/`.
 
 **6. Register the version.**
    - Add the new file to the `RAW` map in `src/index.ts` and bump `LATEST_DATASET_VERSION`. This is
-     the only manual code edit — the assembler will not touch `src/`.
+     the only manual code edit — the assembler will not touch `src/`. Commit the `<version>.d.json.ts`
+     the assembler wrote beside the JSON too; `src/index.test.ts` refuses a registered version without it.
 
 **7. Prove the release.**
    - `pnpm --filter @hazmat/data typecheck && pnpm --filter @hazmat/data test` (loader + parser + diff

@@ -121,6 +121,13 @@ export function verifyChecksum(ds: Dataset): boolean {
 }
 
 // ------------------------------------------------------------------ source loaders (script use)
+/** The `<version>.d.json.ts` written beside each cut; byte-identical to the committed ones. */
+export const DATASET_DECLARATION = `// The type TypeScript sees for the JSON beside this file: \`unknown\`, because the loader validates it
+// with zod and never reads the inferred literal type. Why this file exists: src/index.ts, above RAW.
+declare const raw: unknown;
+export default raw;
+`;
+
 function datasetPath(name: string): string {
   return fileURLToPath(new URL(`../datasets/${name}`, import.meta.url));
 }
@@ -232,6 +239,9 @@ export function cutDataset(opts: {
   });
   const path = datasetPath(`${opts.version}.json`);
   writeFileSync(path, JSON.stringify(dataset, null, 2) + "\n");
+  // The type-only twin src/index.ts explains (above RAW): without it the new cut's ~3 MB of rows become
+  // a literal type in every project that type-checks this package.
+  writeFileSync(datasetPath(`${opts.version}.d.json.ts`), DATASET_DECLARATION);
   return { dataset, path, triangulationClean: triangulation.allClean, attested, triangulation, report: formatTriangulation(triangulation) };
 }
 
