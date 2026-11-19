@@ -37,7 +37,7 @@ this section is what is true today and what comes next. When the two disagree, t
 | V4 video (motion ad) | done; driver clip not started | simulator (FakeMeta, the simulated video model) |
 | V8 health read (API) and token expiry (A-8, A-9) | built 2026-11-18: `GET /api/ads/health`; the token read daily with the reconcile, admins told 14 days before it lapses. Its page is V6's Automation tab | FakeMeta's `debug_token` |
 | V6 workspace | screens built 2026-11-19: Ads is its own sidebar section (Q-APX18 (a)) with Overview, Campaigns, Creative studio (brand kit, presets, swipe file), Automation (the health read) and Settings; the two old addresses redirect | web tests; not yet walked on staging |
-| V5 modes | built 2026-11-19: one enforced authority table, the steps and their modes, lowering a budget, Assisted start, the Automation tab; the agent's own lower waits on Q-APX23 | tests; not walked on staging |
+| V5 modes | built 2026-11-19: one enforced authority table, the steps and their modes, lowering a budget, Assisted start, the Automation tab; the agent's own lower ruled out until the canary (Q-APX23 (a)) | tests; not walked on staging |
 | V7 lead engine | not built | — |
 
 Scorecard (`pnpm ads:readiness`): nine workers at L3, six at L2 (Copywriter, Art director, Craft judge,
@@ -493,7 +493,7 @@ a person sees every ad.
 
 | Level | What runs alone | When |
 |---|---|---|
-| A | Pause, lower a budget, retire a tired ad. | Ruled and built. Lowering a budget was not built until 2026-11-19 (V5 part 2: a person lowers); **no rule yet lowers one on its own (Q-APX23).** |
+| A | Pause, lower a budget, retire a tired ad. | Ruled and built. Lowering a budget was not built until 2026-11-19 (V5 part 2: a person lowers); **no rule lowers one on its own until the canary's data (Q-APX23 ruled (a)).** |
 | B | Launch a campaign whose plan and ads a person approved, inside a monthly envelope an admin approved once. Turn on a person-approved replacement for a retired ad. | After the canary (L5). **Reverses Q-AD2 for this case only.** |
 | C | Publish an ad no person saw. | Locked in code by a certification record, like Launch. Opens only at ≥ 50 real ads decided by a person with the judge agreeing at κ ≥ 0.8, counsel's wording list complete (G12), and one ad in ten still shown to a person afterwards. |
 
@@ -969,7 +969,7 @@ run a real campaign, so nothing has turned on yet.
 - (b) Hold it until the canary, as Q-APX1's table reads: the replacement waits in "Needs you" for a person to turn it on.
   One more door and a screen; the campaign keeps the tired ad's slot empty meanwhile.
 
-### Q-APX23 · When should the agent lower a budget on its own? — OPEN, 2026-11-19
+### Q-APX23 · When should the agent lower a budget on its own? — RULED (a), 2026-11-19
 
 **What was read.** Level A (Q-APX1) lets the agent lower a budget; `ADS_AUTHORITY.lower_budget` gives it to the agent
 and to a person. Since V5 part 2 a person can lower one end to end (`campaigns/lowerBudget.ts`). No rule anywhere
@@ -1095,6 +1095,14 @@ shared constant) offers nothing rather than an opening that may already have one
 every step, its mode in force, and each other mode — open with "Change in Settings", or locked with what opens it.
 Progress: `ads-progress/2026-11-19-1800-W-V5-assisted-start.md`. **V5 is built**, except what Q-APX23 decides.
 
+**2026-11-19, the owner, asked for the hand-off to the lead engine: *"proceed as proposed."*** Taken as:
+
+- **Q-APX23 RULED (a).** No rule lowers a budget on its own until the canary's real cost per lead and lead volume
+  exist; lowering stays a person's step (`campaigns/lowerBudget.ts`). Every breach the Monitor watches still pauses.
+  `ADS_AUTHORITY.lower_budget` keeps the agent's grant from Q-APX1's Level A, so a rule written after the canary
+  needs no change to the table — only the rule, its threshold from our own figures, and a test. **V5 is built.**
+- **V7 next**, the lead engine (§4 V7), read at its call sites first as V5 was.
+
 ## 6. Open, in one place
 
 | Id | Question | Recommendation | Who |
@@ -1110,7 +1118,7 @@ Progress: `ads-progress/2026-11-19-1800-W-V5-assisted-start.md`. **V5 is built**
 | Q-APX20 | A motion ad's file has no size cap; the store takes 15 MB | **ruled (a) 2026-11-19, §5a**: keep quality and the named refusal; decide on the sitting's real clips | — |
 | Q-APX21 | What V5's modes are, step by step; step 6 cannot exist on Meta | **ruled (a) 2026-11-19, §5a**: one enforced table of who acts, a mode only where two are real; lowering a budget built | — |
 | Q-APX22 | Approved replacements are turned on today (Q-AD68); Q-APX1 put that after the canary | **ruled (a) 2026-11-19, §5a**: keep it; Level B means launching a new campaign | — |
-| Q-APX23 | When the agent should lower a budget on its own (Level A allows it; no rule exists) | **(a)** none until the canary's data; lowering stays a person's step | owner |
+| Q-APX23 | When the agent should lower a budget on its own (Level A allows it; no rule exists) | **ruled (a) 2026-11-19, §5a**: none until the canary's data; lowering stays a person's step | — |
 | — | Meta app (id `META_APP_ID` and secret), system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 **2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want
