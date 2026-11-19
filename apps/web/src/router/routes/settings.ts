@@ -70,14 +70,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/SettingsRecruitingPage.vue"),
     meta: { requiresAuth: true, title: "Recruiting", parent: "/settings" },
   },
-  {
-    // Settings › Ads control (ADS-AGENT-PLAN §4b, E1). No section meta: `admin.recruiting.ads` in the
-    // surface catalogue says `recruitment: view`, as Recruiting's own settings does, and the guard reads it.
-    path: "/settings/recruiting/ads",
-    name: "ads-control-settings",
-    component: () => import("@/pages/AdsControlPage.vue"),
-    meta: { requiresAuth: true, title: "Ads control", parent: "/settings" },
-  },
+  // Settings › Ads control moved to the Ads workspace's Settings tab (Q-APX18 (a)); route and redirect in `ads.ts`.
 
   {
     path: "/settings/thresholds",

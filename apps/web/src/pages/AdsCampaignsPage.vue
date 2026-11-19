@@ -7,15 +7,16 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
 import AdsCampaignCreateDrawer from "@/features/ads/AdsCampaignCreateDrawer.vue";
 import AdsCampaignDrawer from "@/features/ads/AdsCampaignDrawer.vue";
+import AdsTabs from "@/features/ads/AdsTabs.vue";
 import { CAMPAIGN_STATE_LABEL, CAMPAIGN_STATE_TONE } from "@/features/ads/adsCampaignFlow";
 import { useAdsCampaigns } from "@/features/ads/useAdsCampaigns";
-import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";
 import { useOpenOpeningsQuery } from "@/features/recruitment/useLeads";
 import { useSessionStore } from "@/stores/session";
 
 /**
- * Ad campaigns (E3): the recruiting ads agent's work, newest first. A tab beside Leads, because a campaign is how a
- * lead arrives, and the campaign doors answer to the `recruitment` section. Reviewing and launching happen in the
+ * Ad campaigns (E3): the recruiting ads agent's work, newest first. A tab of the Ads workspace since 2026-11-18
+ * (Q-APX18 (a)); it was Recruitment's seventh tab, and `/recruitment/campaigns` redirects here with its `?campaign=`.
+ * The campaign doors answer to the `recruitment` section. Reviewing and launching happen in the
  * row's drawer, with the open campaign in the URL (as Leads keeps its lead), so a notification can link to one.
  *
  * The openings are asked for here, the page, because one feature may not reach into another (`lint:boundaries`).
@@ -47,7 +48,7 @@ const linkTo = (id: string) => ({ query: { ...route.query, campaign: id } });
 <template>
   <div class="space-y-6">
     <PageHeader description="Ads the agent has made for your openings. A person approves every ad, and only an admin launches." />
-    <RecruitmentTabs />
+    <AdsTabs />
     <DataWorkspace>
       <FilterBar>
         <template #actions>

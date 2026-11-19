@@ -32,7 +32,8 @@ export function useSaveBrandKit() {
 
 export type PutFile = (url: string, file: File) => Promise<void>;
 
-const putFile: PutFile = async (url, file) => {
+/** The bytes to a signed storage URL. The swipe file's pictures go up the same way (`useAdsSwipe.ts`). */
+export const putFile: PutFile = async (url, file) => {
   const res = await fetch(url, { method: "PUT", headers: { "content-type": file.type }, body: file });
   if (!res.ok) throw new Error("The file did not finish uploading.");
 };

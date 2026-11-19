@@ -292,7 +292,7 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/recruitment/openings",
   },
   {
-    "name": "recruitment-campaigns",
+    "name": "",
     "params": {},
     "url": "/recruitment/campaigns",
   },
@@ -584,6 +584,31 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/settings/driver-performance",
   },
   {
+    "name": "ads-overview",
+    "params": {},
+    "url": "/ads",
+  },
+  {
+    "name": "ads-campaigns",
+    "params": {},
+    "url": "/ads/campaigns",
+  },
+  {
+    "name": "ads-studio",
+    "params": {},
+    "url": "/ads/studio",
+  },
+  {
+    "name": "ads-automation",
+    "params": {},
+    "url": "/ads/automation",
+  },
+  {
+    "name": "ads-control-settings",
+    "params": {},
+    "url": "/ads/settings",
+  },
+  {
     "name": "messages",
     "params": {},
     "url": "/messages",
@@ -619,7 +644,7 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/settings/recruiting",
   },
   {
-    "name": "ads-control-settings",
+    "name": "",
     "params": {},
     "url": "/settings/recruiting/ads",
   },
@@ -759,6 +784,55 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "accept-invite",
     "path": "/accept-invite",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Overview",
+    },
+    "name": "ads-overview",
+    "path": "/ads",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/ads",
+      "requiresAuth": true,
+      "title": "Automation",
+    },
+    "name": "ads-automation",
+    "path": "/ads/automation",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/ads",
+      "requiresAuth": true,
+      "title": "Campaigns",
+    },
+    "name": "ads-campaigns",
+    "path": "/ads/campaigns",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/ads",
+      "requiresAuth": true,
+      "title": "Settings",
+    },
+    "name": "ads-control-settings",
+    "path": "/ads/settings",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/ads",
+      "requiresAuth": true,
+      "title": "Creative studio",
+    },
+    "name": "ads-studio",
+    "path": "/ads/studio",
     "redirect": null,
   },
   {
@@ -1306,14 +1380,12 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "parent": "/recruitment",
-      "requiresAuth": true,
-      "title": "Campaigns",
-    },
-    "name": "recruitment-campaigns",
+    "meta": {},
+    "name": "",
     "path": "/recruitment/campaigns",
-    "redirect": null,
+    "redirect": {
+      "name": "ads-campaigns",
+    },
   },
   {
     "meta": {
@@ -1626,14 +1698,12 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "parent": "/settings",
-      "requiresAuth": true,
-      "title": "Ads control",
-    },
-    "name": "ads-control-settings",
+    "meta": {},
+    "name": "",
     "path": "/settings/recruiting/ads",
-    "redirect": null,
+    "redirect": {
+      "name": "ads-control-settings",
+    },
   },
   {
     "meta": {

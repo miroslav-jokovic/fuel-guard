@@ -92,6 +92,9 @@ const PROBES = [
   "/settings/card-control",
   "/anomalies", "/fuel-events", "/ask", "/reports",
   "/settings", "/settings/users", "/settings/permissions", "/settings/thresholds", "/settings/driver-performance",
+  // Q-APX18 (a): the Ads workspace, and the two addresses the ads left behind as redirects (a notification or a
+  // bookmark still names them).
+  "/ads", "/ads/campaigns", "/ads/studio", "/ads/automation", "/ads/settings",
   "/messages", "/chat", "/notes", "/settings/driver-app", "/settings/fuel-planning", "/settings/data", "/settings/recruiting", "/settings/recruiting/ads",
   "/settings/efs-soap", "/settings/fleetpal", "/settings/inspectors", "/settings/devices", "/settings/medstop", "/settings/mcleod-fleets", "/settings/org", "/settings/carrier-records", "/settings/notifications", "/settings/audit", "/settings/chat-compliance", "/settings/chat-teams",
   // P3's three published documents. Probed like any other route, and public for a reason unrelated

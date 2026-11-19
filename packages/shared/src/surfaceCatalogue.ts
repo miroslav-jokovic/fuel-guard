@@ -7,7 +7,6 @@ import {
   manage,
   section,
   type Surface,
-  type SurfaceGroup,
 } from "./surfaces.js";
 
 /**
@@ -39,27 +38,10 @@ import {
  *
  * ⚠ **And prose here must not quote that declaration verbatim.** This comment did, while the split
  * was being made, and the parser matched the COMMENT: it then read to the next `];`, which is the
- * end of `SURFACE_GROUPS` above, and reported nine surfaces where there are fifty-seven. The gate
+ * end of `SURFACE_GROUPS` (then above; `surfaceGroups.ts` since 2026-11-19), and reported nine surfaces where there are fifty-seven. The gate
  * caught it immediately — *"parser or literal shape changed"* — but a paraphrase costs nothing and
  * the next person to document this file should know why it reads the way it does.
  */
-
-/**
- * Group order IS sidebar order — by how many people open a section every day, since the sidebar
- * redesign (D-SB4, owner 2026-11-01; `docs/plans/design-system/SIDEBAR-REDESIGN-PLAN.md`). Admin is the
- * `footer` group: it is drawn below the scrolling list, beside the account, never inside it.
- */
-export const SURFACE_GROUPS: readonly SurfaceGroup[] = [
-  { key: "top", label: null },
-  { key: "dispatch", label: "Dispatch" },
-  { key: "fuel", label: "Fuel" },
-  { key: "safety", label: "Safety" },
-  { key: "recruitment", label: "Recruitment" },
-  { key: "fleet", label: "Fleet" },
-  { key: "maintenance", label: "Maintenance" },
-  { key: "finance", label: "Finance" },
-  { key: "admin", label: "Admin", footer: true },
-];
 
 /**
  * Array order IS item order within a group. Every `path` is a real route — `lint:surfaces` checks
@@ -206,6 +188,12 @@ export const SURFACES: readonly Surface[] = [
   // inquiry queue are children of this one now, in the NON-NAV block below. Keys unchanged.
   { key: "recruitment.applicants", label: "Applicants", path: "/recruitment", group: "recruitment", gate: section("recruitment") },
 
+  // ── ads ───────────────────────────────────────────────────────────────────────────────────────
+  // ONE entry, as Recruitment is one (D-HUI8 holds here too; Q-APX18 (a)). Campaigns, Creative studio and Automation
+  // are its tabs, in the NON-NAV block below. The gate is the section every ads door answers to (`BRIEF_SECTION`,
+  // routes/guard.ts): what is admin-only (spend, launch, ad accounts) the API refuses and the page hides.
+  { key: "ads.overview", label: "Overview", path: "/ads", group: "ads", gate: section("recruitment") },
+
   // ── fleet ─────────────────────────────────────────────────────────────────────────────────────
   // ⚠ ONE group, TWO sections since the D-ROS12 split, deliberately. "Fleet" is where an operator
   // looks for both the people and the trucks, so the grouping stays; each item asks the question it
@@ -311,7 +299,11 @@ export const SURFACES: readonly Surface[] = [
   { key: "recruitment.templates", label: "Templates", path: "/recruitment/templates", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
   { key: "recruitment.leads", label: "Leads", path: "/recruitment/leads", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
   { key: "recruitment.openings", label: "Openings", path: "/recruitment/openings", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
-  { key: "recruitment.campaigns", label: "Campaigns", path: "/recruitment/campaigns", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
+  // The Ads workspace's tabs (Q-APX18 (a)). `ads.campaigns` replaces `recruitment.campaigns`, a child and so never
+  // answerable (D-SURF8): production held no override on it, measured 2026-11-18. The old address redirects.
+  { key: "ads.campaigns", label: "Campaigns", path: "/ads/campaigns", group: "ads", gate: section("recruitment"), parent: "ads.overview" },
+  { key: "ads.studio", label: "Creative studio", path: "/ads/studio", group: "ads", gate: section("recruitment"), parent: "ads.overview" },
+  { key: "ads.automation", label: "Automation", path: "/ads/automation", group: "ads", gate: section("recruitment"), parent: "ads.overview" },
   // One roadside inspection, the row the list opens (INSPECTION-CHALLENGE-PLAN §6's Inspection page).
   { key: "safety.roadside-inspections.detail", label: "Roadside inspection", path: "/roadside-inspections/:id", group: "safety", gate: section("safety"), parent: "safety.roadside-inspections" },
   { key: "maintenance.inspections.detail", label: "Annual inspection", path: "/shop/inspections/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.inspections" },
@@ -419,7 +411,13 @@ export const SURFACES: readonly Surface[] = [
    * owner ruled the admin keeps this register (APPLICATION-FLOW-V2-PLAN.md §12, 2026-09-28).
    */
   { key: "admin.recruiting", label: "Recruiting", path: "/settings/recruiting", group: "admin", gate: section("recruitment"), reachedFrom: "admin.settings", startsOnFor: [] },
-  { key: "admin.recruiting.ads", label: "Ads control", path: "/settings/recruiting/ads", group: "admin", gate: section("recruitment"), reachedFrom: "admin.settings", startsOnFor: [] },
+  /**
+   * The Ads workspace's Settings tab (Q-APX18 (a)) — and STILL this key, its own grant and its card on Settings. Only
+   * the address moved (`/settings/recruiting/ads` redirects). Measured on production 2026-11-18: the real fleet turned
+   * this screen ON for recruiters on 2026-11-05 (`org_role_surface_access`), so a new key or a `parent` would have
+   * silently taken it from them. The tab strip shows the tab only to someone this surface allows.
+   */
+  { key: "admin.recruiting.ads", label: "Ads control", path: "/ads/settings", group: "admin", gate: section("recruitment"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.data", label: "Data & sync", path: "/settings/data", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
   // Whose McLeod fleet is whose (DISPATCH-BOARD-PLAN DB2, 2026-10-10). `settings: view` to read and
   // the API's `settings: manage` to edit — Q-DB3's "admin + fleet manager" IS that section, so the gate

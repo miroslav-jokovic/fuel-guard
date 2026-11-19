@@ -45,6 +45,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > a null modu
     ],
   },
   {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
+    ],
+  },
+  {
     "group": "Fleet",
     "items": [
       "Vehicles → /vehicles",
@@ -298,6 +304,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
     ],
   },
   {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
+    ],
+  },
+  {
     "group": "Fleet",
     "items": [
       "Vehicles → /vehicles",
@@ -382,6 +394,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
     ],
   },
   {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
+    ],
+  },
+  {
     "group": "Fleet",
     "items": [
       "Vehicles → /vehicles",
@@ -460,6 +478,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · no
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
+    ],
+  },
+  {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
     ],
   },
   {
@@ -545,6 +569,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     ],
   },
   {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
+    ],
+  },
+  {
     "group": "Fleet",
     "items": [
       "Vehicles → /vehicles",
@@ -619,6 +649,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     ],
   },
   {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
+    ],
+  },
+  {
     "group": "Fleet",
     "items": [
       "Vehicles → /vehicles",
@@ -688,6 +724,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
+    ],
+  },
+  {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
     ],
   },
   {
@@ -769,6 +811,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
+    ],
+  },
+  {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
     ],
   },
   {
@@ -1013,6 +1061,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     ],
   },
   {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
+    ],
+  },
+  {
     "group": "Fleet",
     "items": [
       "Vehicles → /vehicles",
@@ -1087,6 +1141,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     ],
   },
   {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
+    ],
+  },
+  {
     "group": "Fleet",
     "items": [
       "Vehicles → /vehicles",
@@ -1158,6 +1218,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     ],
   },
   {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
+    ],
+  },
+  {
     "group": "Fleet",
     "items": [
       "Vehicles → /vehicles",
@@ -1202,6 +1268,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     ],
   },
   {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
+    ],
+  },
+  {
     "group": "Fleet",
     "items": [
       "Drivers → /drivers",
@@ -1226,6 +1298,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     ],
   },
   {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
+    ],
+  },
+  {
     "group": "Fleet",
     "items": [
       "Drivers → /drivers",
@@ -1247,6 +1325,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
+    ],
+  },
+  {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
     ],
   },
   {
@@ -1293,6 +1377,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
+    ],
+  },
+  {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
     ],
   },
   {
@@ -1350,6 +1440,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     ],
   },
   {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
+    ],
+  },
+  {
     "group": "Fleet",
     "items": [
       "Vehicles → /vehicles",
@@ -1401,6 +1497,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
+    ],
+  },
+  {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
     ],
   },
   {
@@ -1586,6 +1688,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
     ],
   },
   {
+    "group": "Ads",
+    "items": [
+      "Overview → /ads",
+    ],
+  },
+  {
     "group": "Fleet",
     "items": [
       "Vehicles → /vehicles",
@@ -1664,6 +1772,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
       "group": "Recruitment",
       "items": [
         "Applicants → /recruitment",
+      ],
+    },
+    {
+      "group": "Ads",
+      "items": [
+        "Overview → /ads",
       ],
     },
     {

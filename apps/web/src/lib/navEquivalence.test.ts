@@ -116,6 +116,15 @@ import { buildNavGroups } from "./nav";
  * (technician, fleet_manager), and both halves of the sections-claim case (dispatcher, recruiter).
  * No line removed, no group moved; the driver and the null role did not move — the screen is still
  * never a driver's — and admin did not move, because it already had it at UN0.
+ *
+ * ── AND A TWELFTH TIME, ON 2026-11-18: THE ADS WORKSPACE (ADS-PLATFORM-V2-PLAN V6, Q-APX18 (a)) ────
+ * A new group, `Ads`, right after Recruitment, holding one entry, `Overview → /ads`, gated on the section every ads
+ * door answers to (`recruitment`). Nineteen snapshots moved, six lines each, all added: the group and its one entry.
+ * They are exactly the snapshots that already held `Applicants → /recruitment` — admin, fleet_manager, auditor,
+ * safety_manager and recruiter in all three module sets, the null-module-set, badge, screen-answer and
+ * sections-claim cases — checked by script before `-u`: 33 snapshots, none with one entry and not the other. No line
+ * removed, no group moved, no role without recruitment gained it. The ads' old Recruitment tab and Settings card were
+ * never nav entries, so nothing left the sidebar.
  */
 
 /** Every module enabled, none, and the shipped default — the three that change what the nav shows. */
