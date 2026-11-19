@@ -19,8 +19,10 @@ import type { RoadsideInspectionUnitDto } from "./roadsideInspectionsContract.js
 /**
  * The proposal's rule version (D-IC5): a change is a new version, and every open unit is proposed again.
  * ic11.2 (2026-11-18, ROADSIDE-REPAIR-FLOW-PLAN RR1): candidates carry `matches` and are ranked by it.
+ * ic11.3 (2026-11-18, RR3, Q-RR1 (a)): work orders opened after the due day, through `REPAIR_FOLLOW_DAYS`
+ * past it, are candidates too, marked `late`.
  */
-export const REPAIR_ENGINE_VERSION = "ic11.2";
+export const REPAIR_ENGINE_VERSION = "ic11.3";
 
 /** Parts and Accessories (393) and Inspection, Repair and Maintenance (396): the violations a repair closes. */
 export const REPAIR_VIOLATION_PARTS = ["393", "396"] as const;
@@ -31,7 +33,9 @@ export const REPAIR_DUE_DAYS = 15;
 /**
  * How long after the due date the engine keeps re-reading a unit nobody has decided. FleetPal syncs hourly
  * and a work order's status moves after it opens; past this a late proposal helps nobody, and the unit's
- * last reading stands until a person decides.
+ * last reading stands until a person decides. Since ic11.3 it is also how far past the due day a work order
+ * may have been opened and still be proposed, as late (RR3) — measured 2026-11-18, 21 of the 57 units with
+ * no candidate had their work order 16–30 days after the inspection, which this window reaches.
  */
 export const REPAIR_FOLLOW_DAYS = 30;
 
@@ -82,6 +86,11 @@ export interface RepairCandidate {
   /** The work order's job names, as the shop wrote them — what a person reads to decide. */
   jobs: string[];
   /**
+   * Opened after the 15-day due day (RR3, Q-RR1 (a), ruled 2026-11-18): proposed so a late repair can be
+   * recorded truthfully rather than as "repaired outside FleetPal". Absent on rows before ic11.3 — read false.
+   */
+  late?: boolean;
+  /**
    * The VMRS systems (`013`, `017`, …) on this order's jobs that answer the unit's violations
    * (`roadsideRepairMatch.ts`, measured). `[]`: the violations are of a mapped kind and no job here is.
    * `null`: no violation on the unit is of a mapped kind, so nothing can be said. Absent on rows written
@@ -100,9 +109,9 @@ export function repairDueOn(inspectionDate: string): string {
 /** What each outcome says on the Repair card; keyed, so a new outcome without words fails the typecheck. */
 export const REPAIR_OUTCOME_TEXT: Record<RepairOutcome, string> = {
   repaired_at_scene: "Repaired at the scene — the officer recorded it, so no work order is needed.",
-  one_candidate: "One FleetPal work order was opened on this unit before the due date.",
-  several_candidates: "Several FleetPal work orders were opened on this unit before the due date. Choose the one that repaired the violations.",
-  no_candidate: "No FleetPal work order has been opened on this unit since the inspection.",
+  one_candidate: "One FleetPal work order was opened on this unit since the inspection.",
+  several_candidates: "Several FleetPal work orders were opened on this unit since the inspection. Choose the one that repaired the violations.",
+  no_candidate: `No FleetPal work order was opened on this unit from the inspection to ${REPAIR_FOLLOW_DAYS} days past its due date.`,
   no_fleetpal_unit: "FleetPal has no unit matched to this truck or trailer, so its work orders cannot be found.",
   unit_not_ours: "FMCSA's record does not tie this unit to one of our trucks or trailers.",
   accepted: "The repair is this FleetPal work order.",

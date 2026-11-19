@@ -1276,3 +1276,11 @@ about three merges.
   decidable, read "N days past due" without the red, and still have to be settled before their inspection is
   certified (`repairSettled` is unchanged). Nothing in the record changes. Mutations: `repairOpen` ignoring
   history, the start read from the newest reading, and the Shop home counting history each turned a test red.
+- **2026-11-18 · Late work orders are proposed (ROADSIDE-REPAIR-FLOW-PLAN RR3, Q-RR1 (a), engine ic11.3).**
+  21 of the 57 units with no candidate had their FleetPal work order 16–30 days after the inspection, and the
+  screen's only honest-looking answer was "repaired outside FleetPal" — false for them. The candidate window now
+  runs from the inspection day through `REPAIR_FOLLOW_DAYS` past the due day (the engine's existing follow
+  window, not a new number); an order opened after the due day is marked `late`, listed after the on-time ones
+  (a matching late order still before a non-matching on-time one), shown as "Opened after the due date", and,
+  once accepted, the certified record says "opened after the 15-day due date; the repair was made late". The
+  outcome sentences no longer claim "before the due date". The version bump re-proposes every open unit once.

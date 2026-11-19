@@ -10,7 +10,7 @@ import { renderRepairRecord, type RepairRecordInput, type RepairRecordUnit } fro
 
 const unit = (n: number): RepairRecordUnit => ({
   name: `Trailer ${n}`, violations: [{ code: "393.75A3", description: "Tire-flat and/or audible air leak" }], settlement: "outside",
-  decidedBy: "Sam Shop", decidedAt: "2026-10-09T15:00:00Z", note: "TA Joliet, invoice 8812", workOrderRef: null, workOrder: null, bills: [],
+  decidedBy: "Sam Shop", decidedAt: "2026-10-09T15:00:00Z", note: "TA Joliet, invoice 8812", workOrderRef: null, workOrderLate: false, workOrder: null, bills: [],
 });
 const input = (units: RepairRecordUnit[]): RepairRecordInput => ({
   carrier: { name: "Silvi Transport Inc.", dotNumber: "1864495" },
@@ -58,5 +58,13 @@ describe("renderRepairRecord", () => {
     expect(text).toContain("Not kept");
     const none = (await pdfPageTexts(await renderRepairRecord(input([{ ...accepted, bills: [] }])))).join(" ");
     expect(none).toContain("No scanned vendor bill is attached to these invoices in FleetPal.");
+  });
+
+  it("says plainly when the accepted work order was opened after the due date (RR3)", async () => {
+    const late = { ...unit(1), settlement: "accepted" as const, note: null, workOrderRef: "WO-77", workOrderLate: true };
+    const text = (await pdfPageTexts(await renderRepairRecord(input([late])))).join(" ");
+    expect(text).toContain("This work order was opened after the 15-day due date; the repair was made late.");
+    const onTime = (await pdfPageTexts(await renderRepairRecord(input([{ ...late, workOrderLate: false }])))).join(" ");
+    expect(onTime).not.toContain("after the 15-day due date");
   });
 });

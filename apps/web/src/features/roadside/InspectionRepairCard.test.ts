@@ -211,6 +211,16 @@ describe("where the paper is (RR2)", () => {
   });
 });
 
+describe("a work order opened after the due date (RR3)", () => {
+  it("is marked late on the candidate and in the recorded decision", async () => {
+    const late = { ...candidate("wo-9", "WO-109"), late: true };
+    repairs.value = [repair({ proposal: { outcome: "one_candidate", candidates: [late], readAt: "x" } })];
+    expect((await card()).get("[data-test='repair-late']").text()).toBe("Opened after the due date");
+    repairs.value = [repair({ decision: { outcome: "accepted", workOrder: late, note: null, decidedBy: "Pat", decidedAt: "2026-10-30T15:00:00Z" } })];
+    expect((await card()).get("[data-test='repair-decision']").text()).toContain("after the due date");
+  });
+});
+
 describe("certifying (IC11 B2, Q-IC13)", () => {
   const decided = (unitId: string, basedOn: string) =>
     repair({ unitId, basedOn, decision: { outcome: "repaired_outside_fleetpal", workOrder: null, note: "TA Joliet", decidedBy: "Pat Shop", decidedAt: "2026-10-16T15:00:00Z" } });

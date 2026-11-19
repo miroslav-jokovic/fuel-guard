@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { repairDueOn, violationSystems, vmrsSystem, wallClockInZone, type RepairCandidate, type RepairEngineOutcome } from "@silvicom/shared";
+import { REPAIR_FOLLOW_DAYS, repairDueOn, shiftDay, violationSystems, vmrsSystem, wallClockInZone, type RepairCandidate, type RepairEngineOutcome } from "@silvicom/shared";
 import type { UnitWorkOrder } from "../../fleetpal/index.js";
 
 /**
@@ -11,6 +11,10 @@ import type { UnitWorkOrder } from "../../fleetpal/index.js";
  * every non-cancelled work order on the unit opened from the inspection's day through the due day, in the
  * org's zone, earliest first — the order most likely to be the repair is the one opened soonest after the
  * officer wrote it up, and a person reads the job names to decide (Q-IC14: proposed, never accepted).
+ *
+ * Since ic11.3 (RR3, Q-RR1 (a)) the window runs on past the due day by `REPAIR_FOLLOW_DAYS`: an order opened
+ * after it is proposed too, marked `late` and listed after the on-time ones, so a repair done late is
+ * recorded as what it was — never as "outside FleetPal", which the screen otherwise forced.
  *
  * Since ic11.2 (ROADSIDE-REPAIR-FLOW-PLAN RR1) each candidate is marked with the VMRS systems on its jobs
  * that answer the unit's violations (`roadsideRepairMatch.ts`, measured 2026-11-18), and matching orders
@@ -59,6 +63,7 @@ export function proposeRepair(
   };
   const dueOn = repairDueOn(unit.inspectionDate);
   const inspDay = unit.inspectionDate.slice(0, 10);
+  const lastDay = shiftDay(dueOn, REPAIR_FOLLOW_DAYS);
   const done = (outcome: RepairEngineOutcome, candidates: RepairCandidate[] = []): Proposal => ({
     outcome,
     dueOn,
@@ -74,11 +79,13 @@ export function proposeRepair(
   const candidates = fleetpal.orders
     .filter((o) => (unit.vehicleId ? o.vehicleId === unit.vehicleId : o.trailerId === unit.trailerId))
     .map((o) => ({ o, openedOn: dayIn(o.openedAt, zone) }))
-    .filter(({ openedOn }) => openedOn >= inspDay && openedOn <= dueOn)
-    .map((x) => ({ ...x, matches: matchesOf(x.o) }))
+    .filter(({ openedOn }) => openedOn >= inspDay && openedOn <= lastDay)
+    .map((x) => ({ ...x, matches: matchesOf(x.o), late: x.openedOn > dueOn }))
+    // Matching first, then by date — which also puts late orders after on-time ones, since a late order was
+    // by definition opened after every on-time one; no separate "late" key is needed.
     .sort((a, b) => Number((b.matches?.length ?? 0) > 0) - Number((a.matches?.length ?? 0) > 0) || a.o.openedAt.localeCompare(b.o.openedAt) || a.o.fleetpalId.localeCompare(b.o.fleetpalId))
     .map(
-      ({ o, openedOn, matches }): RepairCandidate => ({
+      ({ o, openedOn, matches, late }): RepairCandidate => ({
         workOrderId: o.fleetpalId,
         reference: o.reference,
         openedOn,
@@ -87,6 +94,7 @@ export function proposeRepair(
         description: o.description,
         jobs: [...o.jobs].sort(),
         matches,
+        late,
       }),
     );
   return done(candidates.length === 0 ? "no_candidate" : candidates.length === 1 ? "one_candidate" : "several_candidates", candidates);

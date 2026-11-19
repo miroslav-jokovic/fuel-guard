@@ -110,7 +110,8 @@ export async function proposeRepairs(
   if (due.length === 0) return {};
 
   const days = due.map((u) => dateOf.get(byUnit.get(u.id)!.inspectionId)!.slice(0, 10)).sort();
-  const window = dayRangeInstants(days[0]!, repairDueOn(days[days.length - 1]!), zone);
+  // Through the latest unit's follow window, not its due day: late work orders are proposed too (RR3).
+  const window = dayRangeInstants(days[0]!, shiftDay(repairDueOn(days[days.length - 1]!), REPAIR_FOLLOW_DAYS), zone);
   const fleetpal = await readWorkOrdersOnUnits(
     admin,
     orgId,

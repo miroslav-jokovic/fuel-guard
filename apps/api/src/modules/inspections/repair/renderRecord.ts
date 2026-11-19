@@ -28,6 +28,8 @@ export interface RepairRecordUnit {
   note: string | null;
   /** The accepted work order as the proposal showed it, when FleetPal no longer holds it. */
   workOrderRef: string | null;
+  /** The accepted work order was opened after the 15-day due day (RR3): the record says so, plainly. */
+  workOrderLate: boolean;
   workOrder: WorkOrderRecord | null;
   /** The vendor bills frozen with this certification for this unit's work order (F16c). */
   bills: FrozenBill[];
@@ -113,6 +115,7 @@ function unitBlock(doc: PDFKit.PDFDocument, u: RepairRecordUnit, zone: string): 
     field(doc, "Repaired outside FleetPal", u.note ?? "—");
     return;
   }
+  if (u.workOrderLate) field(doc, "Timing", "This work order was opened after the 15-day due date; the repair was made late.");
   if (u.workOrder) workOrder(doc, u.workOrder, zone);
   else field(doc, "FleetPal work order", `${u.workOrderRef ?? "—"} (no longer in FleetPal's records as of this rendering)`);
   if (u.workOrder?.invoices.length) bills(doc, u);
