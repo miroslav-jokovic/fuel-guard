@@ -423,3 +423,13 @@ describe("the number's line (V7a)", () => {
     expect((await render({ ...LEAD, phone_e164: null })).w.text()).not.toContain("Not looked up yet");
   });
 });
+
+describe("the lead's standing (V7b)", () => {
+  it("names Check first and why; an ordinary lead says nothing", async () => {
+    const held = (await render({ ...LEAD, drivers: [{ id: "d", status: "active", archived: false }] })).w;
+    expect(held.find('[data-test="standing"]').text()).toBe("Check first");
+    expect(held.find('[data-test="standing-why"]').text()).toBe("Already drives for you");
+    const plain = (await render(LEAD)).w;
+    expect([plain.find('[data-test="standing"]').exists(), plain.find('[data-test="standing-why"]').exists()]).toEqual([false, false]);
+  });
+});

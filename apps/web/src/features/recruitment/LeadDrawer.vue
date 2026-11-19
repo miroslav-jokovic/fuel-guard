@@ -6,6 +6,7 @@ import {
   LEAD_CLOSURE_KIND_LABELS,
   LEAD_CONTACT_METHOD_LABELS,
   LEAD_CONTACT_OUTCOME_LABELS,
+  LEAD_STANDING_LABELS,
   LEAD_EVIDENCE_LABELS,
   LEAD_REQUIREMENT_LABELS,
   LEAD_STATUS_LABELS,
@@ -15,6 +16,7 @@ import {
   leadChannelLabel,
   leadCloseReasonLabel,
   leadEvidenceFrom,
+  leadStanding,
   leadVerdictWhy,
   qualifyUnavailable,
   type LeadCloseReason,
@@ -80,6 +82,8 @@ const facts = computed(() => [
   { key: "email", label: "Email", value: lead.value?.email_lower },
 ]);
 const answers = computed(() => leadAnswerRows(lead.value?.answers ?? {}));
+// V7b: the same standing and reasons the queue row shows (shared `leadStanding`).
+const standing = computed(() => (lead.value ? leadStanding(lead.value) : null));
 const linkTo = (leadId: string) => ({ query: { ...route.query, lead: leadId } });
 
 const CONTACT_FORM = "lead-contact-form";
@@ -265,7 +269,9 @@ const runPurge = (): Promise<void> =>
       <div class="flex flex-wrap items-center gap-2">
         <span :class="[BADGE_BASE, leadStatusTone(lead.status)]">{{ LEAD_STATUS_LABELS[lead.status] }}</span>
         <span v-if="lead.do_not_contact" :class="[BADGE_BASE, toneClass('danger')]" data-test="held">Do not contact</span>
+        <span v-if="standing && standing.standing !== 'call'" :class="[BADGE_BASE, toneClass(standing.standing === 'check_first' ? 'warning' : 'neutral')]" data-test="standing">{{ LEAD_STANDING_LABELS[standing.standing] }}</span>
       </div>
+      <p v-if="standing && standing.reasons.length > 0 && !lead.purged_at" class="text-sm text-ink-secondary" data-test="standing-why">{{ standing.reasons.join(" · ") }}</p>
 
       <AppCallout v-if="lead.purged_at" tone="info" data-test="purged">
         This person's details were deleted on {{ formatDateTime(lead.purged_at) }}. The record of who contacted them stays.

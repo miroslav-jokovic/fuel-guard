@@ -499,6 +499,14 @@ ceiling is reached; that bell reads "Ad leads not arriving", which is not what h
 sweep job's detail instead and no bell rings under a wrong name. Not yet: the wrong-number share by line type in
 `LeadQuality` (it rides with V7d's report). Progress: `ads-progress/2026-11-19-2000-S-V7a-phone-line.md`.
 
+**Built 2026-11-19 (V7b, the lead's standing — around Q-APX24 (a), recommended, not yet ruled).** Shared
+`recruiting/leads/leadStanding.ts` (`leadStanding`, `compareLeadStanding`) over a queue row as it stands; nothing is
+stored, so a ruling of (b) or (c) replaces one function and its two readers. The Leads page takes its "does not
+qualify" lane from it and orders the rest of each page by it (the pages themselves stay by arrival — the queue's
+cursor is by `received_at`); the Match cell shows "Check first" and the reasons, and the drawer says the same. The
+bells are unchanged (`newLeadBell` already stays silent for a current driver and a failed requirement). Progress:
+`ads-progress/2026-11-19-2100-S-V7b-standing.md`.
+
 ### V8 · What makes it enterprise grade
 
 Already on main: sealed tokens opened in one place, admin-only spend behind a fresh sign-in, two approvers above a
@@ -1035,11 +1043,13 @@ evidence, `summariseLeadMatch` counts hard requirements unmet and unknown, and `
 filtering. Q-AD62 rules a phone's line type a flag, never a filter. A recruiter acts on "who do I call first, and
 why" — a number out of 100 says neither, and its weights would be invented (no lead has run through a real campaign).
 
-- **(a) An ordered standing with its reasons, no number — recommended.** Four standings, first rule that holds wins:
+- **(a) An ordered standing with its reasons, no number — recommended.** Three standings, first rule that holds wins:
   *Does not qualify by their answer* (a hard requirement failed — they are still listed, as today); *Check first*
-  (the number cannot ring, or is not a mobile, or the person already drives for the carrier); *Call* (everything
-  else); within each, fewer unknowns first, then oldest first. Each lead carries the sentences that put it there.
-  Every input is already stored or built in V7a; nothing is weighed by a guess.
+  (asked not to be contacted, already drives for the carrier, Telnyx says the number cannot ring, or nothing to call
+  or write to); *Call* (everything else). A landline, an internet line and an earlier application are reasons shown
+  under Call, never a demotion — Q-AD62 made the line a flag, and nothing of ours shows either answers less. Within a
+  standing, fewer requirements still to check first, unmatched leads last. Each lead carries the sentences that put
+  it there. Every input is already stored or built in V7a; nothing is weighed by a guess.
 - (b) A 0–100 score from weights (e.g. 40 fit, 20 line type, 20 returning, 20 freshness). One sortable figure; its
   weights have nothing of ours behind them, and HB 3773's audit asks why one person ranked over another.
 - (c) No score; the queue keeps today's order. V7's line goes unbuilt.

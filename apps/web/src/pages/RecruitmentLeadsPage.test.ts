@@ -113,6 +113,20 @@ describe("the lead queue", () => {
     }
   });
 
+  it("within a page, Call comes before Check first, fewer to check first, and each says why (V7b)", async () => {
+    const rows = [
+      { ...ROW, id: "l-held", full_name: "Held Person", do_not_contact: true },
+      { ...ROW, id: "l-three", full_name: "Three Open", summary: { hardUnmet: 0, unknown: 3, met: 0 } },
+      { ...ROW, id: "l-land", full_name: "Land Line", phone_line: { line_type: "landline", valid: true, carrier: null, looked_up_at: "2026-11-19T00:00:00Z" } },
+    ];
+    api.answer = (path) => (path.includes("/leads?") ? ok({ leads: rows, next: null }) : world(path));
+    const { w } = await render("/recruitment/leads");
+    const names = w.findAll("a").map((a) => a.text()).filter((t) => ["Held Person", "Three Open", "Land Line"].includes(t));
+    expect(names).toEqual(["Land Line", "Three Open", "Held Person"]);
+    expect(w.findAll('[data-test="standing"]').map((b) => b.text())).toEqual(["Check first"]);
+    expect(w.findAll('[data-test="standing-why"]').map((b) => b.text())).toEqual(["Landline — cannot be texted", "Asked not to be contacted"]);
+  });
+
   it("a requirement they told us they miss outranks what is still to check", async () => {
     api.answer = () => ok({ leads: [{ ...ROW, summary: { hardUnmet: 1, unknown: 4, met: 1 } }], next: null });
     const text = (await render("/recruitment/leads")).w.text();
