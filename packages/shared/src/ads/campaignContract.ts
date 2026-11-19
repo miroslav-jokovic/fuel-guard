@@ -36,6 +36,13 @@ export const adsCampaignCreateSchema = z.object({
 });
 export type AdsCampaignCreate = z.infer<typeof adsCampaignCreateSchema>;
 
+/**
+ * How many campaigns the list door answers: a carrier's newest, in one read (`listCampaigns`). Newest first; the list
+ * is a page of a person's recent work, not an export. Shared so a screen that reasons over "every campaign" can tell
+ * when the list may be cut off (`openingsAwaitingCampaign`).
+ */
+export const CAMPAIGN_LIST_LIMIT = 200;
+
 /** Why a create was refused, each a thing a person can fix on another screen. */
 export const ADS_CAMPAIGN_CREATE_REFUSALS = [
   "brief_source_unknown", "brief_unavailable", "settings_not_saved", "connection_unusable", "brand_kit_unusable",

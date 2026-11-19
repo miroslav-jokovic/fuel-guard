@@ -17,6 +17,19 @@ describe("adsSettingsForm", () => {
     expect(toSettings(SAVED, toFormValues(SAVED))).toEqual({ ok: true, settings: SAVED });
   });
 
+  it("starting a campaign: a version with no modes shows Manual and saves none; Assisted is saved and read back (V5)", () => {
+    const v = toFormValues(SAVED);
+    expect(v.start_campaign_mode).toBe("manual");
+    const manual = toSettings(SAVED, v);
+    expect(manual.ok && "modes" in manual.settings).toBe(false);
+    const assisted = toSettings(SAVED, { ...v, start_campaign_mode: "assisted" });
+    expect(assisted.ok && assisted.settings.modes).toEqual({ start_campaign: "assisted" });
+    const saved = { ...SAVED, modes: { start_campaign: "assisted" as const } };
+    expect(toFormValues(saved).start_campaign_mode).toBe("assisted");
+    // Once saved, the group is carried whole, Manual included, so a save never drops it.
+    expect(toSettings(saved, { ...toFormValues(saved), start_campaign_mode: "manual" })).toMatchObject({ ok: true, settings: { modes: { start_campaign: "manual" } } });
+  });
+
   it("shows dollars, not cents, and blank for not set", () => {
     const v = toFormValues(SAVED);
     expect([v.monthly_cap.meta, v.monthly_cap.tiktok, v.daily_max, v.cpl_max]).toEqual(["3000", "", "100", ""]);
