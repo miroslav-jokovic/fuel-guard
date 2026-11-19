@@ -76,3 +76,8 @@ email's outcome. An expired one says to download it from Pilot's portal and uplo
 ## Progress log
 
 - 2026-11-18 — built and verified as above; PR opened from `claude/pilot-price-mail`.
+- 2026-11-19 — merged as PR #2557 → main `ed1c3ae`, migration 0635 (renumbered twice in the queue: 0633 → 0634 →
+  0635). 0635 is applied on staging, but staging cannot run the scheduler — its lanes are held by the stale Railway
+  `uat` service (owner ruling 2026-11-15: leave it), so no staging run will ever appear. Production carries it from
+  the first owner-approved release whose candidate includes `ed1c3ae` (release PR #2528 was still at `e78451e`; it
+  refreshes at 18:00 CT). Done = a `pilot_price_mails` row landing in production by itself, not the merge.
