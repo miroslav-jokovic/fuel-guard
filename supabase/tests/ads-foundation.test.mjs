@@ -284,6 +284,15 @@ ok("a generation completes with its output and cost",
 ok("a completed generation never changes (AX011)",
   (await sqlstate(`update ad_generations set cost_units = 1 where id = $1`, [GEN])) === "AX011");
 ok("a generation is never deleted (AX010)", (await sqlstate(`delete from ad_generations where id = $1`, [GEN])) === "AX010");
+// Q-APX16 (0634): a render's price is what Higgsfield's `/estimate` answers, in dollars; a unit nobody bills in is refused.
+const complete = (key, unit) => sqlstate(
+  `update ad_generations set status = 'succeeded', output = '{"ok": 1}', cost_units = 0.0940, cost_unit = $2, finished_at = now()
+    where idempotency_key = $1`, [key, unit]);
+await gen("gen-usd");
+await gen("gen-euro");
+ok("a render's cost is written in US dollars, to a hundredth of a cent (0634)", (await complete("gen-usd", "usd")) === null
+  && (await one(`select cost_units::text c from ad_generations where idempotency_key = 'gen-usd'`)).c === "0.0940");
+ok("a cost in a unit nobody bills in is refused (0634, 23514)", (await complete("gen-euro", "eur")) === "23514");
 
 // ── outcome events: a send result, never a double send ────────────────────────────────────────
 const outcome = (ref) => sqlstate(
