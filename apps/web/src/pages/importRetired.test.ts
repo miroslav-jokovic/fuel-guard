@@ -82,6 +82,7 @@ import DataSyncPage from "./DataSyncPage.vue";
 import EfsImportDrawer from "@/features/import/EfsImportDrawer.vue";
 import PriceUploadDrawer from "@/features/fueling/PriceUploadDrawer.vue";
 import PriceUploadCard from "@/features/fueling/PriceUploadCard.vue";
+import PriceMailCard from "@/features/fueling/PriceMailCard.vue";
 import StationDataCard from "@/features/fueling/StationDataCard.vue";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 
@@ -176,13 +177,16 @@ describe("the price and locations uploads moved to Truck Stops (D-FUI3)", () => 
 
   /**
    * BOTH cards, which is the "one Upload drawer" half of C4 — the plan is explicit that the Pilot
-   * price report and the locations/posted-price card become one drawer rather than two.
+   * price report and the locations/posted-price card become one drawer rather than two. Since
+   * PILOT-PRICE-MAIL-PLAN §6 (2026-11-18) the drawer also opens with what the automatic pull did with
+   * each emailed quote — it reads the API, so the mount carries a query client.
    */
   it("carries both of the cards it absorbed, unchanged", () => {
     const w = mount(PriceUploadDrawer, {
       props: { open: true },
-      global: { plugins: [createPinia()], stubs: { SlideOver: { template: "<div><slot /></div>" } } },
+      global: { plugins: [createPinia(), VueQueryPlugin], stubs: { SlideOver: { template: "<div><slot /></div>" } } },
     });
+    expect(w.findComponent(PriceMailCard).exists()).toBe(true);
     expect(w.findComponent(PriceUploadCard).exists()).toBe(true);
     expect(w.findComponent(StationDataCard).exists()).toBe(true);
   });

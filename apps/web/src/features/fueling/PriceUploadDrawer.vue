@@ -8,6 +8,9 @@
  * they produce is the truck-stop registry and its posted prices, which is exactly what the page they
  * now open from displays. A reader who notices a price is wrong is on Truck Stops when they notice.
  *
+ * PILOT-PRICE-MAIL-PLAN §6 (2026-11-18) puts `PriceMailCard` first: the daily quote now loads itself from
+ * Pilot's email, and the first thing a reader here needs is whether it did — the upload is the fallback.
+ *
  * Both cards are UNCHANGED — `PriceUploadCard` keeps its sequential multi-file loop and its
  * per-file outcome list, `StationDataCard` keeps the locations export, the posted-price upload and
  * the three live fetches. C4 moves capabilities; it does not rewrite them.
@@ -21,6 +24,7 @@
  * this step's.)
  */
 import SlideOver from "@/components/SlideOver.vue";
+import PriceMailCard from "./PriceMailCard.vue";
 import PriceUploadCard from "./PriceUploadCard.vue";
 import StationDataCard from "./StationDataCard.vue";
 
@@ -37,6 +41,7 @@ const emit = defineEmits<{ close: [] }>();
     @close="emit('close')"
   >
     <div class="space-y-4">
+      <PriceMailCard />
       <PriceUploadCard />
       <StationDataCard />
     </div>

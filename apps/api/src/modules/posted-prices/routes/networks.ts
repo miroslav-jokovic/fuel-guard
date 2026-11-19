@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { ingestPilotPrices } from "../pilotPriceIngest.js";
 import { ingestPilotLocations } from "../pilotLocationsIngest.js";
+import { readPilotPriceMails } from "../pilotPriceMail.js";
 import { ingestPostedPrices } from "../postedPriceIngest.js";
 import { gatePostedBatch, runPostedPriceFetch, POSTED_SOURCE_XLSX } from "../postedPriceFetch.js";
 import { runKwikTripSync } from "../kwikTripIngest.js";
@@ -55,9 +56,18 @@ export function registerNetworkRoutes(router: Router): void {
     }),
   );
 
-
-
-
+  // The emailed quotes the API pulled itself (PILOT-PRICE-MAIL-PLAN §6): what became of each recent Pilot
+  // price email — loaded (with its Effective Date and count), expired before it was fetched, or failed and why.
+  // Same gate as the upload beside it: whoever may load prices by hand may see what loaded by itself.
+  router.get(
+    "/prices/mail",
+    requireOrg,
+    requireSection("dispatch"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json({ mails: await readPilotPriceMails(admin, req.auth!.orgId!) });
+    }),
+  );
 
   // Load the Pilot "Download All Locations" export (exact coordinates for the whole family) into the
   // GLOBAL station registry. Admin-only: it rewrites shared reference data (brands, precise coords).

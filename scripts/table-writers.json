@@ -640,6 +640,9 @@
     "apps/api/src/modules/anomalies/patternSweepScheduler.ts",
     "apps/api/src/modules/anomalies/scoring/scoreTransaction.ts"
   ],
+  "pilot_price_mails": [
+    "apps/api/src/modules/posted-prices/pilotPriceMail.ts"
+  ],
   "platform_admins": [
     "apps/admin-api/src/lib/platformAdmins.ts"
   ],

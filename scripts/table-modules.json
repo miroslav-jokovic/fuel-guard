@@ -1179,6 +1179,17 @@
         "why": "raw posted-price feed. Measured 888/day. Retention unruled \u2014 L9."
       }
     },
+    "pilot_price_mails": {
+      "module": "posted-prices",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "new in 0635 (2026-11-18, PILOT-PRICE-MAIL-PLAN): one row per Pilot daily price email the API read from the mailbox, updated in place on a retry; Pilot sends one a day (two on 11/13), so about 365 rows a year. A work record, not evidence — the prices are in fuel_prices."
+      }
+    },
     "fuel_prices_posted": {
       "module": "posted-prices",
       "layer": "raw",
