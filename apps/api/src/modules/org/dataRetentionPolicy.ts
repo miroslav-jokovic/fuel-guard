@@ -95,6 +95,20 @@ export const RETENTION_RULES: RetentionRule[] = [
   },
   {
     /**
+     * Tenstreet's posts (0640, TS1): the one-year log the guide asks for, kept as Tenstreet sent them minus the SSN and
+     * the equal-opportunity answers (never stored). Q-TS9 (a), ruled 2026-11-20: a post is purged a year after it
+     * arrived — 29 CFR 1602.14 and 56 Ill. Adm. Code 2520.110 hold application records one year — so 400 days is that
+     * year plus margin, as for `phone_lookups`.
+     */
+    table: "tenstreet_posts",
+    timeColumn: "received_at",
+    keepDays: 400,
+    strategy: "id",
+    orgScoped: true,
+    why: "The guide's one-year log of posts and replies; application records are held one year (29 CFR 1602.14, 56 Ill. Adm. Code 2520.110), then the post goes.",
+  },
+  {
+    /**
      * LQ8a (0583): the phone provider's reading of a lead's number. A year-old line type says little about a
      * number (ports happen), the lead it served is itself prunable (D-LS7), and a pruned row costs one lookup
      * if the number ever turns up again. 400 = a year plus margin, the same figure `recruiting_leads` would get.

@@ -5,6 +5,7 @@ import { adsStepHandler } from "./adsStep.js";
 import { adsRulesSyncHandler } from "./adsRulesSync.js";
 import { adsLeadsBackfillHandler } from "./adsLeadsBackfill.js";
 import { adsLeadFetchHandler } from "./adsLeadFetch.js";
+import { tenstreetPostProcessHandler } from "./tenstreetPostProcess.js";
 import { leadUncontactedHandler } from "./leadUncontacted.js";
 import { adsInsightsHandler } from "./adsInsights.js";
 import { adsReconcileHandler } from "./adsReconcile.js";
@@ -108,6 +109,8 @@ export function registerAllHandlers(): void {
   registerHandler("ads_rules_sync", adsRulesSyncHandler);
   registerHandler("ads_leads_backfill", adsLeadsBackfillHandler);
   registerHandler("ads_lead_fetch", adsLeadFetchHandler);
+  // TS3: one kept Tenstreet post becomes a lead, after the receiver answered Tenstreet.
+  registerHandler("tenstreet_post_process", tenstreetPostProcessHandler);
   // B5a: one connection's hourly insights → ads_spend_hourly; dedup-keyed per connection by its tick.
   registerHandler("ads_insights", adsInsightsHandler);
   // B5c: one connection's daily reconcile; dedup-keyed per connection by its tick.
