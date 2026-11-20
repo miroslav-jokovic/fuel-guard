@@ -15,11 +15,15 @@ cite code accurately but cannot be built as written (two incompatible write pipe
 function-change errors, tests that would turn red, McLeod facts assumed). **Read
 `docs/plans/mcleod/AUDIT-2026-11-20-API-KIT-SPECS.md` before anything else**: §1 corrects the `/ws`
 facts (W1–W12), §2 lists the resolutions v2 must adopt (including the reconciled three-table pipeline
-from `api-kit-audit/C.md`), §4 lists the eight owner rulings O-1..O-8 (v2 shows each with its
-recommendation; nothing is built against them until ruled). Full evidence (file:line, URLs):
+from `api-kit-audit/C.md`), §4 lists the eight owner rulings O-1..O-8, and **§5 records them RULED on 2026-11-20 ("go ahead")**.
+Only O-7 still needs the owner's own sentence; until then the hire → McLeod create stays switched off. Full evidence (file:line, URLs):
 `docs/plans/mcleod/api-kit-audit/{A,B,C,D,WS,X}.md`. Where this handoff and the audit disagree, the
 audit wins (e.g. "Settlement/Billing read-only" is wrong; `equipStatus/create` is Drivers-role only;
 the stop write is enqueued in SQL inside `driver_complete_stop`). The branch now also merges main.
+
+**Next chat's job:** write the v2 execution-grade plan (`MCLEOD-API-KIT-PLAN-V2.md`, superseding v1)
+from the audit + specs, with every audit resolution applied and the §5 rulings as D-MK decisions; then
+the re-ruling texts, the two drafted messages, the PR, memory, and a handoff at ~50% context.
 
 ## The owner's request (2026-11-19, verbatim intent)
 The owners bought McLeod's full API Kit (~$750/month) so Silvicom 360 can be a custom front end for

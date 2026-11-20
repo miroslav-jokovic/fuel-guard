@@ -163,3 +163,26 @@ only the owner can make.
 | O-6 | A returning driver: reuse their old 360 record and old McLeod id, or create new ones? (D-32) | Reuse: reactivate the old 360 record and send a TableRowService update to the same McLeod driver, never a second create. |
 | O-7 | D-RL5 is a verbatim owner quote ("hiring is not done from 360"). The new hire → McLeod create reverses it. | The owner restates it in their own words. |
 | O-8 | ETA write route: RowStop `eta` (TableRowService) or a call-in with `new_eta` (W10). | A call-in, because it is McLeod's own ETA mechanism and keeps a history. Final pick after the MK0 test-company probe. |
+
+## 5. Owner rulings — 2026-11-20
+
+The owner answered §4 with "go ahead" (2026-11-20). Recorded as ruled, each as its recommendation:
+
+- **O-1 ruled:** v1's Q-MK1..15 recommendations are approved as D-MK decisions, as v2 lists them.
+- **O-2 ruled:** 360 writes to McLeod only medical-card expiry, CDL expiry, new hire and termination/rehire.
+  Names, DOB, address, email and CDL number are not written. Widening needs a new ruling per field plus
+  Alex's OK.
+- **O-3 ruled:** both seats see the load when the current dispatch names either driver.
+- **O-4 ruled:** `clearStop` is sent with `isReportable=false` and no delay code. Dispatchers record
+  lateness in McLeod as today.
+- **O-5 ruled:** evidence for a load re-dispatched away from the driver is stored and shown to the office
+  as an exception. It is never sent to McLeod.
+- **O-6 ruled:** a returning driver reuses their old 360 record and their McLeod driver id (TableRowService
+  update). There is never a second create.
+- **O-7 accepted, wording still owed:** "go ahead" accepts reversing D-RL5 ("hiring is not done from 360")
+  so that a 360 hire creates the McLeod driver. The owner's own sentence for the re-ruled D-RL5 text is
+  still to be supplied. v2 shows the proposed text, and the hire → McLeod create step stays switched off
+  (switch row `off`) until that sentence is on file. The rest of v2 does not wait on it.
+- **O-8 ruled:** the ETA is written as a call-in carrying `new_eta`, provided the MK0 probe on the test
+  company shows the call-in updates the stop's ETA. If it does not, the ETA is written to RowStop `eta`
+  through TableRowService. Both outcomes are built as written in v2.
