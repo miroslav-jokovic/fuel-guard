@@ -35,7 +35,7 @@ describe("generateDriverPassword", () => {
   it("is long, unambiguous, and unique per call", () => {
     const a = generateDriverPassword();
     const b = generateDriverPassword();
-    expect(a).toHaveLength(16);
+    expect(a).toHaveLength(8);
     expect(a).not.toBe(b);
     expect(a).not.toMatch(/[0O1lI]/); // handwriting-safe alphabet
   });
@@ -46,7 +46,7 @@ describe("createDriverLogin", () => {
     const rec = createSupabaseRecorder({ tables: { drivers: { data: unlinkedDriver } } });
     const issued = await createDriverLogin(rec.client, ORG, "d1");
     expect(issued.username).toBe("aaron.cole"); // derived from the name (no samsara code)
-    expect(issued.password).toHaveLength(16);
+    expect(issued.password).toHaveLength(8);
 
     const create = authArgs(rec, "createUser")[0] as Record<string, unknown>;
     expect(create.email).toBe("aaron.cole@drivers.fuelguard.app");
@@ -115,7 +115,7 @@ describe("lifecycle", () => {
     expect(issued.username).toBe("aaron");
     const upd = authArgs(rec, "updateUserById");
     expect(upd[0]).toBe("auth-9");
-    expect((upd[1] as { password: string }).password).toHaveLength(16);
+    expect((upd[1] as { password: string }).password).toHaveLength(8);
     expect(rec.forTable("drivers").some((q) => q.write?.method === "update")).toBe(true);
     expectOrgScoped(rec, ORG);
   });

@@ -14,6 +14,7 @@ import {
 import { computed, ref, watch } from "vue";
 import {
   driverAppAccess,
+  driverPasswordProblem,
   isValidDriverUsername,
   usernameFromName,
   type Driver,
@@ -96,13 +97,9 @@ const usernameProblem = computed(() => {
   return null;
 });
 
-const passwordProblem = computed(() => {
-  const value = customPassword.value;
-  if (!value) return null;
-  if (value.length < 12) return "Password must be at least 12 characters.";
-  if (value.length > 128) return "Password must be 128 characters or fewer.";
-  return null;
-});
+const passwordProblem = computed(() =>
+  customPassword.value ? driverPasswordProblem(customPassword.value) : null,
+);
 
 const confirmation = computed(() => {
   const driverName = props.driver?.full_name ?? "this driver";

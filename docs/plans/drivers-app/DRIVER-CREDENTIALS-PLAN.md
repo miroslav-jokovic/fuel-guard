@@ -35,7 +35,7 @@ abuse or phish.
 |---|---|---|
 | DC1 | Driver identity = **org-issued username** (`[a-z0-9._-]{3,32}`, unique per org, defaulted from `samsara_username`, admin-editable) | One familiar login per driver; no personal email dependence |
 | DC2 | Each credential is a normal Supabase Auth user whose email is **synthetic + non-deliverable**: `<username>@drivers.fuelguard.app` (created with `email_confirm: true`; no mail is ever sent). Multi-tenant later: suffix an org code before the `@` | Keeps ONE auth system (JWT hook, RLS, sessions all unchanged); Samsara does the same under the hood |
-| DC3 | Passwords are **system-generated** (16 chars, unambiguous alphabet), **shown exactly once** at create/reset, stored ONLY in Supabase Auth (bcrypt). Drivers **cannot change** their password in-app; "forgot password" = contact dispatch | Company control is the whole point; no recovery email surface to abuse |
+| DC3 | Passwords are **system-generated** (16 chars — **8 since 2026-11-20**, see the log; unambiguous alphabet), **shown exactly once** at create/reset, stored ONLY in Supabase Auth (bcrypt). Drivers **cannot change** their password in-app; "forgot password" = contact dispatch | Company control is the whole point; no recovery email surface to abuse |
 | DC4 | Lifecycle lives on the **Drivers page**: Create login · Reset password · Disable · Enable · Revoke — admin/fleet_manager only, every action audited (actor + driver + action, NEVER the secret) | Same place admins already manage drivers; auditable control |
 | DC5 | Login goes through **`POST /api/auth/driver-login`** `{ username, password }` → server resolves username → synthetic email → signs in with the ANON client server-side → returns the Supabase session to the app (`setSession`). Uniform `invalid_credentials` error for unknown-user AND wrong-password; per-IP + per-username throttle | Hides the synthetic-email scheme, prevents username enumeration, gives one place to rate-limit and audit failed logins |
 | DC6 | **Disable** = `auth.admin.updateUserById(banned)` + global sign-out + push-token revoke (temporary hold, e.g. seasonal). **Revoke** = existing D14 offboarding (permanent). Enable lifts the ban | Instant cutoff either way; distinguishes "paused" from "gone" |
@@ -131,3 +131,19 @@ suites/gates green; 0116 applied; this doc's decision table updated with anythin
   CASCADE runs as the referencing table's OWNER, not the deleting role — so the `auth.users` cascade
   is covered whether the function is definer or invoker, and an earlier draft of the migration header
   that claimed otherwise was wrong and is corrected in place.
+
+- 2026-11-20 — **Driver passwords are 8 characters, the length the fleet already uses in Samsara
+  (owner).** The 12-character floor on an admin-chosen password, and the 16-character generated one
+  (DC3), were more than a password copied off paper onto a phone needs. One constant,
+  `DRIVER_PASSWORD_MIN_LENGTH` in `packages/shared/src/driverAuthContract.ts`, now sets the
+  admin-chosen minimum, the generated length and the login exchange's minimum, which had been three
+  numbers (12, 16, 8). 8 is NIST SP 800-63B's floor for a chosen password, and a short password's
+  only attacker is an online guesser, which the DC5 per-username and per-IP throttle holds off; 8
+  characters over the 54-symbol alphabet is about 46 bits. Office passwords keep their 12
+  (`PASSWORD_MIN_LENGTH`, D-PWR7). **Precondition, owner-set:** Supabase Auth has ONE
+  project-wide minimum password length, set 6 → 12 on 2026-11-16 (INSTALLED-APP-PLAN log), and
+  GoTrue refuses anything shorter at `createUser`/`updateUserById` with `weak_password` — so it
+  goes to 8 on each project before this code serves there. Lowering it means a signed-in office
+  user who called `supabase.auth.updateUser` directly could set an 8-character password; no office
+  page does that (the reset and invite pages go through the API's 12), so the floor an office user
+  meets is unchanged.

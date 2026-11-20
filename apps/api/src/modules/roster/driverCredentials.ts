@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  DRIVER_PASSWORD_MIN_LENGTH,
   isValidDriverUsername,
   normalizeDriverUsername,
   toSyntheticDriverEmail,
@@ -43,9 +44,11 @@ export class DriverCredentialError extends Error {
 const BAN_FOREVER = "87600h"; // ~10 years
 
 // Unambiguous alphabet (no 0/O, 1/l/I, or symbols that die in handwriting) — the password is handed
-// to a driver on paper/text. 16 chars over 55 symbols ≈ 92 bits of entropy.
+// to the driver on paper/text. 8 chars (DRIVER_PASSWORD_MIN_LENGTH, the Samsara length drivers
+// already type) over 54 symbols ≈ 46 bits: ample against an online guesser that the driver-login
+// throttle (DC5) holds to a handful of tries, which is the only attack a short password faces.
 const PW_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
-const PW_LENGTH = 16;
+const PW_LENGTH = DRIVER_PASSWORD_MIN_LENGTH;
 
 /** Crypto-random one-time password. Pure output; never persisted by us. */
 export function generateDriverPassword(length = PW_LENGTH): string {
