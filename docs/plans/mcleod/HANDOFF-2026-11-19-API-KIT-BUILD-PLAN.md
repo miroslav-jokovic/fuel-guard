@@ -1,3 +1,5 @@
+> **SUPERSEDED 2026-11-20** by `HANDOFF-2026-11-20-V2-WRITING.md` and `DECISION-REGISTER-2026-11-20-API-KIT.md`. Kept as history; do not paste this one.
+
 # Handoff — McLeod API Kit: write the straight-through BUILD plan (2026-11-19)
 
 Paste everything below the line into a fresh chat.
