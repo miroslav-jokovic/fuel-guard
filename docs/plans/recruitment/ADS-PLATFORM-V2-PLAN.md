@@ -1318,6 +1318,17 @@ Progress: `ads-progress/2026-11-19-1800-W-V5-assisted-start.md`. **V5 is built**
 - **Q-APX33 RULED (a).** The QUALITY_LEAD-under-EMPLOYMENT reading goes into the sandbox readings now.
 - **Order:** the Q-AD17 reading (small), then Tenstreet TS1–TS3, then the apply page, then Indeed's receiver.
 
+**2026-11-20, the owner: *"We have public Apply page on our official website silvicominc.com"*, then, to the proposal
+to replace it: *"Ok proceed as proposed, and make sure we dont assume nothing."*** Taken as:
+
+- **Q-APX34 RULED (a) — the apply page replaces the website's form.** The website's `/for-drivers/` is a WordPress
+  Gravity Form whose entries never reach Silvicom 360 (measured from its HTML, `APPLY-PAGE-PLAN.md` §1). We build the
+  page; the web developer points the website's Apply links at it and retires the form (AP5). The other two options
+  were connecting the Gravity Form (its Webhooks add-on is on the Elite licence, and it would mean two forms to keep
+  the same, one with no texting box or notices) or running both.
+- The build, its decisions and four new questions (Q-AP1–4: texting a lead does not exist yet; Spanish; solo/team;
+  CDL number and address) are in [`APPLY-PAGE-PLAN.md`](APPLY-PAGE-PLAN.md).
+
 ## 6. Open, in one place
 
 | Id | Question | Recommendation | Who |
@@ -1344,6 +1355,8 @@ Progress: `ads-progress/2026-11-19-1800-W-V5-assisted-start.md`. **V5 is built**
 | Q-APX31 | The public apply page and texting consent (Q-AD52) | **ruled (a) 2026-11-20, §5a**: the drafted page and wording; counsel confirms three points | — |
 | Q-APX32 | Indeed | **ruled (a) 2026-11-20, §5a**: Indeed admin asks for the Developer Agreement; we build receiver + careers pages; ~6-week review | — |
 | Q-APX33 | Q-AD17 and the pay rule for ads | **ruled (a) 2026-11-20, §5a**: the sandbox reading now; goal chosen at launch; ads held to the pay range if counsel confirms | — |
+| Q-APX34 | The website's own apply form (WordPress, never reaches Silvicom 360) | **ruled (a) 2026-11-20, §5a**: our page replaces it; the developer repoints the links (APPLY-PAGE-PLAN AP5) | owner (web developer) |
+| Q-AP1–4 | Texting a lead; Spanish; solo/team; CDL number and address | `APPLY-PAGE-PLAN.md` §4 | owner, counsel |
 | — | Meta app (id `META_APP_ID` and secret), system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 **2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want

@@ -35,6 +35,7 @@ import { recruitmentHiringSetupRouter } from "./hiringSetup.js";
 import { recruitmentPlaceSuggestRouter } from "./placeSuggest.js";
 import { recruitmentTenstreetRouter } from "./tenstreet.js";
 import { recruitmentLeadTenstreetRouter } from "./leadTenstreet.js";
+import { recruitmentCareersPageRouter } from "./careersPage.js";
 
 /**
  * Everything mounted at `/api/recruitment`, composed in one place.
@@ -83,5 +84,6 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentPlaceSuggestRouter()); // a yard or town typed into an opening's area, as a point (Q-AD44 (a))
   router.use(recruitmentTenstreetRouter()); // Settings › Recruiting › Tenstreet: Company ID, mode, the address (TENSTREET-INTAKE-PLAN TS4)
   router.use(recruitmentLeadTenstreetRouter()); // the lead drawer's "From Tenstreet", from the newest post (TENSTREET-INTAKE-PLAN TS5)
+  router.use(recruitmentCareersPageRouter()); // Settings › Recruiting › Careers page: the public apply page's address and contact (APPLY-PAGE-PLAN AP1)
   return router;
 }

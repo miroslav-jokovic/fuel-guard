@@ -11,6 +11,7 @@ import CarrierQuestionsEditor from "@/features/recruitment/CarrierQuestionsEdito
 import ApplicantMessagesSettings from "@/features/recruitment/ApplicantMessagesSettings.vue";
 import DrugAlcoholPolicyCard from "@/features/recruitment/DrugAlcoholPolicyCard.vue";
 import TenstreetConnectionCard from "@/features/settings/TenstreetConnectionCard.vue";
+import CareersPageCard from "@/features/settings/CareersPageCard.vue";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -57,6 +58,10 @@ import { useSessionStore } from "@/stores/session";
  * Where Tenstreet's push of applications into Recruitment › Leads is set up, last: it is set up once, by whoever
  * manages recruiting, and its API door asks the same (`recruitment` manage). Shown only to them — a viewer would
  * see a card whose every button the server refuses.
+ *
+ * ── CAREERS PAGE (APPLY-PAGE-PLAN AP1) ────────────────────────────────────────────────────────
+ * The public page applicants apply on, which replaces the company website's own form (Q-APX34). Beside Tenstreet
+ * because both are a door leads come in by; shown only to who manages recruiting, as the API door asks.
  *
  * ── MESSAGES (§12 MT2, 0551) ──────────────────────────────────────────────────────────────────
  * The carrier's own words in the invitation, "your application is ready", the reminder and the videos
@@ -135,6 +140,16 @@ const canManageRecruitment = computed(() => session.can("recruitment"));
     >
       <div class="rounded-surface bg-surface p-4 ring-1 ring-edge">
         <TenstreetConnectionCard />
+      </div>
+    </SettingsSection>
+
+    <SettingsSection
+      v-if="canManageRecruitment"
+      title="Careers page"
+      description="A public page listing your open openings, where drivers apply. Their applications arrive in Recruitment › Leads. Point your website's Apply links at it."
+    >
+      <div class="rounded-surface bg-surface p-4 ring-1 ring-edge">
+        <CareersPageCard />
       </div>
     </SettingsSection>
 
