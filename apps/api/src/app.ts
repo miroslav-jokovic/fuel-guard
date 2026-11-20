@@ -12,6 +12,7 @@ import { applicationIntakeLimiter, isApplicationLink, packetCeremonyLimiter } fr
 import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
 import { drainKindNow } from "./queue/inprocessDrain.js";
+import { leadRecipientsFor } from "./queue/handlers/leadSinkFor.js";
 import { accessReviewRouter, invitesRouter, memberPasswordResetRouter, publicInvitesRouter, publicPasswordResetRouter, rolePermissionsRouter, sectionAccessRouter, surfaceAccessRouter } from "./modules/org/index.js";
 import {
   memberDevicesRouter,
@@ -62,7 +63,7 @@ import { drugAlcoholRouter } from "./modules/medstop/index.js";
 import { adsRouter, META_WEBHOOK_PATH, metaWebhookBootWarning, metaWebhookRouter } from "./modules/ads/index.js";
 import { roadsideInspectionsRouter } from "./modules/inspections/index.js";
 import { hazmatRouter, meHazmatRouter, publicHazmatRouter } from "./modules/hazmat/index.js";
-import { publicApplicationRouter, recordOrderedDrugTest, recruitingBriefSource, recruitingLeadSources, recruitmentRouter, releaseOrderedDrugTest, TENSTREET_WEBHOOK_PATH, tenstreetBootWarning, tenstreetWebhookRouter } from "./modules/recruiting/index.js";
+import { publicApplicationRouter, publicCareersRouter, turnstileBootWarning, recordOrderedDrugTest, recruitingBriefSource, recruitingLeadSources, recruitmentRouter, releaseOrderedDrugTest, TENSTREET_WEBHOOK_PATH, tenstreetBootWarning, tenstreetWebhookRouter } from "./modules/recruiting/index.js";
 import { complianceRouter } from "./modules/evidence/index.js";
 import { driverAppSettingsRouter, meRouter } from "./modules/driver-app/index.js";
 import { alertRoutingRouter, chatRouters, myAlertsRouter, notificationsRouter, messagesRouter } from "./modules/messaging/index.js";
@@ -152,6 +153,10 @@ function mountPublic(app: Express): void {
   app.use("/api/public/application", applicationIntakeLimiter());
   app.use("/api/public/application", packetCeremonyLimiter());
   app.use("/api/public/application", publicApplicationRouter());
+  // The public careers page and its apply form (APPLY-PAGE-PLAN AP2): `/api/public`'s 60-a-minute bucket is its only
+  // limiter, because a check that fails FLAGS a lead and never refuses one (D-AP5). Who hears a new lead crosses in here,
+  // as for Meta's and Tenstreet's leads (recruiting may not import ads).
+  app.use("/api/public/careers", publicCareersRouter({ recipientsFor: leadRecipientsFor }));
 }
 
 /** The P5 finance sections — split out of createApp at the 200-line function budget. The
@@ -307,6 +312,8 @@ function mountApiRouters(app: Express, env: Env): void {
   // Tenstreet's application posts (TS3): the URL secret + Company ID; its own text/xml parser, before the JSON one.
   const tenstreetWarning = tenstreetBootWarning(env);
   if (tenstreetWarning) console.warn(tenstreetWarning);
+  const turnstileWarning = turnstileBootWarning(env); // the careers page's robot check (APPLY-PAGE-PLAN D-AP6)
+  if (turnstileWarning) console.warn(turnstileWarning);
   app.use(TENSTREET_WEBHOOK_PATH, tenstreetWebhookRouter({ kick: (e, admin, n) => drainKindNow(e, admin, "tenstreet_post_process", n) }));
   app.use(META_WEBHOOK_PATH, metaWebhookRouter({ kick: (e, admin, n) => drainKindNow(e, admin, "ads_lead_fetch", n) })); // Meta leadgen (ads B4b): X-Hub-Signature-256; no user auth
   app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth

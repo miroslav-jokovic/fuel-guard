@@ -89,7 +89,7 @@ export interface CareersPageStatus {
   accommodationPhone: string | null;
   /** `<WEB_APP_URL>/careers/<handle>`, the link the company website points at; null until a handle is saved. */
   publicUrl: string | null;
-  /** Whether the server holds Turnstile's secret (D-AP6). Off: every application is recorded as "not checked". */
+  /** Whether the server holds both of Turnstile's keys (D-AP6). Off: every application is recorded as "not checked". */
   robotCheckReady: boolean;
   /** Every opening except closed ones, with whether it is published and why not. */
   openings: CareersPageOpening[];

@@ -17,6 +17,9 @@
 export { recruitmentRouter } from "./routes/index.js";
 export { mvrReportReadGate } from "./mvrReadGate.js";
 export { publicApplicationRouter } from "./routes/publicApplication.js";
+// The public careers page and its apply form (APPLY-PAGE-PLAN AP2); its Turnstile boot line beside Tenstreet's.
+export { publicCareersRouter } from "./routes/publicCareers.js";
+export { turnstileBootWarning } from "./careers/applyChecks.js";
 export { runApplicationNudgesOnce } from "./applicationNudgeSweep.js";
 export { loadScreeningReadiness } from "./screeningReadiness.js";
 export { dobCsvTemplate, importDriverDob } from "./dobImport.js";

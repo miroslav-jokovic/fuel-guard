@@ -34,6 +34,9 @@ const PUBLIC_PREFIXES = new Set([
   // POST body is the credential (routes/publicPasswordReset.ts), rate-limited in app.ts (0363).
   "/api/public/password-reset",
   "/api/public/application",
+  // The careers page and its apply form (APPLY-PAGE-PLAN AP2): a stranger looking for a job has no account BY
+  // DEFINITION; `/api/public`'s 60-a-minute bucket meters it, and its checks flag rather than refuse (D-AP5).
+  "/api/public/careers",
   "/api/version",
 ]);
 
@@ -46,10 +49,15 @@ const PUBLIC_PREFIXES = new Set([
  * function — which is exactly how `/api/me/notifications` escaped it when it was wired up. A router
  * that hides from the auth check is the one failure this file exists to make impossible, so the
  * detector must not have a shape it cannot see.
+ *
+ * ⚠ It also allows a factory that TAKES ARGUMENTS (`xRouter({ … })`). Until 2026-11-20 it matched only `xRouter()`,
+ * so `/api/ads` and `/api/drug-alcohol` — each handed its dependencies at the composition root — were never
+ * discovered. Found while mounting the careers page (APPLY-PAGE-PLAN AP2), which takes its own; both older mounts
+ * pass every check now that they are seen.
  */
 function mountedApiRouters(): string[] {
   const src = readFileSync(new URL("./app.ts", import.meta.url), "utf8");
-  const re = /app\.use\("(\/api\/[^"]+)"\s*,[^\n]*?\w+Router\(\)[^\n]*\)/g;
+  const re = /app\.use\("(\/api\/[^"]+)"\s*,[^\n]*?\w+Router\([^\n]*\)/g;
   return [...src.matchAll(re)].map((m) => m[1]!);
 }
 

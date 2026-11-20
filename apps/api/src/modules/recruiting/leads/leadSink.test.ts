@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { HIRING_PROFILE_V1, type PlatformLead } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { postgrestFixture } from "../../../testing/postgrestFixture.js";
-import { newLeadBell, recruitingLeadSink, type LeadMatches } from "./leadSink.js";
+import { acceptLeadProjection, newLeadBell, recruitingLeadSink, type LeadMatches } from "./leadSink.js";
 
 /**
  * §4R Lead intake, L2: what a person can type into a form, through the real projection and the real sink. The
@@ -170,6 +170,46 @@ describe("who the bell rings for (LQ6, Q-AD63 (a))", () => {
     const rec = seedRemembering();
     await accept(rec, metaLead({ full_name: "Sam Hall", phone_number: "7082365700", class_a_held: "yes", hazmat_endorsement: "no" }));
     expect(rung(rec)).toBe(1);
+  });
+});
+
+describe("a flagged careers-page submission (APPLY-PAGE-PLAN D-AP5): quiet", () => {
+  const projection = {
+    channel: "apply_page", external_ref: "form-1", source: "careers_page", campaign_ref: null, opening_id: OPENING,
+    platform_created_at: NOW.toISOString(), raw: {}, answers: { class_a_held: "yes" }, full_name: "Ray Driver",
+    phone_e164: "+17082365732", email_lower: null,
+  };
+  const seedQuiet = () => createSupabaseRecorder({
+    tables: {
+      recruiting_leads: [],
+      recruiting_openings: postgrestFixture([{ org_id: ORG, id: OPENING, recruiter_id: null }]),
+      recruiting_opening_versions: postgrestFixture([{ org_id: ORG, opening_id: OPENING, version: 2, profile_version_id: PV }]),
+      hiring_profile_versions: postgrestFixture([{ org_id: ORG, id: PV, requirements: HIRING_PROFILE_V1 }]),
+      lead_match_verdicts: (q: RecordedQuery) => (q.write?.method === "insert" ? { data: q.write.payload } : []),
+      memberships: [], driver_app_features: [], sms_suppressions: [], phone_lookups: [],
+    },
+    rpc: (fn) => (fn === "ingest_lead" ? { lead_id: LEAD, stored: "new", matches: { leads: [], drivers: [] } } : "note-1"),
+  });
+  // Never asked: a quiet lead must not reach Telnyx, and a loud one goes through `phone_lookups` first.
+  const lookup = { client: { lookup: async () => { throw new Error("not in this test"); } }, dailyMax: 10 } as never;
+  const rung = (rec: SupabaseRecorder) => rec.rpcs().filter((c) => c.fn === "emit_notification").length;
+
+  it("is stored, judged and given its opening's owner, rings nobody, and its number is not looked up", async () => {
+    const rec = seedQuiet();
+    const r = await acceptLeadProjection(rec.client as never, async () => ["u-dana"], () => NOW, lookup, ORG, projection, { quiet: true });
+    expect(r.stored).toBe("new");
+    expect(rec.writtenRows("lead_match_verdicts").length).toBeGreaterThan(0);
+    expect(rec.forTable("recruiting_openings").length).toBeGreaterThan(0);
+    expect(rung(rec)).toBe(0);
+    expect(rec.forTable("phone_lookups")).toHaveLength(0);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("the same lead not quiet rings, and its number goes to the lookup", async () => {
+    const rec = seedQuiet();
+    await acceptLeadProjection(rec.client as never, async () => ["u-dana"], () => NOW, lookup, ORG, projection);
+    expect(rung(rec)).toBe(1);
+    expect(rec.forTable("phone_lookups").length).toBeGreaterThan(0);
   });
 });
 

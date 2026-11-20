@@ -30,7 +30,8 @@ import { AUTH_ONLY_MOUNTS } from "./testing/routeLedger.js";
 /** Discover mounts from app.ts source — same detector routeAuth.test.ts uses, same reason. */
 function mountedApiRouters(): string[] {
   const src = readFileSync(new URL("./app.ts", import.meta.url), "utf8");
-  const re = /app\.use\("(\/api\/[^"]+)"\s*,[^\n]*?\w+Router\(\)[^\n]*\)/g;
+  // Matches a factory with arguments too (`xRouter({ … })`), as routeAuth.test.ts does and says why (2026-11-20).
+  const re = /app\.use\("(\/api\/[^"]+)"\s*,[^\n]*?\w+Router\([^\n]*\)/g;
   return [...new Set([...src.matchAll(re)].map((m) => m[1]!))];
 }
 

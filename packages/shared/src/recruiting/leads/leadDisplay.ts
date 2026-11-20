@@ -13,6 +13,7 @@ export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
 
 const CHANNEL_LABELS: Record<string, string> = {
   meta: "Meta ad", phone_call: "Phone call", walk_in: "Walk-in", referral: "Referral", paste: "Pasted post", tenstreet: "Tenstreet",
+  apply_page: "Careers page",
 };
 /** A channel is an open list in the database (0553), so one with no label yet still reads as words. */
 export const leadChannelLabel = (channel: string): string => CHANNEL_LABELS[channel] ?? channel.replace(/_/g, " ");

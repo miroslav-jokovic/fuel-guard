@@ -52,6 +52,15 @@ export function securityMiddleware(env: Env): RequestHandler[] {
   return [securityHeaders(env), permissionsPolicy];
 }
 
+/**
+ * Cloudflare Turnstile, the careers page's robot check (APPLY-PAGE-PLAN D-AP5). Its CSP page (read 2026-11-20) names
+ * this one origin for `script-src` and `frame-src`: the widget is a script that draws an iframe. Its widget page adds
+ * "you must allow connections to this domain", so `connect-src` carries it too. One named origin, never a wildcard,
+ * and Cloudflare's own warning is why the script is not proxied through us: "Proxying or caching this file will cause
+ * Turnstile to fail when future updates are released."
+ */
+const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
+
 function securityHeaders(env: Env) {
   const apiConnectSrc = env.VITE_API_URL ? [env.VITE_API_URL] : [];
   return helmet({
@@ -67,7 +76,7 @@ function securityHeaders(env: Env) {
          * driver types instead — silently, since an
          * unreadable barcode is designed to cost nothing. Only a page served with this header shows it.
          */
-        scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
+        scriptSrc: ["'self'", "'wasm-unsafe-eval'", TURNSTILE_ORIGIN],
         // maplibre-gl runs its tile decoder in a Worker created from a blob: URL.
         workerSrc: ["'self'", "blob:"],
         styleSrc: ["'self'", "'unsafe-inline'"],
@@ -78,6 +87,7 @@ function securityHeaders(env: Env) {
           "https://*.supabase.co",
           "wss://*.supabase.co",
           "https://*.sentry.io",
+          TURNSTILE_ORIGIN,
         ],
         fontSrc: ["'self'", "data:"],
         objectSrc: ["'none'"],
@@ -104,7 +114,7 @@ function securityHeaders(env: Env) {
          * decoder, for the same reason: the bytes never left the page, so the origin is the document
          * itself and there is nothing for an allow-list to name.
          */
-        frameSrc: ["'self'", "blob:", "https://*.supabase.co"],
+        frameSrc: ["'self'", "blob:", "https://*.supabase.co", TURNSTILE_ORIGIN],
       },
     },
   });

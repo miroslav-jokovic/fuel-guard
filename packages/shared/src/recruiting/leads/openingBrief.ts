@@ -69,14 +69,24 @@ export function openingSubjectMatter(facts: OpeningFacts): AdBrief["subject_matt
   return { details: details.slice(0, 12), in_our_words: facts.in_our_words ?? null };
 }
 
+/**
+ * The questions a lead form asks for a profile, as `META_FORM_CATALOGUE` keys: Class A always, years when there is a
+ * floor, the hazmat endorsement only when it is required. One rule for the ad's Instant Form (the brief below) and the
+ * public apply page (APPLY-PAGE-PLAN D-AP3), so a lead is judged the same way whichever form brought it.
+ */
+export function openingFormQuestions(req: HiringRequirements): string[] {
+  const keys = ["class_a_held"];
+  if (req.min_class_a_years.years > 0) keys.push("class_a_years");
+  if (req.hazmat.mode === "required") keys.push("hazmat_endorsement");
+  return keys;
+}
+
 export function openingBrief(o: OpeningForBrief, req: HiringRequirements): AdBrief {
   const claims: AdClaim[] = factClaims(o.facts);
   claims.push({ kind: "quantity", value: req.min_age.years, unit: "age" });
   if (req.min_class_a_years.years > 0) claims.push({ kind: "quantity", value: req.min_class_a_years.years, unit: "year" });
 
-  const form_questions = ["class_a_held"];
-  if (req.min_class_a_years.years > 0) form_questions.push("class_a_years");
-  if (req.hazmat.mode === "required") form_questions.push("hazmat_endorsement");
+  const form_questions = openingFormQuestions(req);
 
   // Parsed, not cast: a brief that does not meet the ads contract is refused here, not at compose.
   return adBriefSchema.parse({
