@@ -140,6 +140,11 @@ Two faults on that site are the owner's to pass to the web developer (§6, AP5):
     (`applicationSms.ts`) reads each consent's `driver_id` and withdraws per driver, so a row with only a `lead_id`
     would stay live after a STOP. It changes to revoke every live consent on the number (0233's
     `revoke_sms_consent`), with a test that plants a lead consent and texts STOP.
+  - **Built 2026-11-21** (`ads-progress/2026-11-21-0030-S-AP2-public-api.md`):
+    - all of the above;
+    - Turnstile's site key is served by the API, so one deploy sets both keys (`TURNSTILE_SITE_KEY` +
+      `TURNSTILE_SECRET_KEY`), and one alone counts as off;
+    - a flagged lead keeps its owner (`acceptLeadProjection`'s `quiet`).
 - **AP3 · The public pages.**
   - `/careers/:handle` and the job page: pay, benefits, requirements, the form, the box, Turnstile and the footer.
   - The privacy policy paragraph.

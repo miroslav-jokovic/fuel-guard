@@ -34,6 +34,8 @@ export const AUTH_ONLY_MOUNTS = new Map<string, string>([
   // Security number was checked by neither. Found while diagnosing A0 (`HIRING-MODULE-PLAN.md` §10);
   // the mount is one line again, which is what put it in front of this ledger.
   ["/api/public/application", "the applicant's own link — they have no account, so the 256-bit token in the path is the credential; it resolves to exactly one invitation's org server-side, answers every dead link with the same sentence, and is rate-limited in app.ts. There is no role to check because there is no user (2026-09-17)"],
+  // APPLY-PAGE-PLAN AP2 (2026-11-20): the careers page replaces the company website's own form (Q-APX34).
+  ["/api/public/careers", "the carrier's public careers page and its apply form — a stranger looking for a job has no account by definition; the handle names one carrier's page only while the office has it ON, every read after the handle is scoped to that org, another carrier's opening answers the same 404 as none, and the only write is a lead through the LeadSink. Its robot checks FLAG a lead and never refuse one (D-AP5), so `/api/public`'s 60-a-minute bucket in app.ts is its limiter (2026-11-20)"],
   ["/api/webhooks", "provider-signed (Samsara HMAC, Telnyx Ed25519) — authenticated, just not by a user role"],
   // F21 R5 (D-AI1, owner's Q-AI2/Q-AI5 rulings 2026-11-10): Ask AI's DATA is gated per TOOL, inside the
   // handler, because one question can need any of several sections and the answer is the person's tool

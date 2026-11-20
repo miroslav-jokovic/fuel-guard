@@ -748,7 +748,8 @@
   ],
   "sms_consents": [
     "apps/api/src/modules/recruiting/applicationInviteText.ts",
-    "apps/api/src/modules/recruiting/applicationSms.ts"
+    "apps/api/src/modules/recruiting/applicationSms.ts",
+    "apps/api/src/modules/recruiting/careers/applySubmit.ts"
   ],
   "sms_outbox": [
     "apps/api/src/modules/recruiting/smsOutbox.ts"

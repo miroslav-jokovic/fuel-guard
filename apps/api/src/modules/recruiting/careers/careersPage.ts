@@ -9,6 +9,7 @@ import {
 } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { listOpenings } from "../leads/hiringSetup.js";
+import { turnstileKeys } from "./applyChecks.js";
 
 /**
  * The careers page's row (APPLY-PAGE-PLAN AP1; 0641's `recruiting_careers_pages`): read and saved by Settings ›
@@ -44,7 +45,7 @@ export async function readCareersPage(admin: SupabaseClient, env: Env, orgId: st
     accommodationEmail: row?.accommodation_email ?? null,
     accommodationPhone: row?.accommodation_phone ?? null,
     publicUrl: row ? careersPageUrl(env, row.handle) : null,
-    robotCheckReady: Boolean(env.TURNSTILE_SECRET_KEY),
+    robotCheckReady: turnstileKeys(env) !== null,
     // A closed opening is history; the office does not need it listed against the page.
     openings: openings
       .filter((o) => o.status !== "closed")

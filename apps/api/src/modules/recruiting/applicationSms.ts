@@ -156,6 +156,8 @@ export async function withdrawSmsConsent(
   orgId: string,
   driverId: string,
   reason: string,
+  /** A number the caller already revoked (a STOP's own), left out so it is not revoked and counted twice. */
+  except: string | null = null,
 ): Promise<number> {
   const { data } = await admin
     .from("sms_consents")
@@ -163,7 +165,7 @@ export async function withdrawSmsConsent(
     .eq("org_id", orgId)
     .eq("driver_id", driverId)
     .is("revoked_at", null);
-  const phones = [...new Set(((data ?? []) as { phone: string }[]).map((r) => r.phone))];
+  const phones = [...new Set(((data ?? []) as { phone: string }[]).map((r) => r.phone))].filter((p) => p !== except);
   let revoked = 0;
   for (const phone of phones) {
     const { data: count } = await admin.rpc("revoke_sms_consent", { p_org: orgId, p_phone: phone, p_reason: reason });
@@ -380,14 +382,22 @@ async function honourStop(admin: SupabaseClient, phone: string, body: string): P
     .select("org_id, driver_id, granted_at")
     .eq("phone", phone)
     .order("granted_at", { ascending: false });
-  const rows = (data ?? []) as { org_id: string; driver_id: string }[];
+  const rows = (data ?? []) as { org_id: string; driver_id: string | null }[];
   const reason = `inbound: ${body.trim().slice(0, 60)}`;
 
   let revoked = 0;
   for (const orgId of [...new Set(rows.map((r) => r.org_id))]) {
-    const drivers = [...new Set(rows.filter((r) => r.org_id === orgId).map((r) => r.driver_id))];
-    for (const driverId of drivers) revoked += await withdrawSmsConsent(admin, orgId, driverId, reason);
-    // The newest consent's applicant is the one the suppression names; the number is what it keys on.
+    // ⚠ A consent may belong to a LEAD, with no driver (0641, the careers page's box). Withdrawing per driver alone
+    // left such a row live after a STOP — the one failure a consent regime cannot explain — so the number's own
+    // consents in this org are revoked first, whoever they belong to (0233's `revoke_sms_consent`, by number).
+    const { data: n, error } = await admin.rpc("revoke_sms_consent", { p_org: orgId, p_phone: phone, p_reason: reason });
+    if (error) throw new Error(`revoke_sms_consent: ${error.message}`);
+    revoked += Number(n ?? 0);
+    // Then each applicant's OTHER numbers, as before: the SMS terms promise a STOP ends texts "for every application
+    // on that number and every other number you gave for the same application". This number is already done above.
+    const drivers = [...new Set(rows.filter((r) => r.org_id === orgId && r.driver_id).map((r) => r.driver_id!))];
+    for (const driverId of drivers) revoked += await withdrawSmsConsent(admin, orgId, driverId, reason, phone);
+    // The newest consent's applicant is the one the suppression names (none for a lead); the number is what it keys on.
     await suppressNumber(admin, orgId, drivers[0] ?? null, phone, "stop");
   }
   if (rows.length > 0) console.log("[application-sms] opt-out honoured", { to: redactNumber(phone), revoked });

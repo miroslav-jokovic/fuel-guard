@@ -11,6 +11,7 @@ export * from "./tenstreetProjection.js";
 export * from "./tenstreetConnectionContract.js";
 export * from "./tenstreetDrawer.js";
 export * from "./careersPageContract.js";
+export * from "./applyPageContract.js";
 export * from "./leadStanding.js";
 export * from "./leadDisplay.js";
 export * from "./openingBrief.js";

@@ -151,13 +151,19 @@ describe("GET — what the card is told", () => {
     expect(byId["o-empty"]).toMatchObject({ title: null, unpublished: "no_version" });
   });
 
-  it("the robot check is ready only when the server holds Turnstile's secret", async () => {
+  it("the robot check is ready only when the server holds BOTH of Turnstile's keys; one alone is not ready", async () => {
     seed();
     expect((await status()).robotCheckReady).toBe(false);
-    await start(makeEnv({ TURNSTILE_SECRET_KEY: "0x4AAAAAAA-secret" }));
     try {
-      seed();
-      expect((await status()).robotCheckReady).toBe(true);
+      for (const [keys, ready] of [
+        [{ TURNSTILE_SECRET_KEY: "0x4AAAAAAA-secret" }, false],
+        [{ TURNSTILE_SITE_KEY: "0x4AAAAAAA-site" }, false],
+        [{ TURNSTILE_SITE_KEY: "0x4AAAAAAA-site", TURNSTILE_SECRET_KEY: "0x4AAAAAAA-secret" }, true],
+      ] as const) {
+        await start(makeEnv(keys));
+        seed();
+        expect((await status()).robotCheckReady, JSON.stringify(keys)).toBe(ready);
+      }
     } finally {
       await start(makeEnv());
     }

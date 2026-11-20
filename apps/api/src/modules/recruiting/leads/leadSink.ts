@@ -84,9 +84,10 @@ export function recruitingLeadSink(
 }
 
 /**
- * The sink's road for a lead already projected: a platform lead (`accept`, above) and a Tenstreet post
- * (`recruiting/tenstreet/processPost.ts`) take the same steps after the store — owner, bell, number — so a
- * Tenstreet applicant is rung like an ad lead, by the same rules.
+ * The sink's road for a lead already projected: a platform lead (`accept`, above), a Tenstreet post
+ * (`recruiting/tenstreet/processPost.ts`) and an apply-page submission (`recruiting/careers/applySubmit.ts`) take the
+ * same steps after the store — owner, bell, number — so each is rung like an ad lead, by the same rules. `quiet`
+ * (the apply page's flagged submissions only) keeps the owner and skips the bell and the lookup.
  */
 export async function acceptLeadProjection(
   admin: SupabaseClient,
@@ -95,10 +96,19 @@ export async function acceptLeadProjection(
   lookup: PhoneLookupDeps | null,
   orgId: string,
   projection: LeadProjection,
+  opts: { quiet?: boolean } = {},
 ): Promise<{ stored: "new" | "duplicate"; ref: string; contactable: boolean }> {
   const r = await ingestLead(admin, orgId, projection, clock());
   const contactable = projection.phone_e164 !== null || projection.email_lower !== null;
-  if (r.stored === "new") {
+  if (r.stored === "new" && opts.quiet) {
+    // A flagged apply-page submission (APPLY-PAGE-PLAN D-AP5): stored, judged, owned and listed with its flags, but
+    // nobody is rung and the number is not looked up — a bot can type a stranger's number, and ringing it or paying to
+    // look it up would act on a number nobody vouched for.
+    await assignFromOpening(admin, orgId, r.lead_id, projection.opening_id).catch((err: unknown) => {
+      console.error(`[lead-assign] org ${orgId}: lead ${r.lead_id} left unowned: ${err instanceof Error ? err.message : String(err)}`);
+    });
+    console.log(`[lead-notify] org ${orgId}: lead ${r.lead_id} stored flagged; not rung, not looked up`);
+  } else if (r.stored === "new") {
     const owner = await assignFromOpening(admin, orgId, r.lead_id, projection.opening_id).catch((err: unknown) => {
       console.error(`[lead-assign] org ${orgId}: lead ${r.lead_id} left unowned: ${err instanceof Error ? err.message : String(err)}`);
       return null;
