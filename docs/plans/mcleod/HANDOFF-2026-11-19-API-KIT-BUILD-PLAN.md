@@ -9,6 +9,18 @@ CLAUDE.md first). Work in the worktree **`/Users/miroslavjokovic/Projects/FG-mcl
 **`claude/mcleod-api-kit-build-plan`** (pushed; = main + commit `6a70d36a2`). Do not work in the main
 checkout — it is on another chat's branch.
 
+## READ FIRST — the audit of 2026-11-20 supersedes parts of this handoff
+The owner asked for an audit of the specs before v2 is written. Six independent audits found the specs
+cite code accurately but cannot be built as written (two incompatible write pipelines, Postgres
+function-change errors, tests that would turn red, McLeod facts assumed). **Read
+`docs/plans/mcleod/AUDIT-2026-11-20-API-KIT-SPECS.md` before anything else**: §1 corrects the `/ws`
+facts (W1–W12), §2 lists the resolutions v2 must adopt (including the reconciled three-table pipeline
+from `api-kit-audit/C.md`), §4 lists the eight owner rulings O-1..O-8 (v2 shows each with its
+recommendation; nothing is built against them until ruled). Full evidence (file:line, URLs):
+`docs/plans/mcleod/api-kit-audit/{A,B,C,D,WS,X}.md`. Where this handoff and the audit disagree, the
+audit wins (e.g. "Settlement/Billing read-only" is wrong; `equipStatus/create` is Drivers-role only;
+the stop write is enqueued in SQL inside `driver_complete_stop`). The branch now also merges main.
+
 ## The owner's request (2026-11-19, verbatim intent)
 The owners bought McLeod's full API Kit (~$750/month) so Silvicom 360 can be a custom front end for
 McLeod: read through the API and WRITE. The owner asked for **one plan that they will verify, with only
