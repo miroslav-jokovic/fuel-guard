@@ -30,16 +30,19 @@ export function DayRows({ rows, children }: { rows: readonly DayRow[]; children?
  * One `DayRow` as `ListRow` props, for a group that is not a `DayRows` (the pre-shift rig row joins
  * the attention queue's group). A plain `ListRow` keeps `GroupedList`'s separator inset reading the
  * row's own `icon`, which a wrapper component would hide.
+ *
+ * `push` takes the row's optional href as it is, the way `AttentionQueue` does: the `Href` cast at the
+ * call site is then needed whether or not Expo has generated its typed routes (it has locally, not
+ * in CI), so lint agrees in both places.
  */
-export function dayRowProps(row: DayRow, push: (href: string) => void): ComponentProps<typeof ListRow> {
-  const href = row.href;
+export function dayRowProps(row: DayRow, push: (href: string | undefined) => void): ComponentProps<typeof ListRow> {
   return {
     icon: row.icon,
     disc: row.tone,
     title: row.title,
     subtitle: row.subtitle,
     right: <Trailing row={row} />,
-    onPress: href ? () => push(href) : undefined,
+    onPress: row.href ? () => push(row.href) : undefined,
   };
 }
 
