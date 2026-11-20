@@ -311,6 +311,30 @@ load and its default tab then fits; on the board every visible option pushes Not
 price is one click away there in the truck drawer. R3 ships D-RATE8 as written until the owner rules; the
 ruling is a column-default change in `loadListColumns.ts` / `AssignmentsPage.vue`, no API change.
 
+**Ruled 2026-11-20 — "proceed with b".** Read as the recommendation whole: (b) on Loads, (c) on the
+board (the owner may still ask for the board's Rate visible — one entry out of `BOARD_DEFAULT_HIDDEN`).
+Built on branch `claude/load-rates-q-rate1`: Loads shows one **Rate** column whose second line is the
+rate per mile (`LoadRateCell` `perMileLine`); **Per mile** stays in Columns, hidden by default
+(`RATE_DEFAULT_HIDDEN`); the board's **Rate** is in Columns, hidden by default (`BOARD_DEFAULT_HIDDEN`).
+
+Measured after the change, Chromium 1440 × 900, driver names sized from production (read-only, 2026-11-20:
+in-transit loads 131, longest name 22 characters, 4 of them ≥ 22; all loads longest 25, p90 of open loads 18):
+
+| Table (holder) | Names 18 ch | Names 22 ch | Same table without rates |
+|---|---|---|---|
+| Board | 28 px over | 28 px over | 28 px over (the fixture's own content, not the rate) |
+| Loads, In transit | fits | fits | fits |
+| Loads, All (Delivered column) | 94 px over | 124 px over | fits / 23 px over |
+
+So (b) makes the default tab fit and leaves the All tab scrolling sideways by about one column (Rate draws
+101–116 px). Hiding Rate on the All tab too would be a per-tab column default, which `useTableColumns` does
+not have (one hidden-list per table) — not built; ask if the All tab's scroll matters.
+
+Known limit, by design of `useTableColumns`: it stores the list of columns a reader HID, so a reader who
+has already changed this table's columns in this browser sees a new column whatever its default. A holder
+who customised Loads or the board before this change sees Per mile / the board's Rate until they hide it
+once. Everyone else gets the defaults above.
+
 ## 7. Done means
 
 - Production: an admin sees Rate on Loads, on the board and on a load page, and the figure equals
@@ -352,3 +376,8 @@ ruling is a column-default change in `loadListColumns.ts` / `AssignmentsPage.vue
   2 permission, 10 web unit, 7 page/drawer. Mutants: 9 API + 12 web/shared, all killed by assertions.
   Browser pass at 1440 (admin, dispatcher off, dispatcher on): withholding holds on all three screens;
   the widths do not fit — Q-RATE1 (§6.1).
+- 2026-11-20 — Q-RATE1 ruled "(b)" and built (branch `claude/load-rates-q-rate1`): Loads one Rate column
+  with the per mile on its second line, Per mile hidden by default; the board's Rate hidden by default
+  (recommendation's (c), §6.1). Re-measured at 1440 with production-sized driver names: board unchanged,
+  Loads In transit fits, Loads All 94–124 px over. Tests updated (board starts with Rate hidden, `?hide=`
+  shows it after Miles left; Loads draws one Rate header with "$2.31 / mi"); 4 mutants killed.
