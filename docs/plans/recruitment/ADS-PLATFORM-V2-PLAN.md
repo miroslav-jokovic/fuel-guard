@@ -1139,6 +1139,38 @@ carrier's web site to be linked from.
   its own terms; on our page it would be ours alone, which is the question counsel holds.
 - (c) Drop it: leads come from ads, Tenstreet and Indeed, and the invite stays the only apply page.
 
+### Q-APX29 to Q-APX33 · V7's waiting questions, researched — OPEN, 2026-11-20
+
+The owner asked for research and the best answers (2026-11-20). The research, sources and full proposals are in
+[`V7-OPEN-QUESTIONS-RESEARCH-2026-11-20.md`](V7-OPEN-QUESTIONS-RESEARCH-2026-11-20.md). In one line each:
+
+- **Q-APX29 · Tenstreet's rulings.** (a) recommended:
+  - SSN and EEO answers are REMOVED from the post before it is sealed or logged; the plan had kept them sealed.
+  - Tenstreet's status is shown, never obeyed.
+  - A deletion request hides the lead at once and purges the SSN-free post one year after receipt. 29 CFR 1602.14 and
+    56 Ill. Adm. Code 2520.110 hold application records a year; the plan's fallback was "purge at once".
+  - Hires link through our own conversion.
+- **Q-APX30 · Tenstreet's mechanics.** (a) recommended: one complete message to integrations@tenstreet.com covering
+  auth and IPs, retries, full record or delta, leaving out SSN and EEO, and the carrier's question ids. Meanwhile
+  TS1–TS3 are built on the plan's defaults.
+- **Q-APX31 · The apply page.** (a) recommended: one public page per opening, carrying:
+  - its pay range and benefits — an opening with no top of range is not published (Illinois Equal Pay Act);
+  - the Instant Form's questions, no criminal history (Illinois JOQAA);
+  - a separate, unchecked, optional texting box in the drafted wording, with its proof stored;
+  - Turnstile, a honeypot and rate limits — failing them flags the lead, never refuses it;
+  - EEO, privacy and accommodation notices, built to WCAG 2.2 AA.
+  It doubles as the careers page Indeed requires. Counsel confirms three points rather than drafting from nothing.
+- **Q-APX32 · Indeed.** (a) recommended:
+  - The Indeed admin checks the Integrations Hub and CSV-export eligibility, and asks Client Success for the Developer
+    Agreement as a direct employer.
+  - We build the Indeed Apply receiver, the screener file and Job Sync on the shared careers pages.
+  - Indeed reviews it (about 6 weeks); Disposition Sync follows.
+- **Q-APX33 · Meta's qualified-lead goal (Q-AD17) and the pay rule.** (a) recommended:
+  - Put the exact QUALITY_LEAD-under-EMPLOYMENT check (validate-only, with two controls) into the sandbox readings
+    now, so the first certify run answers Q-AD17 by a recording.
+  - The goal is a launch-time choice, since `promoted_object` is fixed when the ad set is created.
+  - Hold every ad to the same pay-range rule if counsel confirms an ad is a "job posting".
+
 ### Q-APX20 · A motion ad's file has no size cap; the store takes 15 MB — RULED (a), 2026-11-19
 
 **What was measured (2026-11-19, while building Q-APX17).** The join asks the encoder for a quality (`-crf 18`), not a
@@ -1292,6 +1324,11 @@ Progress: `ads-progress/2026-11-19-1800-W-V5-assisted-start.md`. **V5 is built**
 | Q-APX26 | What "qualified" counts in the report; a source with no spend | **ruled (a) 2026-11-20, §5a**: a recruiter's qualify or later; "no spend recorded", never $0; built (V7d) | — |
 | Q-APX27 | Tenstreet's receiver | **ruled (a) 2026-11-20, §5a**: its own track, after the meeting's answers and D-TS4/5/8 | owner (D-TS4/5/8) |
 | Q-APX28 | A public apply page | **ruled (a) 2026-11-20, §5a**: its own step after V7a–e, with Q-AD52's consent answer | counsel (Q-AD52) |
+| Q-APX29 | Tenstreet: SSN, EEO, status, deletion, linking hires | **(a)** strip SSN and EEO before sealing; show status; hide then purge after 1 year; our own conversion | owner |
+| Q-APX30 | Tenstreet: auth, retries, delta, field exclusion | **(a)** one message to integrations@tenstreet.com; build on the plan's defaults meanwhile | owner sends |
+| Q-APX31 | The public apply page and texting consent (Q-AD52) | **(a)** the drafted page and wording; counsel confirms three points | owner + counsel |
+| Q-APX32 | Indeed | **(a)** Indeed admin asks for the Developer Agreement; we build receiver + careers pages; ~6-week review | Indeed admin |
+| Q-APX33 | Q-AD17 and the pay rule for ads | **(a)** the sandbox reading now; goal chosen at launch; ads held to the pay range if counsel confirms | owner |
 | — | Meta app (id `META_APP_ID` and secret), system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 **2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want
