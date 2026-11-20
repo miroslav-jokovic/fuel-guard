@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { handleJob, runLoop, sleepUnless } from "./station.mjs";
+import { REFUSED_RETRY_MS, handleJob, runLoop, sleepUnless } from "./station.mjs";
 
 // The loop with a scripted API: what the station does with a job, a print failure, an outage and a
 // refusal — without a network, a printer or a real clock.
@@ -56,7 +56,7 @@ test("the hello carries the serial ports and scanner states, and hands its answe
   assert.equal(await runLoop(CONFIG, h.deps), "stopped");
   assert.deepEqual(h.calls[0].body.serialPorts, [{ name: "COM3", vendorId: "0581", productId: "0215" }]);
   assert.deepEqual(h.calls[0].body.scannerStates, [{ scannerId: scanner.id, state: "reading", portName: "COM3" }]);
-  assert.equal(h.calls[0].body.agentVersion, "1.1.0");
+  assert.equal(h.calls[0].body.agentVersion, "1.2.0");
   assert.deepEqual(synced, [[scanner]]);
 });
 
@@ -83,10 +83,25 @@ test("an outage is waited out, not fatal", async () => {
   assert.equal(h.calls.filter((c) => c.path.endsWith("/jobs/next")).length, 3);
 });
 
-test("a refused token stops the station instead of hammering the server", async () => {
-  const h = harness([{ status: 401, body: { error: { code: "unauthorized", message: "Invalid print station token" } } }, { status: 204 }]);
-  assert.equal(await runLoop(CONFIG, h.deps), "refused");
-  assert.equal(h.calls.filter((c) => c.path.endsWith("/jobs/next")).length, 1);
+test("a refusal is waited out, not fatal: the station asks again later with the config re-read", async () => {
+  // 2026-11-15: the server answered 401 to a VALID token during a database outage, and a station that
+  // stopped on a refusal stayed stopped for five days. It must come back by itself.
+  const h = harness([
+    { status: 401, body: { error: { code: "unauthorized", message: "Invalid print station token" } } },
+    { status: 401, body: { error: { code: "unauthorized", message: "Invalid print station token" } } },
+    { status: 200, body: { ok: true, job: JOB } },
+    { status: 200, body: { ok: true, status: "printed" } },
+  ]);
+  const slept = [];
+  h.deps.sleep = async (ms) => slept.push(ms);
+  let reloads = 0;
+  h.deps.reloadConfig = () => ({ ...CONFIG, token: `t0k${++reloads}` });
+  const config = { ...CONFIG };
+  assert.equal(await runLoop(config, h.deps), "stopped");
+  assert.deepEqual(h.printed, [{ name: "MUNBYN RW403B", bytes: "SIZE" }], "prints once accepted again");
+  assert.deepEqual(slept, [REFUSED_RETRY_MS, REFUSED_RETRY_MS], "waits five minutes per refusal, never hammers");
+  assert.equal(h.calls.at(-1).auth, "Bearer t0k2", "uses the token re-read from the config file");
+  assert.equal(config.token, "t0k2", "updates the shared config in place, for the scanner relay");
 });
 
 test("a report that cannot land is retried, then left for Silvicom to call unknown", async () => {

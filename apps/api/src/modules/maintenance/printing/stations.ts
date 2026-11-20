@@ -185,7 +185,17 @@ export async function pairStation(
 }
 
 /** Who is calling, from the bearer token — or null for any token that is not a live station's. */
-export async function stationForToken(admin: SupabaseClient, token: string): Promise<StationRow | null> {
+/**
+ * The station a token belongs to: the row, `null` when no live station holds it (wrong, revoked, or
+ * re-paired elsewhere), or a `ServiceError` when the database did not answer.
+ *
+ * Those last two must never be confused. Until 2026-11-20 a failed lookup returned `null` too, so the
+ * route told the station "Invalid print station token" — and the station, reading that as a
+ * revocation, stopped for good. That is what happened in the 2026-11-15 outage: the office label
+ * printer's station was refused at 17:43Z while its token was valid, and nothing printed for five
+ * days, until somebody restarted it by hand. A database fault is a 503 the station waits out.
+ */
+export async function stationForToken(admin: SupabaseClient, token: string): Promise<StationRow | null | ServiceError> {
   if (token.length < 20 || token.length > 200) return null;
   const { data, error } = await admin
     .from("print_stations")
@@ -193,8 +203,8 @@ export async function stationForToken(admin: SupabaseClient, token: string): Pro
     .eq("token_hash", sha256(token))
     .is("revoked_at", null)
     .maybeSingle();
-  if (error || !data) return null;
-  return data as StationRow;
+  if (error) return { code: "station_lookup_failed", error: "Could not check the print station's token; try again" };
+  return (data as StationRow | null) ?? null;
 }
 
 /** The station says what it is and which printers its operating system has; also a heartbeat. */

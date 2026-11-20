@@ -317,6 +317,13 @@ describe("pairing", () => {
     expect(q.ops.some((o) => o.method === "is" && o.args[0] === "revoked_at")).toBe(true);
   });
 
+  it("a lookup the database failed is an error, never the null that means 'no such station'", async () => {
+    // 2026-11-15: a failed lookup answered null → 401 → the office station stopped for five days.
+    const token = "t".repeat(43);
+    rec = createSupabaseRecorder({ tables: { print_stations: { error: { message: "connection refused" } } } });
+    expect(await stationForToken(rec.client, token)).toMatchObject({ code: "station_lookup_failed" });
+  });
+
   it("a station is online only while it has checked in recently, and never when revoked", () => {
     const now = Date.parse("2026-10-28T15:00:00Z");
     const base = {
