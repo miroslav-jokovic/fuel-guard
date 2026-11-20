@@ -176,6 +176,41 @@ describe("LR4 — the projection, raw → core", () => {
     expect(del.filters()).toContainEqual({ col: "status", val: "pending" });
   });
 
+  // LOAD-RATES-PLAN D-RATE2/D-RATE3. The charges are added to the agent's output by hand until R4 makes the
+  // agent produce them; the raw read-back serves exactly what was posted.
+  it("prices a loaded load in load_charges, and clears the price of one McLeod no longer prices — every query scoped", async () => {
+    const CHARGES = {
+      total_charge: 3620, freight_charge: 3500, otherchargetotal: 120, total_charge_c: "USD",
+      bill_distance: 836, bill_distance_um: "MI", order_loaded_movements: 2,
+    };
+    // 900: loaded and new. 901: known, now an EMPTY movement of its order (D-RATE3). 902: no order, refused.
+    const [m900, m901, m902] = board();
+    const movements = [{ ...m900, ...CHARGES }, { ...m901, ...CHARGES, loaded: "E" }, { ...m902, ...CHARGES }];
+    const rec = seed(movements);
+    holder.client = rec.client;
+    const res = await post({ company_id: "TMS", movements });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { projection: { charges: number } }).projection.charges).toBe(1);
+
+    expect(rec.writtenRows("load_charges")).toEqual([{
+      load_id: "new-0", org_id: ORG, total_charge: 3620, linehaul: 3500, other_charges: 120, currency: "USD",
+      billed_miles: 836, order_loaded_movements: 2, updated_at: expect.any(String),
+    }]);
+    const upsert = rec.forTable("load_charges").find((q) => q.write?.method === "upsert")!;
+    expect(upsert.ops.find((o) => o.method === "upsert")!.args[1]).toEqual({ onConflict: "load_id" });
+    const del = rec.forTable("load_charges").find((q) => q.write?.method === "delete")!;
+    expect(del.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "load_id", val: [EXISTING_LOAD] }]));
+    // The price never rides on `loads`, which every org member can read from a browser (0085).
+    for (const row of rec.writtenRows("loads")) expect(Object.keys(row)).not.toContain("charge");
+    expectOrgScoped(rec, ORG, { exempt: ["org_integrations"] });
+  });
+
+  it("before the connector reads charges, nothing is priced and no price is written", async () => {
+    const { rec, body } = await run();
+    expect(body.projection.charges).toBe(0);
+    expect(rec.forTable("load_charges").filter((q) => q.write?.method === "upsert")).toEqual([]);
+  });
+
   it("records the history: created for the new load, completed when McLeod delivers the known one", async () => {
     const { rec } = await run();
     const events = rec.writtenRows("load_events");

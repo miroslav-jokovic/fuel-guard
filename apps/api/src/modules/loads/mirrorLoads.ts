@@ -38,6 +38,8 @@ export interface MirrorWriteResult {
   updated: number;
   statusChanged: number;
   stops: number;
+  /** Loads written with a price to `load_charges` (0639) this sync. */
+  charges: number;
 }
 
 const READ_CHUNK = 200;
@@ -127,6 +129,40 @@ async function writeStops(admin: SupabaseClient, orgId: string, byLoad: Map<stri
   return rows.length;
 }
 
+/**
+ * What each projected load pays → `load_charges` (0639, LOAD-RATES-PLAN D-RATE2, D-RATE3).
+ *
+ * A load the projection priced gets its row written whole (every column, `lint:upserts`), keyed on the
+ * load. A load it did NOT price loses any row it had: McLeod voided it, turned it empty, or stopped stating
+ * a total, and a figure McLeod no longer states must not stay on the screen. Before the Board VM runs the
+ * connector that reads charges, every load is unpriced and every delete finds nothing.
+ *
+ * ⚠ The rows never reach a browser: the table has RLS on and no policy. Who is SENT a figure is decided
+ * where it is read (D-RATE7), never here.
+ */
+async function writeCharges(
+  admin: SupabaseClient,
+  orgId: string,
+  byLoad: Map<string, MirroredLoad>,
+  syncedAt: string,
+): Promise<number> {
+  const rows: Record<string, unknown>[] = [];
+  const unpriced: string[] = [];
+  for (const [loadId, l] of byLoad) {
+    if (l.charge) rows.push({ load_id: loadId, org_id: orgId, ...l.charge, updated_at: syncedAt });
+    else unpriced.push(loadId);
+  }
+  for (let i = 0; i < unpriced.length; i += READ_CHUNK) {
+    const { error } = await admin.from("load_charges").delete().eq("org_id", orgId).in("load_id", unpriced.slice(i, i + READ_CHUNK));
+    if (error) throw new Error(`[mcleod-mirror] could not clear prices no longer stated: ${error.message}`);
+  }
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await admin.from("load_charges").upsert(rows.slice(i, i + 500), { onConflict: "load_id" });
+    if (error) throw new Error(`[mcleod-mirror] prices not recorded: ${error.message}`);
+  }
+  return rows.length;
+}
+
 /** The four roster links a mirrored load holds, as the relink pass compares them (D-LA3). */
 export interface MirroredLinks {
   external_id: string;
@@ -168,7 +204,7 @@ export async function applyMirroredLoads(
   provider: string,
   loads: MirroredLoad[],
 ): Promise<MirrorWriteResult> {
-  if (!loads.length) return { created: 0, updated: 0, statusChanged: 0, stops: 0 };
+  if (!loads.length) return { created: 0, updated: 0, statusChanged: 0, stops: 0, charges: 0 };
   const syncedAt = new Date().toISOString();
   const existing = await readExisting(admin, orgId, provider, loads.map((l) => l.external_id));
   const events: Record<string, unknown>[] = [];
@@ -216,10 +252,11 @@ export async function applyMirroredLoads(
   }
 
   const stops = await writeStops(admin, orgId, byLoad);
+  const charges = await writeCharges(admin, orgId, byLoad, syncedAt);
   if (events.length) {
     // Best-effort, like the ingest's: a lost timeline row must not fail the sync that the load itself survived.
     const { error } = await admin.from("load_events").insert(events);
     if (error) console.error(`[mcleod-mirror] ${events.length} load event(s) not recorded: ${error.message}`);
   }
-  return { created: creates.length, updated: updates.length, statusChanged, stops };
+  return { created: creates.length, updated: updates.length, statusChanged, stops, charges };
 }

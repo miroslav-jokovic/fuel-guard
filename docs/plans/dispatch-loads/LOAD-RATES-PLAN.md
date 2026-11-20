@@ -300,3 +300,11 @@ because the two tables belong to two modules, `lint:table-modules`, as 0383/0384
   negative other charges on 10 orders, $0 totals on 10, total = linehaul + other on 13,478 / 13,478.
   Corrections to this plan from those measurements: seven columns, not ten (D-RATE1); two migration
   files, not one (R1); exact core columns (D-RATE2).
+- 2026-11-20 — R2 built (branch `claude/load-rates-r2-data-path`): the seven keys optional on the mirror
+  contract and refused unless all-or-none per movement and per batch (`orderChargeProblem`); the ingest
+  names the seven raw columns only when the batch carries them; the pure `projectLoadCharge` (loaded, not
+  voided, a stated total; miles only in `MI`); `loads/mirrorLoads.ts` `writeCharges` writes priced loads
+  whole and deletes the price of a load the projection no longer prices. Tests: 14 projection, 9 contract,
+  4 ingest, 2 projection-over-the-wire; seven mutants (empty priced, void priced, miles in any unit, mixed
+  batch accepted, absent written as null, stale price kept, delete unscoped) all killed. Producer waiver
+  removed; writer registered in `scripts/table-writers.json`.
