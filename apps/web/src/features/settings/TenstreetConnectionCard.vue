@@ -59,6 +59,10 @@ watch(
 );
 
 const s = computed(() => status.data.value);
+const pickMode = (v: string): void => {
+  const picked = MODES.find((m) => m.value === v);
+  if (picked) mode.value = picked.value;
+};
 const busy = computed(() => save.isPending.value || rotate.isPending.value);
 
 async function submit(enabled: boolean): Promise<void> {
@@ -146,7 +150,7 @@ const problemLine = computed(() => {
           <BaseInput :id="id" v-model="companyId" inputmode="numeric" autocomplete="off" :invalid="Boolean(error)" />
         </FormField>
         <FormField label="Tenstreet sends">
-          <AppSegmentedControl v-model="mode" :options="MODES" aria-label="Tenstreet mode" />
+          <AppSegmentedControl :model-value="mode" :options="MODES" label="Tenstreet sends" @update:model-value="pickMode" />
         </FormField>
       </div>
       <p class="text-xs text-ink-muted">

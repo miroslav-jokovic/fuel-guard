@@ -72,6 +72,14 @@ describe("TenstreetConnectionCard — before it is set up", () => {
     expect(writes()).toEqual([{ url: PATH, method: "PUT", body: { companyId: "1234", mode: "test", enabled: false } }]);
   });
 
+  it("picking Production sends prod", async () => {
+    const w = await render(status({ configured: false, companyId: null, keyHint: null, endpointMasked: null }));
+    await w.find("input").setValue("14");
+    await click(w, "Production");
+    await click(w, "Save");
+    expect(writes()).toEqual([{ url: PATH, method: "PUT", body: { companyId: "14", mode: "prod", enabled: false } }]);
+  });
+
   it("refuses a Company ID that is not digits, and sends nothing", async () => {
     const w = await render(status({ configured: false, companyId: null, keyHint: null }));
     await w.find("input").setValue("14a");
