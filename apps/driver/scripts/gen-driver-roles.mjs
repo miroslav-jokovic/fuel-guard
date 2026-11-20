@@ -177,6 +177,9 @@ export const ROLES = {
   'on-hero': ['white', 'white', 'white', 'white'],
   'on-hero-secondary': ['heroInk2', 'heroInk2', 'heroInk2', 'heroInk2'],
   'on-hero-muted': ['heroInk3', 'heroInk3', 'heroInk2', 'heroInk2'],
+  // Live ON the navy block: the decal cyan itself in every appearance (6.45:1 on navy). The live
+  // INK for light grounds (`accent-ink`, #006E8E) is 2.4:1 on navy and must never be used there.
+  'on-hero-live': ['cyan', 'cyan', 'cyan', 'liveInkNightHc'],
 
   // Act: the one primary action, amber, in every appearance
   action: ['amber', 'amber', 'amber', 'amberHc'],

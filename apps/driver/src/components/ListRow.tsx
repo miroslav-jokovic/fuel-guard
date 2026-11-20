@@ -8,12 +8,14 @@ import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 import { ui } from '@/theme/classes';
 
 /**
- * A row leads with a 44pt circular disc tinted by its MEANING (D-DB6) — lavender for a message,
- * amber for sync or attention, green for complete, red for blocked, tile-grey for neutral. Before
- * this, every row led with the same 21pt grey glyph in a 24pt box, so a blocked stop and a settings
- * link were the same object at a glance.
+ * A row on the canvas (Visual 2026 D-DV7, D-DV10): at least 56pt, a leading glyph, a title and an
+ * optional second line, and a trailing figure, action word or chevron.
  *
- * `icon` (the old bare glyph) still works for dense secondary lists; `disc` is the Direction B row.
+ * `disc={tone}` no longer draws Direction B's 44pt tinted circle (D-DB6). It now tints the bare glyph
+ * by the row's STATE: cyan for live, amber for act, red for stop, green for done (D-DV5). The prop
+ * keeps its name so the 33 call sites move with no edit. A row with no `disc` keeps the secondary
+ * ink, which is the neutral row.
+ *
  * Nothing here uses `self-start`: `right` content centres against the row, whatever its height.
  */
 export function ListRow({
@@ -31,7 +33,7 @@ export function ListRow({
   subtitle?: string;
   icon?: MaterialSymbolName;
   iconFill?: boolean;
-  /** Renders the leading icon as a 44pt tinted disc instead of a bare glyph. */
+  /** Tints the leading glyph by the row's state (D-DV5). */
   disc?: Tone;
   right?: ReactNode;
   onPress?: () => void;
@@ -42,23 +44,27 @@ export function ListRow({
   const discAppearance = disc ? TONE_SOFT[disc] : null;
   const content = (
     <>
-      {icon && discAppearance ? (
-        <View className={`h-11 w-11 items-center justify-center rounded-full ${discAppearance.bg}`}>
-          <Icon name={icon} fill={iconFill} size={20} className={TEXT_TONE_CLASS[discAppearance.textTone]} />
-        </View>
-      ) : icon ? (
+      {icon ? (
         <View className="w-6 items-center justify-center">
           <Icon
             name={icon}
             fill={iconFill}
-            size={21}
-            className={destructive ? 'text-danger' : disabled ? 'text-ink-disabled' : 'text-ink-secondary'}
+            size={22}
+            className={
+              destructive
+                ? 'text-danger'
+                : disabled
+                  ? 'text-ink-disabled'
+                  : discAppearance
+                    ? TEXT_TONE_CLASS[discAppearance.textTone]
+                    : 'text-ink-secondary'
+            }
           />
         </View>
       ) : null}
       <View className="flex-1 gap-0.5">
         <AppText variant="rowTitle" tone={tone}>{title}</AppText>
-        {subtitle ? <AppText variant="supporting" tone={disabled ? 'disabled' : 'muted'}>{subtitle}</AppText> : null}
+        {subtitle ? <AppText variant="supporting" tone={disabled ? 'disabled' : 'secondary'}>{subtitle}</AppText> : null}
       </View>
       {right ?? (onPress ? <Icon name="chevron_right" size={20} className="text-ink-subtle" /> : null)}
     </>

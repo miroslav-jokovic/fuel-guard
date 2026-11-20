@@ -69,26 +69,14 @@ export function cardSurfaceClass(themeKey: ThemeKey, step: ElevationStep = 'rest
 }
 
 /**
- * A card ON the navy hero (D-DB22). It is a translucent panel rather than an opaque fill, so the
- * artwork behind it (D-DB20/21) reads through instead of being punched out by a rectangle — which
- * is the whole reason for putting artwork there.
- *
- * It is deliberately navy-tinted rather than white-tinted, and that is measured, not stylistic. The
- * hero card carries `on-hero-muted` (`TodayHero` puts the load reference there), and that tone has
- * **0.02 of margin** on the opaque `hero-raised` it used to sit on: 4.52:1 against a 4.5 floor. Any
- * white translucency lightens the ground and spends a margin that is not there. Navy at 65% over the
- * texture measures **5.05:1** in light and **6.04:1** in dark — so the panel both gains the
- * translucency and ENDS UP SAFER than the fill it replaces.
- *
- * High contrast keeps the opaque fill: it draws no texture (see `heroTextureOpacity`), so there is
- * nothing to show through, and a translucent panel there would be a card the same colour as its
- * ground held together by an edge alone.
+ * A card ON the navy hero. Since Visual 2026 V4 the hero is a flat navy field: the approved mock has
+ * no artwork, and gradients and textures are on D-DV14's banned list. So there is nothing for a
+ * translucent panel to show (D-DB22's reason for `bg-hero/65`). The card is the raised navy step with
+ * its edge in every appearance, and `apps/driver/tests/theme-colors.test.ts` holds every on-hero tone to 4.5:1 on
+ * `hero-raised`.
  */
-export function heroCardSurfaceClass(themeKey: ThemeKey): string {
-  const highContrast = themeKey === 'highContrastLight' || themeKey === 'highContrastDark';
-  return highContrast
-    ? 'border border-hero-edge bg-hero-raised'
-    : 'border border-hero-edge bg-hero/65';
+export function heroCardSurfaceClass(): string {
+  return 'border border-hero-edge bg-hero-raised';
 }
 
 /*

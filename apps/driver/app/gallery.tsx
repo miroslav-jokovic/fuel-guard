@@ -6,6 +6,8 @@ import {
   ActionBar, AppText, Avatar, Badge, Banner, Button, Card, ConfirmSheet, EmptyState, Field,
   ChoiceSheet, GroupedList, Icon, IconButton, Input, ListRow, NumericField, Progress, Screen, ScreenHeader,
   Section, SegmentedControl, Skeleton, Sparkline, TaskStepper, Toast, TrendChart, severityTone, useToast, type Tone,
+  NextStep,
+  StatusBlock,
 } from '@/components';
 import { AttentionQueue } from '@/screens/today/AttentionQueue';
 import { Leaderboard } from '@/screens/today/Leaderboard';
@@ -110,7 +112,25 @@ export default function Gallery() {
         }
       />
 
-      <Section first title="Fleet leaderboard — the Home card (D-DB18)">
+      {/* Visual 2026 V4: the mock's two new patterns, with the data shapes Today will give them. */}
+      <Section first title="Status block — the screen's signature (D-DV6)">
+        <StatusBlock
+          context="Pickup · stop 1 of 2 · Load 1184530"
+          subject="Ardent Mills"
+          place="Chicago, IL"
+          figure="06:00"
+          figureSuffix="– 08:00"
+          live="Window opens in 18 min"
+        />
+        <StatusBlock context="To finish" subject="Photos for load 1184530" figure="2" figureSuffix="missing" />
+      </Section>
+
+      <Section title="Next step — one per screen">
+        <NextStep title="Arrive at pickup" reason="Then the BOL and seal photos" actionLabel="Arrived" onAction={() => undefined} />
+        <NextStep title="Pickup photos are missing" reason="Stop 1 still needs the seal photo" actionLabel="Add" onAction={() => undefined} />
+      </Section>
+
+      <Section title="Fleet leaderboard — the Home card (D-DB18)">
         <Leaderboard view={buildLeaderboardView(SAMPLE_LEADERBOARD)} />
         <Leaderboard view={buildLeaderboardView(undefined)} />
       </Section>
