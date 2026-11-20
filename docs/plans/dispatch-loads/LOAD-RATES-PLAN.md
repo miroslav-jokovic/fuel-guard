@@ -229,23 +229,25 @@ re-check at build time).
    checked in production (§7).
 2. **Owner approves the release** carrying 0637 and R2–R4. `release.yml` applies 0637 to production,
    then the code.
-3. **Only after production serves R2** (`pnpm verify:live` shows the release tag): update the VM —
-   otherwise rates sent to an older API are dropped and not resent (§1.3, hash rule).
-   On the VM, Administrator PowerShell:
-   `powershell -NoProfile -ExecutionPolicy Bypass -File C:\Silvicom\update-connector.ps1 -Commit <R4's 40-hex sha> -RosterMode create`
-   (the script checks every file's SHA-256, stops the connector, backs up, runs the connector's tests,
-   restarts; any failure restores the old files and restarts).
-   `-RosterMode create` is the VM's current mode as of the 10-30 update — confirm the value in the
-   VM's `connector.env` (`ROSTER_MODE=`) before running, and pass that.
-4. Watch the next cycle's log: `mirror: stored …` with no error. Every open movement's hash changes
-   (new keys), so the whole board is resent once (~150 movements, one batch of ≤500).
-   **Rollback:** the same script with the previous commit's sha.
-5. **History** ("all loads"): delivered loads already in the mirror get rates only when re-read.
-   Read the earliest delivered load first (production SQL:
-   `select min(external_closed_at) from loads where source='tms' and status='delivered'`), then run the
-   existing backfill per calendar month, from that month to today:
-   `node --env-file=connector.env agent.mjs --loads-backfill --from=YYYY-MM-01 --to=YYYY-MM-01`
-   (a re-run over held movements is a no-op rewrite, per agent.mjs's backfill header).
+3. **Only after production serves R2** (`pnpm verify:live` shows the release tag) and a test post
+   with rate keys is stored there: update the VM. Before that, rates sent to an older API are dropped
+   and never re-sent (§1.3, hash rule).
+4. **The VM steps, with every command, are in [`LOAD-RATES-VM-UPDATE.md`](LOAD-RATES-VM-UPDATE.md).**
+   Facts it rests on (read in `update-connector.ps1` and `agent.mjs`, 2026-11-20):
+   - The script carries the files' SHA-256 list inside itself, so the VM must first download the
+     script from R4's commit and check the script's own fingerprint.
+   - `-RosterMode` is required to be `identity` or `create` and is written into `connector.env`. The
+     value passed is the one the VM already has, read on the VM first (not assumed).
+   - The script reports `PROBLEM` if a loads cycle fails in the first 120 s (`loads: cycle failed`
+     matches its check; the loads job runs every 60 s), but it does not roll back after the restart.
+     Rollback is the previous script with the previous commit, after renaming that commit's old
+     `backup-<7>` folder, which the script otherwise refuses to overwrite.
+   - Every open movement's hash changes (new keys), so the whole board is re-sent once.
+5. **History** ("all loads"): delivered loads already in the mirror get rates only when re-read. The
+   10-21 backfill ran from the owner's Mac against `lme_analytics`, which stops at 10/09/2026. So this
+   one runs on the VM against live `lme`, with the service stopped (one of our reads at a time), in
+   17 two-week slices from 03/15 (earliest delivery stored: 03/27/2026) to 12/01. A re-run over held
+   movements is a no-op rewrite, per agent.mjs's backfill header. Commands: VM guide Part C.
 
 **R5 — after the VM is verified:** make the ten keys required in `tmsDispatchMovementSchema`
 (D-RATE9's removal), one small PR.
