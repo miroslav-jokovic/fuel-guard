@@ -10,9 +10,10 @@ export const ui = {
   section: 'gap-3',
   card: 'rounded-xl bg-surface',
   cardContent: 'p-4 gap-2',
-  // No ground of its own: a row sits in a Card or a GroupedList, which paints the surface — and
-  // since D-DB16 a faint wash over it that an opaque row would have cut into bands.
-  listRow: 'min-h-13 flex-row items-center gap-3 px-4 py-3',
+  // No ground of its own: a row sits on the canvas in a GroupedList (Visual 2026 D-DV7). 56pt is the
+  // glove target (D-DV10); px-4 is cancelled by GroupedList's -mx-4, so the text aligns with the
+  // screen inset while the pressed highlight runs to the gutter.
+  listRow: 'min-h-14 flex-row items-center gap-3 px-4 py-3',
   control: 'rounded-lg',
   focusRing: 'focus:border-2 focus:border-edge-focus',
 } as const;

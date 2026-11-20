@@ -59,6 +59,7 @@ module.exports = {
           DEFAULT: c('on-hero'),
           secondary: c('on-hero-secondary'),
           muted: c('on-hero-muted'),
+          live: c('on-hero-live'),
         },
         // D-DB2: safety amber is the only action colour; lavender is the soft secondary.
         action: {

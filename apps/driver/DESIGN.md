@@ -170,7 +170,7 @@ how the old version of this file came to describe a palette the app no longer ha
 | `canvas`, `surface*` | grounds | `surface-raised` is for the signature block and sheets only (D-DV7) |
 | `ink`, `ink-secondary`, `ink-muted` | text | `ink-subtle` = `ink-muted`; `ink-disabled` only for disabled controls |
 | `edge*` | rare separators, input borders | separate by space first (D-DV7) |
-| `hero`, `hero-*`, `on-hero*` | the navy **status block** (D-DV6) | white on navy; `on-hero-muted` only for non-essential copy |
+| `hero`, `hero-*`, `on-hero*` | the navy **status block** (D-DV6) | white on navy; `on-hero-muted` only for non-essential copy; **`on-hero-live`** (tone `onHeroLive`) is the cyan ON navy — never `accent`, which is the dark-teal ink for light grounds (2.4:1 on navy) |
 | `action`, `action-fg`, `action-pressed` | **amber = act** fill | `action-fg` is the navy text on it; one per screen |
 | `action-ink`, `warning`, `caution`, `sync-pending` | amber as text | "expires in 26 days", "Take" |
 | `accent`, `accent-ink`, `accent-soft`, `info`, `operation-current`, `surface-selected`, `edge-focus` | **cyan = live** | was Direction B's lavender |
@@ -232,9 +232,9 @@ step makes each one a primitive. Before that step, compose it from `AppText`, `S
 
 | Pattern | Mock screen | Anatomy | Built in |
 |---|---|---|---|
-| **Status block** (signature) | Today, Documents | Navy block, 24 radius. A context line (`supporting`, `onHeroSecondary`), the subject (`navigationTitle`, `onHero`), ONE lone figure (`numericHero`), then a live line in cyan | V4 `StatusBlock` |
-| **Next step** | Today | One surface row: what to do and why, with the amber action on the right (48pt). One per screen, and only when there IS a next step | V4 |
-| **Grouped rows** | Today, Loads, More | `label` section heading, then rows on the canvas with no card around them. Leading glyph tinted by state only. Trailing figure `numericInline` or a trailing action word in its state colour | V4 `ListRow` |
+| **Status block** (signature) | Today, Documents | Navy block, 24 radius. A context line, the subject, ONE lone figure (`numericHero`), then a live line in `onHeroLive` | **`StatusBlock`** (V4, built) |
+| **Next step** | Today | One surface row: what to do and why, with the amber action on the right (48pt). One per screen, and only when there IS a next step | **`NextStep`** (V4, built) |
+| **Grouped rows** | Today, Loads, More | `Section` (its heading is the muted `label`), then a `GroupedList` of `ListRow`s on the canvas with no card around them. `disc={tone}` tints the glyph by state. Trailing figure `numericInline` or an action word in its state colour | **`Section` + `GroupedList` + `ListRow`** (V4, built) |
 | **Time groups** | Loads | Sections by time (Now, Next, Delivered), not by status. The appointment is the trailing figure | V6 |
 | **Timeline** | Load detail | Stops on a 2pt rail: cyan dot = current, green = done, hollow = ahead. Window figure largest in each stop. Required photos in words | V6 |
 | **Map strip** | Stop | Fixed-height map at the top; floating controls are the only glass (D-DV2). No ETA. Actions in a pinned footer: secondary outlined + amber primary | V6 |
@@ -273,10 +273,10 @@ The tab shell is not a pattern you compose. It is the OS's own (D-DV1, V3). A ne
 - **Do not use these on new work:**
   - `Card`'s generic use: rows are not carded (D-DV7);
   - `Badge` as decoration: a status is a word in its colour;
-  - `ListRow`'s tinted discs (D-DB6);
-  - `HeroBackdrop`'s wash.
+  - `Button variant="hero"`: it is now the same amber pill as `primary`, so use `primary`.
 
-  They remain only until their screens move (V4–V8).
+  They remain only until their screens move (V5–V8). `ListRow`'s 44pt discs, `HeroBackdrop`'s texture and `Card`'s
+  wash are already gone (V4).
 - **Extend or create.** Extend a primitive when the anatomy and behaviour are the same. Create one only when an
   existing primitive cannot express the case without becoming confusing.
 - **What every new reusable component must state:**

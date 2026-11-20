@@ -9,6 +9,7 @@ import {
 } from '@/components';
 import { AttentionQueue } from '@/screens/today/AttentionQueue';
 import { Leaderboard } from '@/screens/today/Leaderboard';
+import { PatternSamples } from '@/screens/gallery/PatternSamples';
 import { buildLeaderboardView } from '@/features/score/leaderboardModel';
 import type { AttentionRow, TodayState } from '@/screens/today/todayModel';
 import { OfferDeck, declineChoices } from '@/features/loads/OfferDeck';
@@ -110,7 +111,9 @@ export default function Gallery() {
         }
       />
 
-      <Section first title="Fleet leaderboard — the Home card (D-DB18)">
+      <PatternSamples />
+
+      <Section title="Fleet leaderboard — the Home card (D-DB18)">
         <Leaderboard view={buildLeaderboardView(SAMPLE_LEADERBOARD)} />
         <Leaderboard view={buildLeaderboardView(undefined)} />
       </Section>

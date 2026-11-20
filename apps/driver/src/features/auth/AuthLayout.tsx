@@ -78,7 +78,7 @@ export function AuthScreen({
   footer?: ReactNode;
 }) {
   return (
-    <Screen hero={<AuthMast icon={icon} tone={tone} />} heroTexture="auth" flow="flat">
+    <Screen hero={<AuthMast icon={icon} tone={tone} />} flow="flat">
       <AuthTitle title={title} subtitle={subtitle} />
       {children ? <View className="gap-3">{children}</View> : null}
       {footer ? <View className="gap-3 pt-2">{footer}</View> : null}

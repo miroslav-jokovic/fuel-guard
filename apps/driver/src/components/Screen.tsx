@@ -3,8 +3,6 @@ import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View, useWi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { layout } from '@/theme/tokens';
-import { HeroBackdrop } from './HeroBackdrop';
-import type { HeroTextureName } from '@/theme/heroTexture';
 import { heroTopPadding, screenBottomPadding, screenTopPadding } from '@/theme/safeArea';
 import { useTheme } from '@/theme/ThemeProvider';
 import { roleColors } from '@/theme/colors';
@@ -31,7 +29,6 @@ export function Screen({
   padTop = true,
   footer,
   hero,
-  heroTexture = 'band',
   flow = 'flat',
   onRefresh,
   refreshing = false,
@@ -50,12 +47,6 @@ export function Screen({
   refreshing?: boolean;
   /** The navy hero region. Its presence, not a flag, is what makes this a hero screen. */
   hero?: ReactNode;
-  /**
-   * Which artwork backs the hero. `band` — the default — is capped for a hero that carries all three
-   * `on-hero` tones. `auth` is the looser one, and is only honest on a hero that carries the mark
-   * alone; see `src/theme/heroTexture.ts`.
-   */
-  heroTexture?: HeroTextureName;
   /**
    * `sections` means the children are `Section`s, which own the space above them, so the flow adds
    * none. `flat` keeps a uniform 16pt gap between loose children. A hero screen is always
@@ -132,7 +123,6 @@ export function Screen({
               screen the content still centres in its readable column while the art runs edge to
               edge, which is what a backdrop is for. */}
           <View>
-            <HeroBackdrop texture={heroTexture} />
             <View
               style={[
                 {
