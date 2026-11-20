@@ -30,7 +30,7 @@ export function Badge({
       style={{ minHeight: size === 'md' ? 32 : 28 }}
     >
       {icon ? <Icon name={icon} size={14} className={TEXT_TONE_CLASS[appearance.textTone]} /> : null}
-      <AppText variant="caption" tone={appearance.textTone} className="font-ui-md">{label}</AppText>
+      <AppText weight="medium" variant="caption" tone={appearance.textTone} >{label}</AppText>
     </View>
   );
 }

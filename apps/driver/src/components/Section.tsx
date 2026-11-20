@@ -37,7 +37,7 @@ export function Section({
               className="min-h-11 justify-center"
               hitSlop={8}
             >
-              <AppText variant="supporting" tone="action" className="font-ui-md">{action.label}</AppText>
+              <AppText weight="medium" variant="supporting" tone="action" >{action.label}</AppText>
             </Pressable>
           ) : null}
         </View>

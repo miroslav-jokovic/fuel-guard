@@ -66,7 +66,7 @@ export function StopHero({
         <IconButton name="arrow_back" label="Back" variant="white" onPress={onBack} />
         <View className="flex-1">
           <Card>
-            <AppText variant="supporting" className="font-ui-md" numberOfLines={1}>{stop.name}</AppText>
+            <AppText weight="medium" variant="supporting" numberOfLines={1}>{stop.name}</AppText>
             <AppText variant="caption" tone="muted" numberOfLines={1}>
               Stop {progress.current} of {progress.total} · {stop.kind === 'pickup' ? 'Pick up' : 'Deliver'} · {load.ref}
             </AppText>

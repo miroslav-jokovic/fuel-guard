@@ -33,11 +33,9 @@ export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
       style={{ width: size, height: size }}
       accessibilityLabel={name}
     >
-      <AppText
-        variant="numericCompact"
-        tone="onHero"
-        style={{ fontSize: size * 0.38, includeFontPadding: false }}
-      >
+      {/* The two call sites draw 44 and 48pt discs; `rowTitle` (17pt semibold) is the 0.38 ratio the
+          initials used to compute, now a named role instead of a size outside the type system. */}
+      <AppText variant="rowTitle" tone="onHero" style={{ includeFontPadding: false }}>
         {initials(name)}
       </AppText>
     </View>

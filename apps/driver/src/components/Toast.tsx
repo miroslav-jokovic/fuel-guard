@@ -20,7 +20,7 @@ export function Toast({ tone = 'success', message }: { tone?: Tone; message: str
       accessibilityRole="alert"
     >
       <Icon name={TONE_ICON[tone]} size={18} fill className={FG[tone]} />
-      <AppText variant="supporting" tone="inverse" className="flex-1 font-ui-md">{message}</AppText>
+      <AppText weight="medium" variant="supporting" tone="inverse" className="flex-1">{message}</AppText>
     </Animated.View>
   );
 }

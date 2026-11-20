@@ -27,6 +27,10 @@ Rules:
   transparency over the photo.
 - Navy field: white text, the figure in cyan. Cyan field: navy text only (white on cyan fails contrast).
 - Never grey text on a colour field.
+- **Scoped exception, the driver app's status colours (owner ruling Q-DV2, 2026-11-20).** In
+  `apps/driver`, amber (act), red (stop) and green (done) are functional STATE colours, never brand
+  fields or decoration. They live in `apps/driver/scripts/gen-driver-roles.mjs`. Ads and the apply page
+  still use two colours plus white.
 
 ## Type
 

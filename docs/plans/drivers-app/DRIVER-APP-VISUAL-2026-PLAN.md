@@ -299,6 +299,18 @@ screens are restyled through primitives only (§3).
   platform face with `fontVariant: ['tabular-nums']`. Big Shoulders is used only for a figure that stands alone (the
   hero window, a count).**
 
+- **D-DV16 · Built as a system, not a restyle (owner, 2026-11-20: "make sure that we do this properly with system so
+  later we can add things in same visual way").** Every layer may use only the layer above it:
+  - **Colour** has two tiers. `PALETTE` is what a colour is, and `ROLES` is what it does, both in
+    `apps/driver/scripts/gen-driver-roles.mjs`. They generate `theme.roles.json`, which generates `global.css`, and tests
+    fail on any hand edit.
+  - **Type** has one door: `textStyle()` in `src/theme/typography.ts`, reached through `AppText`'s `variant` and
+    `weight`. Tailwind carries no font family or size.
+  - **Patterns.** The V1 mock's patterns are a named table in `apps/driver/DESIGN.md`, saying which step makes each
+    one a primitive.
+  - **Gates.** `lint:tokens`, `lint:design` and `test` refuse every way around these layers.
+- **Owner approval of the V1 mock, 2026-11-20:** "I approve this design and colors and visual pattern."
+
 ## 7. Progress log
 
 One file per entry in `docs/plans/drivers-app/visual-2026-progress/YYYY-MM-DD-HHMM-<step>.md`.

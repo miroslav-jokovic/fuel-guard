@@ -66,10 +66,9 @@ function StopLine({
           ) : state === 'skipped' ? (
             <Icon name="do_not_disturb_on" size={15} className="text-warning" />
           ) : (
-            <AppText
-              variant="caption"
+            <AppText weight="semibold" variant="caption"
               tone={state === 'next' ? 'onBrand' : 'muted'}
-              className="font-ui-sb"
+              
               tabular
             >
               {stop.seq}
@@ -82,7 +81,7 @@ function StopLine({
       <View className="flex-1 gap-0.5 pb-3">
         <View className="flex-row items-center gap-2">
           <AppText variant="rowTitle" className="flex-1" numberOfLines={1}>{stop.name}</AppText>
-          <AppText variant="caption" tone={tone.textTone} className="font-ui-md">{NODE_LABEL[state]}</AppText>
+          <AppText weight="medium" variant="caption" tone={tone.textTone} >{NODE_LABEL[state]}</AppText>
         </View>
         <AppText variant="supporting" tone="muted" numberOfLines={1}>
           {stop.address_line ?? placeLabel(stop)} · {stop.kind === 'pickup' ? 'Pick up' : 'Deliver'}

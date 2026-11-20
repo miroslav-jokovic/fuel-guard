@@ -58,7 +58,7 @@ export function WeekStrip({
           {score.recentWeeks.map((w) => (
             <View key={w.key} className="min-h-11 flex-row items-center gap-3">
               <AppText variant="supporting" tone="secondary" className="flex-1" numberOfLines={1}>{w.label}</AppText>
-              <AppText variant="supporting" className="font-ui-md" tabular>{w.score}</AppText>
+              <AppText weight="medium" variant="supporting" tabular>{w.score}</AppText>
               <AppText variant="supporting" tone="muted" className="w-24 text-right" tabular numberOfLines={1}>{w.rank}</AppText>
             </View>
           ))}

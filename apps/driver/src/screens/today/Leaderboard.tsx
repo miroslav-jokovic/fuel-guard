@@ -43,7 +43,7 @@ export function Leaderboard({ view, loading = false }: { view: LeaderboardView; 
                 </View>
               ) : null}
               <View className={`min-h-12 flex-row items-center gap-3 px-4 ${row.isMe ? 'bg-surface-selected' : ''}`}>
-                <AppText variant="supporting" tone={row.isMe ? 'accent' : 'muted'} className="w-10 font-ui-md" tabular>
+                <AppText weight="medium" variant="supporting" tone={row.isMe ? 'accent' : 'muted'} className="w-10" tabular>
                   {row.rank}
                 </AppText>
                 <AppText variant="rowTitle" tone={row.isMe ? 'accent' : 'primary'} className="flex-1" numberOfLines={1}>

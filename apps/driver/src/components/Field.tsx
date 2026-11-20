@@ -30,7 +30,7 @@ export function Field({
 }) {
   return (
     <View className="gap-2">
-      <AppText variant="supporting" tone="secondary" className="font-ui-md">
+      <AppText weight="medium" variant="supporting" tone="secondary" >
         {label}{required ? <AppText variant="supporting" tone="danger"> *</AppText> : null}
       </AppText>
       <FieldAccessibilityContext.Provider value={{ label, hint, error }}>

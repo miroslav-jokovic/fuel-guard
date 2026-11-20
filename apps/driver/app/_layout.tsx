@@ -1,12 +1,6 @@
 import "../global.css";
 import { useEffect } from "react";
 import { useFonts } from "expo-font";
-import {
-  Lexend_400Regular,
-  Lexend_500Medium,
-  Lexend_600SemiBold,
-  Lexend_700Bold,
-} from "@expo-google-fonts/lexend";
 import { Stack, useRouter, useSegments } from "expo-router";
 import Constants from "expo-constants";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -14,6 +8,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { isVersionBelow } from "@silvicom/shared";
 import { ThemeProvider } from "@/theme/ThemeProvider";
+import { DISPLAY_FACE, DISPLAY_FACE_BOLD } from "@/theme/typography";
 import { SessionProvider, useSession } from "@/session/SessionProvider";
 import { useFeatures } from "@/session/useFeatures";
 import { UpdateRequired } from "@/components/UpdateRequired";
@@ -172,14 +167,13 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
-  // Direction B D-DB3: Lexend is the ONE typeface. Every AppText variant names one of these four
-  // families directly, because in React Native a weight utility does nothing for a loaded custom
-  // face — the family IS the weight.
+  // Visual 2026 D-DV8: text is the platform face, which needs no loading. Only the carrier's display
+  // face is bundled — the two static cuts of Big Shoulders Display, instanced from Google Fonts' OFL
+  // variable font (provenance in src/theme/typography.ts). Keyed by the names typography.ts uses, so
+  // the family a style asks for and the family loaded here cannot differ.
   const [fontsLoaded] = useFonts({
-    Lexend_400Regular,
-    Lexend_500Medium,
-    Lexend_600SemiBold,
-    Lexend_700Bold,
+    [DISPLAY_FACE]: require("../assets/fonts/BigShouldersDisplay-ExtraBold.ttf") as number,
+    [DISPLAY_FACE_BOLD]: require("../assets/fonts/BigShouldersDisplay-Black.ttf") as number,
   });
 
   if (!fontsLoaded) return null;
