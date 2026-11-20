@@ -25,7 +25,10 @@ vi.mock("@/features/dispatch/useDispatchLoads", () => ({
   useLoadDetailQuery: () => ({ data: load, isLoading: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn() }),
 }));
 vi.mock("@/features/dispatch/useLoadDispatch", () => ({ dispatchHeadline: () => "Not dispatched yet", smsReasonText: () => "" }));
-vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => false, canView: () => true }) }));
+const grants = vi.hoisted(() => ({ value: {} as Record<string, boolean> }));
+vi.mock("@/stores/session", () => ({
+  useSessionStore: () => ({ can: () => false, canView: () => true, hasPermission: (k: string) => grants.value[k] ?? false }),
+}));
 vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: ref("America/Chicago") }) }));
 vi.mock("vue-router", async (orig) => ({
   ...((await orig()) as object),
@@ -79,5 +82,23 @@ describe("DispatchLoadDetailPage — the load's facts", () => {
     const card = w.findComponent({ name: "ChatAboutCard" });
     expect(card.exists()).toBe(true);
     expect(card.props()).toMatchObject({ kind: "load", recordId: "l-1", label: "L-1001" });
+  });
+});
+
+/** LOAD-RATES-PLAN D-RATE8: the Rate block, under the load card, for a `dispatch.load_rates` holder. */
+describe("DispatchLoadDetailPage — what the load pays", () => {
+  const charges = { total_charge: 4580, linehaul: 4200, other_charges: 380, currency: "USD", billed_miles: 1982, order_loaded_movements: 1 };
+
+  it("shows a holder total, linehaul, other charges and per mile as facts", async () => {
+    grants.value = { "dispatch.load_rates": true };
+    const [, rate] = await facts({ charges });
+    expect(rate).toEqual({ Total: "$4,580.00", Linehaul: "$4,200.00", "Other charges": "$380.00", "Per mile": "$2.31" });
+  });
+
+  it("shows nothing to a reader without the switch, and the page's other facts are unmoved", async () => {
+    grants.value = {};
+    const [, progress] = await facts({ charges });
+    expect(progress).not.toHaveProperty("Total");
+    expect(progress).toHaveProperty("Created");
   });
 });

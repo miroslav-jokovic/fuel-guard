@@ -403,6 +403,11 @@ const API_ALLOW = new Set([
   // The attribution trail reads Samsara's driver↔vehicle segments, the roster's
   // `driver_vehicle_assignments`, through the roster's reader (DISPATCH-LOADS-COUNTS-PLAN D-DLC5).
   "loads -> roster",
+  // What each load pays is withheld from a reader the carrier has not switched on (LOAD-RATES-PLAN
+  // D-RATE7): the Loads list and one load ask `holdsNamedPermission` — org's per-request read of
+  // `org_role_permissions` — before adding `charges`, the same gate roster's notes routes ask through the
+  // same index. One function; org imports nothing of loads'.
+  "loads -> org",
   // A red hazmat verdict tells the office through the same fabric as everyone else.
   "hazmat -> messaging",
   // The Samsara scheduler paces the score sync and week snapshots — the cadence clock again.

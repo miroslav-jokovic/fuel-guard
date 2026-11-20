@@ -78,6 +78,16 @@ export const NOTES_MANAGE_ALL_PERMISSION = "notes.manage_all";
  */
 export const HOME_TIME_PERMISSION = "roster.home_time";
 
+/**
+ * Who sees what each load pays — the McLeod order's total, linehaul, other charges and rate per mile — on
+ * Loads, the Dispatch board and a load's page (LOAD-RATES-PLAN D-RATE6, owner 2026-11-19: "admins always
+ * see it; every other role starts off and is switched on in Settings"). The figures are WITHHELD by the
+ * server, never hidden by the screen (D-RATE7): a reader without this switch is not sent them at all, which
+ * is why the price lives in `load_charges` (deny-all) rather than on `loads`, whose columns every org
+ * member reads. No regulation names the reader, so it is the carrier's switch, here.
+ */
+export const LOAD_RATES_PERMISSION = "dispatch.load_rates";
+
 export const EDITABLE_PERMISSIONS = [
   {
     key: IDENTITY_NUMBER_IMAGES_PERMISSION,
@@ -118,6 +128,14 @@ export const EDITABLE_PERMISSIONS = [
       "Record that a driver is going home and when he is due back, change the return, and mark him back. Without it a person sees who is home on the Dispatch board and cannot change it.",
     // D-HT7: whoever manages Dispatch (the admin holds every permission and is not an editable role).
     shippedRoles: rolesThatManage("dispatch").filter(isEditableRole),
+  },
+  {
+    key: LOAD_RATES_PERMISSION,
+    label: "See load rates",
+    description:
+      "See what each load pays — total, linehaul, other charges and rate per mile — on Loads, the Dispatch board and a load's page. Without it those figures are not sent to this person at all.",
+    // Owner, 2026-11-19 (D-RATE6): admin only to start — the admin holds every permission.
+    shippedRoles: [],
   },
 ] as const satisfies readonly EditablePermission[];
 

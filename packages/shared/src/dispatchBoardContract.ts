@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { boardHomeTimeSchema } from "./homeTimeContract.js";
+import { loadChargesSchema } from "./loadChargesContract.js";
 
 /**
  * The dispatch board's wire contract (`docs/plans/dispatch-loads/DISPATCH-BOARD-PLAN.md`, DB4).
@@ -49,6 +50,12 @@ export const dispatchBoardLoadSchema = z.object({
   lastStop: dispatchBoardStopSchema.nullable(),
   /** Stops still ahead, the next one included. */
   stopsLeft: z.number().int(),
+  /**
+   * What the load pays (LOAD-RATES-PLAN D-RATE7) — present ONLY for a reader holding
+   * `dispatch.load_rates`, added per reader after the org's row cache (`readDispatchBoard`); absent for
+   * everyone else, so it is optional here. Null for a holder when McLeod states no price for the load.
+   */
+  charges: loadChargesSchema.nullable().optional(),
 });
 export type DispatchBoardLoad = z.infer<typeof dispatchBoardLoadSchema>;
 

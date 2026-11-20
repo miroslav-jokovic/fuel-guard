@@ -6,6 +6,7 @@ import {
   LOAD_STATUS_LABELS,
   loadBoardState,
   type LoadBoardQueue,
+  type LoadCharges,
   type LoadEventKind,
   type LoadStatus,
   type DispatchException,
@@ -89,6 +90,11 @@ export interface DispatchLoad {
   dispatcher_name?: string | null;
   /** Q-LMR5: McLeod's customer by name. Null on a manual load, and on a McLeod load until the next sync. */
   customer_name?: string | null;
+  /**
+   * What the load pays (LOAD-RATES-PLAN D-RATE7): ABSENT unless the reader holds `dispatch.load_rates` —
+   * the server withholds it — and null for a holder when McLeod states no price for the load.
+   */
+  charges?: LoadCharges | null;
 }
 
 /** A photo the driver captured at a stop. `url` is signed for 5 minutes; null means signing failed. */

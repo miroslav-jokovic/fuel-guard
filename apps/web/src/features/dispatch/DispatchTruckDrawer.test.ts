@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { VueQueryPlugin } from "@tanstack/vue-query";
+import { createPinia, setActivePinia } from "pinia";
 import type { DispatchBoardRow } from "@silvicom/shared";
 
 /**
@@ -100,6 +101,8 @@ async function mountIt(row: DispatchBoardRow | null) {
 }
 
 beforeEach(() => {
+  // The Rate block asks the session for `dispatch.load_rates` (LOAD-RATES-PLAN D-RATE8).
+  setActivePinia(createPinia());
   calls.gets.length = 0;
   calls.routeFails = false;
 });
@@ -182,5 +185,17 @@ describe("DispatchTruckDrawer", () => {
     expect(map?.attributes("href")).toBe("/?tab=dispatch&truck=773");
     // `loaded` has no position: the map would have nothing to show, so there is no link to it.
     expect((await mountIt(loaded)).get("nav").text()).not.toContain("On the map");
+  });
+
+  it("shows the current load's Rate from the board row to a holder, and nothing to anyone else (D-RATE8)", async () => {
+    const { useSessionStore } = await import("@/stores/session");
+    const charges = { total_charge: 3620, linehaul: 3400, other_charges: 220, currency: "USD", billed_miles: 836, order_loaded_movements: 2 };
+    const priced = { ...loaded, current: { ...loaded.current!, charges } };
+    useSessionStore().permissions = { "dispatch.load_rates": true } as never;
+    const w = await mountIt(priced);
+    expect(w.get('[data-testid="load-rate"]').text()).toContain("$3,620.00");
+    expect(w.get('[data-testid="load-rate-split"]').text()).toBe("Order total · split over 2 trips");
+    // A board row without the key — what the server sends a reader without the switch — draws nothing.
+    expect((await mountIt(loaded)).find('[data-testid="load-rate"]').exists()).toBe(false);
   });
 });

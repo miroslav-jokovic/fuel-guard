@@ -17,6 +17,7 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import HazmatPanel from "@/features/hazmat/HazmatPanel.vue";
 import DispatchLoadDrawer from "@/features/dispatch/DispatchLoadDrawer.vue";
+import LoadRateFacts from "@/features/dispatch/LoadRateFacts.vue";
 import { dispatchHeadline, smsReasonText } from "@/features/dispatch/useLoadDispatch";
 import { useLoadDetailQuery, type DispatchStopDetail } from "@/features/dispatch/useDispatchLoads";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
@@ -221,6 +222,9 @@ function markBroken(id: string) {
             Cancelled — &ldquo;{{ load.cancel_reason }}&rdquo;
           </AppCallout>
         </BaseCard>
+
+        <!-- LOAD-RATES-PLAN D-RATE8: what the load pays, for a `dispatch.load_rates` holder only. -->
+        <LoadRateFacts :charges="load.charges" card />
 
         <!-- Provenance: who moved this load, and when -->
         <BaseCard>

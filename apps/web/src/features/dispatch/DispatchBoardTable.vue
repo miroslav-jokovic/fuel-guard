@@ -27,6 +27,7 @@ import { BOARD_HOS_LOW_MS } from "@silvicom/shared";
 import { computed } from "vue";
 import { useUnitNoteSummaries } from "@/components/notes/useUnitNotes";
 import BoardNotesCell from "./BoardNotesCell.vue";
+import LoadRateCell from "./LoadRateCell.vue";
 import BoardNoteChips from "./BoardNoteChips.vue";
 import BoardHomeTimeChips from "./BoardHomeTimeChips.vue";
 import { boardNoteSummary, boardNoteTargets } from "./boardNotes";
@@ -260,6 +261,11 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
         </div>
       </template>
       <span v-else class="text-ink-tertiary">—</span>
+    </template>
+
+    <!-- LOAD-RATES-PLAN D-RATE8: what the current load pays; only a column for a `dispatch.load_rates` holder. -->
+    <template #cell-rate="{ row }">
+      <LoadRateCell :charges="row.current?.charges" figure="rate" />
     </template>
 
     <template #cell-next="{ row }">

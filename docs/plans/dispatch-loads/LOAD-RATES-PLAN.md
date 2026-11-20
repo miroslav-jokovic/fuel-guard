@@ -280,6 +280,37 @@ because the two tables belong to two modules, `lint:table-modules`, as 0383/0384
 - **Split orders show the full order total on each leg, labelled** (D-RATE4) rather than a divided
   figure McLeod never stated (45 of 4,403 orders).
 
+### 6.1 Open question — Q-RATE1: the columns do not fit at 1440 px (measured in R3)
+
+D-RATE8's width sum was wrong. "976 + 96 = 1,072 ≤ 1,104" left out the board's **Notes** column
+(UNIT-NOTES-PLAN D-UN12, `sm` = 96 px, shown by default to every reader who holds `notes`, which a
+dispatcher does by default). Measured in Chromium at 1440 × 900, sidebar open, the table's box 1,104 px
+wide (R3 browser pass, 2026-11-20):
+
+| Table | Without rates | With rates as D-RATE8 says | Over by |
+|---|---|---|---|
+| Board, column minimums, a notes holder | 976 + 96 = 1,072 | 1,168 | 64 px whatever the content |
+| Loads, In transit (default tab), realistic cells¹ | ≈ 944 | ≈ 1,146 | ≈ 42 px |
+| Loads, Delivered / All (Delivered column), realistic cells¹ | ≈ 1,072 | ≈ 1,274 | ≈ 170 px |
+
+¹ Load # holds the customer at `max-w-32`, so it draws 168 px, not its 96 px minimum; Pickup/Delivery 185/179.
+Rate and Per mile draw 101 px each with the split note wrapping (it first drew 189 px on one line).
+
+Overflow scrolls the table sideways: the board's Notes (and part of Warnings) and the Loads row menu go
+off-screen at 1440 for every holder, and the admin is always one.
+
+Candidates:
+- **(a) As D-RATE8:** both tables' rate columns visible by default; accept the sideways scroll above.
+- **(b) Loads gets ONE visible "Rate" column, the per mile on its second line** (Per mile still in
+  Columns, hidden): In transit ≈ 1,045 fits; Delivered/All over ≈ 69 px. The board as (a) or (c).
+- **(c) Hidden by default on both tables**, listed in Columns for a holder (one click, remembered per
+  browser); the load page and the truck drawer show the Rate block by default. Nothing moves for anyone.
+
+**Recommendation: (b) for Loads + (c) for the board.** The Loads page is where a price is read load by
+load and its default tab then fits; on the board every visible option pushes Notes off-screen, and the
+price is one click away there in the truck drawer. R3 ships D-RATE8 as written until the owner rules; the
+ruling is a column-default change in `loadListColumns.ts` / `AssignmentsPage.vue`, no API change.
+
 ## 7. Done means
 
 - Production: an admin sees Rate on Loads, on the board and on a load page, and the figure equals
@@ -308,3 +339,16 @@ because the two tables belong to two modules, `lint:table-modules`, as 0383/0384
   4 ingest, 2 projection-over-the-wire; seven mutants (empty priced, void priced, miles in any unit, mixed
   batch accepted, absent written as null, stale price kept, delete unscoped) all killed. Producer waiver
   removed; writer registered in `scripts/table-writers.json`.
+- 2026-11-20 — R3 built (branch `claude/load-rates-r3`): `dispatch.load_rates` in `EDITABLE_PERMISSIONS`
+  ("See load rates", D-RATE6 wording, `shippedRoles: []`). `LoadCharges` lives in its own
+  `loadChargesContract.ts` (not `loadsContract.ts`: that file is the driver app's contract, and a driver is
+  never sent a price), with `loadRatePerMile` and `loadChargeSplitNote` — one rule for every screen.
+  API: `readLoadCharges` (chunked `.in()`, org-filtered, numeric strings → numbers, throws on a failed
+  read); the Loads list and one load add `charges` in the route after `holdsNamedPermission`; the board
+  adds it in `readDispatchBoard` after the 20 s org cache (`readsRates`, beside `readsNotes`). A holder gets
+  `charges: null` on a load McLeod states no price for; a non-holder gets no key. A source-scan test pins
+  the files that may name `load_charges`. Web: `LoadRateCell.vue` (both tables) and `LoadRateFacts.vue`
+  (load page card, truck drawer), `usd2` exact cents. Tests: 11 route, 3 board composition, 3 contract,
+  2 permission, 10 web unit, 7 page/drawer. Mutants: 9 API + 12 web/shared, all killed by assertions.
+  Browser pass at 1440 (admin, dispatcher off, dispatcher on): withholding holds on all three screens;
+  the widths do not fit — Q-RATE1 (§6.1).
