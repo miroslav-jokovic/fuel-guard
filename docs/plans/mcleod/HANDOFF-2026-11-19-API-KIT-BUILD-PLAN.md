@@ -9,6 +9,14 @@ CLAUDE.md first). Work in the worktree **`/Users/miroslavjokovic/Projects/FG-mcl
 **`claude/mcleod-api-kit-build-plan`** (pushed; = main + commit `6a70d36a2`). Do not work in the main
 checkout — it is on another chat's branch.
 
+## READ FIRST (1) — the review council of 2026-11-20 OUTRANKS the audit below
+A second round (five reviewers: pipeline, driver, ops/security, office, red team on round 1) is in
+`docs/plans/mcleod/COUNCIL-2026-11-20-API-KIT.md` with evidence in `api-kit-council/`. It corrects the
+round-1 summary (§2), adds 23 conditions v2 must build (C-1..C-23, §3), and returns four owner
+questions (Q-1..Q-4, §4). Read order: COUNCIL → AUDIT → specs. Write v2 only after the owner answers
+Q-1..Q-4, or write it with those four steps shown as blocked on the named answer (switch `off`).
+Never commit `/ws` hosts, company ids, McLeod user names, tokens or McLeod docs (repo is PUBLIC; C-8).
+
 ## READ FIRST — the audit of 2026-11-20 supersedes parts of this handoff
 The owner asked for an audit of the specs before v2 is written. Six independent audits found the specs
 cite code accurately but cannot be built as written (two incompatible write pipelines, Postgres
