@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Edge labeller — LIVE-EDGE-DETECTION-PLAN.md step L1</title>
+<!--
+  Mark where a document's corners are, photo by photo, for the labelled set that every candidate edge
+  detector is scored on (packages/capture-engine/src/edges/labels.ts is the format of record).
+
+  Runs from the file system, with no server and no network: open this file in Chrome or Safari, choose the
+  folder `edges:import` filled, click. Nothing leaves the computer — the photos are PII.
+
+  Click the four corners in ANY order (they are put in reading order for you), drag one to fix it. A
+  magnifier follows the pointer, because a corner is a few pixels and a finger-width guess would make the
+  benchmark measure the labeller. Keys: Enter = save and next · N = no document in this photo ·
+  Backspace = remove last corner · ← → = previous / next · 1–8 = document kind.
+-->
+<style>
+  :root { color-scheme: dark; font: 14px/1.4 system-ui, sans-serif; }
+  body { margin: 0; background: #0b1220; color: #e8edf5; display: grid; grid-template-columns: 1fr 300px; height: 100vh; }
+  #stage { position: relative; overflow: hidden; display: grid; place-items: center; }
+  canvas#view { max-width: 100%; max-height: 100vh; cursor: crosshair; }
+  canvas#loupe { position: fixed; width: 180px; height: 180px; border: 2px solid #00b2e3; border-radius: 50%; pointer-events: none; display: none; }
+  aside { padding: 16px; border-left: 1px solid #22304a; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+  label { display: flex; flex-direction: column; gap: 4px; }
+  input, select, button { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid #33425f; background: #121b2e; color: inherit; }
+  button.primary { background: #00b2e3; color: #001; border: 0; font-weight: 600; }
+  .muted { color: #8fa0bd; font-size: 12px; }
+  .row { display: flex; gap: 8px; } .row > * { flex: 1; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="view"></canvas></div>
+<canvas id="loupe" width="180" height="180"></canvas>
+<aside>
+  <label>Photo folder<input id="folder" type="file" webkitdirectory multiple></label>
+  <label>Existing labels.json (to continue)<input id="existing" type="file" accept=".json"></label>
+  <div id="progress" class="muted">No folder chosen.</div>
+  <label>Document kind
+    <select id="kind"><option>bol</option><option>pod</option><option>receipt</option><option>cdl</option><option>card</option><option>letter</option><option>form</option><option>other</option></select>
+  </label>
+  <label>Surface<input id="surface" placeholder="dashboard, seat, desk, wood, steering wheel…"></label>
+  <label>Light<input id="light" placeholder="day, night, cab light, sun glare…"></label>
+  <label>Other tag (key=value)<input id="extra" placeholder="phone=iphone-15"></label>
+  <div class="row"><button id="none">No document (N)</button><button id="undo">Undo (⌫)</button></div>
+  <div class="row"><button id="prev">← Prev</button><button class="primary" id="save">Save &amp; next ⏎</button></div>
+  <button id="export">Download labels.json</button>
+  <div class="muted">Save labels.json next to the photos folder's parent (fixtures/real/private/edges/), then
+    <code>pnpm --filter @silvicom/capture-engine edges:score -- --labels fixtures/real/private/edges/labels.json --by surface</code></div>
+  <div id="status" class="muted"></div>
+</aside>
+<script>
+const $ = (id) => document.getElementById(id);
+const view = $('view'), ctx = view.getContext('2d');
+const loupe = $('loupe'), lctx = loupe.getContext('2d');
+let files = [], index = 0, img = null, corners = [], drag = -1;
+const labels = new Map(); // id → entry
+
+async function sha256(file) {
+  const buf = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Top-left first, clockwise on screen — the same rule as findDocument.ts `readingOrder`. */
+function readingOrder(q) {
+  const cx = q.reduce((s, p) => s + p.x, 0) / 4, cy = q.reduce((s, p) => s + p.y, 0) / 4;
+  const cw = [...q].sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
+  let first = 0;
+  for (let i = 1; i < 4; i++) if (cw[i].x + cw[i].y < cw[first].x + cw[first].y) first = i;
+  return [0, 1, 2, 3].map((i) => cw[(first + i) % 4]);
+}
+
+function tags() {
+  const t = {};
+  if ($('surface').value.trim()) t.surface = $('surface').value.trim();
+  if ($('light').value.trim()) t.light = $('light').value.trim();
+  const [k, v] = $('extra').value.split('=');
+  if (k && v) t[k.trim()] = v.trim();
+  return t;
+}
+
+async function show(i) {
+  if (!files.length) return;
+  index = Math.max(0, Math.min(files.length - 1, i));
+  const file = files[index];
+  file.id ??= await sha256(file);
+  img = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  view.width = img.width; view.height = img.height;
+  const prior = labels.get(file.id);
+  corners = prior?.document ? prior.document.corners.map((p) => ({ ...p })) : [];
+  if (prior?.document) $('kind').value = prior.document.kind;
+  draw();
+  $('progress').textContent = `${index + 1} / ${files.length} · ${file.name} · ${img.width}×${img.height} · ${labels.size} labelled${prior ? ' · ✓ this one' : ''}`;
+}
+
+function draw() {
+  ctx.drawImage(img, 0, 0);
+  const s = Math.max(img.width, img.height) / 600;
+  ctx.lineWidth = 2 * s; ctx.strokeStyle = '#00b2e3'; ctx.fillStyle = 'rgba(0,178,227,0.15)';
+  const pts = corners.length === 4 ? readingOrder(corners) : corners;
+  if (pts.length) {
+    ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+    for (const p of pts.slice(1)) ctx.lineTo(p.x, p.y);
+    if (pts.length === 4) { ctx.closePath(); ctx.fill(); }
+    ctx.stroke();
+  }
+  pts.forEach((p, i) => {
+    ctx.beginPath(); ctx.arc(p.x, p.y, 6 * s, 0, Math.PI * 2); ctx.fillStyle = '#ffb000'; ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = `${14 * s}px system-ui`; ctx.fillText(['TL', 'TR', 'BR', 'BL'][i] ?? '', p.x + 8 * s, p.y - 8 * s);
+  });
+}
+
+function toImage(e) {
+  const r = view.getBoundingClientRect();
+  return { x: ((e.clientX - r.left) / r.width) * view.width, y: ((e.clientY - r.top) / r.height) * view.height };
+}
+
+function showLoupe(e) {
+  const p = toImage(e), zoom = 4, half = 180 / zoom / 2;
+  loupe.style.display = 'block'; loupe.style.left = `${e.clientX + 24}px`; loupe.style.top = `${e.clientY - 200}px`;
+  lctx.imageSmoothingEnabled = false;
+  lctx.clearRect(0, 0, 180, 180);
+  lctx.drawImage(view, p.x - half, p.y - half, half * 2, half * 2, 0, 0, 180, 180);
+  lctx.strokeStyle = '#ff3b30'; lctx.beginPath(); lctx.moveTo(90, 70); lctx.lineTo(90, 110); lctx.moveTo(70, 90); lctx.lineTo(110, 90); lctx.stroke();
+}
+
+view.addEventListener('pointerdown', (e) => {
+  if (!img) return;
+  const p = toImage(e), reach = Math.max(img.width, img.height) / 60;
+  drag = corners.findIndex((c) => Math.hypot(c.x - p.x, c.y - p.y) < reach);
+  if (drag < 0 && corners.length < 4) { corners.push(p); drag = corners.length - 1; }
+  view.setPointerCapture(e.pointerId); draw();
+});
+view.addEventListener('pointermove', (e) => {
+  if (!img) return;
+  if (drag >= 0) { corners[drag] = toImage(e); draw(); }
+  showLoupe(e);
+});
+view.addEventListener('pointerup', () => { drag = -1; if (corners.length === 4) { corners = readingOrder(corners); draw(); } });
+view.addEventListener('pointerleave', () => { loupe.style.display = 'none'; });
+
+function record(document) {
+  const file = files[index];
+  labels.set(file.id, { id: file.id, file: `photos/${file.name}`, width: img.width, height: img.height, document, tags: tags() });
+  $('status').textContent = `Saved ${file.name}.`;
+}
+
+$('save').onclick = () => {
+  if (corners.length !== 4) { $('status').textContent = 'Click four corners, or press N if there is no document.'; return; }
+  record({ corners: readingOrder(corners).map((p) => ({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 })), kind: $('kind').value });
+  show(index + 1);
+};
+$('none').onclick = () => { record(null); show(index + 1); };
+$('undo').onclick = () => { corners.pop(); draw(); };
+$('prev').onclick = () => show(index - 1);
+$('export').onclick = () => {
+  const out = { version: 1, entries: [...labels.values()] };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 1) + '\n'], { type: 'application/json' }));
+  a.download = 'labels.json'; a.click();
+};
+$('folder').onchange = (e) => {
+  files = [...e.target.files].filter((f) => /\.(jpe?g|png)$/i.test(f.name)).sort((a, b) => a.name.localeCompare(b.name));
+  show(0);
+};
+$('existing').onchange = async (e) => {
+  const parsed = JSON.parse(await e.target.files[0].text());
+  for (const entry of parsed.entries ?? []) labels.set(entry.id, entry);
+  $('status').textContent = `Loaded ${labels.size} existing labels.`;
+  if (files.length) show(index);
+};
+document.addEventListener('keydown', (e) => {
+  if (e.target instanceof HTMLInputElement) return;
+  if (e.key === 'Enter') $('save').click();
+  else if (e.key === 'n' || e.key === 'N') $('none').click();
+  else if (e.key === 'Backspace') $('undo').click();
+  else if (e.key === 'ArrowRight') show(index + 1);
+  else if (e.key === 'ArrowLeft') show(index - 1);
+  else if (/^[1-8]$/.test(e.key)) $('kind').selectedIndex = Number(e.key) - 1;
+});
+</script>
+</body>
+</html>

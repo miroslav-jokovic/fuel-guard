@@ -321,10 +321,20 @@ trained; L5 ~1 week. That is **about 6–8 weeks in total**, against a licence f
 
 - **Q-LED1 Build or buy? — ANSWERED 2026-11-20 by the owner: build (a).** The Genius Scan SDK is not
   licensed; it remains the reference whose behaviour §2/§2a describe.
-- **Q-LED2 Model weights:** are DocAligner's published weights usable commercially, and what were they trained
-  on? (a) usable: fine-tune them; (b) not: train the same Apache-2.0 architecture ourselves on L1 + synthetic +
-  SmartDoc; (c) skip models and ship OpenCV (c). **Recommendation:** check (a) first, plan for (b), and refuse (c)
-  unless L1 shows it meets the bar, which no vendor's history suggests it will.
+- **Q-LED2 Model weights — HALF ANSWERED 2026-11-20.** *The weights:* Apache-2.0, commercial closed-source
+  use, quantisation, fine-tuning and redistribution all permitted. Sources: DocsaidLab's licensing page and
+  its author's written reply on DocAligner issue #13 (2026-10-08), "I do not impose any additional
+  restrictions on the model weights". *The training data is the open half:* the authors decline to rule on it
+  ("Follow each original dataset's license and terms"). Its sets are SmartDoc 2015 (CC BY 4.0), CORD
+  (CC BY 4.0), MIDV-2020 (CC BY-SA 2.5), MIDV-500/2019 (licence not found), and synthetic pages built
+  from "documents and certificates found online" over an indoor-scenes background set (provenance not
+  stated). None of the licences we could read says non-commercial. **Owner ruling needed:**
+  (a) ship the published weights, accepting the training-data residue as most vendors do;
+  (b) ship only weights WE trained, starting from the same Apache-2.0 architecture with ImageNet backbone
+  weights, on our own L1 photos + SmartDoc + CORD + synthetic, which adds about 2–3 weeks;
+  (c) ask counsel. **Recommendation:** (a) for development and the field pilot, and (b) before store release
+  if counsel (c) says the residue matters. Fine-tuning on our photos happens in either case, because that is
+  where the wild-photo gap closes (docap: 0.990 on SmartDoc, 0.702 in the wild).
 - **Q-LED3 The precision bar** in §4.4. **Recommendation:** accept the proposed numbers as a starting point,
   and reset them after L1's baseline.
 - **Q-LED4** Should the state machine run in JS (one event per detection frame) or natively (ported to Swift
@@ -360,6 +370,53 @@ trained; L5 ~1 week. That is **about 6–8 weeks in total**, against a licence f
   · **What L0 still needs is a phone:** a development build on an iPhone, the readout's two numbers
     written here, and the owner's comparison with the Documents tab's VisionKit scanner. A simulator has
     no camera, so nothing about detection can be seen there.
+
+- **2026-11-20 — L1 tooling built and the first numbers are in (SmartDoc 2015, 1,319 frames).**
+  `capture-engine/src/edges/` holds the scoring every detector is judged by: the SmartDoc Jaccard index
+  (straightened to a unit square; the score is invariant to the target size because a scaling multiplies
+  every area by one constant, and a test holds that), the worst corner's error at 1,568 px under the best
+  rotation, the label format, and the report against the Q-LED3 bar. 26 tests. Mutation-checked:
+  16 mutants, all killed. The first round had five survivors, four of them real gaps (union never larger
+  than the target in any case, line-vs-segment crossing, nearest-rank `ceil` vs `round`, the bar's
+  `all` ignoring false outlines), each closed with a case. The fifth was a broken mutant: deleting only the
+  `if` left a `for` with no body, and a file that does not compile read as "survived". The horizon guard
+  is NOT dead code: a randomised search found a non-crossed outline that scores a meaningless 0.125
+  without it, and that outline is now the test.
+  `tools/edges/`: `vision-detect.swift` (Apple's two detectors on stills, on a Mac: the same Vision
+  framework as the phone), `score-edges.ts`, `smartdoc-labels.ts`, `docaligner.ts` (candidate (a) through
+  onnxruntime-node 1.30.0, the version `apps/api` already uses, with the authors' pre/post-processing),
+  `import-photos.ts` (copies into the gitignored `fixtures/real/private/edges/`, renamed by content hash),
+  and `label.html` (a no-network corner labeller with a magnifier, driven end to end in Chromium:
+  clicked corners came back in reading order within a pixel of SmartDoc's truth). How-to:
+  `tools/edges/README.md`.
+
+  | SmartDoc 2015, every 20th frame | JI mean | JI p5 | corner median | corner p95 | missed | background05 JI |
+  |---|---|---|---|---|---|---|
+  | **(a) DocAligner lcnet100** | **0.989** | **0.982** | **2.7 px** | **5.4 px** | 0 % | **0.986** |
+  | (b) Apple document segmentation (what L0 runs) | 0.943 | 0.798 | 8.7 px | 90.7 px | 0 % | 0.733 |
+  | Apple rectangles (WeScan settings) | 0.786 | 0.000 | 4.7 px | 16.5 px | 17.4 % | 0.003 |
+  | findDocument (applicant-photo finder) | 0.012 | 0.000 | 6.5 px | 255.8 px | 98.7 % | 0.000 |
+
+  · **The scorer is validated by an outside number:** our run of lcnet100 gives 0.989, and the authors
+    publish 0.9892 for it. A wrong Jaccard, a wrong straightening or a wrong pre-processing would not
+    land on the published figure.
+  · **⚠ (a)'s SmartDoc score is flattering:** SmartDoc 2015 is in DocAligner's training data. It shows the
+    pipeline is right, not how it does on a truck seat. **Our own L1 photos are the real test**, and the
+    reason they matter more than any public number.
+  · **(b), the detector in today's L0 prototype, is not precise enough by itself:** 8.7 px typical, and it
+    collapses on the cluttered background05 (0.733; 5th percentile 0.19). This is the industry's lesson
+    (§2a practice 1–2) measured on our own scorer. **L0 should switch to (a) through Core ML.**
+  · **(a) passes 3 of 4 bar lines; the typical corner is 2.7 px against 2.** That is the gap §4.2's
+    refinement exists for. It is now an experiment with a number to beat instead of a hope.
+  · findDocument was built for framed applicant photos, where the border is table. Here the table runs to
+    the frame edge, and it refuses by design (D-PCL5). It is not a live-detection candidate, and the
+    two-generator OpenCV baseline (c) stays unbuilt unless (a) is ruled out.
+  · Speeds are a Mac's (Apple's detectors native; DocAligner's 77 ms is mostly our JavaScript
+    post-processing at 1,568 px), and they say nothing about a phone.
+
+  **Next (L2):** our own photos (owner/office: ~300 per `tools/edges/README.md` §1), then the §4.2
+  refinement scored against plain (a) on both sets, then (a) converted to Core ML for L0. Q-LED2 waits on
+  the owner.
 
 ## Sources
 
