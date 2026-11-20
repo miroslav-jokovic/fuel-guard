@@ -5,7 +5,7 @@ import {
   AppText,
   Banner,
   Button,
-  Card,
+  GroupedList,
   Field,
   ListRow,
   NumericField,
@@ -104,6 +104,7 @@ export default function EndShift() {
       }
     >
       <ScreenHeader
+        display
         title="End your day"
         subtitle={duty.equipmentLabel ?? 'Sign off'}
         onClose={() => router.back()}
@@ -112,11 +113,9 @@ export default function EndShift() {
       {error ? <Banner tone="danger" icon="warning" message={error} /> : null}
 
       <Section first title="Your shift">
-        <Card padded={false}>
+        <GroupedList>
           <ListRow
             icon="local_shipping"
-            iconFill
-            disc="neutral"
             title={duty.equipmentLabel ?? 'On duty'}
             subtitle={duration ? `On duty ${duration}` : duty.hasTrailer ? 'Truck and trailer' : 'Bobtail'}
           />
@@ -134,7 +133,7 @@ export default function EndShift() {
               subtitle="They finish uploading after you sign off"
             />
           ) : null}
-        </Card>
+        </GroupedList>
       </Section>
 
       <Section title="Odometer (optional)">

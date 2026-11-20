@@ -5,7 +5,6 @@ import type { EquipmentOption } from '@silvicom/shared';
 import {
   ActionBar,
   AppText,
-  Badge,
   Banner,
   Button,
   ConfirmSheet,
@@ -74,15 +73,16 @@ function EquipmentRow({
       iconFill={selected}
       // The disc carries the selection, so the chosen truck is a different OBJECT in the list
       // rather than the same row with a tick bolted to its right edge (D-DB6).
-      disc={selected ? 'brand' : 'neutral'}
+      disc={selected ? 'info' : undefined}
       title={`${icon === 'route' ? 'Trailer' : 'Unit'} ${option.unit_number}`}
       subtitle={unitSubtitle(option)}
       onPress={onPress}
+      // A status is a word in its colour, never a pill (Visual 2026 D-DV14, V8).
       right={
         option.in_use_by ? (
-          <Badge label="In use" tone="caution" icon="person" />
+          <AppText variant="supporting" weight="semibold" tone="warning">In use</AppText>
         ) : option.is_default ? (
-          <Badge label="Your truck" tone="brand" />
+          <AppText variant="supporting" tone="secondary">Your truck</AppText>
         ) : undefined
       }
     />

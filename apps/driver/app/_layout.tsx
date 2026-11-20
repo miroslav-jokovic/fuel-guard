@@ -9,6 +9,7 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { isVersionBelow } from "@silvicom/shared";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { DISPLAY_FACE, DISPLAY_FACE_BOLD } from "@/theme/typography";
+import { ICON_FACE, ICON_FACE_FILL } from "@/theme/iconFont";
 import { SessionProvider, useSession } from "@/session/SessionProvider";
 import { useFeatures } from "@/session/useFeatures";
 import { UpdateRequired } from "@/components/UpdateRequired";
@@ -179,6 +180,9 @@ export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     [DISPLAY_FACE]: require("../assets/fonts/BigShouldersDisplay-ExtraBold.ttf") as number,
     [DISPLAY_FACE_BOLD]: require("../assets/fonts/BigShouldersDisplay-Black.ttf") as number,
+    // The icon glyphs (V8, src/theme/iconFont.ts): Material Symbols subset to the app's names.
+    [ICON_FACE]: require("../assets/fonts/MaterialSymbolsRounded.ttf") as number,
+    [ICON_FACE_FILL]: require("../assets/fonts/MaterialSymbolsRoundedFill.ttf") as number,
   });
 
   if (!fontsLoaded) return null;

@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import {
   Banner,
   AppText,
-  Card,
+  GroupedList,
   ListRow,
   Screen,
   ScreenHeader,
@@ -35,12 +35,15 @@ export default function Settings() {
 
   return (
     <Screen padTop={false} flow="sections">
-      <ScreenHeader title="System settings" subtitle="Appearance, sync and build" onClose={() => router.back()} />
+      <ScreenHeader display title="Appearance and sync" onClose={() => router.back()} />
 
       {/* The account card and Sign out moved to More on 2026-09-07 (D-DB14): a driver handing a
           shared cab phone over should not have to open a settings screen to leave it. */}
-      <Section first title="Sync">
-        <Card padded={false}><SyncStatus /></Card>
+      {/* Visual 2026 V8: settings are rows and controls on the canvas, no cards (D-DV7). */}
+      <Section title="Sync">
+        <GroupedList>
+          <SyncStatus />
+        </GroupedList>
         {needsAttention > 0 && lastError ? (
           <Banner
             tone="danger"
@@ -55,7 +58,6 @@ export default function Settings() {
       </Section>
 
       <Section title="Appearance">
-      <Card>
         <View className="gap-2">
           <AppText variant="rowTitle">Theme</AppText>
           <SegmentedControl<ThemeMode>
@@ -69,8 +71,7 @@ export default function Settings() {
           />
           <AppText variant="caption" tone="muted">System follows the phone’s day and night appearance.</AppText>
         </View>
-        <View className="h-px bg-edge-subtle" />
-        <View className="gap-2">
+        <View className="gap-2 pt-3">
           <AppText variant="rowTitle">Contrast</AppText>
           <SegmentedControl
             value={contrastMode}
@@ -86,7 +87,6 @@ export default function Settings() {
             operational states.
           </AppText>
         </View>
-      </Card>
       </Section>
 
       <Section title="Build">
@@ -95,15 +95,14 @@ export default function Settings() {
 
       {__DEV__ ? (
         <Section title="Developer">
-          <Card padded={false}>
+          <GroupedList>
             <ListRow
               icon="bolt"
-              disc="action"
               title="Queue a test sync item"
               subtitle={`Outbox: ${pending} pending · turn on airplane mode first to see it queue`}
               onPress={() => { void seedTestSync(); }}
             />
-          </Card>
+          </GroupedList>
         </Section>
       ) : null}
     </Screen>

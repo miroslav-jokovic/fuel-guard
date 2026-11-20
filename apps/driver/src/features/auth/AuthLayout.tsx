@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
-import { AppText, Icon, Screen, SilvicomLogo360, TEXT_TONE_CLASS, TONE_SOFT, type Tone } from '@/components';
+import { AppText, Icon, Screen, SilvicomLogo360, type Tone } from '@/components';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 
 /**
@@ -17,10 +17,10 @@ export function AuthMast({ icon, tone = 'neutral' }: { icon?: MaterialSymbolName
   return (
     <View className="items-center gap-6 pb-24 pt-16">
       <SilvicomLogo360 width={208} height={40} onHero />
+      {/* A bare glyph on the navy (Visual 2026 V8): the tinted disc retired with D-DV5. Live cyan for
+          a wait, amber for something the driver must sort out; the words under it say which. */}
       {icon ? (
-        <View className={`h-14 w-14 items-center justify-center rounded-full ${TONE_SOFT[tone].bg}`}>
-          <Icon name={icon} size={26} fill className={TEXT_TONE_CLASS[TONE_SOFT[tone].textTone]} />
-        </View>
+        <Icon name={icon} size={40} fill className={tone === 'caution' || tone === 'danger' || tone === 'warning' ? 'text-on-hero-act' : 'text-on-hero-live'} />
       ) : null}
     </View>
   );

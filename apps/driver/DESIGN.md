@@ -8,7 +8,7 @@ rest, and does not drift toward generic AI-generated mobile UI.
 
 - **Visual 2026** is the current visual world. The owner approved it on 2026-11-20 on the V1 mock.
   - The plan is [`DRIVER-APP-VISUAL-2026-PLAN.md`](../../docs/plans/drivers-app/DRIVER-APP-VISUAL-2026-PLAN.md),
-    with decisions D-DV1–D-DV22 and the owner's rulings in §6.1.
+    with decisions D-DV1–D-DV23 and the owner's rulings in §6.1.
   - The mock is [`visual-2026-mock/V1-MOCK.html`](../../docs/plans/drivers-app/visual-2026-mock/V1-MOCK.html).
     **When this file and the mock disagree, the mock shows the intended look and this file says how to build it.**
 - **Direction B** ([plan](../../docs/plans/drivers-app/DRIVER-APP-DIRECTION-B-PLAN.md), D-DB1–D-DB18)
@@ -108,7 +108,8 @@ Each decision below is final. A change is made by adding a new dated line, never
   - Rows are at least 56pt.
   - Every other control is at least 48pt.
 - **D-DV11 · Platform icons.** SF Symbols on iOS and Material Symbols on Android, through `Icon`.
-  HugeIcons retire as screens move.
+  HugeIcons retire as screens move. *(V8, 2026-11-20: done for Material Symbols on both platforms, from
+  the bundled font, `src/theme/iconFont.ts`; SF Symbols on iOS wait for the next native build.)*
 - **D-DV12 · Motion only says something happened.**
   - A haptic plus one short fade or slide confirms a scan, a send or a completed stop.
   - No tab motion.
@@ -243,7 +244,7 @@ step makes each one a primitive. Before that step, compose it from `AppText`, `S
 | **Timeline** | Load detail | Stops on a 2pt rail: cyan dot = current, green = done, hollow = ahead. Window figure largest in each stop. Required photos in words | **`Timeline`** (V6, built; rules `timelineStops`) |
 | **Map strip** | Stop | Fixed-height map at the top, full bleed (`Screen media`); floating controls are the only glass (D-DV2; solid until `expo-glass-effect` lands). No ETA. Actions in a pinned footer: Navigate outlined + amber primary | **`MapStrip`** (V6, built) |
 | **Review queue** | Documents | Status block with the count, then the missing items first, then verdicts, then what was sent. Each status a word in its colour, never a pill | **`documentsModel` + `DocumentRows`** (V7, built); the tab badge is the same count |
-| **Settings list** | More | Native grouped rows (`@expo/ui` List). No avatar photo, no icon discs | V8 |
+| **Settings list** | More | Grouped rows on the canvas (`GroupedList`). No avatar, no icon discs; a row's trailing value is the live fact ("3 new", "94 · #4") | **V8, built** (`@expo/ui` List waits for a native build) |
 | **Pinned primary** | Load detail, pre-shift Today | One 56pt amber button above the tab bar or the home indicator | V4 `ActionBar` |
 
 The tab shell is not a pattern you compose. It is the OS's own (D-DV1, V3). A new tab needs an owner ruling
