@@ -212,6 +212,57 @@ describe("POST /api/tms/dispatch-movements", () => {
     expect(rec.writes()).toHaveLength(0);
   });
 
+  // LOAD-RATES-PLAN D-RATE9: the order's charges (0638) are optional until the Board VM runs the connector
+  // that reads them. These add them to the agent's own output by hand; R4 makes the agent produce them.
+  const CHARGES = {
+    total_charge: 3620, freight_charge: 3500, otherchargetotal: 120, total_charge_c: "USD",
+    bill_distance: 836, bill_distance_um: "MI", order_loaded_movements: 2,
+  };
+  const CHARGE_COLUMNS = Object.keys(CHARGES);
+
+  it("a connector that does not read charges never names the seven columns, so a stored figure is never overwritten", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    expect((await post({ company_id: "TMS", movements: board() })).status).toBe(200);
+    for (const row of rec.writtenRows("mcleod_dispatch_movements")) {
+      for (const col of CHARGE_COLUMNS) expect(Object.keys(row)).not.toContain(col);
+    }
+  });
+
+  it("a connector that reads charges writes all seven on every movement, blanks as null", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const [a, b, c] = board();
+    const blanks = Object.fromEntries(CHARGE_COLUMNS.map((k) => [k, null]));
+    const res = await post({ company_id: "TMS", movements: [{ ...a, ...CHARGES }, { ...b, ...CHARGES }, { ...c, ...blanks }] });
+    expect(res.status).toBe(200);
+    const byId = Object.fromEntries(rec.writtenRows("mcleod_dispatch_movements").map((m) => [m.movement_id, m]));
+    expect(byId["900"]).toMatchObject(CHARGES);
+    expect(byId["902"]).toMatchObject(blanks);
+    expectOrgScoped(rec, ORG, { exempt: ["org_integrations"] });
+  });
+
+  it("refuses a batch that sends charges for some movements and not others, and writes nothing", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const [a, b] = board();
+    const res = await post({ company_id: "TMS", movements: [{ ...a, ...CHARGES }, b] });
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(await res.json())).toContain("order charges must be sent for every movement in a batch or for none");
+    expect(rec.writes()).toHaveLength(0);
+  });
+
+  it("refuses a movement that sends only some of the seven, naming what is missing, and writes nothing", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const [a] = board();
+    const { order_loaded_movements: _gone, ...six } = CHARGES;
+    const res = await post({ company_id: "TMS", movements: [{ ...a, ...six }] });
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(await res.json())).toContain("missing order_loaded_movements");
+    expect(rec.writes()).toHaveLength(0);
+  });
+
   // customer_name is the connector's newest field (Q-LMR5, 0383): a connector older than it must be refused
   // by name, not let through to blank the name a newer sync stored.
   it.each(["customer_id", "customer_name"])(

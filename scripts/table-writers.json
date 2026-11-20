@@ -473,6 +473,9 @@
   "lead_match_verdicts": [
     "apps/api/src/modules/recruiting/leads/verdicts.ts"
   ],
+  "load_charges": [
+    "apps/api/src/modules/loads/mirrorLoads.ts"
+  ],
   "load_dispatches": [
     "apps/api/src/modules/loads/dispatchToDriver.ts"
   ],
