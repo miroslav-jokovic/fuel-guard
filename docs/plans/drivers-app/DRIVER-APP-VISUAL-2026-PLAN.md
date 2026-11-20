@@ -275,6 +275,30 @@ screens are restyled through primitives only (§3).
 - **Q-DV6 · SDK 58 first?** NativeTabs is stable in 58, and V3 is a native bump anyway. **Recommend:** upgrade to SDK 58 as
   V3's first commit only if `expo-doctor` is clean on the day. Otherwise stay on 57 with `unstable-native-tabs` (the same API).
 
+### 6.1 Rulings (owner, 2026-11-20: "proceed as recommended for open questions")
+
+- **Q-DV1 → (a), as amended by D-DV15.** Big Shoulders Display sets screen titles and the one hero figure
+  per screen. Every other figure is set in the platform face with tabular digits.
+- **Q-DV2 → (a).** Red, amber and green are functional status colours and sit outside the brand's
+  two-colours-plus-white rule. They are used only as state. V2 records the scoped exception in
+  `.claude/skills/silvicom-brand/SKILL.md`.
+- **Q-DV3 → (a).** V5 uses the flat navy hero. The carrier-photo variant stays on the V1 mock for comparison.
+- **Q-DV4 → deferred to the feature plan.** V5 ships with no "Tight" warning.
+- **Q-DV5 → in this plan (V9).** iOS gets a Live Activity and a lock-screen widget; Android gets a home-screen widget.
+- **Q-DV6 → SDK 58 is V3's first commit, if `expo-doctor` is clean on the day.** Otherwise V3 stays on 57 with
+  `unstable-native-tabs`.
+
+- **D-DV15 · Measured, 2026-11-20: neither display face has tabular digits.** fontTools reads the font tables:
+  - `BigShouldersDisplay[wght].ttf` (google/fonts) has no `tnum` feature, and its digit advances run from 316 to 618.
+  - `Lexend_600SemiBold.ttf` has no `tnum` either, with digit advances from 542 to 653.
+
+  So D-DB3's "numerals are tabular wherever two numbers can sit in a column" was never true in Lexend. The
+  `tabular` prop on `AppText` asks for a feature the font does not have. SF Pro and Roboto both have `tnum`.
+
+  The rule is therefore: **a figure that aligns with another figure (list times, scores, ranks, dates) uses the
+  platform face with `fontVariant: ['tabular-nums']`. Big Shoulders is used only for a figure that stands alone (the
+  hero window, a count).**
+
 ## 7. Progress log
 
 One file per entry in `docs/plans/drivers-app/visual-2026-progress/YYYY-MM-DD-HHMM-<step>.md`.
