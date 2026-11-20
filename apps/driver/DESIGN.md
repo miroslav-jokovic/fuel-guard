@@ -8,7 +8,7 @@ rest, and does not drift toward generic AI-generated mobile UI.
 
 - **Visual 2026** is the current visual world. The owner approved it on 2026-11-20 on the V1 mock.
   - The plan is [`DRIVER-APP-VISUAL-2026-PLAN.md`](../../docs/plans/drivers-app/DRIVER-APP-VISUAL-2026-PLAN.md),
-    with decisions D-DV1–D-DV21 and the owner's rulings in §6.1.
+    with decisions D-DV1–D-DV22 and the owner's rulings in §6.1.
   - The mock is [`visual-2026-mock/V1-MOCK.html`](../../docs/plans/drivers-app/visual-2026-mock/V1-MOCK.html).
     **When this file and the mock disagree, the mock shows the intended look and this file says how to build it.**
 - **Direction B** ([plan](../../docs/plans/drivers-app/DRIVER-APP-DIRECTION-B-PLAN.md), D-DB1–D-DB18)
@@ -242,7 +242,7 @@ step makes each one a primitive. Before that step, compose it from `AppText`, `S
 | **Time groups** | Loads | Sections by time (Now, Next, Delivered this week, Earlier), not by status; offers first. The appointment is the trailing figure, the day in the note under it | **`loadsListModel` + `LoadRows`** (V6, built) |
 | **Timeline** | Load detail | Stops on a 2pt rail: cyan dot = current, green = done, hollow = ahead. Window figure largest in each stop. Required photos in words | **`Timeline`** (V6, built; rules `timelineStops`) |
 | **Map strip** | Stop | Fixed-height map at the top, full bleed (`Screen media`); floating controls are the only glass (D-DV2; solid until `expo-glass-effect` lands). No ETA. Actions in a pinned footer: Navigate outlined + amber primary | **`MapStrip`** (V6, built) |
-| **Review queue** | Documents | Status block with the count, then the missing items first, then verdicts, then what was sent. Each status a word in its colour, never a pill | V7 |
+| **Review queue** | Documents | Status block with the count, then the missing items first, then verdicts, then what was sent. Each status a word in its colour, never a pill | **`documentsModel` + `DocumentRows`** (V7, built); the tab badge is the same count |
 | **Settings list** | More | Native grouped rows (`@expo/ui` List). No avatar photo, no icon discs | V8 |
 | **Pinned primary** | Load detail, pre-shift Today | One 56pt amber button above the tab bar or the home indicator | V4 `ActionBar` |
 
