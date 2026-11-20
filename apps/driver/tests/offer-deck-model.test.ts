@@ -3,8 +3,6 @@ import type { Load, LoadStop } from '@silvicom/shared';
 import {
   acceptedUpcoming,
   backers,
-  defaultChip,
-  headerSentence,
   orderOffers,
 } from '@/features/loads/offerDeckModel';
 
@@ -25,31 +23,6 @@ function load(n: number, status: Load['status'], firstAppt: string | null): Load
     created_at: '2026-09-01T00:00:00Z', vehicle_unit: null, trailer_unit: null, stops: [stop],
   };
 }
-
-describe('headerSentence', () => {
-  it('leaves out the zero terms rather than printing holes', () => {
-    expect(headerSentence({ current: 1, offered: 2, upcoming: 3 })).toBe('1 in progress · 2 offered · 3 upcoming');
-    expect(headerSentence({ current: 0, offered: 2, upcoming: 0 })).toBe('2 offered');
-    expect(headerSentence({ current: 1, offered: 0, upcoming: 4 })).toBe('1 in progress · 4 upcoming');
-  });
-
-  it('says so plainly when there is nothing', () => {
-    expect(headerSentence({ current: 0, offered: 0, upcoming: 0 })).toBe('No loads yet');
-  });
-});
-
-describe('defaultChip', () => {
-  it('opens on an offer whenever one exists, ahead even of the load being driven', () => {
-    // An offer is the only thing here with a deadline: dispatch is waiting on the driver's answer.
-    expect(defaultChip({ current: 1, offered: 1, upcoming: 5 })).toBe('offered');
-  });
-
-  it('falls back to the load in progress, then to what is assigned', () => {
-    expect(defaultChip({ current: 1, offered: 0, upcoming: 5 })).toBe('current');
-    expect(defaultChip({ current: 0, offered: 0, upcoming: 5 })).toBe('upcoming');
-    expect(defaultChip({ current: 0, offered: 0, upcoming: 0 })).toBe('upcoming');
-  });
-});
 
 describe('orderOffers / acceptedUpcoming', () => {
   // `loadBucket` puts offered AND accepted in `upcoming`, so this split is the screen's job.

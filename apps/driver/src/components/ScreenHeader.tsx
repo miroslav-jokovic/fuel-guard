@@ -25,7 +25,13 @@ export function ScreenHeader({
   onBack,
   onClose,
   right,
+  display = false,
 }: {
+  /**
+   * Sets a pushed screen's title in the carrier's display face, like a tab title (D-DV18), for the
+   * screens whose Visual 2026 step has landed (Load detail, V6). The back action keeps its own row.
+   */
+  display?: boolean;
   title: string;
   subtitle?: string;
   onBack?: () => void;
@@ -41,7 +47,7 @@ export function ScreenHeader({
 
   const titleBlock = (
     <View className="gap-1">
-      <AppText variant={contextual ? 'navigationTitle' : 'screenTitle'} accessibilityRole="header">
+      <AppText variant={contextual && !display ? 'navigationTitle' : 'screenTitle'} accessibilityRole="header">
         {title}
       </AppText>
       {subtitle ? <AppText variant="supporting" tone="muted">{subtitle}</AppText> : null}

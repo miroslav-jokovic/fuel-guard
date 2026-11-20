@@ -6,6 +6,9 @@ import {
   nodeState,
   photoCount,
   photoTileState,
+  mapsUrl,
+  photoRows,
+  timelineStops,
   windowVerdict,
 } from '@/features/loads/itineraryModel';
 
@@ -143,5 +146,58 @@ describe('photoTileState / photoCount', () => {
     expect(photoCount(withPhoto)).toEqual({ have: 1, total: 3 });
     expect(photoCount(withPhoto, [{ slot: 'seal' }])).toEqual({ have: 2, total: 3 });
     expect(photoCount(stop())).toEqual({ have: 0, total: 0 });
+  });
+});
+
+describe('timelineStops (Visual 2026 V6, mock screen 5)', () => {
+  const twoStops = (first: Partial<LoadStop>, second: Partial<LoadStop> = {}) => ({
+    id: 'l', ref: 'LD', status: 'in_transit' as const, equipment: null, commodity: null, hazmat: false, total_miles: null,
+    accepted_at: null, completed_at: null, notes: null, created_at: '2026-09-07T00:00:00Z', vehicle_unit: null,
+    trailer_unit: null, stops: [stop({ ...first, seq: 1, id: 'a' }), stop({ ...second, seq: 2, id: 'b' })],
+  });
+
+  it('the next stop is the only tappable one, with a countdown; the others carry no live line', () => {
+    const [a, b] = timelineStops(twoStops({ required_photos: ['bol', 'seal'] }), Date.parse('2026-09-07T13:00:00Z'));
+    expect(a).toMatchObject({ state: 'next', tappable: true, live: { text: 'Window opens in 1 h', tone: 'live' } });
+    expect(a?.needs).toEqual({ text: 'Needs: BOL · seal', tone: 'secondary' });
+    expect(b).toMatchObject({ state: 'pending', tappable: false, live: null });
+  });
+
+  it('a finished stop missing a photo says Missing in amber; a complete set says so in green', () => {
+    const [a, b] = timelineStops(twoStops(
+      { status: 'completed', completed_at: '2026-09-07T14:10:00Z', required_photos: ['seal'] },
+      { required_photos: ['bol'], photos: [{ id: 'p', slot: 'bol', storage_path: 'x', captured_at: null, uploaded_at: 'x' }] },
+    ), NOW);
+    expect(a?.needs).toEqual({ text: 'Missing: seal', tone: 'act' });
+    expect(a?.kind).toMatch(/^Delivery · done /);
+    expect(b?.needs).toEqual({ text: 'All photos taken', tone: 'done' });
+  });
+
+  it('a window past its end is amber', () => {
+    const [a] = timelineStops(twoStops({}), Date.parse('2026-09-07T17:00:00Z'));
+    expect(a?.live).toEqual({ text: 'Past the window', tone: 'act' });
+  });
+});
+
+describe('photoRows (mock screen 6)', () => {
+  it('lists missing photos first, in amber "Take", and taken ones with a Retake', () => {
+    const rows = photoRows(
+      stop({ required_photos: ['trailer', 'bol', 'seal'], photos: [{ id: 'p', slot: 'seal', storage_path: 'x', captured_at: null, uploaded_at: 'x' }] }),
+      [{ slot: 'trailer', capturedAt: Date.parse('2026-09-07T14:02:00Z') }],
+    );
+    expect(rows.map((r) => [r.slot, r.state, r.action.text, r.action.tone])).toEqual([
+      ['bol', 'required', 'Take', 'act'],
+      ['trailer', 'captured', 'Retake', 'secondary'],
+      ['seal', 'already', 'Retake', 'secondary'],
+    ]);
+    expect(rows[1]?.detail).toMatch(/^Taken /);
+  });
+});
+
+describe('mapsUrl', () => {
+  it('hands coordinates to the phone\'s maps app, or the address when there are none', () => {
+    expect(mapsUrl(stop({ lat: 41.88, lon: -87.66 }), 'ios')).toBe('https://maps.apple.com/?daddr=41.88%2C-87.66');
+    expect(mapsUrl(stop({ address_line: '1204 W Fayette Ave' }), 'android')).toBe('google.navigation:q=1204%20W%20Fayette%20Ave%2C%20Effingham%2C%20IL');
+    expect(mapsUrl(stop({ address_line: null, city: null, state: null }), 'ios')).toBeNull();
   });
 });

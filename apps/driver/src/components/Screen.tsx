@@ -29,6 +29,7 @@ export function Screen({
   padTop = true,
   footer,
   hero,
+  media,
   flow = 'flat',
   onRefresh,
   refreshing = false,
@@ -45,6 +46,12 @@ export function Screen({
    */
   onRefresh?: () => void;
   refreshing?: boolean;
+  /**
+   * A full-bleed region at the very top, under the status bar, that scrolls away with the content
+   * (the Stop screen's map strip, Visual 2026 V6). Unlike `hero` it draws no navy and no sheet:
+   * the content sits straight on the canvas below it, as the V1 mock's screen 6 does.
+   */
+  media?: ReactNode;
   /** The navy hero region. Its presence, not a flag, is what makes this a hero screen. */
   hero?: ReactNode;
   /**
@@ -181,15 +188,25 @@ export function Screen({
     <KeyboardAvoidingView className={ui.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {statusBar}
       <ScrollView
-        contentContainerClassName={flow === 'sections' ? ui.scrollContentSections : ui.scrollContent}
-        contentContainerStyle={[{
+        contentContainerClassName={media ? undefined : flow === 'sections' ? ui.scrollContentSections : ui.scrollContent}
+        contentContainerStyle={media ? { paddingBottom: screenBottomPadding(insets.bottom, Boolean(footer)) } : [{
           paddingTop: top,
           paddingBottom: screenBottomPadding(insets.bottom, Boolean(footer)),
         }, columnStyle]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {children}
+        {media ? (
+          <>
+            {media}
+            <View
+              className={flow === 'sections' ? ui.scrollContentSections : ui.scrollContent}
+              style={columnStyle}
+            >
+              {children}
+            </View>
+          </>
+        ) : children}
       </ScrollView>
       {footerNode}
     </KeyboardAvoidingView>

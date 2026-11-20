@@ -336,6 +336,21 @@ screens are restyled through primitives only (§3).
     are used: "Off duty · Unit …" in the pre-shift block, and the rig row (with Change and End shift) in
     "Rest of the day".
 
+- **D-DV21 · Loads, Load detail and Stop (V6), 2026-11-20.**
+  - **Loads is grouped by time, not status.** The four chips over a navy hero are gone; offers come first
+    (somebody is waiting on them), then Now, Next, Delivered this week, Earlier. A row's trailing figure is
+    the time alone, with the day in the note under it: "Sun 3:59 PM" as one figure pushed the route onto two
+    lines.
+  - **The Stop screen's primary follows the stop.** "Mark arrived" while it is pending, "Complete stop" once
+    arrived, never both in amber. The mock's "Scan BOL" primary is not the stop's action today (BOL photos are
+    rows on the same screen), so it is not drawn.
+  - **Navigate hands the trip to the phone's maps app** (Apple Maps / Google Maps, by coordinates or the
+    address). The app still computes no route and shows no ETA (D-DV13).
+  - **The map's floating back button is solid**, D-DV2's named fallback, until `expo-glass-effect` (a native
+    addition) is installed.
+  - **"Stop n of m" on the Stop screen is the stop's own place in the run.** It counted finished stops, so a
+    delivery opened before its pickup said "stop 1 of 2".
+
 - **Q-DV7 · A photo for a stop that is already finished.** The mock's screen 3 offers "Add" for a seal photo
   missing from a completed pickup. The app cannot do that: `driver_complete_stop` (migration 0141) refuses
   any change to a completed stop, and a repeat of the same status returns before it inserts photos. V5 shows

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { DECLINE_REASON_LABELS, type AcceptanceCopy, type Load } from '@silvicom/shared';
-import { AppText, Badge, Button, Card } from '@/components';
+import { AppText, Button, Card } from '@/components';
 import { placeLabel } from './loadViewModel';
 import { backers } from './offerDeckModel';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -77,12 +77,10 @@ export function OfferDeck({
 
       <Animated.View style={enterStyle}>
         <Card>
-          <View className="flex-row items-center gap-2">
-            <Badge label={`Offered ${shortTime(front.created_at)}`} tone="info" />
-            <AppText variant="caption" tone="muted" className="flex-1 text-right" numberOfLines={1}>
-              {front.ref}
-            </AppText>
-          </View>
+          {/* A status is a word in its colour, never a pill (D-DV14). */}
+          <AppText variant="supporting" weight="semibold" tone="accent" tabular>
+            {`Offered ${shortTime(front.created_at)} · Load ${front.ref}`}
+          </AppText>
 
           <AppText variant="navigationTitle" numberOfLines={2}>
             {placeLabel(first)} → {placeLabel(last)}
@@ -97,9 +95,7 @@ export function OfferDeck({
           </AppText>
 
           {front.hazmat ? (
-            <View className="flex-row flex-wrap gap-2 pt-1">
-              <Badge label="Hazmat" tone="danger" icon="local_fire_department" />
-            </View>
+            <AppText variant="supporting" weight="semibold" tone="danger">Hazmat · the BOL check applies</AppText>
           ) : null}
 
           <View className={`gap-2 pt-2 ${largeText ? '' : 'flex-row'}`}>
@@ -125,7 +121,7 @@ export function OfferDeck({
           {offers.map((offer, index) => (
             <View
               key={offer.id}
-              className={`h-1.5 rounded-full ${index === 0 ? 'w-4 bg-action' : 'w-1.5 bg-on-hero/30'}`}
+              className={`h-1.5 rounded-full ${index === 0 ? 'w-4 bg-action' : 'w-1.5 bg-edge-strong'}`}
             />
           ))}
         </View>
