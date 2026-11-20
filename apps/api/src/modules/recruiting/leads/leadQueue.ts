@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { LEAD_STATUSES, OPEN_LEAD_STATUSES, type LeadQueuePage, type LeadQueueRow, type LeadRecord, type LeadStatus } from "@silvicom/shared";
 import { createDriverRecord } from "../../roster/index.js";
 import { suppressedPhones } from "../smsSuppressions.js";
+import { readPhoneLines } from "./phoneLookup.js";
 import { readLeadVerdicts } from "./verdicts.js";
 
 /**
@@ -32,7 +33,7 @@ export function parseQueueQuery(q: Record<string, unknown>):
   return { statuses, beforeAt, beforeId, limit, mine: q.mine === "1" };
 }
 
-type Derived = "verdicts" | "summary" | "do_not_contact";
+type Derived = "verdicts" | "summary" | "do_not_contact" | "phone_line";
 
 /** What a lead row carries beyond its own columns, read the same way for a page of the queue and for one lead. */
 async function withVerdictsAndHolds<T extends { id: string; phone_e164: string | null }>(
@@ -42,9 +43,11 @@ async function withVerdictsAndHolds<T extends { id: string; phone_e164: string |
 ): Promise<Array<T & Pick<LeadQueueRow, Derived>>> {
   const verdicts = await readLeadVerdicts(admin, orgId, rows.map((r) => r.id));
   const held = await suppressedPhones(admin, orgId, rows.map((r) => r.phone_e164 ?? ""));
+  const lines = await readPhoneLines(admin, orgId, rows.map((r) => r.phone_e164));
   return rows.map((r) => ({
     ...r, verdicts: verdicts.get(r.id)?.verdicts ?? [], summary: verdicts.get(r.id)?.summary ?? null,
     do_not_contact: r.phone_e164 !== null && held.has(r.phone_e164),
+    phone_line: r.phone_e164 !== null ? lines.get(r.phone_e164) ?? null : null,
   }));
 }
 

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { configuredAlertRecipients } from "../../modules/ads/index.js";
-import { recruitingLeadSink, type ConfiguredRecipients } from "../../modules/recruiting/index.js";
+import type { Env } from "../../env.js";
+import { phoneLookupFor, recruitingLeadSink, type ConfiguredRecipients } from "../../modules/recruiting/index.js";
 
 /**
  * Recruiting's `LeadSink` as the two lead jobs hand it to the ads module. Recruiting may not import ads
@@ -10,4 +11,6 @@ import { recruitingLeadSink, type ConfiguredRecipients } from "../../modules/rec
 export const leadRecipientsFor = (admin: SupabaseClient): ConfiguredRecipients =>
   (orgId, category) => configuredAlertRecipients(admin, orgId, category);
 
-export const leadSinkFor = (admin: SupabaseClient) => recruitingLeadSink(admin, leadRecipientsFor(admin));
+/** The phone lookup (V7a) is the deployment's: on where `TELNYX_API_KEY` is set and the ceiling is above 0. */
+export const leadSinkFor = (admin: SupabaseClient, env: Pick<Env, "TELNYX_API_KEY" | "TELNYX_LOOKUP_DAILY_MAX">) =>
+  recruitingLeadSink(admin, leadRecipientsFor(admin), undefined, phoneLookupFor(env));

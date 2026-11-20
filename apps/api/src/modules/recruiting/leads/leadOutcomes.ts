@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DEFAULT_ORG_TIMEZONE, wallClockInZone, wallClockToUtc, type LeadOutcome, type LeadOutcomes } from "@silvicom/shared";
+import { DEFAULT_ORG_TIMEZONE, wallClockInZone, wallClockToUtc, type LeadOutcome, type LeadOutcomes, type LeadSourceOutcome, type LeadSources } from "@silvicom/shared";
 
 /**
  * Recruiting's `LeadOutcomes` (Q-AD34, ruled 2026-11-05): which stages each ad lead reached and when, read
@@ -41,6 +41,21 @@ export function recruitingLeadOutcomes(admin: SupabaseClient): LeadOutcomes {
   return { outcomesSince: (orgId, since) => readLeadOutcomes(admin, orgId, since) };
 }
 
+/**
+ * Recruiting's `LeadSources` (V7d): every lead of every source in a window, with the same stages, its channel, its
+ * campaign when it had one, and the AD its platform named — Meta's `ad_id`, which both intake roads keep in the
+ * lead's `raw` (`leadFetch.ts`, `backfill.ts` ask for it) and read here as `raw->>ad_id` rather than copied into a
+ * column (Q-APX25 (a)). A value that is not Meta's all-digits id is read as no ad, never passed on.
+ */
+export function recruitingLeadSources(admin: SupabaseClient): LeadSources {
+  return {
+    everyLeadBetween: async (orgId, from, to) =>
+      (await readOutcomeRows(admin, orgId, { since: from, until: to, adsOnly: false })).map((l) => ({
+        lead_id: l.lead_id, channel: l.provider, campaign_id: l.campaign_id, platform_ad_ref: l.ad_ref, arrived_at: l.arrived_at, reached: l.reached,
+      } satisfies LeadSourceOutcome)),
+  };
+}
+
 export type Rows = Array<Record<string, unknown>>;
 
 /** Every row of one query, page by page; `build` makes a fresh query for each page (ordered, so pages are stable). */
@@ -79,14 +94,45 @@ function localDay(instant: string): string {
 }
 
 export async function readLeadOutcomes(admin: SupabaseClient, orgId: string, since: string): Promise<LeadOutcome[]> {
+  return (await readOutcomeRows(admin, orgId, { since, until: null, adsOnly: true })).map((l) => ({
+    lead_id: l.lead_id, provider: l.provider, platform_lead_ref: l.platform_lead_ref, campaign_id: l.campaign_id!, arrived_at: l.arrived_at, reached: l.reached,
+  }));
+}
+
+interface OutcomeRow {
+  lead_id: string;
+  provider: string;
+  platform_lead_ref: string;
+  campaign_id: string | null;
+  ad_ref: string | null;
+  arrived_at: string;
+  reached: LeadOutcome["reached"];
+}
+
+const META_AD_ID = /^[0-9]{1,40}$/;
+
+/**
+ * The one reading behind both interfaces. `adsOnly` keeps leads with a campaign (the outcome feed's and the brief's
+ * world); `until`, when given, ends the window (exclusive) — on the ARRIVAL, like `since`.
+ */
+async function readOutcomeRows(admin: SupabaseClient, orgId: string, w: { since: string; until: string | null; adsOnly: boolean }): Promise<OutcomeRow[]> {
   // Received is never before the platform's own time, so `received_at >= since` reads every lead that can
-  // have ARRIVED since; the arrival itself is filtered below, on the platform's time when there is one.
-  const leadRows = await allPages("recruiting_leads", () => admin.from("recruiting_leads")
-    .select("id, channel, external_ref, campaign_ref, platform_created_at, received_at")
-    .eq("org_id", orgId).not("campaign_ref", "is", null).gte("received_at", since).order("id"));
+  // have ARRIVED since; the arrival itself is filtered below, on the platform's time when there is one. The
+  // window's end is NOT put on `received_at`: a lead the backfill stored hours late may have arrived inside it.
+  const leadRows = await allPages("recruiting_leads", () => {
+    let q = admin.from("recruiting_leads")
+      .select("id, channel, external_ref, campaign_ref, platform_created_at, received_at, ad_ref:raw->>ad_id")
+      .eq("org_id", orgId);
+    if (w.adsOnly) q = q.not("campaign_ref", "is", null);
+    return q.gte("received_at", w.since).order("id");
+  });
   const leads = leadRows
-    .map((l) => ({ id: String(l.id), provider: String(l.channel), ref: String(l.external_ref), campaign: String(l.campaign_ref), arrived: new Date(String(l.platform_created_at ?? l.received_at)).toISOString() }))
-    .filter((l) => Date.parse(l.arrived) >= Date.parse(since));
+    .map((l) => ({
+      id: String(l.id), provider: String(l.channel), ref: String(l.external_ref ?? ""), campaign: l.campaign_ref === null || l.campaign_ref === undefined ? null : String(l.campaign_ref),
+      ad: typeof l.ad_ref === "string" && META_AD_ID.test(l.ad_ref) ? l.ad_ref : null,
+      arrived: new Date(String(l.platform_created_at ?? l.received_at)).toISOString(),
+    }))
+    .filter((l) => Date.parse(l.arrived) >= Date.parse(w.since) && (w.until === null || Date.parse(l.arrived) < Date.parse(w.until)));
   if (leads.length === 0) return [];
   const leadIds = leads.map((l) => l.id);
 
@@ -157,6 +203,6 @@ export async function readLeadOutcomes(admin: SupabaseClient, orgId: string, sin
       const end = lost.get(conv.driver);
       if (!hired && end) reached.lost_after_conversion = end.at;
     }
-    return { lead_id: l.id, provider: l.provider, platform_lead_ref: l.ref, campaign_id: l.campaign, arrived_at: l.arrived, reached };
+    return { lead_id: l.id, provider: l.provider, platform_lead_ref: l.ref, campaign_id: l.campaign, ad_ref: l.ad, arrived_at: l.arrived, reached };
   });
 }

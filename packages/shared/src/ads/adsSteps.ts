@@ -1,6 +1,7 @@
 import { ADS_AUTHORITY, type AdsAct } from "./adsPolicy.js";
 import type { CampaignEvent } from "./campaignMachine.js";
-import type { AdsSettings } from "./settingsContract.js";
+import { CAMPAIGN_LIST_LIMIT } from "./campaignContract.js";
+import { modesOf, type AdsSettings } from "./settingsContract.js";
 
 /**
  * V5 · a mode per step (ADS-PLATFORM-V2-PLAN §4 V5; Q-APX21 (a), ruled by the owner 2026-11-19). Pure.
@@ -68,8 +69,13 @@ const LEVEL_B = "Opens after the canary: one real campaign launched by the owner
 export const AD_STEPS: readonly AdStep[] = [
   {
     key: "start_campaign", label: "Start a campaign for an opening",
-    modes: [{ mode: "manual", said: "A person starts it from Campaigns, for an open opening.", acts: ["start_campaign"] }],
-    modeIn: () => "manual",
+    modes: [
+      { mode: "manual", said: "A person starts it from Campaigns, for an open opening.", acts: ["start_campaign"] },
+      // Nothing is created and nothing is spent until a person presses Start: the agent's part is finding the opening
+      // and filling in the form. Starting stays `start_campaign`, a person's.
+      { mode: "assisted", said: "Every open opening with no campaign is listed under Needs you with the form filled in; a person presses Start.", acts: ["start_campaign"] },
+    ],
+    modeIn: (s) => modesOf(s).start_campaign,
   },
   {
     key: "approve_plan", label: "Approve the plan",
@@ -109,6 +115,24 @@ export const AD_STEPS: readonly AdStep[] = [
     modeIn: () => "manual",
   },
 ];
+
+/**
+ * The open openings with no campaign, for Assisted start (V5 part 3). A campaign that is archived no longer runs for
+ * its opening, so the opening is offered again; any other state — failed included — is a campaign a person still
+ * has to decide about, and offering a second one beside it would start a duplicate.
+ *
+ * NULL when the list may be cut off: the list door answers a carrier's newest `CAMPAIGN_LIST_LIMIT`, so with that
+ * many an older campaign still standing could be missing, and its opening would be offered twice. Not a guess.
+ */
+export function openingsAwaitingCampaign<O extends { value: string }>(
+  openings: readonly O[],
+  campaigns: readonly { brief_source: string; brief_ref: string; state: string }[],
+  source: string,
+): O[] | null {
+  if (campaigns.length >= CAMPAIGN_LIST_LIMIT) return null;
+  const running = new Set(campaigns.filter((c) => c.brief_source === source && c.state !== "archived").map((c) => c.brief_ref));
+  return openings.filter((o) => !running.has(o.value));
+}
 
 /** Whether a mode can be chosen: every agent act in it is the agent's by the table (a mode with no agent act always can). */
 export function modeOpen(m: AdStepMode): boolean {

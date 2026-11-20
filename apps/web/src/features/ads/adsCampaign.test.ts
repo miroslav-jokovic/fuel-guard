@@ -106,6 +106,21 @@ describe("AdsCampaignCreateDrawer", () => {
     expect(w.find("[data-test=start-campaign]").attributes("disabled")).toBeUndefined();
   });
 
+  it("Assisted start: an offered opening arrives chosen, and still nothing is sent until Start is pressed (V5)", async () => {
+    const w = mount(AdsCampaignCreateDrawer, { props: { open: true, openings, offered: "op-1" }, global: { stubs } });
+    expect((w.find("select[data-test=opening]").element as HTMLSelectElement).value).toBe("op-1");
+    expect(w.find("[data-test=start-campaign]").attributes("disabled")).toBeUndefined();
+    expect(api.calls).toEqual([]);
+    await w.find("[data-test=campaign-form]").trigger("submit");
+    await flushPromises();
+    expect(api.calls.map((c) => (c.body as { brief_ref: string }).brief_ref)).toEqual(["op-1"]);
+  });
+
+  it("an offered opening that is not open any more is not chosen", () => {
+    const w = mount(AdsCampaignCreateDrawer, { props: { open: true, openings, offered: "op-closed" }, global: { stubs } });
+    expect(w.find("[data-test=start-campaign]").attributes("disabled")).toBeDefined();
+  });
+
   it("two presses send the same id, so the door finds the first campaign", async () => {
     api.failNext = { code: "x", message: "Try again" };
     const w = mountIt();

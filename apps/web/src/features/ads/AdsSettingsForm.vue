@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AD_AI_AGENTS, AD_PLATFORMS, ADS_BENCHMARK_SUGGESTIONS, type AdsSettingsView, type OrgMember } from "@silvicom/shared";
+import { AD_AI_AGENTS, AD_PLATFORMS, AD_STEPS, ADS_BENCHMARK_SUGGESTIONS, type AdsSettingsView, type OrgMember } from "@silvicom/shared";
 import {
-  AppButton as BaseButton, AppCard as BaseCard, AppFormField as FormField, AppInput as BaseInput, AppSwitch as BaseSwitch,
+  AppButton as BaseButton, AppCard as BaseCard, AppFormField as FormField, AppInput as BaseInput, AppSelect, AppSwitch as BaseSwitch,
 } from "@silvicom/ui";
 import SettingsSection from "@/components/ui/SettingsSection.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
@@ -45,6 +45,8 @@ const PAUSE_TOGGLES = [
 ] as const;
 const usd = (cents: number) => `$${(cents / 100).toLocaleString("en-US")}`;
 const S = ADS_BENCHMARK_SUGGESTIONS;
+/** The two modes of starting a campaign (V5 part 3), in the step table's own words (`AD_STEPS`). */
+const START_MODES = AD_STEPS.find((s) => s.key === "start_campaign")!.modes.map((m) => ({ value: m.mode, label: m.mode === "manual" ? `Manual — ${m.said}` : `Assisted — ${m.said}` }));
 const savedLine = computed(() => props.view.version === null
   ? "Nothing saved yet, so nothing can launch. Save the limits to put them in force."
   : `Version ${props.view.version}, saved by ${props.view.saved_by_name ?? "someone"} on ${formatDateTime(props.view.saved_at)}.`);
@@ -128,6 +130,14 @@ async function submit(): Promise<void> {
             <BaseInput :id="id" v-model="values.refresh_min_impressions" type="number" inputmode="numeric" min="100" :disabled="!editable" />
           </FormField>
         </div>
+      </BaseCard>
+    </SettingsSection>
+
+    <SettingsSection title="Starting campaigns" description="Whether the agent finds the openings that have no campaign. A person starts every campaign either way.">
+      <BaseCard as="div" class="grid gap-4 sm:grid-cols-2">
+        <FormField v-slot="{ id }" label="For an opening with no campaign">
+          <AppSelect :id="id" v-model="values.start_campaign_mode" :options="START_MODES" :disabled="!editable" data-test="start-campaign-mode" />
+        </FormField>
       </BaseCard>
     </SettingsSection>
 

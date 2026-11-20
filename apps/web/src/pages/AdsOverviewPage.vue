@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { modesOf, OPENING_BRIEF_SOURCE, openingsAwaitingCampaign } from "@silvicom/shared";
 import {
   AppCard as BaseCard, DataTable, QueryState, StatCard, TablePagination, useQueryState, type DataTableColumn,
 } from "@silvicom/ui";
@@ -7,10 +8,15 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
 import AdsTabs from "@/features/ads/AdsTabs.vue";
+import AdsLeadCostCard from "@/features/ads/AdsLeadCostCard.vue";
 import { LEDGER_STATUS, NEEDS_TONE, ledgerWhat, needsYouLink } from "@/features/ads/adsOverviewWords";
 import { count, usd } from "@/features/ads/spendLines";
 import { useAdsOverview } from "@/features/ads/useAdsOverview";
 import { useAdsTabs } from "@/features/ads/useAdsTabs";
+import { useAdsCampaigns } from "@/features/ads/useAdsCampaigns";
+import { useAdsSettings } from "@/features/ads/useAdsSettings";
+import { useOpenOpeningsQuery } from "@/features/recruitment/useLeads";
+import { useSessionStore } from "@/stores/session";
 
 /**
  * Ads › Overview (ADS-PLATFORM-V2-PLAN V6; Q-APX18 (a)): the workspace's home. What the ads are doing this month,
@@ -29,6 +35,22 @@ const position = computed(() => (before.value ? { before: before.value } : after
 const overview = useAdsOverview(position);
 const view = computed(() => overview.data.value);
 const { canOpenSettings } = useAdsTabs();
+
+/**
+ * Assisted start (V5 part 3): with the mode at Assisted, each open opening with no campaign waits on a person here,
+ * linked to the Campaigns page's form with it chosen (`?start=`). Read on this page, from recruiting's openings and
+ * the ads' own campaign list, because one feature may not reach into another; the rule is shared's
+ * (`openingsAwaitingCampaign`), so this list and the Campaigns page's cannot differ.
+ */
+const session = useSessionStore();
+const settings = useAdsSettings();
+const openings = useOpenOpeningsQuery();
+const campaignList = useAdsCampaigns();
+const awaiting = computed(() => {
+  const s = settings.data.value;
+  if (!s || modesOf(s.settings).start_campaign !== "assisted" || !session.can("recruitment") || !openings.data.value || !campaignList.data.value) return [];
+  return openingsAwaitingCampaign(openings.data.value, campaignList.data.value, OPENING_BRIEF_SOURCE) ?? [];
+});
 
 const totals = computed(() => view.value?.totals);
 const entries = computed(() => view.value?.ledger.entries ?? []);
@@ -80,8 +102,15 @@ const rows = computed(() => entries.value.map((e) => ({ ...e, what: ledgerWhat(e
 
         <BaseCard as="section" class="space-y-3" data-test="needs-you">
           <h2 class="text-sm font-semibold text-ink">Needs you</h2>
-          <p v-if="view.needs_you.length === 0" class="text-sm text-ink-muted">Nothing is waiting on you.</p>
+          <p v-if="view.needs_you.length === 0 && awaiting.length === 0" class="text-sm text-ink-muted">Nothing is waiting on you.</p>
           <ul v-else class="divide-y divide-edge-subtle">
+            <li v-for="o in awaiting" :key="`opening:${o.value}`" class="flex flex-wrap items-start justify-between gap-2 py-3" data-test="needs-opening">
+              <div class="min-w-0 space-y-1">
+                <p class="text-sm font-medium text-ink"><span :class="[BADGE_BASE, toneClass('warning'), 'mr-2']">Waiting</span>{{ o.label }} has no campaign</p>
+                <p class="text-sm text-ink-muted">The form is filled in; nothing starts until you press Start.</p>
+              </div>
+              <RouterLink :to="{ path: '/ads/campaigns', query: { start: o.value } }" class="text-sm font-medium text-ink hover:underline">Start it</RouterLink>
+            </li>
             <li v-for="(item, i) in view.needs_you" :key="`${item.kind}:${item.campaign_id ?? item.connection_id ?? i}`" class="flex flex-wrap items-start justify-between gap-2 py-3">
               <div class="min-w-0 space-y-1">
                 <p class="text-sm font-medium text-ink">
@@ -93,6 +122,8 @@ const rows = computed(() => entries.value.map((e) => ({ ...e, what: ledgerWhat(e
             </li>
           </ul>
         </BaseCard>
+
+        <AdsLeadCostCard />
 
         <section class="space-y-2">
           <h2 class="text-sm font-semibold text-ink">What the ads did</h2>

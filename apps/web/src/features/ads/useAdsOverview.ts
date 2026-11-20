@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from "@tanstack/vue-query";
 import type { Ref } from "vue";
-import type { AdsHealthView, AdsOverviewView } from "@silvicom/shared";
+import type { AdsHealthView, AdsLeadCostView, AdsOverviewView } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -37,5 +37,21 @@ export function useAdsHealth() {
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the ads health");
       return res.data;
     },
+  });
+}
+
+export const ADS_LEAD_COST_KEY = ["ads", "report", "leads"] as const;
+
+/** V7d's report for the days picked (`GET /api/ads/report/leads`), inclusive, as the carrier's calendar days. */
+export function useAdsLeadCost(range: Ref<{ from: string; to: string }>) {
+  return useQuery({
+    queryKey: [...ADS_LEAD_COST_KEY, range] as const,
+    queryFn: async (): Promise<AdsLeadCostView> => {
+      const { from, to } = range.value;
+      const res = await apiFetch<AdsLeadCostView>(`/api/ads/report/leads?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the lead cost report");
+      return res.data;
+    },
+    placeholderData: keepPreviousData,
   });
 }

@@ -177,6 +177,7 @@ const SWEEP: Array<[string, string, unknown?]> = [
   ["GET /api/ads/spend", "spend"],
   ["GET /api/ads/health", "health"],
   ["GET /api/ads/overview", "overview"],
+  ["GET /api/ads/report/leads", "report/leads?from=2026-11-01&to=2026-11-30"],
   ["GET /api/ads/connections", "connections"],
   ["POST /api/ads/connections/meta", "connections/meta", { token: TOKEN, account_id: "act_100100", page_id: "200200", sandbox: false }],
   ["POST /api/ads/connections/simulator", "connections/simulator", {}],

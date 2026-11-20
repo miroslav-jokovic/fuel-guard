@@ -12,8 +12,10 @@ import { useAdsConnections } from "./useAdsConnections";
  * Start a campaign (E3): an open opening, an ad account and a brand kit. The openings arrive as a prop because
  * they are recruiting's, and one feature may not reach into another. The id is made once per opening of this
  * drawer, so a double press finds the row the first made (S1b). With one account or one kit it is chosen already.
+ * `offered` (V5 part 3, Assisted start) is the opening the page offered: chosen already, still changeable, and
+ * nothing is created until the person presses Start.
  */
-const props = defineProps<{ open: boolean; openings: Array<{ value: string; label: string }> }>();
+const props = defineProps<{ open: boolean; openings: Array<{ value: string; label: string }>; offered?: string | null }>();
 const emit = defineEmits<{ close: []; created: [id: string] }>();
 
 const FORM = "ads-campaign-form";
@@ -38,7 +40,7 @@ const ready = computed(() => Boolean(opening.value && connection.value && kit.va
 watch(() => props.open, (open) => {
   if (!open) return;
   id.value = crypto.randomUUID();
-  opening.value = null;
+  opening.value = props.offered && props.openings.some((o) => o.value === props.offered) ? props.offered : null;
   refused.value = null;
 }, { immediate: true });
 watch(accounts, (a) => { if (a.length === 1) connection.value = a[0]!.value; }, { immediate: true });

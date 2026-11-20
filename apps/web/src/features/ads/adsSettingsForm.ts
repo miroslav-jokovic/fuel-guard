@@ -1,5 +1,5 @@
 import {
-  AD_AI_AGENTS, AD_PLATFORMS, ADS_ALERT_CATEGORIES, ADS_LEAD_QUALITY_DEFAULT, adsSettingsSchema, leadQualityOf, outcomeFeedOf,
+  AD_AI_AGENTS, AD_PLATFORMS, ADS_ALERT_CATEGORIES, ADS_LEAD_QUALITY_DEFAULT, adsSettingsSchema, leadQualityOf, modesOf, outcomeFeedOf,
   type AdAiAgent, type AdPlatform, type AdsAlertCategory, type AdsSettings,
 } from "@silvicom/shared";
 
@@ -67,6 +67,8 @@ export interface AdsSettingsFormValues {
   outcome_feed_enabled: boolean;
   /** Meta's dataset id as typed; blank = none named. */
   outcome_dataset_id: string;
+  /** V5 part 3: how a campaign for an opening is started. Absent in the saved version reads as Manual (`modesOf`). */
+  start_campaign_mode: "manual" | "assisted";
   lead_quality_enabled: boolean;
   lead_quality_min_attempted: string;
   lead_quality_wrong_number_pct: string;
@@ -99,6 +101,7 @@ export function toFormValues(s: AdsSettings): AdsSettingsFormValues {
     recipients: Object.fromEntries(ADS_ALERT_CATEGORIES.map((c) => [c, [...(s.alerts.recipients[c] ?? [])]])) as Record<AdsAlertCategory, string[]>,
     uncontacted_lead_minutes: String(s.alerts.uncontacted_lead_minutes),
     outcome_feed_enabled: outcomeFeedOf(s).enabled,
+    start_campaign_mode: modesOf(s).start_campaign,
     outcome_dataset_id: outcomeFeedOf(s).dataset_id ?? "",
     lead_quality_enabled: leadQualityOf(s).enabled,
     lead_quality_min_attempted: String(leadQualityOf(s).min_attempted),
@@ -120,6 +123,12 @@ function leadQualityFrom(base: AdsSettings, v: AdsSettingsFormValues): AdsSettin
 }
 
 /** The group to write, or undefined to leave an absent group absent (see the header). */
+/** The modes group, carried whole (a save replaces the object); left absent while it was absent and nothing changed. */
+function modesFrom(base: AdsSettings, v: AdsSettingsFormValues): AdsSettings["modes"] {
+  if (base.modes === undefined && v.start_campaign_mode === "manual") return undefined;
+  return { ...(base.modes ?? {}), start_campaign: v.start_campaign_mode };
+}
+
 function outcomeFeedFrom(base: AdsSettings, v: AdsSettingsFormValues): AdsSettings["outcome_feed"] {
   const dataset = v.outcome_dataset_id.trim();
   if (base.outcome_feed === undefined && !v.outcome_feed_enabled && dataset === "") return undefined;
@@ -188,6 +197,8 @@ export function toSettings(base: AdsSettings, v: AdsSettingsFormValues): FormRes
   const feed = outcomeFeedFrom(base, v);
   if (feed === undefined) delete candidate.outcome_feed;
   else candidate.outcome_feed = feed;
+  const modes = modesFrom(base, v);
+  if (modes === undefined) delete candidate.modes; else candidate.modes = modes;
   const quality = leadQualityFrom(base, v);
   if (quality === undefined) delete candidate.lead_quality;
   else candidate.lead_quality = quality;

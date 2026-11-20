@@ -27,9 +27,10 @@ export { returnToDutyBlocked, returnToDutyStanding } from "./returnToDuty.js";
 export { partOneFactsForMedstop } from "./medstopApplicantFacts.js";
 // The LeadSink every platform lead enters by (D-AD17): the ads module's intake (B4) is handed this, never a table.
 export { recruitingLeadSink } from "./leads/leadSink.js";
+export { lookUpMissingPhones, phoneLookupFor } from "./leads/phoneLookup.js";
 // S1b (D-AD17): an open opening as an ad brief; the composition root hands it to the ads router.
 export { recruitingBriefSource } from "./leads/adBriefSource.js";
-export { recruitingLeadOutcomes } from "./leads/leadOutcomes.js";
+export { recruitingLeadOutcomes, recruitingLeadSources } from "./leads/leadOutcomes.js";
 export { recruitingLeadQuality } from "./leads/leadQuality.js";
 export type { ConfiguredRecipients } from "./leads/leadNotify.js";
 // D2c: the alarm on a lead nobody has contacted, and its scheduler.

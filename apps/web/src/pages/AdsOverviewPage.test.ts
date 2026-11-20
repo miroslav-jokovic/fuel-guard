@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { computed, ref, type Ref } from "vue";
 import { createRouter, createMemoryHistory } from "vue-router";
-import type { AdsOverviewView } from "@silvicom/shared";
+import { ADS_SETTINGS_UNSET, type AdsOverviewView } from "@silvicom/shared";
 
 /**
  * Ads › Overview (V6): draws the API's figures as given, the "Needs you" rows with where each leads, and the action
@@ -14,7 +14,15 @@ vi.mock("@/features/ads/useAdsOverview", () => ({
     state.positions.push(position);
     return { isLoading: ref(false), isFetching: ref(false), data: ref(state.data), error: ref(state.error), refetch: () => {} };
   },
+  // V7d's card has its own read and its own test (`AdsLeadCostCard.test.ts`).
+  useAdsLeadCost: () => ({ isLoading: ref(true), isFetching: ref(false), data: ref(undefined), error: ref(null), refetch: () => {} }),
 }));
+// V5 part 3: the reads behind the Assisted-start rows — the carrier's mode, the open openings and the campaigns.
+const start = vi.hoisted(() => ({ mode: "manual" as "manual" | "assisted", manages: true, openings: [] as unknown[], campaigns: [] as unknown[] }));
+vi.mock("@/features/ads/useAdsSettings", () => ({ useAdsSettings: () => ({ data: ref({ settings: { ...ADS_SETTINGS_UNSET, modes: { start_campaign: start.mode } } }) }) }));
+vi.mock("@/features/ads/useAdsCampaigns", () => ({ useAdsCampaigns: () => ({ data: ref(start.campaigns) }) }));
+vi.mock("@/features/recruitment/useLeads", () => ({ useOpenOpeningsQuery: () => ({ data: ref(start.openings) }) }));
+vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: (s: string) => s === "recruitment" && start.manages }) }));
 vi.mock("@/features/ads/useAdsTabs", () => ({ useAdsTabs: () => ({ tabs: computed(() => []), canOpenSettings: computed(() => state.canOpenSettings) }) }));
 import AdsOverviewPage from "./AdsOverviewPage.vue";
 
@@ -47,6 +55,10 @@ beforeEach(() => {
   state.error = null;
   state.positions = [];
   state.canOpenSettings = false;
+  start.mode = "manual";
+  start.manages = true;
+  start.openings = [{ value: "op-1", label: "Dallas regional" }, { value: "op-2", label: "Joliet local" }];
+  start.campaigns = [{ brief_source: "recruiting_opening", brief_ref: "op-1", state: "live" }];
 });
 
 describe("AdsOverviewPage", () => {
@@ -85,5 +97,19 @@ describe("AdsOverviewPage", () => {
     const text = (await render()).wrapper.text();
     expect(text).toContain("Could not load the ads overview.");
     expect(text).not.toContain("$0");
+  });
+
+  it("Assisted start: each open opening with no campaign waits under Needs you, linked to the filled-in form (V5)", async () => {
+    start.mode = "assisted";
+    const items = (await render()).wrapper.findAll('[data-test="needs-opening"]');
+    expect(items.map((i) => i.text())).toEqual([expect.stringContaining("Joliet local has no campaign")]);
+    expect(items[0]!.find("a").attributes("href")).toBe("/ads/campaigns?start=op-2");
+  });
+
+  it("Manual start, or someone who cannot start a campaign, sees no such row", async () => {
+    expect((await render()).wrapper.findAll('[data-test="needs-opening"]')).toHaveLength(0);
+    start.mode = "assisted";
+    start.manages = false;
+    expect((await render()).wrapper.findAll('[data-test="needs-opening"]')).toHaveLength(0);
   });
 });

@@ -9,15 +9,18 @@ import { AGENT_LABEL, PLATFORM_LABEL } from "@/features/ads/adsLabels";
 import { HEALTH_TONE, agentShare, agentUnits } from "@/features/ads/adsHealthWords";
 import { count } from "@/features/ads/spendLines";
 import { useAdsHealth } from "@/features/ads/useAdsOverview";
+import { useAdsTabs } from "@/features/ads/useAdsTabs";
+import AdsStepModes from "@/features/ads/AdsStepModes.vue";
 
 /**
  * Ads › Automation (ADS-PLATFORM-V2-PLAN V8's health page, drawn in V6's workspace; Q-APX18 (a)): is the machinery
  * running, and what is it costing — the connections and their tokens, when Meta last told us of a lead, every ads job
  * over the last week, and every AI agent this month. All of it `GET /api/ads/health`, a read of rows we hold; the
  * shared `adsHealth.ts` says what each figure is and is not ("in shape" means the answer parsed, not that a later
- * check passed it). V5's modes will join this tab: it is where the automation is configured as well as watched.
+ * check passed it). V5's modes are its first card (`AdsStepModes`): who does each step, and what each mode needs.
  */
 const health = useAdsHealth();
+const { canOpenSettings } = useAdsTabs();
 const view = computed(() => health.data.value);
 
 const jobColumns: DataTableColumn[] = [
@@ -41,6 +44,7 @@ const agents = computed(() => (view.value?.agents ?? []).map((a) => ({ ...a, lab
   <div class="space-y-6">
     <PageHeader description="Whether the ads machinery is running, and what each part of it is costing this month." />
     <AdsTabs />
+    <AdsStepModes :can-open-settings="canOpenSettings" />
     <QueryState
       :loading="health.isLoading.value"
       :error="health.error.value"
