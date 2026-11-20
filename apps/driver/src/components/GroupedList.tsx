@@ -5,13 +5,11 @@ import { View } from 'react-native';
  * Where a separator starts, from what the row LEADS with — the row inset (`ui.listRow` px-4) plus
  * the leading element and its 12pt gap.
  *
- * Exported and prop-shaped rather than element-shaped because `AttentionQueue` draws its own
- * separators inside a `Card` rather than a `GroupedList`, and had hardcoded `ml-18`. That constant
- * is correct only while every row carries both a disc and a glyph — true today, and silently wrong
- * the first time one does not, in the one list a driver reads when something has already gone wrong.
- * One rule, two callers.
+ * Prop-shaped because `AttentionQueue` once drew its own separators inside a `Card` with a hardcoded
+ * `ml-18`, correct only while every row carried both a disc and a glyph. Since V5 it renders through
+ * `GroupedList` like every other group, so this rule has one caller and one place to be wrong.
  */
-export function separatorInsetFor(row: { disc?: unknown; icon?: unknown }): string {
+function separatorInsetFor(row: { disc?: unknown; icon?: unknown }): string {
   // Since V4 a `disc` row leads with the same 24pt glyph box as an `icon` row (no 44pt circle).
   if (row.icon) return 'ml-13'; // 16 + 24 glyph box + 12 gap
   return 'ml-4';

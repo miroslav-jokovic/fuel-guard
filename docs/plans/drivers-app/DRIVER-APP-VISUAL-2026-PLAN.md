@@ -324,6 +324,28 @@ screens are restyled through primitives only (§3).
   Swift). V3 proved nothing visual needs it. It becomes **V3b**: one PR, `expo-doctor` clean, a native-android CI run and
   a fresh dev client.
 
+- **D-DV20 · Today (V5), 2026-11-20.**
+  - **The block's figure is the time without its day period.** On a 12-hour phone "PM" set in Big Shoulders
+    at 64pt was as loud as the time, so the period joins the smaller suffix ("12:48" + "PM – 2:48 PM"). The
+    phone's own clock format still decides 12 or 24 hours.
+  - **A closed window is amber on the navy**, through a new role `on-hero-act`. It is the only late state the
+    block reports; "Tight" stays deferred (Q-DV4).
+  - **"Arrived" is a real action.** It queues the stop screen's own `arrived` update through the outbox. Only
+    finishing a stop opens the stop screen, because a missing photo needs D21's reason there.
+  - **The duty strip retires.** Its greeting and avatar were D-DV14 devices. Its facts moved to where they
+    are used: "Off duty · Unit …" in the pre-shift block, and the rig row (with Change and End shift) in
+    "Rest of the day".
+
+- **Q-DV7 · A photo for a stop that is already finished.** The mock's screen 3 offers "Add" for a seal photo
+  missing from a completed pickup. The app cannot do that: `driver_complete_stop` (migration 0141) refuses
+  any change to a completed stop, and a repeat of the same status returns before it inserts photos. V5 shows
+  the gap honestly instead, as an amber row under "Done today" naming the missing photo, with no action.
+  - (a) Leave it as a record; the office chases it.
+  - (b) A server path that attaches a late photo to a finished stop (an RPC plus an outbox kind), then "Add".
+
+  **Recommend (b), in the feature plan.** A late seal or BOL photo is exactly what the office asks drivers
+  for, and today the only way to send it is outside the app.
+
 ## 7. Progress log
 
 One file per entry in `docs/plans/drivers-app/visual-2026-progress/YYYY-MM-DD-HHMM-<step>.md`.

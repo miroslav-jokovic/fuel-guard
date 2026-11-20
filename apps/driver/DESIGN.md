@@ -8,7 +8,7 @@ rest, and does not drift toward generic AI-generated mobile UI.
 
 - **Visual 2026** is the current visual world. The owner approved it on 2026-11-20 on the V1 mock.
   - The plan is [`DRIVER-APP-VISUAL-2026-PLAN.md`](../../docs/plans/drivers-app/DRIVER-APP-VISUAL-2026-PLAN.md),
-    with decisions D-DV1–D-DV15 and the owner's rulings in §6.1.
+    with decisions D-DV1–D-DV20 and the owner's rulings in §6.1.
   - The mock is [`visual-2026-mock/V1-MOCK.html`](../../docs/plans/drivers-app/visual-2026-mock/V1-MOCK.html).
     **When this file and the mock disagree, the mock shows the intended look and this file says how to build it.**
 - **Direction B** ([plan](../../docs/plans/drivers-app/DRIVER-APP-DIRECTION-B-PLAN.md), D-DB1–D-DB18)
@@ -170,7 +170,7 @@ how the old version of this file came to describe a palette the app no longer ha
 | `canvas`, `surface*` | grounds | `surface-raised` is for the signature block and sheets only (D-DV7) |
 | `ink`, `ink-secondary`, `ink-muted` | text | `ink-subtle` = `ink-muted`; `ink-disabled` only for disabled controls |
 | `edge*` | rare separators, input borders | separate by space first (D-DV7) |
-| `hero`, `hero-*`, `on-hero*` | the navy **status block** (D-DV6) | white on navy; `on-hero-muted` only for non-essential copy; **`on-hero-live`** (tone `onHeroLive`) is the cyan ON navy — never `accent`, which is the dark-teal ink for light grounds (2.4:1 on navy) |
+| `hero`, `hero-*`, `on-hero*` | the navy **status block** (D-DV6) | white on navy; `on-hero-muted` only for non-essential copy; **`on-hero-live`** (tone `onHeroLive`) is the cyan ON navy — never `accent`, which is the dark-teal ink for light grounds (2.4:1 on navy); **`on-hero-act`** (tone `onHeroAct`) is the amber ON navy, for a closed window (V5) |
 | `action`, `action-fg`, `action-pressed` | **amber = act** fill | `action-fg` is the navy text on it; one per screen |
 | `action-ink`, `warning`, `caution`, `sync-pending` | amber as text | "expires in 26 days", "Take" |
 | `accent`, `accent-ink`, `accent-soft`, `info`, `operation-current`, `surface-selected`, `edge-focus` | **cyan = live** | was Direction B's lavender |
@@ -234,6 +234,7 @@ step makes each one a primitive. Before that step, compose it from `AppText`, `S
 |---|---|---|---|
 | **Status block** (signature) | Today, Documents | Navy block, 24 radius. A context line, the subject, ONE lone figure (`numericHero`), then a live line in `onHeroLive` | **`StatusBlock`** (V4, built) |
 | **Next step** | Today | One surface row: what to do and why, with the amber action on the right (48pt). One per screen, and only when there IS a next step | **`NextStep`** (V4, built) |
+| **Today** | Today | The composition itself: `screens/today/todayStatusModel.ts` decides the block, the next step and the rows; `home.tsx` only draws them | **V5, built** |
 | **Grouped rows** | Today, Loads, More | `Section` (its heading is the muted `label`), then a `GroupedList` of `ListRow`s on the canvas with no card around them. `disc={tone}` tints the glyph by state. Trailing figure `numericInline` or an action word in its state colour | **`Section` + `GroupedList` + `ListRow`** (V4, built) |
 | **Time groups** | Loads | Sections by time (Now, Next, Delivered), not by status. The appointment is the trailing figure | V6 |
 | **Timeline** | Load detail | Stops on a 2pt rail: cyan dot = current, green = done, hollow = ahead. Window figure largest in each stop. Required photos in words | V6 |

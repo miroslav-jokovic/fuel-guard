@@ -160,11 +160,11 @@ describe('countdownLabel', () => {
   const window = { appointment_start: '2026-09-07T14:10:00Z', appointment_end: '2026-09-07T16:00:00Z' };
 
   it('says hours and minutes past an hour out', () => {
-    expect(countdownLabel(window, NOW)).toEqual({ text: 'Opens in 2 h 10 min', tone: 'neutral' });
+    expect(countdownLabel(window, NOW)).toEqual({ text: 'Window opens in 2 h 10 min', tone: 'neutral' });
   });
 
   it('drops to minutes inside the hour', () => {
-    expect(countdownLabel(window, Date.parse('2026-09-07T13:25:00Z'))).toEqual({ text: 'Opens in 45 min', tone: 'neutral' });
+    expect(countdownLabel(window, Date.parse('2026-09-07T13:25:00Z'))).toEqual({ text: 'Window opens in 45 min', tone: 'neutral' });
   });
 
   it('says the window is open once it has started', () => {
@@ -174,7 +174,7 @@ describe('countdownLabel', () => {
   it('flips to "open now" AT the appointment, never counting down to zero', () => {
     // The boundary, because "Opens in 0 min" is the wrong sentence for a window that is open.
     expect(countdownLabel(window, Date.parse('2026-09-07T14:10:00Z'))).toEqual({ text: 'Window open now', tone: 'neutral' });
-    expect(countdownLabel(window, Date.parse('2026-09-07T14:09:00Z'))).toEqual({ text: 'Opens in 1 min', tone: 'neutral' });
+    expect(countdownLabel(window, Date.parse('2026-09-07T14:09:00Z'))).toEqual({ text: 'Window opens in 1 min', tone: 'neutral' });
   });
 
   it('warns once the window has closed, which is the only state that is bad news', () => {

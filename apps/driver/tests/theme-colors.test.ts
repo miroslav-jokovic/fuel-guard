@@ -69,6 +69,7 @@ describe('Direction B semantic colors', () => {
     expect(contrast(theme['on-hero-muted'], theme.hero), 'on-hero-muted on hero').toBeGreaterThanOrEqual(4.5);
     for (const background of ['hero', 'hero-raised'] as const) {
       expect(contrast(theme['on-hero-live'], theme[background]), `on-hero-live on ${background}`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(theme['on-hero-act'], theme[background]), `on-hero-act on ${background}`).toBeGreaterThanOrEqual(4.5);
     }
   });
 

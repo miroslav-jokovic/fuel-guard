@@ -53,6 +53,7 @@
     --color-on-hero-secondary: 191 208 234;
     --color-on-hero-muted: 163 182 211;
     --color-on-hero-live: 0 178 227;
+    --color-on-hero-act: 255 176 32;
     --color-action: 255 176 32;
     --color-action-pressed: 232 154 12;
     --color-action-fg: 10 33 68;
@@ -109,6 +110,7 @@
     --color-on-hero-secondary: 191 208 234;
     --color-on-hero-muted: 163 182 211;
     --color-on-hero-live: 0 178 227;
+    --color-on-hero-act: 255 176 32;
     --color-action: 255 176 32;
     --color-action-pressed: 232 154 12;
     --color-action-fg: 10 33 68;
@@ -165,6 +167,7 @@
     --color-on-hero-secondary: 191 208 234;
     --color-on-hero-muted: 191 208 234;
     --color-on-hero-live: 0 178 227;
+    --color-on-hero-act: 255 176 32;
     --color-action: 255 176 32;
     --color-action-pressed: 232 154 12;
     --color-action-fg: 10 33 68;
@@ -221,6 +224,7 @@
     --color-on-hero-secondary: 191 208 234;
     --color-on-hero-muted: 191 208 234;
     --color-on-hero-live: 95 216 247;
+    --color-on-hero-act: 255 200 87;
     --color-action: 255 200 87;
     --color-action-pressed: 255 176 32;
     --color-action-fg: 10 33 68;
