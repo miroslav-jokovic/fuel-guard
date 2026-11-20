@@ -107,24 +107,32 @@ Last 90 days, 4,403 orders, by number of loaded (`L`) and empty (`E`) non-void m
 
 **D-RATE1 — What we read.** Add to `DISPATCH_LOADS_SELECT`, all from `orders` (already granted) except
 the count:
-`total_charge`, `freight_charge`, `otherchargetotal`, `rate`, `rate_units`, `rate_type`,
-`total_charge_c` (currency), `bill_distance`, `bill_distance_um`, and
+`total_charge`, `freight_charge`, `otherchargetotal`, `total_charge_c` (currency),
+`bill_distance`, `bill_distance_um`, and
 `order_loaded_movements` = count of non-void (`status <> 'V'`) movements with `loaded = 'L'` on the
 same order and company (a correlated subquery on `movement_order` + `movement`, both granted).
 Company is matched on every join (Alex's standing rule).
+Not read (corrected 2026-11-20, R1): `rate`, `rate_units`, `rate_type`. On a flat-rated order (F on
+13,453 of 13,478 loaded orders since 2026-01-01) the linehaul already IS rate × units, and no screen
+reads them; a column nothing reads reads null forever (0383's rule).
 
 **D-RATE2 — Where it is stored.**
 - Raw: the same columns on `mcleod_dispatch_movements` (deny-all). Core is rebuilt from raw (D-LMR4).
 - Core: a **new table `load_charges`**, one row per load, owned by the `loads` module. RLS on, **no
   policies** (deny-all from the browser), written only by the mirror projection with the service role.
-  Columns: `load_id` (PK, FK `loads` on delete cascade), `org_id`, `total_charge`, `freight_charge`,
-  `other_charges`, `rate`, `rate_units`, `rate_type`, `currency`, `billed_miles`,
-  `order_loaded_movements`, `updated_at`.
+  Columns (as built in 0639): `load_id` (PK, FK `loads` on delete cascade), `org_id`,
+  `total_charge` numeric(16,2) NOT NULL, `linehaul` numeric(16,2), `other_charges` numeric(16,2),
+  `currency`, `billed_miles` numeric(10,1), `order_loaded_movements`, `updated_at`. McLeod's own
+  precision; no sign CHECK, because McLeod records negative other charges (10 orders since
+  2026-01-01, as low as −$1,000). A row exists only when McLeod stated a total.
 - Never on `loads` (§1.3: every org member and drivers can read `loads` columns).
 
 **D-RATE3 — Which loads get a price.** Only loaded movements (`loaded = 'L'`). An empty movement gets
 no `load_charges` row (§1.2: it repeats the order's charge). A movement whose `loaded` is null gets
-no row either.
+no row either. **A voided movement (`V`, our `canceled`) gets no row** (added 2026-11-20, measured): all
+622 voided loaded movements on orders since 2026-01-01 belong to orders McLeod voided too
+(`orders.status = 'V'` on 622 / 622), so the price was never earned. A row a load already has is
+deleted when McLeod voids it, turns it empty, or stops stating a total.
 
 **D-RATE4 — Split orders.** When `order_loaded_movements > 1`, each loaded leg shows the order's full
 total with the note "Order total · split over N trips". We do not divide it: McLeod does not divide it,
@@ -177,18 +185,22 @@ rate", never an amount.
 Each PR is one merge; the migration goes alone first (`lint:migration-ordering`: a column and its first
 reader/writer in separate merges).
 
-**R1 — migration `0637_load_charges.sql`** (next free number on 2026-11-20; no open PR holds one —
-re-check at build time).
-- `alter table mcleod_dispatch_movements add column` × 10 (D-RATE1), all nullable.
-- `create table load_charges` (D-RATE2), `enable row level security`, no policies,
+**R1 — migrations `0638_mcleod_dispatch_order_charges.sql` and `0639_load_charges.sql`** (two files
+because the two tables belong to two modules, `lint:table-modules`, as 0383/0384 did).
+- 0638: `alter table mcleod_dispatch_movements add column` × 7 (D-RATE1), all nullable, no default.
+- 0639: `create table load_charges` (D-RATE2), `enable row level security`, no policies,
   `forbid_org_change` trigger as 0564 does.
-- Register the writer in `scripts/table-writers.json` and the table's owner (`loads`) in
-  `docs/ARCHITECTURE.md`'s table ownership.
+- The table's owner (`loads`, layer core, budget 150 rows/day from 47/day measured) in
+  `scripts/table-modules.json` and `docs/ARCHITECTURE.md`; a producer waiver in
+  `check-table-producers.mjs` naming R2. The writer goes into `scripts/table-writers.json` in R2,
+  with the writer.
 - PGlite matrix `supabase/tests/load-charges.test.mjs`: an authenticated office user and a driver both
   read **zero** rows from `load_charges`; the service role reads them. Must print `RESULT`.
 
 **R2 — data path, no screen** (after R1 is merged).
-- `tmsDispatchMirror.ts`: the ten optional keys (D-RATE9).
+- `tmsDispatchMirror.ts`: the seven optional keys (D-RATE9).
+- Remove `load_charges` from `check-table-producers.mjs`'s waivers; add its writer to
+  `scripts/table-writers.json`.
 - `dispatchMovementIngest.ts`: write the raw columns when the batch carries them; leave them untouched
   when it does not (the batch's rows either all carry them or none do — refuse a mixed batch with 400).
 - `mcleodLoadProjection.ts` (pure) + `dispatchProjection.ts` (`MOVEMENT_COLUMNS`): project a charge
@@ -227,7 +239,7 @@ re-check at build time).
    so staging rates cannot be assumed: the staging check is the permission switch and the screens'
    behaviour (with and without the grant), plus the ingest and projection tests. Real figures are
    checked in production (§7).
-2. **Owner approves the release** carrying 0637 and R2–R4. `release.yml` applies 0637 to production,
+2. **Owner approves the release** carrying 0638, 0639 and R2–R4. `release.yml` applies them to production,
    then the code.
 3. **Only after production serves R2** (`pnpm verify:live` shows the release tag) and a test post
    with rate keys is stored there: update the VM. Before that, rates sent to an older API are dropped
@@ -249,7 +261,7 @@ re-check at build time).
    17 two-week slices from 03/15 (earliest delivery stored: 03/27/2026) to 12/01. A re-run over held
    movements is a no-op rewrite, per agent.mjs's backfill header. Commands: VM guide Part C.
 
-**R5 — after the VM is verified:** make the ten keys required in `tmsDispatchMovementSchema`
+**R5 — after the VM is verified:** make the seven keys required in `tmsDispatchMovementSchema`
 (D-RATE9's removal), one small PR.
 
 ---
@@ -282,3 +294,9 @@ re-check at build time).
 ## Progress log
 
 - 2026-11-20 — plan written (branch `claude/load-rates-plan`).
+- 2026-11-20 — R1 built (branch `claude/load-rates-r1-schema`): 0638 + 0639 + matrix
+  `load-charges.test.mjs` (32 checks; a planted browser-read policy fails 10 of them). Measured before
+  writing them, on lme_analytics: McLeod's declared types (money decimal(16,2), miles decimal(10,1)),
+  negative other charges on 10 orders, $0 totals on 10, total = linehaul + other on 13,478 / 13,478.
+  Corrections to this plan from those measurements: seven columns, not ten (D-RATE1); two migration
+  files, not one (R1); exact core columns (D-RATE2).
