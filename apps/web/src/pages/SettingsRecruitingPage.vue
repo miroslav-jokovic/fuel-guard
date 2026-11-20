@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SettingsSection from "@/components/ui/SettingsSection.vue";
 import SignatoryRegister from "@/features/recruitment/SignatoryRegister.vue";
@@ -9,6 +10,8 @@ import ApplicationFormSettings from "@/features/recruitment/ApplicationFormSetti
 import CarrierQuestionsEditor from "@/features/recruitment/CarrierQuestionsEditor.vue";
 import ApplicantMessagesSettings from "@/features/recruitment/ApplicantMessagesSettings.vue";
 import DrugAlcoholPolicyCard from "@/features/recruitment/DrugAlcoholPolicyCard.vue";
+import TenstreetConnectionCard from "@/features/settings/TenstreetConnectionCard.vue";
+import { useSessionStore } from "@/stores/session";
 
 /**
  * Settings → Recruiting (APPLICATION-FLOW-V2-PLAN.md R1, Q-AW42 ruled (a) by the owner 2026-09-28).
@@ -50,10 +53,18 @@ import DrugAlcoholPolicyCard from "@/features/recruitment/DrugAlcoholPolicyCard.
  * text is in code (D-DAP1) — so the card only opens it blank and names the text in use. Under the form,
  * because it is one of the papers the form hands the applicant.
  *
+ * ── TENSTREET (TENSTREET-INTAKE-PLAN TS4) ─────────────────────────────────────────────────────
+ * Where Tenstreet's push of applications into Recruitment › Leads is set up, last: it is set up once, by whoever
+ * manages recruiting, and its API door asks the same (`recruitment` manage). Shown only to them — a viewer would
+ * see a card whose every button the server refuses.
+ *
  * ── MESSAGES (§12 MT2, 0551) ──────────────────────────────────────────────────────────────────
  * The carrier's own words in the invitation, "your application is ready", the reminder and the videos
  * message, after the form: the form is what the applicant fills in, the messages how they are asked to.
  */
+
+const session = useSessionStore();
+const canManageRecruitment = computed(() => session.can("recruitment"));
 </script>
 
 <template>
@@ -114,6 +125,16 @@ import DrugAlcoholPolicyCard from "@/features/recruitment/DrugAlcoholPolicyCard.
     >
       <div class="rounded-surface bg-surface p-4 ring-1 ring-edge">
         <OrientationVideosEditor />
+      </div>
+    </SettingsSection>
+
+    <SettingsSection
+      v-if="canManageRecruitment"
+      title="Tenstreet"
+      description="Applications sent from Tenstreet arrive in Recruitment › Leads. Set Tenstreet's Company ID, make the address, and give it to Tenstreet."
+    >
+      <div class="rounded-surface bg-surface p-4 ring-1 ring-edge">
+        <TenstreetConnectionCard />
       </div>
     </SettingsSection>
 

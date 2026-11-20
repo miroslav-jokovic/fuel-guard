@@ -283,6 +283,17 @@ then; TS4 cannot finish without Q-TS1.
   key is returned only in the rotate response.
 - Browser pass with the three fixtures (fail/empty/staging).
 
+**Built 2026-11-20 (TS4)** (progress `ads-progress/2026-11-20-2130-S-TS4-settings-card.md`). Settings › Recruiting ›
+Tenstreet: Company ID, Test/Production, the address, the switch, and the last seven days from the post log. API
+`recruiting/routes/tenstreet.ts` over `recruiting/tenstreet/connection.ts`; contract `tenstreetConnectionContract.ts`.
+All three doors are `recruitment` manage. A new address always asks for a fresh sign-in; switching on asks too
+(Med-Stop's rule), switching off never does. The key is 32 random bytes, base64url, stored as the receiver's own
+`hashTenstreetKey` plus its last four characters, answered once with `Cache-Control: no-store`, and in no audit row.
+The address is derived from `PUBLIC_API_URL` (the variable FleetPal's receiver address already reads); unset, the
+card shows the key and where it goes rather than a guessed URL. Departures, said: **"last error" is read from the
+post log**, the newest refusal (with the very sentence Tenstreet was answered) or the newest post that could not
+become a lead, because nothing writes 0640's `last_error`; the browser pass waits with the rest of TS6, on staging.
+
 ### TS5 · Lead page: what Tenstreet sent
 - The lead drawer gets a **"From Tenstreet"** section: Tenstreet status/worklist/recruiter (read-only,
   "as of" date), licences and endorsements, employers (name, dates), accidents and violations counts,
