@@ -47,6 +47,13 @@ to run.
 `FINANCE_FEED=off`, so that code does not run there. Claude re-checks this at R4 for anything else
 merged by then.
 
+**Re-checked at R4 (2026-11-20, `git log b86466537..origin/main -- tools/mcleod-agent`).** Besides
+`0cf39defa`, three commits touch the connector folder. `10d5cf67f` and `023e5938c` change only
+`windows/set-lumper-feed*.ps1` and `review/CONNECTOR-ON-THE-VM.md`, which the update does not install.
+`8fb77d30c` adds Part 6 (McLeod Imaging, "NOT YET RUN") to `review/SILVICOM-GRANTS.sql`. The update
+installs that file, but only `review.test.mjs` reads it, and the connector never runs it. So the update
+changes what runs on the VM only by R4 (rates) and `0cf39defa` (finance, which stays off).
+
 ## Part A — what Claude does first (you wait)
 
 1. R1–R4 merged; the release approved by you and serving in production.
