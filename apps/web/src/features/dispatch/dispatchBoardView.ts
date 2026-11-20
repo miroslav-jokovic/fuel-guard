@@ -187,9 +187,13 @@ export const BOARD_LIVE_COLUMNS = ["hos", "now", "load", "nextStop", "next"] as 
  * What the current load pays (LOAD-RATES-PLAN D-RATE8), after Miles left: the two figures a dispatcher
  * weighs a truck's run by. Only for a reader holding `dispatch.load_rates` (`withRateColumn`) — for anyone
  * else it does not exist, so the picker does not list it, and the API sends them no `charges` (D-RATE7).
- * Shown by default; `sm` because a figure up to "$11,000.00" fits, and its split note wraps.
+ * HIDDEN by default, one click away in Columns (`BOARD_DEFAULT_HIDDEN`) — owner, 2026-11-20, Q-RATE1 (c):
+ * at 1440 px every visible option pushed Notes off the board, and the price is in the truck drawer.
+ * `sm` because a figure up to "$11,000.00" fits, and its split note wraps.
  */
 export const BOARD_RATE_COLUMN: DataTableColumn = { key: "rate", label: "Rate", width: "sm", sortable: true, numeric: true };
+/** What a reader who never chose columns starts without: the Live columns (D-DBV1) and Rate (Q-RATE1). */
+export const BOARD_DEFAULT_HIDDEN = [...BOARD_LIVE_COLUMNS, BOARD_RATE_COLUMN.key];
 export function withRateColumn(columns: DataTableColumn[], seesRates: boolean): DataTableColumn[] {
   if (!seesRates) return columns;
   const at = columns.findIndex((c) => c.key === "milesLeft") + 1;

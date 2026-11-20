@@ -618,11 +618,12 @@ describe("the Loads list's rate columns", () => {
     expect(w.text()).not.toContain("$4,580.00");
   });
 
-  it("show a holder each load's rate and rate per mile, before Dispatch", async () => {
+  it("show a holder each load's rate with its rate per mile under it, before Dispatch", async () => {
     useSessionStore().permissions = { "dispatch.load_rates": true } as never;
     const w = await mountPage();
-    expect(headers(w).filter((h) => /^(Rate|Per mile)/.test(h))).toHaveLength(2);
+    // Q-RATE1 (b): one Rate column, the per mile on its second line; Per mile itself starts hidden.
+    expect(headers(w).filter((h) => /^(Rate|Per mile)/.test(h))).toEqual([expect.stringMatching(/^Rate/)]);
     expect(w.text()).toContain("$4,580.00");
-    expect(w.text()).toContain("$2.31");
+    expect(w.text()).toContain("$2.31 / mi");
   });
 });

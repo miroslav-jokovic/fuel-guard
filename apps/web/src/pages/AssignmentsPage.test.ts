@@ -361,10 +361,20 @@ describe("the board's Rate column", () => {
     expect(w.text()).not.toContain("$3,620.00");
   });
 
-  it("shows a holder the current load's rate, right after Miles left", async () => {
+  it("starts hidden for a holder, one tick away in Columns (Q-RATE1 (c))", async () => {
     useSessionStore().permissions = { "dispatch.load_rates": true } as never;
     board.value = priced();
     const w = await mountPage();
+    expect(headers(w).some((h) => h.startsWith("Rate"))).toBe(false);
+    // The five Live columns and Rate.
+    expect(w.findAll("button").find((b) => b.text().startsWith("Columns"))!.text()).toContain("6 hidden");
+  });
+
+  it("shows a holder who turns it on the current load's rate, right after Miles left", async () => {
+    useSessionStore().permissions = { "dispatch.load_rates": true } as never;
+    board.value = priced();
+    // A hidden-list that leaves Rate out is a reader who turned it on (`useTableColumns`).
+    const w = await mountPage("/assignments?hide=hos");
     const h = headers(w);
     expect(h[h.findIndex((x) => x.startsWith("Miles left")) + 1]).toMatch(/^Rate/);
     expect(w.text()).toContain("$3,620.00");

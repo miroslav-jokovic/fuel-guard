@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import type { DispatchBoardRow, LoadCharges } from "@silvicom/shared";
-import { LOAD_SORT_KEYS, loadColumns, loadSortValue } from "./loadListColumns";
-import { BOARD_COLUMNS, BOARD_SORT_KEYS, boardSortValue, withRateColumn } from "./dispatchBoardView";
+import { LOAD_SORT_KEYS, RATE_DEFAULT_HIDDEN, loadColumns, loadSortValue } from "./loadListColumns";
+import { BOARD_COLUMNS, BOARD_DEFAULT_HIDDEN, BOARD_SORT_KEYS, boardSortValue, withRateColumn } from "./dispatchBoardView";
 import type { DispatchLoad } from "./useDispatchLoads";
 
 /**
@@ -74,6 +74,19 @@ describe("a rate cell", () => {
     expect(mount(LoadRateCell, { props: { charges: NO_MILES, figure: "per_mile" } }).text()).toBe("—");
     // The split note is the Rate's, not repeated under Per mile.
     expect(mount(LoadRateCell, { props: { charges: SPLIT, figure: "per_mile" } }).text()).not.toContain("split");
+  });
+
+  it("puts the rate per mile under the Rate when asked — the Loads list's one column (Q-RATE1 (b))", () => {
+    expect(mount(LoadRateCell, { props: { charges: SPLIT, figure: "rate", perMileLine: true } }).text()).toContain("$4.33 / mi");
+    expect(mount(LoadRateCell, { props: { charges: NO_MILES, figure: "rate", perMileLine: true } }).text()).toContain("— / mi");
+    // The board's cell does not ask for it.
+    expect(mount(LoadRateCell, { props: { charges: SPLIT, figure: "rate" } }).text()).not.toContain("/ mi");
+    expect(mount(LoadRateCell, { props: { charges: null, figure: "rate", perMileLine: true } }).text()).toBe("");
+  });
+
+  it("starts the Loads list's Per mile and the board's Rate hidden (Q-RATE1)", () => {
+    expect(RATE_DEFAULT_HIDDEN).toEqual(["per_mile"]);
+    expect(BOARD_DEFAULT_HIDDEN).toContain("rate");
   });
 
   it("prints nothing for a load McLeod states no price for", () => {

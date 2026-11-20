@@ -27,7 +27,10 @@ export const DELIVERED_COLUMN: DataTableColumn = { key: "delivered", label: "Del
  * What each load pays (LOAD-RATES-PLAN D-RATE8): the McLeod order's total and its rate per mile, before
  * Dispatch. Only for a reader holding `dispatch.load_rates` (`loadColumns`) — for anyone else the columns do
  * not exist, so the picker does not list them, and the API sends them no `charges` anyway (D-RATE7).
- * Shown by default. A detail on the phone card: Pickup, Delivery and Type are already its three figures.
+ * Rate is shown by default with the per mile on its second line; Per mile, its own sortable column, is
+ * hidden by default (`RATE_DEFAULT_HIDDEN`) — owner, 2026-11-20, Q-RATE1 (b): two visible columns pushed
+ * the list ≈ 42 px past its 1,104 px box on In transit and ≈ 170 px on Delivered/All at 1440.
+ * A detail on the phone card: Pickup, Delivery and Type are already its three figures.
  * The cells are `LoadRateCell.vue`'s, shared with the board.
  */
 export const RATE_COLUMNS: DataTableColumn[] = [
@@ -35,6 +38,7 @@ export const RATE_COLUMNS: DataTableColumn[] = [
   { key: "per_mile", label: "Per mile", sortable: true, numeric: true, width: "sm", card: "detail" },
 ];
 export const RATE_KEYS = ["rate", "per_mile"] as const;
+export const RATE_DEFAULT_HIDDEN = ["per_mile"] as const;
 
 /** The list's columns, in the page's order: Delivered after Delivery on the two windowed tabs, the rates before Dispatch. */
 export function loadColumns(windowed: boolean, seesRates: boolean): DataTableColumn[] {
