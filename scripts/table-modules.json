@@ -3060,6 +3060,17 @@
         "why": "daily page-view count per (org, day, screen, role), product readiness X1 (0435). Ceiling is 72 screens x 9 roles = 648 rows per org per day; one office reads far fewer. No window yet: the usage history is the evidence the keep/hide rulings rest on."
       }
     },
+    "recruiting_careers_pages": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "static",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0641 (2026-11-20, APPLY-PAGE-PLAN AP1); one row per carrier (unique org_id); never grows past the carrier count."
+      }
+    },
     "tenstreet_connections": {
       "module": "recruiting",
       "layer": "core",

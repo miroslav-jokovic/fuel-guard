@@ -315,7 +315,18 @@ const FORMAT_PINNED = {
   "tenstreet_posts.body_sha256": "repeat('a', 64)", // check (body_sha256 ~ '^[0-9a-f]{64}$')
   "tenstreet_posts.reply_status": "'REJECTED'",
   "tenstreet_posts.reply_reason": "'seed'", // check (reply_reason ~ '^[a-z_]{1,40}$')
+  // 0641: the public careers page's handle is a typed path segment (3–40 lower-case letters, digits, inner hyphens)
+  // and unique across carriers, so it is random per row.
+  "recruiting_careers_pages.handle": "('p' || substr(md5(gen_random_uuid()::text), 1, 12))",
 };
+
+/**
+ * Nullable foreign keys seeded as if NOT NULL, because a CHECK demands one of a set be present and the seeder
+ * otherwise leaves every nullable column empty. Seeded through the foreign key, so the parent is a real row of
+ * the same org. 0641's `sms_consents_one_subject` (exactly one of driver_id, lead_id) is the first; the driver is
+ * the subject every row before 0641 had.
+ */
+const SEEDED_NULLABLE_FKS = new Set(["sms_consents.driver_id"]);
 
 /**
  * Polymorphic subjects: a `<kind>` + `<id>` pair with no foreign key, whose insert guard checks the id
@@ -382,7 +393,7 @@ async function seed(db, meta, table, orgId, inProgress = new Set()) {
       const isPk = c.col === pk;
       // A pinned column is seeded even when nullable: a CHECK can tie a nullable column to another (0632's swipe
       // entry is a page only WITH its address), and leaving it null would read as "cannot seed".
-      const pinned = FORMAT_PINNED[`${table}.${c.col}`] !== undefined;
+      const pinned = FORMAT_PINNED[`${table}.${c.col}`] !== undefined || SEEDED_NULLABLE_FKS.has(`${table}.${c.col}`);
       if (!required && !pinned && !(isPk && !c.has_default && !c.is_identity)) continue;
       if (c.is_generated) continue;
 

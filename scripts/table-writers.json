@@ -768,6 +768,9 @@
   "support_impersonation_grants": [
     "apps/admin-api/src/lib/impersonation.ts"
   ],
+  "recruiting_careers_pages": [
+    "apps/api/src/modules/recruiting/careers/careersPage.ts"
+  ],
   "tenstreet_connections": [
     "apps/api/src/modules/recruiting/tenstreet/connection.ts",
     "apps/api/src/modules/recruiting/tenstreet/receive.ts"
