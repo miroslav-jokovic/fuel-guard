@@ -393,3 +393,11 @@ once. Everyone else gets the defaults above.
   on split orders. Tests: 3 mapping, 1 query shape, 1 dry run; 12 mutants killed (one survivor, `$0` not
   counted as a rate, killed by adding a `$0` row). Routine regenerated; manifest regenerated in its own
   commit. Connector changes since the VM's `b86466537` re-checked (VM guide).
+- 2026-11-20 — R4 merged (#2602) and the Board VM updated by the owner to `4b93c6e` (script SHA-256
+  `85f3d7dd…fc5f6`, `-RosterMode create`): 40 files, 189 / 189 tests, SUCCESS; the first cycle (21:39:56
+  UTC) re-sent and stored all 198 open movements. Production, read-only, before → after: `load_charges`
+  0 → 198 rows; raw movements with a total 0 → 198; open loaded movements on the board with a price row
+  198 / 198; 3 split orders; one currency; none without billed miles. The 6 open-status loaded raw rows
+  still unpriced were last seen before the update (10/16–11/20 15:38 CT), off the current board; they get
+  a price only if McLeod puts them back on it. VM guide B5 corrected (the service logs no rate line).
+  Remaining: Part C (history, owner's day), R5 (keys required), §7 hand check of 5 loads against McLeod.

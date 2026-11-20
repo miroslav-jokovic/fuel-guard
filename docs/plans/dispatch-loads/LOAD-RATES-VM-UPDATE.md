@@ -183,7 +183,8 @@ Get-Content C:\Silvicom\connector\connector.log -Tail 80 | Select-String 'loads:
 
 Expected, for the latest minute:
 - `loads: N on the board, N dispatcher(s)`
-- `loads: N of M loaded movements carry a rate` (the new line from R4; counts only, never amounts)
+- (no rate line here: the running service logs `mirror: N movement(s) read, …`; only the one-off
+  `--loads` run and the backfill add `with a rate: N of M loaded`, counts only — corrected 2026-11-20)
 - `mirror: stored {…}` with no `refused`
 - **no** `cycle failed`
 
