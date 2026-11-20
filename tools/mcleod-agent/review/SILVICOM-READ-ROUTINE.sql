@@ -84,7 +84,29 @@ SELECT
       NULLIF(LTRIM(RTRIM(o.consignee_refno)), '')            AS consignee_refno,
       -- The customer's name (Q-LMR5), joined on company AND id: customer ids repeat across companies,
       -- and on id alone the 130 open movements of 2026-09-29 returned 238 rows. On both, one each.
-      NULLIF(LTRIM(RTRIM(cu.name)), '')                      AS customer_name
+      NULLIF(LTRIM(RTRIM(cu.name)), '')                      AS customer_name,
+      -- What the ORDER pays (LOAD-RATES-PLAN D-RATE1), all on orders the grant already reads. Measured on
+      -- lme_analytics 2026-11-20: total = freight + other on 13,478 / 13,478 loaded orders, all USD, all
+      -- billed in MI. Sent as McLeod states it; which movement shows a price is the API's projection
+      -- (D-RATE3), so an empty movement carries its order's figures here and the API leaves them unshown.
+      o.total_charge                                         AS total_charge,
+      o.freight_charge                                       AS freight_charge,
+      o.otherchargetotal                                     AS otherchargetotal,
+      NULLIF(LTRIM(RTRIM(o.total_charge_c)), '')             AS total_charge_c,
+      o.bill_distance                                        AS bill_distance,
+      NULLIF(LTRIM(RTRIM(o.bill_distance_um)), '')           AS bill_distance_um,
+      -- How many trips the order is split over (D-RATE4): its loaded, non-void movements. Counted here,
+      -- never McLeod's own column, and company matched on both joins (customer ids taught us 2026-09-29
+      -- that ids repeat across companies). Null when the movement has no order.
+      CASE WHEN o.id IS NULL THEN NULL ELSE (
+        SELECT COUNT(*)
+          FROM dbo.movement_order AS mo2
+          JOIN dbo.movement AS m2
+            ON m2.id = mo2.movement_id AND m2.company_id = mo2.company_id
+         WHERE mo2.order_id = o.id
+           AND mo2.company_id = o.company_id
+           AND m2.loaded = 'L'
+           AND m2.status <> 'V') END                         AS order_loaded_movements
       FROM dbo.movement AS m
       LEFT JOIN dbo.users AS u
         ON u.id = m.dispatcher_user_id AND u.company_id = m.company_id
@@ -218,7 +240,29 @@ SELECT
       NULLIF(LTRIM(RTRIM(o.consignee_refno)), '')            AS consignee_refno,
       -- The customer's name (Q-LMR5), joined on company AND id: customer ids repeat across companies,
       -- and on id alone the 130 open movements of 2026-09-29 returned 238 rows. On both, one each.
-      NULLIF(LTRIM(RTRIM(cu.name)), '')                      AS customer_name
+      NULLIF(LTRIM(RTRIM(cu.name)), '')                      AS customer_name,
+      -- What the ORDER pays (LOAD-RATES-PLAN D-RATE1), all on orders the grant already reads. Measured on
+      -- lme_analytics 2026-11-20: total = freight + other on 13,478 / 13,478 loaded orders, all USD, all
+      -- billed in MI. Sent as McLeod states it; which movement shows a price is the API's projection
+      -- (D-RATE3), so an empty movement carries its order's figures here and the API leaves them unshown.
+      o.total_charge                                         AS total_charge,
+      o.freight_charge                                       AS freight_charge,
+      o.otherchargetotal                                     AS otherchargetotal,
+      NULLIF(LTRIM(RTRIM(o.total_charge_c)), '')             AS total_charge_c,
+      o.bill_distance                                        AS bill_distance,
+      NULLIF(LTRIM(RTRIM(o.bill_distance_um)), '')           AS bill_distance_um,
+      -- How many trips the order is split over (D-RATE4): its loaded, non-void movements. Counted here,
+      -- never McLeod's own column, and company matched on both joins (customer ids taught us 2026-09-29
+      -- that ids repeat across companies). Null when the movement has no order.
+      CASE WHEN o.id IS NULL THEN NULL ELSE (
+        SELECT COUNT(*)
+          FROM dbo.movement_order AS mo2
+          JOIN dbo.movement AS m2
+            ON m2.id = mo2.movement_id AND m2.company_id = mo2.company_id
+         WHERE mo2.order_id = o.id
+           AND mo2.company_id = o.company_id
+           AND m2.loaded = 'L'
+           AND m2.status <> 'V') END                         AS order_loaded_movements
       FROM dbo.movement AS m
       LEFT JOIN dbo.users AS u
         ON u.id = m.dispatcher_user_id AND u.company_id = m.company_id
@@ -1012,7 +1056,29 @@ SELECT
       NULLIF(LTRIM(RTRIM(o.consignee_refno)), '')            AS consignee_refno,
       -- The customer's name (Q-LMR5), joined on company AND id: customer ids repeat across companies,
       -- and on id alone the 130 open movements of 2026-09-29 returned 238 rows. On both, one each.
-      NULLIF(LTRIM(RTRIM(cu.name)), '')                      AS customer_name
+      NULLIF(LTRIM(RTRIM(cu.name)), '')                      AS customer_name,
+      -- What the ORDER pays (LOAD-RATES-PLAN D-RATE1), all on orders the grant already reads. Measured on
+      -- lme_analytics 2026-11-20: total = freight + other on 13,478 / 13,478 loaded orders, all USD, all
+      -- billed in MI. Sent as McLeod states it; which movement shows a price is the API's projection
+      -- (D-RATE3), so an empty movement carries its order's figures here and the API leaves them unshown.
+      o.total_charge                                         AS total_charge,
+      o.freight_charge                                       AS freight_charge,
+      o.otherchargetotal                                     AS otherchargetotal,
+      NULLIF(LTRIM(RTRIM(o.total_charge_c)), '')             AS total_charge_c,
+      o.bill_distance                                        AS bill_distance,
+      NULLIF(LTRIM(RTRIM(o.bill_distance_um)), '')           AS bill_distance_um,
+      -- How many trips the order is split over (D-RATE4): its loaded, non-void movements. Counted here,
+      -- never McLeod's own column, and company matched on both joins (customer ids taught us 2026-09-29
+      -- that ids repeat across companies). Null when the movement has no order.
+      CASE WHEN o.id IS NULL THEN NULL ELSE (
+        SELECT COUNT(*)
+          FROM dbo.movement_order AS mo2
+          JOIN dbo.movement AS m2
+            ON m2.id = mo2.movement_id AND m2.company_id = mo2.company_id
+         WHERE mo2.order_id = o.id
+           AND mo2.company_id = o.company_id
+           AND m2.loaded = 'L'
+           AND m2.status <> 'V') END                         AS order_loaded_movements
       FROM dbo.movement AS m
       LEFT JOIN dbo.users AS u
         ON u.id = m.dispatcher_user_id AND u.company_id = m.company_id

@@ -238,6 +238,27 @@ export function mapDispatchMovement(row, stopRows) {
     consignee_refno: row.consignee_refno ?? null,
     move_distance: num(row.total_miles),
     stops: stopRows.map(mapDispatchStop),
+    // The order's charges (LOAD-RATES-PLAN D-RATE1), all seven on every movement: the API refuses a
+    // movement or a batch carrying some but not all (`orderChargeProblem`, D-RATE9).
+    ...orderCharges(row),
+  };
+}
+
+/**
+ * The seven order-charge keys as McLeod states them — null where McLeod is blank, never omitted, so a
+ * movement with no order still carries all seven. mssql returns decimal(16,2) as a number; num() takes
+ * a numeric string too, so either arrives as one.
+ */
+export function orderCharges(row) {
+  const text = (v) => (v == null ? null : String(v).trim() || null);
+  return {
+    total_charge: num(row.total_charge),
+    freight_charge: num(row.freight_charge),
+    otherchargetotal: num(row.otherchargetotal),
+    total_charge_c: text(row.total_charge_c),
+    bill_distance: num(row.bill_distance),
+    bill_distance_um: text(row.bill_distance_um),
+    order_loaded_movements: num(row.order_loaded_movements),
   };
 }
 

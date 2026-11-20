@@ -381,3 +381,15 @@ once. Everyone else gets the defaults above.
   (recommendation's (c), §6.1). Re-measured at 1440 with production-sized driver names: board unchanged,
   Loads In transit fits, Loads All 94–124 px over. Tests updated (board starts with Rate hidden, `?hide=`
   shows it after Miles left; Loads draws one Rate header with "$2.31 / mi"); 4 mutants killed.
+- 2026-11-20 — R4 built (branch `claude/load-rates-r4-connector`): `DISPATCH_LOADS_SELECT` reads
+  `total_charge`, `freight_charge`, `otherchargetotal`, `total_charge_c`, `bill_distance`, `bill_distance_um`
+  and the per-order count of loaded non-void movements (`order_loaded_movements`, company matched on both
+  joins). `mapDispatchMovement` sends all seven on every movement (`orderCharges`: numbers via `num`, text
+  trimmed, null where McLeod is blank). Logs and the dry run add "with a rate: N of M loaded", counts only.
+  Measured read-only against live LoadMaster (`lme`) before opening it: 205 open movements read 205 rows
+  with and without the new columns; all seven carried on 205 / 205; total = freight + other on all; `USD`
+  and `MI` only; 3 movements on split orders, matching a separately grouped count; the batch parses
+  through `tmsDispatchMovementSchema` with `orderChargeProblem` null. Delivered 10/01–10/15: 762 legs, 20
+  on split orders. Tests: 3 mapping, 1 query shape, 1 dry run; 12 mutants killed (one survivor, `$0` not
+  counted as a rate, killed by adding a `$0` row). Routine regenerated; manifest regenerated in its own
+  commit. Connector changes since the VM's `b86466537` re-checked (VM guide).

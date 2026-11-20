@@ -44,6 +44,18 @@ export function describeDryRun(entity, rows, { sample = false } = {}) {
 }
 
 /**
+ * "with a rate: N of M loaded" — how many LOADED movements carry the order's total (LOAD-RATES-PLAN R4).
+ * A count, never an amount: a price is the carrier's business, and this line is in every cycle's log.
+ * Empty movements are left out of both sides — they repeat their order's charge and are never priced
+ * (D-RATE3), so counting them would make a full board look half-priced.
+ */
+export function describeRateCoverage(movements) {
+  const loaded = movements.filter((m) => m.loaded === "L");
+  const priced = loaded.filter((m) => m.total_charge != null).length;
+  return `with a rate: ${priced} of ${loaded.length} loaded`;
+}
+
+/**
  * The mirror's movements and their stops as two coverage blocks. Stops are counted as their own rows,
  * so "location_name 212/247" says how many stops McLeod named; left nested, the only thing a
  * movement's `stops` field could report is that the array was there.

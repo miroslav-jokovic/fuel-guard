@@ -210,3 +210,29 @@ test("the backfill returns the board's columns, bounded by a departure window on
   assert.match(Q.DISPATCH_LOAD_STOPS_DELIVERED, /WHERE s\.company_id = @companyId/);
   assert.ok(!/AND m\.loaded = /.test(Q.DISPATCH_LOADS), "the open board keeps every leg McLeod has open, empty ones included");
 });
+
+/**
+ * LOAD-RATES-PLAN R4 (D-RATE1): the order's charges, on the one select behind the board, the close read
+ * and the backfill. Measured against live LoadMaster 2026-11-20 before this was opened: 205 open
+ * movements read 205 rows with and without these columns (the count cannot fan the select out), all
+ * seven carried on 205 / 205, and the per-order count agreeing with a grouped count (3 split orders).
+ */
+test("the board reads the order's seven charge figures, and counts the order's loaded, non-void legs per company", () => {
+  const cols = Q.DISPATCH_LOADS.slice(0, Q.DISPATCH_LOADS.indexOf("FROM dbo.movement AS m\n"));
+  for (const a of ["total_charge", "freight_charge", "otherchargetotal", "total_charge_c", "bill_distance", "bill_distance_um",
+    "order_loaded_movements"]) {
+    assert.match(cols, new RegExp(`AS ${a}\\b`), a);
+  }
+  assert.match(cols, /o\.total_charge\s+AS total_charge\b/);
+  assert.match(cols, /o\.freight_charge\s+AS freight_charge\b/);
+  assert.match(cols, /o\.otherchargetotal\s+AS otherchargetotal\b/);
+  assert.match(cols, /o\.bill_distance\s+AS bill_distance\b/);
+  const count = cols.slice(cols.indexOf("SELECT COUNT(*)"));
+  // Company matched on every join (Alex's standing rule): order ids repeat across companies.
+  assert.match(count, /ON m2\.id = mo2\.movement_id AND m2\.company_id = mo2\.company_id/);
+  assert.match(count, /mo2\.order_id = o\.id\s+AND mo2\.company_id = o\.company_id/);
+  assert.match(count, /m2\.loaded = 'L'/);
+  assert.match(count, /m2\.status <> 'V'/);
+  // McLeod's rate / rate_units / rate_type are not read: nothing shows them (D-RATE1, corrected in R1).
+  assert.ok(!/o\.rate\b|rate_units|rate_type/.test(cols));
+});
