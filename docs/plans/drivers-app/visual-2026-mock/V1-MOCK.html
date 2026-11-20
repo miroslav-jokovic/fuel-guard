@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Driver app V1 mock — Night cab / Day steel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+/* §2 values of DRIVER-APP-VISUAL-2026-PLAN.md, verbatim. */
+.dark  { --canvas:#070D1A; --surface:#0F1A2E; --raised:#16243C; --edge:#233452; --ink:#E8EDF5; --ink2:#A9B4C6; --muted:#7F8BA0;
+         --live:#00B2E3; --live-text:#00B2E3; --act:#FFB020; --act-fg:#1A1200; --act-text:#FFB020; --danger:#FF6B6B; --ok:#3DD68C;
+         --tabbar:rgba(22,36,60,.72); --tabedge:rgba(255,255,255,.08); }
+.light { --canvas:#EEF2F7; --surface:#FFFFFF; --raised:#FFFFFF; --edge:#D3DAE4; --ink:#0A2144; --ink2:#3D4E6B; --muted:#5D6B82;
+         --live:#00B2E3; --live-text:#006E8E; --act:#FFB020; --act-fg:#0A2144; --act-text:#9A5B00; --danger:#C8323A; --ok:#1F7A4D;
+         --tabbar:rgba(255,255,255,.72); --tabedge:rgba(10,33,68,.08); }
+:root { --navy:#0A2144; --sys:-apple-system, "SF Pro Text", Roboto, system-ui, sans-serif; --disp:"Big Shoulders Display", var(--sys); }
+* { box-sizing:border-box; margin:0; }
+body { background:#1B2230; color:#E8EDF5; font:15px/1.45 var(--sys); padding:40px 4vw 80px; }
+.intro { max-width:980px; margin-bottom:36px; }
+.intro h1 { font:800 44px/0.95 var(--disp); text-transform:uppercase; letter-spacing:.01em; margin-bottom:12px; }
+.intro p { color:#B8C2D3; margin-bottom:8px; }
+.row { display:flex; flex-wrap:wrap; gap:40px; margin-bottom:56px; }
+figure { width:390px; }
+figcaption { color:#B8C2D3; font-size:14px; margin-top:14px; max-width:390px; }
+figcaption b { color:#fff; }
+
+/* Phone */
+.phone { width:390px; height:844px; border-radius:52px; overflow:hidden; position:relative; background:var(--canvas); color:var(--ink);
+         box-shadow:0 0 0 10px #0B0F17, 0 30px 60px rgba(0,0,0,.45); font-family:var(--sys); }
+.status { height:54px; display:flex; justify-content:space-between; align-items:flex-end; padding:0 34px 8px; font-weight:600; font-size:16px; }
+.scroll { padding:0 20px 130px; height:790px; overflow:hidden; }
+.title { font:800 40px/0.95 var(--disp); text-transform:uppercase; letter-spacing:.01em; margin:10px 0 18px; }
+.num { font-variant-numeric:tabular-nums; }
+.sec { font-size:13px; font-weight:600; color:var(--muted); margin:26px 0 8px; }
+.ink2 { color:var(--ink2); } .muted { color:var(--muted); } .live { color:var(--live-text); } .acttext { color:var(--act-text); }
+.ok { color:var(--ok); } .danger { color:var(--danger); }
+.r .g.live { color:var(--live-text); } .r .g.acttext { color:var(--act-text); } .r .g.ok { color:var(--ok); } .r .g.danger { color:var(--danger); }
+
+/* Signature status block (D-DV6) */
+.status-block { border-radius:28px; padding:22px 22px 20px; background:var(--navy); color:#fff; position:relative; overflow:hidden; }
+.dark .status-block { background:#0E2550; }
+.status-block .k { font-size:14px; font-weight:600; color:#BFD0EA; }
+.status-block .where { font-size:22px; font-weight:700; margin-top:6px; line-height:1.15; }
+.status-block .city { color:#BFD0EA; margin-top:2px; }
+.big { font:800 76px/0.9 var(--disp); letter-spacing:.005em; margin-top:18px; }
+.big small { font:700 28px/1 var(--disp); margin-left:6px; color:#BFD0EA; }
+.countdown { margin-top:10px; font-size:17px; font-weight:600; color:var(--live); }
+.status-block.photo, .dark .status-block.photo { background:#0A2144; padding:0; }
+.photo .pic { height:170px; background:url("silvicom-trucks-07.jpg") center 70%/cover; }
+.photo .inner { background:#0A2144; padding:18px 22px 20px; }
+
+/* Next step (Uber) */
+.next { margin-top:14px; background:var(--surface); border-radius:24px; padding:18px 18px 18px 20px; display:flex; gap:14px; align-items:center; }
+.next .t { font-weight:700; font-size:17px; }
+.next .s { color:var(--ink2); font-size:14px; margin-top:2px; }
+.btn { display:flex; align-items:center; justify-content:center; height:56px; border-radius:28px; font-weight:700; font-size:17px; }
+.btn.act { background:var(--act); color:var(--act-fg); }
+.btn.sec2 { background:transparent; color:var(--ink); box-shadow:inset 0 0 0 2px var(--edge); }
+.next .btn { height:48px; padding:0 18px; font-size:16px; flex:none; }
+
+/* Rows without cards (D-DV7) */
+.rows { margin-top:4px; }
+.r { display:flex; align-items:center; gap:14px; min-height:60px; padding:10px 0; }
+.r + .r { box-shadow:0 -1px 0 0 color-mix(in srgb, var(--edge) 55%, transparent); }
+.r .g { width:28px; display:flex; justify-content:center; color:var(--ink2); flex:none; }
+.r .m { flex:1; min-width:0; }
+.r .m .t { font-weight:600; font-size:17px; }
+.r .m .s { color:var(--ink2); font-size:14px; }
+.r .e { text-align:right; font-weight:600; }
+.r .e .s { font-weight:400; font-size:13px; color:var(--muted); }
+
+/* Timeline (load detail) */
+.tl { position:relative; margin-top:10px; padding-left:34px; }
+.tl .stop { position:relative; padding:0 0 26px; }
+.tl .stop::before { content:""; position:absolute; left:-25px; top:6px; width:14px; height:14px; border-radius:50%; background:var(--canvas); box-shadow:inset 0 0 0 3px var(--muted); }
+.tl .stop.now::before { background:var(--live); box-shadow:0 0 0 5px color-mix(in srgb, var(--live) 25%, transparent); }
+.tl .stop.done::before { background:var(--ok); box-shadow:none; }
+.tl::before { content:""; position:absolute; left:15px; top:14px; bottom:34px; width:2px; background:var(--edge); }
+.tl .kind { font-size:13px; font-weight:600; color:var(--muted); }
+.tl .nm { font-weight:700; font-size:18px; margin-top:2px; }
+.tl .win { font-size:22px; font-weight:600; margin-top:6px; }
+
+/* Map strip (Strava) + floating glass control (CARROT) */
+.map { height:250px; margin:0 -20px; position:relative; background:#0C1526; overflow:hidden; }
+.light .map { background:#DCE3EC; }
+.map svg { position:absolute; inset:0; }
+.glassbtn { position:absolute; width:48px; height:48px; border-radius:24px; background:var(--tabbar); backdrop-filter:blur(18px) saturate(1.6);
+            -webkit-backdrop-filter:blur(18px) saturate(1.6); box-shadow:inset 0 0 0 1px var(--tabedge); display:flex; align-items:center; justify-content:center; color:var(--ink); }
+
+/* Native-style floating tab bar (iOS 26) — the OS draws this; shown here for composition only. */
+.tabbar { position:absolute; left:20px; right:20px; bottom:30px; height:66px; border-radius:33px; background:var(--tabbar);
+          backdrop-filter:blur(24px) saturate(1.8); -webkit-backdrop-filter:blur(24px) saturate(1.8); box-shadow:inset 0 0 0 1px var(--tabedge), 0 8px 24px rgba(0,0,0,.18);
+          display:flex; justify-content:space-around; align-items:center; padding:0 8px; }
+.tab { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:11px; font-weight:600; color:var(--ink2); width:78px; padding:6px 0; border-radius:26px; position:relative; }
+.tab.on { color:var(--live-text); background:color-mix(in srgb, var(--ink) 8%, transparent); }
+.tab .bdg { position:absolute; top:2px; right:16px; min-width:18px; height:18px; border-radius:9px; background:var(--danger); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; padding:0 5px; }
+.dark .tab .bdg { color:#1A0405; }
+.bottom-actions { position:absolute; left:20px; right:20px; bottom:112px; display:grid; gap:10px; }
+
+.board .r .e { font-size:17px; }
+.me { color:var(--live-text); }
+.swatches { display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+.swatches span { width:120px; height:60px; border-radius:14px; display:flex; align-items:flex-end; padding:8px; font-size:12px; }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <h1>Driver app · V1 mock</h1>
+  <p>This page is <b>DRIVER-APP-VISUAL-2026-PLAN.md</b> step V1. It uses the §2 colour values exactly, the real data fields from <code>loadsContract.ts</code> (stops with an appointment window, required photos, unit and trailer), and the open-question answers the owner ruled on 2026-11-20 ("as recommended").</p>
+  <p>Type: screen titles and the one large figure are set in <b>Big Shoulders Display</b>, the carrier's ad face. Every figure that lines up with another (times in lists, scores, ranks) uses the <b>phone's own face with tabular digits</b>. Neither Big Shoulders nor Lexend has tabular digits; that was measured on 2026-11-20 and is recorded as D-DV15.</p>
+  <p>The tab bar and the map's floating button are drawn here to show the composition. In the app they are the operating system's own (D-DV1, D-DV2). The example data is invented and shaped like real rows.</p>
+</div>
+
+<!-- ============ TODAY ============ -->
+<div class="row">
+
+<figure><div class="phone dark">
+  <div class="status"><span class="num">5:42</span><span>●●● 5G</span></div>
+  <div class="scroll">
+    <div class="title">Today</div>
+    <div class="status-block">
+      <div class="k">Pickup · stop 1 of 2 · Load 1184530</div>
+      <div class="where">Ardent Mills</div>
+      <div class="city">Chicago, IL</div>
+      <div class="big num">06:00<small>– 08:00</small></div>
+      <div class="countdown num">Window opens in 18 min</div>
+    </div>
+    <div class="next">
+      <div style="flex:1"><div class="t">Arrive at pickup</div><div class="s">Then the BOL and seal photos</div></div>
+      <div class="btn act">Arrived</div>
+    </div>
+    <div class="sec">Rest of the day</div>
+    <div class="rows">
+      <div class="r"><div class="g">↓</div><div class="m"><div class="t">Kroger DC</div><div class="s">Indianapolis, IN · delivery</div></div><div class="e num">14:00<div class="s">– 16:00</div></div></div>
+      <div class="r"><div class="g">▭</div><div class="m"><div class="t">Unit 2241 · trailer 53118</div><div class="s">Dry van · 183 mi</div></div><div class="e ink2">Change</div></div>
+    </div>
+    <div class="sec">Your score · week of 11/16</div>
+    <div class="rows board">
+      <div class="r"><div class="m"><div class="t">94 <span class="muted" style="font-weight:400;font-size:14px">this week</span></div><div class="s">#4 of 23 drivers</div></div><div class="e ok">+3</div></div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <div class="tab on"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 3 10v10h6v-6h6v6h6V10z"/></svg>Home</div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="13" height="9" rx="1"/><path d="M15 10h4l3 3v3h-7"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>Loads</div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg>Documents<span class="bdg num">2</span></div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>More</div>
+  </div>
+</div>
+<figcaption><b>1 · Today, dark, hero A (flat navy). Recommended per Q-DV3.</b> Flighty: one load, one large window, a real countdown to the appointment (not an ETA). Uber: one next step with the amber action. Things: the rest of the day as plain rows.</figcaption></figure>
+
+<figure><div class="phone dark">
+  <div class="status"><span class="num">5:42</span><span>●●● 5G</span></div>
+  <div class="scroll">
+    <div class="title">Today</div>
+    <div class="status-block photo"><div class="pic"></div><div class="inner">
+      <div class="k">Pickup · stop 1 of 2 · Load 1184530</div>
+      <div class="where">Ardent Mills</div>
+      <div class="city">Chicago, IL</div>
+      <div class="big num">06:00<small>– 08:00</small></div>
+      <div class="countdown num">Window opens in 18 min</div>
+    </div></div>
+    <div class="next">
+      <div style="flex:1"><div class="t">Arrive at pickup</div><div class="s">Then the BOL and seal photos</div></div>
+      <div class="btn act">Arrived</div>
+    </div>
+    <div class="sec">Rest of the day</div>
+    <div class="rows">
+      <div class="r"><div class="g">↓</div><div class="m"><div class="t">Kroger DC</div><div class="s">Indianapolis, IN · delivery</div></div><div class="e num">14:00<div class="s">– 16:00</div></div></div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <div class="tab on"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 3 10v10h6v-6h6v6h6V10z"/></svg>Home</div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="13" height="9" rx="1"/><path d="M15 10h4l3 3v3h-7"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>Loads</div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg>Documents<span class="bdg num">2</span></div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>More</div>
+  </div>
+</div>
+<figcaption><b>2 · Today, dark, hero B (the carrier's own trucks).</b> Shown for comparison (Q-DV3). The photo is the carrier's own, from silvicominc.com. Text never sits on the photo, only on the solid navy under it (brand rule: no scrims). It costs about 170 pt of the first screen.</figcaption></figure>
+
+<figure><div class="phone light">
+  <div class="status"><span class="num">13:20</span><span>●●● 5G</span></div>
+  <div class="scroll">
+    <div class="title">Today</div>
+    <div class="status-block">
+      <div class="k">Delivery · stop 2 of 2 · Load 1184530</div>
+      <div class="where">Kroger DC</div>
+      <div class="city">Indianapolis, IN</div>
+      <div class="big num">14:00<small>– 16:00</small></div>
+      <div class="countdown num">Window opens in 40 min</div>
+    </div>
+    <div class="next">
+      <div style="flex:1"><div class="t">Pickup photos are missing</div><div class="s">Stop 1 still needs the seal photo</div></div>
+      <div class="btn act">Add</div>
+    </div>
+    <div class="sec">Done today</div>
+    <div class="rows">
+      <div class="r"><div class="g ok">✓</div><div class="m"><div class="t">Ardent Mills</div><div class="s">Chicago, IL · pickup</div></div><div class="e num">07:12<div class="s">completed</div></div></div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <div class="tab on"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 3 10v10h6v-6h6v6h6V10z"/></svg>Home</div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="13" height="9" rx="1"/><path d="M15 10h4l3 3v3h-7"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>Loads</div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg>Documents<span class="bdg num">1</span></div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>More</div>
+  </div>
+</div>
+<figcaption><b>3 · Today, light ("Day steel"), between stops.</b> The same layout in daylight. The navy block keeps the brand on screen. The next step has changed to the missing seal photo, which is derived from <code>required_photos</code> minus <code>photos</code>.</figcaption></figure>
+
+</div>
+
+<!-- ============ LOADS / DETAIL / STOP ============ -->
+<div class="row">
+
+<figure><div class="phone dark">
+  <div class="status"><span class="num">5:42</span><span>●●● 5G</span></div>
+  <div class="scroll">
+    <div class="title">Loads</div>
+    <div class="sec" style="margin-top:4px">Now</div>
+    <div class="rows">
+      <div class="r"><div class="g live">●</div><div class="m"><div class="t">Load 1184530</div><div class="s">Chicago, IL → Indianapolis, IN · 183 mi</div></div><div class="e num live">06:00<div class="s">next window</div></div></div>
+    </div>
+    <div class="sec">Next</div>
+    <div class="rows">
+      <div class="r"><div class="g">○</div><div class="m"><div class="t">Load 1184611</div><div class="s">Indianapolis, IN → Columbus, OH · 176 mi</div></div><div class="e num">Fri 08:00<div class="s">pickup</div></div></div>
+      <div class="r"><div class="g">○</div><div class="m"><div class="t">Load 1184702</div><div class="s">Columbus, OH → Joliet, IL · 344 mi</div></div><div class="e num">Sat 10:30<div class="s">pickup</div></div></div>
+    </div>
+    <div class="sec">Delivered this week</div>
+    <div class="rows">
+      <div class="r"><div class="g ok">✓</div><div class="m"><div class="t">Load 1184377</div><div class="s">Joliet, IL → Milwaukee, WI</div></div><div class="e num">Tue<div class="s">11/18</div></div></div>
+      <div class="r"><div class="g ok">✓</div><div class="m"><div class="t">Load 1184290</div><div class="s">Gary, IN → Chicago, IL</div></div><div class="e num">Mon<div class="s">11/17</div></div></div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 3 10v10h6v-6h6v6h6V10z"/></svg>Home</div>
+    <div class="tab on"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="7" width="13" height="9" rx="1"/><path d="M15 10h4l3 3v3h-7z"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>Loads</div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg>Documents<span class="bdg num">2</span></div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>More</div>
+  </div>
+</div>
+<figcaption><b>4 · Loads.</b> Grouped by time (Now, Next, Delivered), not by status. The appointment is the right-hand figure on every row, in tabular digits so the times line up. Cyan marks only the live load.</figcaption></figure>
+
+<figure><div class="phone dark">
+  <div class="status"><span class="num">5:42</span><span>●●● 5G</span></div>
+  <div class="scroll">
+    <div style="display:flex;justify-content:space-between;align-items:center;height:44px;color:var(--live-text);font-weight:600">‹ Loads<span class="ink2" style="font-weight:400">Unit 2241</span></div>
+    <div class="title" style="margin-top:2px">Load 1184530</div>
+    <div class="ink2">Dry van · trailer 53118 · 183 mi · flour, bagged</div>
+    <div class="tl" style="margin-top:22px">
+      <div class="stop now">
+        <div class="kind">Pickup · arrive by window</div>
+        <div class="nm">Ardent Mills</div>
+        <div class="ink2">1300 W Carroll Ave, Chicago, IL 60607</div>
+        <div class="win num">06:00 – 08:00 <span class="live" style="font-size:15px">· opens in 18 min</span></div>
+        <div class="ink2" style="margin-top:6px">Needs: BOL · seal · trailer</div>
+      </div>
+      <div class="stop">
+        <div class="kind">Delivery</div>
+        <div class="nm">Kroger DC</div>
+        <div class="ink2">4111 Executive Dr, Indianapolis, IN 46241</div>
+        <div class="win num">14:00 – 16:00</div>
+        <div class="ink2" style="margin-top:6px">Needs: BOL signed · trailer</div>
+      </div>
+    </div>
+    <div class="sec">Notes from dispatch</div>
+    <div class="ink2">Check in at door 14. Lumper paid by receiver.</div>
+  </div>
+  <div class="bottom-actions"><div class="btn act">Open stop 1</div></div>
+  <div class="tabbar">
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 3 10v10h6v-6h6v6h6V10z"/></svg>Home</div>
+    <div class="tab on"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="7" width="13" height="9" rx="1"/><path d="M15 10h4l3 3v3h-7z"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>Loads</div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg>Documents<span class="bdg num">2</span></div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>More</div>
+  </div>
+</div>
+<figcaption><b>5 · Load detail.</b> Stops as a timeline with no cards: cyan is the current stop, green is done. The window figure is the largest thing in each stop. The required photos are listed in words. The primary action sits in the bottom third of the screen.</figcaption></figure>
+
+<figure><div class="phone dark">
+  <div class="status" style="position:relative;z-index:2"><span class="num">6:04</span><span>●●● 5G</span></div>
+  <div class="scroll" style="padding-top:0">
+    <div class="map">
+      <svg viewBox="0 0 390 250" preserveAspectRatio="none">
+        <g stroke="#1C2A44" stroke-width="10" fill="none"><path d="M-10 60 L400 90"/><path d="M60 -10 L90 260"/><path d="M-10 190 L400 170"/><path d="M250 -10 L230 260"/></g>
+        <g stroke="#16223A" stroke-width="5" fill="none"><path d="M-10 130 L400 125"/><path d="M160 -10 L170 260"/><path d="M320 -10 L330 260"/></g>
+        <path d="M30 230 C 90 200, 120 140, 170 128 S 240 100, 252 60" stroke="#00B2E3" stroke-width="6" fill="none" stroke-linecap="round"/>
+        <circle cx="252" cy="60" r="11" fill="#00B2E3"/><circle cx="252" cy="60" r="5" fill="#070D1A"/>
+      </svg>
+      <div class="glassbtn" style="right:16px;top:64px"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M21 3 3 10.5l7.5 2.9L13.5 21z"/></svg></div>
+      <div class="glassbtn" style="right:16px;top:120px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 2 8l10 5 10-5z"/><path d="m2 16 10 5 10-5"/></svg></div>
+    </div>
+    <div class="kind muted" style="margin-top:18px;font-size:13px;font-weight:600">Pickup · stop 1 of 2</div>
+    <div class="title" style="margin:4px 0 4px">Ardent Mills</div>
+    <div class="ink2">1300 W Carroll Ave, Chicago, IL · door 14</div>
+    <div class="win num" style="font-size:24px;font-weight:600;margin-top:12px">06:00 – 08:00 <span class="live" style="font-size:15px">· window open</span></div>
+    <div class="sec">Photos for this stop</div>
+    <div class="rows">
+      <div class="r"><div class="g acttext">◻</div><div class="m"><div class="t">Bill of lading</div><div class="s">Required</div></div><div class="e acttext">Take</div></div>
+      <div class="r"><div class="g acttext">◻</div><div class="m"><div class="t">Seal</div><div class="s">Required</div></div><div class="e acttext">Take</div></div>
+      <div class="r"><div class="g ok">✓</div><div class="m"><div class="t">Trailer</div><div class="s">Taken 06:02</div></div><div class="e ink2">View</div></div>
+    </div>
+  </div>
+  <div class="bottom-actions" style="grid-template-columns:1fr 1.4fr;bottom:40px"><div class="btn sec2">Navigate</div><div class="btn act">Scan BOL</div></div>
+</div>
+<figcaption><b>6 · Stop.</b> A map strip at fixed height (Strava), with glass only on the two controls that float over the map (CARROT, D-DV2). There is no ETA and no "miles left" (D-DV13). Missing photos are amber, meaning "you must act", and Scan BOL is the 56 pt primary action under the thumb. Navigate opens the phone's maps app. The tab bar is hidden on this pushed screen.</figcaption></figure>
+
+</div>
+
+<!-- ============ DOCUMENTS / MORE / PRE-SHIFT ============ -->
+<div class="row">
+
+<figure><div class="phone light">
+  <div class="status"><span class="num">13:20</span><span>●●● 5G</span></div>
+  <div class="scroll">
+    <div class="title">Documents</div>
+    <div class="status-block" style="padding:20px">
+      <div class="k">To finish</div>
+      <div class="big num" style="font-size:64px;margin-top:6px">2<small>photos missing</small></div>
+      <div style="color:#BFD0EA;margin-top:8px">Both are on load 1184530. The office sees them as soon as you send them.</div>
+    </div>
+    <div class="rows" style="margin-top:8px">
+      <div class="r"><div class="g acttext">◻</div><div class="m"><div class="t">Seal · Ardent Mills</div><div class="s">Stop 1 · pickup</div></div><div class="e acttext">Take</div></div>
+      <div class="r"><div class="g acttext">◻</div><div class="m"><div class="t">Signed BOL · Kroger DC</div><div class="s">Stop 2 · after unloading</div></div><div class="e muted">Later</div></div>
+    </div>
+    <div class="sec">Hazmat checks</div>
+    <div class="rows">
+      <div class="r"><div class="g ok">✓</div><div class="m"><div class="t">Load 1184377 · placards</div><div class="s">BOL read · 2 entries · 11/18</div></div><div class="e ok">Matches</div></div>
+      <div class="r"><div class="g danger">!</div><div class="m"><div class="t">Load 1184290 · placards</div><div class="s">BOL read · 1 entry · 11/17</div></div><div class="e danger">Check</div></div>
+    </div>
+    <div class="sec">Sent this week</div>
+    <div class="rows">
+      <div class="r"><div class="g ok">✓</div><div class="m"><div class="t">6 photos · 3 loads</div><div class="s">All received by the office</div></div><div class="e ink2">View</div></div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 3 10v10h6v-6h6v6h6V10z"/></svg>Home</div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="13" height="9" rx="1"/><path d="M15 10h4l3 3v3h-7"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>Loads</div>
+    <div class="tab on"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2h9l5 5v15H6z"/></svg>Documents<span class="bdg num">2</span></div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>More</div>
+  </div>
+</div>
+<figcaption><b>7 · Documents as a review queue (Copilot).</b> What is still missing comes first, then the hazmat verdicts, then what was sent. Each status is a word in its state colour, never a coloured pill.</figcaption></figure>
+
+<figure><div class="phone light">
+  <div class="status"><span class="num">13:20</span><span>●●● 5G</span></div>
+  <div class="scroll">
+    <div class="title">More</div>
+    <div class="rows">
+      <div class="r"><div class="m"><div class="t" style="font-size:20px">Daniel Okafor</div><div class="s">Driver · employee 20417</div></div></div>
+    </div>
+    <div class="sec">Work</div>
+    <div class="rows">
+      <div class="r"><div class="g">✉</div><div class="m"><div class="t">Messages</div></div><div class="e"><span class="live num">3 new</span></div></div>
+      <div class="r"><div class="g">◔</div><div class="m"><div class="t">Score</div></div><div class="e ink2 num">94 · #4</div></div>
+      <div class="r"><div class="g">◷</div><div class="m"><div class="t">End shift</div></div><div class="e"></div></div>
+      <div class="r"><div class="g">▭</div><div class="m"><div class="t">Change truck or trailer</div></div><div class="e"></div></div>
+    </div>
+    <div class="sec">Settings</div>
+    <div class="rows">
+      <div class="r"><div class="m"><div class="t">Appearance</div></div><div class="e ink2">System</div></div>
+      <div class="r"><div class="m"><div class="t">Notifications</div></div><div class="e ink2">On</div></div>
+      <div class="r"><div class="m"><div class="t">Scanner</div></div><div class="e"></div></div>
+    </div>
+    <div class="sec">Account</div>
+    <div class="rows">
+      <div class="r"><div class="m"><div class="t">Help and contact</div></div></div>
+      <div class="r"><div class="m"><div class="t danger">Sign out</div></div></div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 3 10v10h6v-6h6v6h6V10z"/></svg>Home</div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="13" height="9" rx="1"/><path d="M15 10h4l3 3v3h-7"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>Loads</div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg>Documents<span class="bdg num">2</span></div>
+    <div class="tab on"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>More</div>
+  </div>
+</div>
+<figcaption><b>8 · More.</b> Grouped rows like the iPhone Settings app. The app builds these with <code>@expo/ui</code> List (D-DV1). No avatar photo (D-DB8 stands), no card, and no icon discs.</figcaption></figure>
+
+<figure><div class="phone dark">
+  <div class="status"><span class="num">4:58</span><span>●●● 5G</span></div>
+  <div class="scroll">
+    <div class="title">Today</div>
+    <div class="status-block">
+      <div class="k">Off duty · Unit 2241</div>
+      <div class="big num">06:00</div>
+      <div class="countdown num">First appointment · Ardent Mills, Chicago</div>
+    </div>
+    <div class="sec">Before you start</div>
+    <div class="rows">
+      <div class="r"><div class="g ok">✓</div><div class="m"><div class="t">Medical card</div><div class="s">Valid to 03/14/2027</div></div></div>
+      <div class="r"><div class="g acttext">!</div><div class="m"><div class="t">CDL</div><div class="s">Expires in 26 days · 12/16/2026</div></div><div class="e acttext">Update</div></div>
+    </div>
+  </div>
+  <div class="bottom-actions"><div class="btn act">Start shift</div></div>
+  <div class="tabbar">
+    <div class="tab on"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 3 10v10h6v-6h6v6h6V10z"/></svg>Home</div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="13" height="9" rx="1"/><path d="M15 10h4l3 3v3h-7"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>Loads</div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg>Documents</div>
+    <div class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>More</div>
+  </div>
+</div>
+<figcaption><b>9 · Today before the shift</b> (<code>todayState = preShift</code>). The screen already shows the first appointment. Expiring papers appear in amber only when they are expiring. One action: Start shift.</figcaption></figure>
+
+</div>
+
+<div class="intro">
+  <h1>Colour roles</h1>
+  <div class="swatches">
+    <span style="background:#070D1A;color:#E8EDF5;outline:1px solid #233452">canvas dark</span>
+    <span style="background:#0F1A2E;color:#E8EDF5">surface dark</span>
+    <span style="background:#0A2144;color:#fff">navy · brand</span>
+    <span style="background:#00B2E3;color:#0A2144">cyan · live</span>
+    <span style="background:#FFB020;color:#1A1200">amber · act</span>
+    <span style="background:#C8323A;color:#fff">red · stop</span>
+    <span style="background:#1F7A4D;color:#fff">green · done</span>
+    <span style="background:#EEF2F7;color:#0A2144">canvas light</span>
+  </div>
+</div>
+</body>
+</html>
