@@ -10,7 +10,7 @@ import {
   OfflineBanner,
   Screen,
   ScreenHeader,
-  SectionLabel,
+  Section,
   Skeleton,
 } from '@/components';
 import { enqueue, newClientId } from '@/data/outbox';
@@ -121,10 +121,12 @@ export default function HazmatCaptureScreen() {
   return (
     <Screen
       padTop={false}
+      flow="sections"
       footer={
         <ActionBar>
           <Button
             label="Open document scanner"
+            variant="primary"
             size="lg"
             icon="photo_camera"
             onPress={() => { void onCapture(); }}
@@ -135,26 +137,34 @@ export default function HazmatCaptureScreen() {
         </ActionBar>
       }
     >
+      {/* Visual 2026 V7: restyled through the primitives only (plan §3). The capture engine, the
+          quality decision and the staging above are the scanner programme's and are untouched. */}
       <ScreenHeader
+        display
         title="Capture BOL"
-        subtitle="Scan every page. Each one is checked for quality before it uploads"
+        subtitle="Scan every page. Each one is checked for quality before it uploads."
         onBack={() => router.back()}
       />
       <OfflineBanner />
-      {reasons.length > 0 ? <Banner tone="warning" message={reasons.join(' · ')} /> : null}
+      {reasons.length > 0 ? (
+        <Section>
+          <Banner tone="warning" message={reasons.join(' · ')} />
+        </Section>
+      ) : null}
 
-      <SectionLabel>Before you capture</SectionLabel>
-      <GroupedList>
-        {CAPTURE_GUIDANCE.map(([icon, label]) => (
-          <ListRow key={label} icon={icon} title={label} />
-        ))}
-      </GroupedList>
+      <Section title="Before you capture">
+        <GroupedList>
+          {CAPTURE_GUIDANCE.map(([icon, label]) => (
+            <ListRow key={label} icon={icon} title={label} />
+          ))}
+        </GroupedList>
+      </Section>
 
-      <Banner
-        tone="info"
-        icon="cloud_done"
-        message="You can capture without signal. Analysis begins automatically after the document syncs."
-      />
+      <Section title="No signal?">
+        <AppText variant="supporting" tone="secondary">
+          You can capture anyway. The check starts by itself once the document syncs.
+        </AppText>
+      </Section>
     </Screen>
   );
 }

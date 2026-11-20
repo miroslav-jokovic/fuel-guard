@@ -351,6 +351,18 @@ screens are restyled through primitives only (§3).
   - **"Stop n of m" on the Stop screen is the stop's own place in the run.** It counted finished stops, so a
     delivery opened before its pickup said "stop 1 of 2".
 
+- **D-DV22 · Documents (V7), 2026-11-20.**
+  - **Documents is a review queue of what the office still needs**, not only the hazmat hub. The missing stop
+    photos are read from the loads payload Today and Loads already hold; nothing new is fetched.
+  - **Only the load being driven owes photos.** Counting accepted loads too made "14 photos missing" on a
+    morning with one stop left. The next open stop's photos say "Take", later stops "Later", and a finished
+    stop's gap is a record with no action (Q-DV7).
+  - **The Documents tab carries the same count as a badge**, from the same model, so the two cannot disagree.
+    Red, as the mock draws it: the system writes the number in white, which amber could not carry.
+  - **One amber action.** While photos are owed, "Capture BOL" steps down to the outline button.
+  - **The verdict and capture screens are restyled through primitives only** (plan §3). The scanner, the
+    quality decision and the staging are untouched.
+
 - **Q-DV7 · A photo for a stop that is already finished.** The mock's screen 3 offers "Add" for a seal photo
   missing from a completed pickup. The app cannot do that: `driver_complete_stop` (migration 0141) refuses
   any change to a completed stop, and a repeat of the same status returns before it inserts photos. V5 shows

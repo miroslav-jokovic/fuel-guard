@@ -1,23 +1,24 @@
-import { View } from 'react-native';
+import { useState } from 'react';
 import { Redirect, useRouter } from 'expo-router';
-import type { MeHazmatLoadRow } from '@silvicom/shared';
 import {
   ActionBar,
   AppText,
-  Badge,
   Banner,
-  Card,
   Button,
   EmptyState,
+  GroupedList,
   ListRow,
   OfflineBanner,
   Screen,
   ScreenHeader,
   Section,
   Skeleton,
-  type Tone,
+  StatusBlock,
 } from '@/components';
 import { useHazmatChecks } from '@/features/hazmat/useHazmatChecks';
+import { useLoads } from '@/features/loads/useLoads';
+import { documentsView, hazmatRows } from '@/features/documents/documentsModel';
+import { HazmatRows, MissingPhotoRows } from '@/features/documents/DocumentRows';
 import { useFeatures } from '@/session/useFeatures';
 
 /**
@@ -29,118 +30,134 @@ import { useFeatures } from '@/session/useFeatures';
  * past check, re-findable — the verdict screen used to be unreachable the moment the driver left
  * it. When the Loads module embeds capture as a load-flow step (plan Phase 6), this tab remains
  * the place every document lives.
+ *
+ * Visual 2026 V7 (the V1 mock's screen 7) makes it a review queue: the status block counts what is
+ * still missing, the missing stop photos come first ("Take" opens the stop), then the hazmat
+ * verdicts as words in their colours, then what the office already received. The photos are read
+ * from the loads payload Today and Loads already hold, so this route composes two features; neither
+ * feature reaches into the other (`lint:boundaries`). The words are `documentsModel`.
  */
-
-const OUTCOME_BADGE: Record<string, { label: string; tone: Tone }> = {
-  cleared: { label: 'Cleared', tone: 'success' },
-  analysis_green: { label: 'Cleared', tone: 'success' },
-  rejected: { label: 'Rejected', tone: 'danger' },
-  needs_review: { label: 'In review', tone: 'warning' },
-};
-
-function rowBadge(row: MeHazmatLoadRow): { label: string; tone: Tone } {
-  if (row.latest_outcome && OUTCOME_BADGE[row.latest_outcome]) return OUTCOME_BADGE[row.latest_outcome]!;
-  if (row.latest_outcome) return { label: 'In review', tone: 'warning' };
-  // No run yet: either still draft on this device (outbox not drained) or analyzing server-side.
-  return row.status === 'draft' ? { label: 'Not submitted', tone: 'neutral' } : { label: 'Analyzing', tone: 'info' };
-}
-
-function rowDate(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ''
-    : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
 
 export default function HazmatHub() {
   const router = useRouter();
   const features = useFeatures();
   const hazmatEnabled = features.enabled('hazmat.capture');
+  const loadsEnabled = features.enabled('tab.loads');
   const checks = useHazmatChecks(hazmatEnabled);
+  const loads = useLoads(loadsEnabled);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Deep-link guard: the More entry already hides when the feature is off; this covers a direct
-  // navigation. Only redirect once the bootstrap has LOADED — a cold start must not bounce an
-  // entitled driver off the hub while the cache rehydrates (server RLS is the real boundary).
+  // Deep-link guard: the tab is hidden when the feature is off; this covers a direct navigation.
+  // Only redirect once the bootstrap has LOADED — a cold start must not bounce an entitled driver
+  // off the hub while the cache rehydrates (server RLS is the real boundary).
   if (features.isLoaded && !hazmatEnabled) return <Redirect href="/home" />;
   if (!features.isLoaded) {
     return (
       <Screen flow="sections">
-        <ScreenHeader title="Documents" subtitle="Bills of lading and compliance checks" />
+        <ScreenHeader title="Documents" />
         <Skeleton className="h-15 w-full rounded-xl" />
       </Screen>
     );
   }
-  const rows = checks.data?.loads ?? [];
+
+  const view = documentsView(loadsEnabled ? (loads.data?.loads ?? []) : []);
+  const records = hazmatRows(checks.data?.loads ?? []);
   const showSkeletons = checks.isPending && !checks.data;
+  const nothingAtAll = !showSkeletons && records.length === 0 && view.missing.length === 0 && !view.sentThisWeek;
 
   return (
     <Screen
       flow="sections"
+      refreshing={refreshing}
+      onRefresh={() => {
+        setRefreshing(true);
+        void Promise.allSettled([checks.refetch(), loads.refetch()]).finally(() => setRefreshing(false));
+      }}
       footer={
         <ActionBar>
+          {/* One amber action per screen (D-DV5): while photos are owed, "Take" is the act and the
+              BOL capture steps down to the outline button. */}
           <Button
             label="Capture BOL"
-            variant="primary"
+            variant={view.actionable > 0 ? 'secondary' : 'primary'}
             size="lg"
             icon="photo_camera"
             haptic="select"
             onPress={() => router.push('/hazmat/capture')}
           />
           <AppText variant="caption" tone="subtle" className="pb-1 text-center">
-            Works offline — captures sync and analyze when you reconnect.
+            Works offline. Captures sync and are checked when you reconnect.
           </AppText>
         </ActionBar>
       }
     >
-      <ScreenHeader title="Documents" subtitle="Bills of lading and compliance checks" />
+      <ScreenHeader title="Documents" />
       <OfflineBanner />
 
       {checks.isError && !checks.data ? (
-        <Banner
-          tone="danger"
-          message={checks.error.message || 'Could not load your hazmat checks.'}
-          actionLabel="Retry"
-          onAction={() => void checks.refetch()}
-        />
+        <Section>
+          <Banner
+            tone="danger"
+            message={checks.error.message || 'Could not load your hazmat checks.'}
+            actionLabel="Retry"
+            onAction={() => void checks.refetch()}
+          />
+        </Section>
       ) : null}
 
-      <Section title="Checks">
-        {showSkeletons ? (
-          <>
-            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
-            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
-          </>
-        ) : rows.length === 0 ? (
-          <Card padded={false}>
-            <EmptyState
-              icon="local_fire_department"
-              title="No checks yet"
-              subtitle="Capture a bill of lading and the compliance verdict — with its CFR citations — lands here."
+      {loadsEnabled && loads.data ? (
+        <Section>
+          {view.actionable > 0 ? (
+            <StatusBlock
+              context="To finish"
+              figure={String(view.actionable)}
+              figureSuffix={view.actionable === 1 ? 'photo missing' : 'photos missing'}
+            >
+              {/* Under the count, as the mock draws it; `place` would set it above the figure. */}
+              {view.missingNote ? <AppText variant="supporting" tone="onHeroSecondary">{view.missingNote}</AppText> : null}
+            </StatusBlock>
+          ) : (
+            <StatusBlock context="To finish" subject="Nothing to send" place="Every photo your stops need is with the office." />
+          )}
+          {view.missing.length > 0 ? (
+            <MissingPhotoRows
+              rows={view.missing}
+              onTake={(row) => router.push(`/loads/${row.loadId}/stop/${row.stopId}` as never)}
             />
-          </Card>
+          ) : null}
+        </Section>
+      ) : null}
+
+      <Section title="Hazmat checks">
+        {showSkeletons ? (
+          <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
+        ) : records.length > 0 ? (
+          <HazmatRows rows={records} onOpen={(id) => router.push(`/hazmat/${id}` as never)} />
         ) : (
-          <Card padded={false}>
-            {rows.map((row, index) => {
-              const badge = rowBadge(row);
-              return (
-                <View key={row.id}>
-                  <ListRow
-                    icon="local_fire_department"
-                    // The disc carries the outcome, so a rejected check and a cleared one are not
-                    // the same red flame with a different chip beside it.
-                    disc={badge.tone}
-                    title={`BOL check · ${rowDate(row.created_at)}`}
-                    subtitle={row.status === 'draft' ? 'Waiting to sync' : undefined}
-                    onPress={() => router.push(`/hazmat/${row.id}` as never)}
-                    right={<Badge label={badge.label} tone={badge.tone} />}
-                  />
-                  {index < rows.length - 1 ? <View className="ml-18 h-px bg-edge-subtle" /> : null}
-                </View>
-              );
-            })}
-          </Card>
+          <AppText variant="supporting" tone="secondary">
+            None yet. Capture a bill of lading and its compliance check, with the CFR citations, lands here.
+          </AppText>
         )}
       </Section>
+
+      {view.sentThisWeek ? (
+        <Section title="Sent this week">
+          <GroupedList>
+            <ListRow
+              icon="check_circle"
+              disc="success"
+              title={`${view.sentThisWeek.photos} ${view.sentThisWeek.photos === 1 ? 'photo' : 'photos'} · ${view.sentThisWeek.loads} ${view.sentThisWeek.loads === 1 ? 'load' : 'loads'}`}
+              subtitle="All received by the office"
+            />
+          </GroupedList>
+        </Section>
+      ) : null}
+
+      {nothingAtAll ? (
+        <Section>
+          <EmptyState icon="photo_camera" title="No documents yet" subtitle="Stop photos and BOL checks you send appear here." />
+        </Section>
+      ) : null}
     </Screen>
   );
 }
