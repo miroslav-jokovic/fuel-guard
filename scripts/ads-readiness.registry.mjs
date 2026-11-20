@@ -886,6 +886,14 @@ export const READINESS = [
             "every OUR reading of FakeMeta's Conversions API (fakeMetaEvents.ts) answers on the target as committed",
           ] }],
         },
+        {
+          // V7e, Q-APX33 (a), 2026-11-20: Q-AD17 asked of the target by its own request, so the first sandbox certify
+          // answers whether a job ad may optimise for qualified leads (fakeMetaAdSets.ts holds our reading meanwhile).
+          need: "Q-AD17: a QUALITY_LEAD ad set under EMPLOYMENT, with the dataset, without it, and with no category, re-recorded on the target",
+          tests: [{ file: "apps/api/src/modules/ads/outcomes/outcomeReadings.contract.test.ts", titles: [
+            "the QUALITY_LEAD ad set under EMPLOYMENT, with and without the dataset and with no category, answers on the target as committed",
+          ] }],
+        },
       ],
       L4: [{ need: "events accepted by the sandbox (Events Manager test code; OUR readings in fakeMetaEvents.ts checked)", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
