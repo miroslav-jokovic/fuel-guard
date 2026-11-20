@@ -147,6 +147,11 @@ function RootNavigator() {
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="loads/[id]" />
+      {/* Score and Navigate were hidden JS tabs until V3; a hidden native tab cannot be reached, so
+          they are pushed screens here and keep their URLs (/score from More, Home and a
+          notification; /navigate is the dev-only nav seam, D52). */}
+      <Stack.Screen name="score" />
+      <Stack.Screen name="navigate" options={{ presentation: "modal" }} />
       {/* Contextual work is a modal over the shell, never a tab (D51/§22.1). */}
       <Stack.Screen name="duty/check-in" options={{ presentation: "modal" }} />
       <Stack.Screen name="drive" options={{ presentation: "modal" }} />
