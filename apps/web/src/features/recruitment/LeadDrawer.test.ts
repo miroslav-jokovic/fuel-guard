@@ -465,6 +465,9 @@ describe("from Tenstreet (TS5)", () => {
     expect(sec.find('[data-test="ts-withheld"]').exists()).toBe(true);
     expect(sec.text()).toContain("Company Driver");
     expect(sec.text()).toContain("mvr.pdf");
+    expect(sec.find('[data-test="ts-tags"]').text()).toContain("Job Class");
+    expect(sec.find('[data-test="ts-tags"]').text()).toContain("E3R");
+    expect(sec.text()).toContain("AR Springdale");
     expect(w.text()).not.toContain("projection");
     expect(w.find('[data-test="answer"]').exists()).toBe(false);
   });

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, toRef } from "vue";
-import { AppCallout, QueryState } from "@silvicom/ui";
+import { AppCallout, FactList, QueryState } from "@silvicom/ui";
 import { formatDateTime } from "@/lib/format";
 import { useLeadTenstreetQuery } from "./useLeads";
 
@@ -22,11 +22,12 @@ const says = computed(() => {
   const s = v.value?.says;
   if (!s) return [];
   return [
-    { label: "Status", value: s.status },
-    { label: "Worklist", value: s.worklist },
-    { label: "Recruiter", value: s.recruiter },
-  ].filter((r): r is { label: string; value: string } => r.value !== null);
+    { key: "status", label: "Status", value: s.status },
+    { key: "worklist", label: "Worklist", value: s.worklist },
+    { key: "recruiter", label: "Recruiter", value: s.recruiter },
+  ].filter((r) => r.value !== null);
 });
+const tagFacts = computed(() => (v.value?.tags ?? []).map((t, i) => ({ key: `tag-${i}`, label: t.prompt, value: t.value ?? "—" })));
 const licenceLine = (l: NonNullable<typeof v.value>["licences"][number]): string =>
   [
     l.class ? `Class ${l.class}` : "Class not given",
@@ -54,12 +55,7 @@ const countLine = (n: number | null, what: string): string => (n === null ? `${w
     <div v-else-if="v" class="mt-1 space-y-4 text-sm">
       <p class="text-xs text-ink-muted">As Tenstreet sent it {{ formatDateTime(post.receivedAt) }}. It does not change this lead.</p>
 
-      <dl v-if="says.length > 0" class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-        <template v-for="r in says" :key="r.label">
-          <dt class="text-ink-muted">{{ r.label }}</dt>
-          <dd class="text-ink">{{ r.value }}</dd>
-        </template>
-      </dl>
+      <FactList v-if="says.length > 0" :facts="says" layout="rows" />
 
       <div v-if="v.licences.length > 0">
         <p class="font-medium text-ink">Licences</p>
@@ -105,12 +101,7 @@ const countLine = (n: number | null, what: string): string => (n === null ? `${w
 
       <div v-if="v.tags.length > 0">
         <p class="font-medium text-ink">Tags</p>
-        <dl class="mt-1 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-          <template v-for="(t, i) in v.tags" :key="i">
-            <dt class="text-ink-muted">{{ t.prompt }}</dt>
-            <dd class="text-ink" data-test="ts-tag">{{ t.value ?? "—" }}</dd>
-          </template>
-        </dl>
+        <div class="mt-1" data-test="ts-tags"><FactList :facts="tagFacts" layout="rows" /></div>
       </div>
 
       <div v-if="v.documents.length > 0">

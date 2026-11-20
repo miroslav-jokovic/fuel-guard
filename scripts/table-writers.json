@@ -773,6 +773,7 @@
     "apps/api/src/modules/recruiting/tenstreet/receive.ts"
   ],
   "tenstreet_posts": [
+    "apps/api/src/modules/recruiting/tenstreet/leadPost.ts",
     "apps/api/src/modules/recruiting/tenstreet/processPost.ts",
     "apps/api/src/modules/recruiting/tenstreet/receive.ts"
   ],
