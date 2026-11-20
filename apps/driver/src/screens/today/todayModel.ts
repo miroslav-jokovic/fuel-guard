@@ -273,9 +273,9 @@ export function countdownLabel(
   const minutes = Math.round((start - now) / 60_000);
   if (minutes >= 60) {
     const h = Math.floor(minutes / 60);
-    return { text: `Opens in ${h} h ${minutes % 60} min`, tone: 'neutral' };
+    return { text: `Window opens in ${h} h ${minutes % 60} min`, tone: 'neutral' };
   }
-  if (minutes >= 1) return { text: `Opens in ${minutes} min`, tone: 'neutral' };
+  if (minutes >= 1) return { text: `Window opens in ${minutes} min`, tone: 'neutral' };
   if (Number.isFinite(end) && now > end) return { text: 'Window closed', tone: 'warning' };
   return { text: 'Window open now', tone: 'neutral' };
 }

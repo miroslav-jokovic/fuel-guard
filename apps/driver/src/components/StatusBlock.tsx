@@ -17,8 +17,12 @@ import { layout } from '@/theme/tokens';
  * - `live`: the live line in cyan, a real countdown to a real time ("Window opens in 18 min"), never an
  *   ETA (D-DV13).
  *
- * Every slot but `subject` is optional, so the same block serves "Off duty · 06:00" on a pre-shift
- * Today and "2 photos missing" on Documents. The block is flat navy in light and dark alike: the brand
+ * - `liveTone="act"` turns the live line amber, for the one time-critical state the block reports (a
+ *   closed window, V5). Cyan says "live", amber says "act" (D-DV5); nothing else colours it.
+ *
+ * Every slot is optional, `subject` included: the pre-shift block in the mock (screen 9) is a context
+ * line, the figure and the live line, with no subject. So the same block serves "Off duty · 06:00" on a
+ * pre-shift Today and "2 photos missing" on Documents. The block is flat navy in light and dark alike: the brand
  * on the night is carried by this block, not by navy text (DESIGN.md, colour roles).
  *
  * `children` sits under the figure for the rare extra line a screen needs. Do not put rows in it;
@@ -31,16 +35,18 @@ export function StatusBlock({
   figure,
   figureSuffix,
   live,
+  liveTone = 'live',
   onPress,
   accessibilityLabel,
   children,
 }: {
   context?: string;
-  subject: string;
+  subject?: string;
   place?: string;
   figure?: string;
   figureSuffix?: string;
   live?: string;
+  liveTone?: 'live' | 'act';
   onPress?: () => void;
   accessibilityLabel?: string;
   children?: ReactNode;
@@ -50,19 +56,21 @@ export function StatusBlock({
       {context ? (
         <AppText variant="supporting" weight="semibold" tone="onHeroSecondary">{context}</AppText>
       ) : null}
-      <View>
-        <AppText variant="navigationTitle" tone="onHero" accessibilityRole="header">{subject}</AppText>
-        {place ? <AppText variant="supporting" tone="onHeroSecondary">{place}</AppText> : null}
-      </View>
+      {subject || place ? (
+        <View>
+          {subject ? <AppText variant="navigationTitle" tone="onHero" accessibilityRole="header">{subject}</AppText> : null}
+          {place ? <AppText variant="supporting" tone="onHeroSecondary">{place}</AppText> : null}
+        </View>
+      ) : null}
       {figure ? (
-        <View className="flex-row flex-wrap items-baseline" style={{ columnGap: 8, paddingTop: 8 }}>
+        <View className="flex-row flex-wrap items-baseline" style={{ columnGap: 8, paddingTop: 2 }}>
           <AppText variant="numericHero" tone="onHero">{figure}</AppText>
           {figureSuffix ? (
             <AppText variant="numericInline" tone="onHeroSecondary">{figureSuffix}</AppText>
           ) : null}
         </View>
       ) : null}
-      {live ? <AppText variant="body" weight="semibold" tone="onHeroLive" tabular>{live}</AppText> : null}
+      {live ? <AppText variant="body" weight="semibold" tone={liveTone === 'act' ? 'onHeroAct' : 'onHeroLive'} tabular>{live}</AppText> : null}
       {children}
     </>
   );

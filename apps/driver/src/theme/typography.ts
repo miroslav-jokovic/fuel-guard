@@ -72,6 +72,11 @@ interface VariantSpec {
  * `label` is the section heading in the V1 mock — sentence case, semibold, muted by tone. Its old
  * uppercase tracking is gone: a tracked small-caps kicker is on the banned list (D-DV14).
  */
+// The display face's line heights are MEASURED, not chosen (owner 2026-11-20: "cutoff numbers"). Big
+// Shoulders' natural line is 1.197em (ascent 1968 + descent 426 of 2000 units), and when a line height
+// is shorter iOS takes the difference off the TOP of the line. At 64/60 that removed 5pt from the
+// figures' 51pt cap height, flattening the 8, 4 and 0. The floor is in
+// apps/driver/tests/typography.test.ts, read from the font file itself.
 export const TYPE: Record<TextVariant, VariantSpec> = {
   caption: { face: 'platform', fontSize: 13, lineHeight: 18, weight: 'regular', tabular: false },
   label: { face: 'platform', fontSize: 13, lineHeight: 18, weight: 'semibold', tabular: false },
@@ -80,10 +85,10 @@ export const TYPE: Record<TextVariant, VariantSpec> = {
   rowTitle: { face: 'platform', fontSize: 17, lineHeight: 22, weight: 'semibold', tabular: false },
   action: { face: 'platform', fontSize: 17, lineHeight: 22, weight: 'semibold', tabular: false },
   navigationTitle: { face: 'platform', fontSize: 17, lineHeight: 22, weight: 'semibold', tabular: false },
-  screenTitle: { face: 'display', fontSize: 38, lineHeight: 38, weight: 'bold', tabular: false, uppercase: true, letterSpacing: 0.4 },
+  screenTitle: { face: 'display', fontSize: 38, lineHeight: 40, weight: 'bold', tabular: false, uppercase: true, letterSpacing: 0.4 },
   numericInline: { face: 'platform', fontSize: 22, lineHeight: 28, weight: 'semibold', tabular: true },
   numericCompact: { face: 'platform', fontSize: 26, lineHeight: 32, weight: 'semibold', tabular: true },
-  numericHero: { face: 'display', fontSize: 64, lineHeight: 60, weight: 'bold', tabular: false },
+  numericHero: { face: 'display', fontSize: 64, lineHeight: 68, weight: 'bold', tabular: false },
 };
 
 const WEIGHT: Record<TextWeight, TextStyle['fontWeight']> = {

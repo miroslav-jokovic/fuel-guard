@@ -8,7 +8,7 @@ rest, and does not drift toward generic AI-generated mobile UI.
 
 - **Visual 2026** is the current visual world. The owner approved it on 2026-11-20 on the V1 mock.
   - The plan is [`DRIVER-APP-VISUAL-2026-PLAN.md`](../../docs/plans/drivers-app/DRIVER-APP-VISUAL-2026-PLAN.md),
-    with decisions D-DV1–D-DV15 and the owner's rulings in §6.1.
+    with decisions D-DV1–D-DV20 and the owner's rulings in §6.1.
   - The mock is [`visual-2026-mock/V1-MOCK.html`](../../docs/plans/drivers-app/visual-2026-mock/V1-MOCK.html).
     **When this file and the mock disagree, the mock shows the intended look and this file says how to build it.**
 - **Direction B** ([plan](../../docs/plans/drivers-app/DRIVER-APP-DIRECTION-B-PLAN.md), D-DB1–D-DB18)
@@ -170,7 +170,7 @@ how the old version of this file came to describe a palette the app no longer ha
 | `canvas`, `surface*` | grounds | `surface-raised` is for the signature block and sheets only (D-DV7) |
 | `ink`, `ink-secondary`, `ink-muted` | text | `ink-subtle` = `ink-muted`; `ink-disabled` only for disabled controls |
 | `edge*` | rare separators, input borders | separate by space first (D-DV7) |
-| `hero`, `hero-*`, `on-hero*` | the navy **status block** (D-DV6) | white on navy; `on-hero-muted` only for non-essential copy; **`on-hero-live`** (tone `onHeroLive`) is the cyan ON navy — never `accent`, which is the dark-teal ink for light grounds (2.4:1 on navy) |
+| `hero`, `hero-*`, `on-hero*` | the navy **status block** (D-DV6) | white on navy; `on-hero-muted` only for non-essential copy; **`on-hero-live`** (tone `onHeroLive`) is the cyan ON navy — never `accent`, which is the dark-teal ink for light grounds (2.4:1 on navy); **`on-hero-act`** (tone `onHeroAct`) is the amber ON navy, for a closed window (V5) |
 | `action`, `action-fg`, `action-pressed` | **amber = act** fill | `action-fg` is the navy text on it; one per screen |
 | `action-ink`, `warning`, `caution`, `sync-pending` | amber as text | "expires in 26 days", "Take" |
 | `accent`, `accent-ink`, `accent-soft`, `info`, `operation-current`, `surface-selected`, `edge-focus` | **cyan = live** | was Direction B's lavender |
@@ -197,14 +197,17 @@ No font class, `fontFamily`, `fontWeight` or `fontSize` exists anywhere else.
 | navigationTitle | platform | 17 / 22 | semibold | header titles, sheet headings |
 | numericInline | platform, **tabular** | 22 / 28 | semibold | times, windows and values in rows and timelines |
 | numericCompact | platform, **tabular** | 26 / 32 | semibold | a score, a count beside its label, entered numbers |
-| screenTitle | **Big Shoulders Display**, uppercase | 38 / 38 | ExtraBold | the tab screen's title |
-| numericHero | **Big Shoulders Display** | 64 / 60 | ExtraBold | the screen's ONE lone figure (06:00, "2") |
+| screenTitle | **Big Shoulders Display**, uppercase | 38 / 40 | ExtraBold | the tab screen's title |
+| numericHero | **Big Shoulders Display** | 64 / 68 | ExtraBold | the screen's ONE lone figure (06:00, "2") |
 
 - **Weight.** `weight="regular|medium|semibold|bold"` is the only way to change weight, and it applies
   only to the platform face. Bold Text steps every weight up one, and the display face switches to its
   Black cut.
 - **Tabular figures.** `tabular` forces tabular digits on a platform variant. The numeric platform
   variants are tabular by definition.
+- **Display line heights are measured.** Big Shoulders' natural line is 1.197em and iOS trims a shorter
+  line from the top, which cut the hero figures at 64/60 (2026-11-20). `tests/typography.test.ts` reads
+  the font file and refuses a line height that loses the cap height.
 - **The display face.** These are static 800 and 900 instances of the Google Fonts variable font, bundled
   in `assets/fonts/` with their OFL licence. The provenance is in `typography.ts`.
 
@@ -234,6 +237,7 @@ step makes each one a primitive. Before that step, compose it from `AppText`, `S
 |---|---|---|---|
 | **Status block** (signature) | Today, Documents | Navy block, 24 radius. A context line, the subject, ONE lone figure (`numericHero`), then a live line in `onHeroLive` | **`StatusBlock`** (V4, built) |
 | **Next step** | Today | One surface row: what to do and why, with the amber action on the right (48pt). One per screen, and only when there IS a next step | **`NextStep`** (V4, built) |
+| **Today** | Today | The composition itself: `screens/today/todayStatusModel.ts` decides the block, the next step and the rows; `home.tsx` only draws them | **V5, built** |
 | **Grouped rows** | Today, Loads, More | `Section` (its heading is the muted `label`), then a `GroupedList` of `ListRow`s on the canvas with no card around them. `disc={tone}` tints the glyph by state. Trailing figure `numericInline` or an action word in its state colour | **`Section` + `GroupedList` + `ListRow`** (V4, built) |
 | **Time groups** | Loads | Sections by time (Now, Next, Delivered), not by status. The appointment is the trailing figure | V6 |
 | **Timeline** | Load detail | Stops on a 2pt rail: cyan dot = current, green = done, hollow = ahead. Window figure largest in each stop. Required photos in words | V6 |
@@ -265,6 +269,7 @@ The tab shell is not a pattern you compose. It is the OS's own (D-DV1, V3). A ne
   - text: `AppText`;
   - actions: `Button`, `IconButton`, `ConfirmSheet`, `ChoiceSheet`;
   - forms: `Field`, `Input`, `NumericField`;
+  - counts: `CountBadge` (an unread count on an icon button, the only text that ignores text size);
   - feedback: `Banner`, `Toast`/`useToast`, `OfflineBanner`, `SyncStatus`;
   - progress: `Progress`, `TaskStepper`;
   - data: `Sparkline`, `TrendChart`;

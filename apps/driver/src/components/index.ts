@@ -12,6 +12,7 @@ export { GroupedList } from './GroupedList';
 export { ToggleRow } from './ToggleRow';
 export { Icon, type IconProps } from './Icon';
 export { Badge } from './Badge';
+export { CountBadge } from './CountBadge';
 export { severityTone, TONE_CHIP, TONE_ICON, TONE_SOFT, TONE_SOLID, type Tone } from './tone';
 export { Banner } from './Banner';
 export { Input } from './Input';

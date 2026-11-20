@@ -180,6 +180,10 @@ export const ROLES = {
   // Live ON the navy block: the decal cyan itself in every appearance (6.45:1 on navy). The live
   // INK for light grounds (`accent-ink`, #006E8E) is 2.4:1 on navy and must never be used there.
   'on-hero-live': ['cyan', 'cyan', 'cyan', 'liveInkNightHc'],
+  // Act ON the navy block: the amber itself (V5). Today's live line turns to it when a window has
+  // closed, the one time-critical state the block can honestly report (D-DV5; no "Tight", Q-DV4).
+  // `action-ink` is the dark amber for light grounds and must never be used on the navy.
+  'on-hero-act': ['amber', 'amber', 'amber', 'amberHc'],
 
   // Act: the one primary action, amber, in every appearance
   action: ['amber', 'amber', 'amber', 'amberHc'],

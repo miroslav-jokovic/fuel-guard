@@ -1,4 +1,5 @@
 import { NextStep, Section, StatusBlock } from '@/components';
+import { TodaySamples } from './TodaySamples';
 
 /**
  * The Visual 2026 screen patterns (apps/driver/DESIGN.md, "Screen patterns") with the data shapes the
@@ -23,8 +24,10 @@ export function PatternSamples() {
 
       <Section title="Next step — one per screen">
         <NextStep title="Arrive at pickup" reason="Then the BOL and seal photos" actionLabel="Arrived" onAction={() => undefined} />
-        <NextStep title="Pickup photos are missing" reason="Stop 1 still needs the seal photo" actionLabel="Add" onAction={() => undefined} />
+        <NextStep title="Take the seal photo" reason="Needed before you finish at Ardent Mills" actionLabel="Open stop" onAction={() => undefined} />
       </Section>
+
+      <TodaySamples />
     </>
   );
 }
