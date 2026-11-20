@@ -125,7 +125,7 @@ export async function receiveTenstreetPost(deps: ReceiveTenstreetDeps, key: stri
 }
 
 /** The fixed sentences a REJECTED reply carries: never text from the post. */
-const REJECT_TEXT: Record<string, string> = {
+export const REJECT_TEXT: Record<string, string> = {
   too_large: "The post is over 2 MB.",
   doctype: "The post carries a DOCTYPE, which this listener does not accept.",
   not_xml: "The post is not well-formed XML.",

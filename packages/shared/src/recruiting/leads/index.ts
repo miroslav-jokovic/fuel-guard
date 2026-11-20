@@ -8,6 +8,7 @@ export * from "./facts/index.js";
 export * from "./leadClosureContract.js";
 export * from "./phoneLookupContract.js";
 export * from "./tenstreetProjection.js";
+export * from "./tenstreetConnectionContract.js";
 export * from "./leadStanding.js";
 export * from "./leadDisplay.js";
 export * from "./openingBrief.js";

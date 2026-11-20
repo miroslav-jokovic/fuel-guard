@@ -33,6 +33,7 @@ import { recruitmentMessageWordingRouter } from "./messageWording.js";
 import { recruitmentLeadsRouter } from "./leads.js";
 import { recruitmentHiringSetupRouter } from "./hiringSetup.js";
 import { recruitmentPlaceSuggestRouter } from "./placeSuggest.js";
+import { recruitmentTenstreetRouter } from "./tenstreet.js";
 
 /**
  * Everything mounted at `/api/recruitment`, composed in one place.
@@ -79,5 +80,6 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentLeadsRouter()); // the lead queue, a lead entered by hand, and a lead made an applicant (ads D1, 0553/0554)
   router.use(recruitmentHiringSetupRouter()); // hiring profiles and openings, each save a new version (ads D1c2, 0553/0554)
   router.use(recruitmentPlaceSuggestRouter()); // a yard or town typed into an opening's area, as a point (Q-AD44 (a))
+  router.use(recruitmentTenstreetRouter()); // Settings › Recruiting › Tenstreet: Company ID, mode, the address (TENSTREET-INTAKE-PLAN TS4)
   return router;
 }

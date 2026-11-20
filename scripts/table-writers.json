@@ -769,6 +769,7 @@
     "apps/admin-api/src/lib/impersonation.ts"
   ],
   "tenstreet_connections": [
+    "apps/api/src/modules/recruiting/tenstreet/connection.ts",
     "apps/api/src/modules/recruiting/tenstreet/receive.ts"
   ],
   "tenstreet_posts": [
