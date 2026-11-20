@@ -189,6 +189,14 @@ export default function More() {
                 disc="neutral"
                 onPress={() => router.push('/gallery')}
               />
+              <View className="ml-18 h-px bg-edge-subtle" />
+              <ListRow
+                title="Live edge prototype"
+                subtitle="Scanner outline, step L0 · development builds"
+                icon="photo_camera"
+                disc="neutral"
+                onPress={() => router.push('/live-edge')}
+              />
             </>
           ) : null}
         </Card>

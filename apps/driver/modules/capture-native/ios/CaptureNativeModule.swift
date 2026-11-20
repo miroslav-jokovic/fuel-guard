@@ -151,6 +151,16 @@ public class CaptureNativeModule: Module {
         self.activeDelegate?.cancelFromHost()
       }
     }
+
+    // LIVE-EDGE-DETECTION-PLAN.md step L0: our own viewfinder with a native outline (D-LED2). iOS only
+    // for now — Android's module declares no view, so the JS side asks for this one on iOS alone
+    // (`LiveEdgeCameraView.tsx`) and Android follows at step L4.
+    View(LiveEdgeCameraView.self) {
+      Events("onDetection", "onCameraState")
+      Prop("active") { (view: LiveEdgeCameraView, active: Bool) in view.active = active }
+      Prop("strokeColor") { (view: LiveEdgeCameraView, color: UIColor) in view.strokeColor = color }
+      Prop("fillColor") { (view: LiveEdgeCameraView, color: UIColor) in view.fillColor = color }
+    }
   }
 }
 
