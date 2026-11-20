@@ -86,7 +86,8 @@ import DispatchLoadDrawer from "@/features/dispatch/DispatchLoadDrawer.vue";
 import LoadExceptionsTable from "@/features/dispatch/LoadExceptionsTable.vue";
 import LoadActivityView from "@/features/dispatch/LoadActivityView.vue";
 import { deliveredCell, driverOptions, matchesUnits, truckOptions, useDeliveredWindow, windowWords } from "@/features/dispatch/loadListFilters";
-import { DELIVERED_COLUMN, LOAD_COLUMNS, loadSortValue } from "@/features/dispatch/loadListColumns";
+import { LOAD_SORT_KEYS, RATE_KEYS, loadColumns, loadSortValue } from "@/features/dispatch/loadListColumns";
+import LoadRateCell from "@/features/dispatch/LoadRateCell.vue";
 import { listSort } from "@/features/dispatch/loadListOrder";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import { dispatchHeadline } from "@/features/dispatch/useLoadDispatch";
@@ -279,14 +280,14 @@ const moreChips = computed(() => [
  */
 const tableColumns = useTableColumns(
   "dispatch.loads",
-  () => (windowed.value ? [...LOAD_COLUMNS.slice(0, 5), DELIVERED_COLUMN, ...LOAD_COLUMNS.slice(5)] : LOAD_COLUMNS),
+  () => loadColumns(windowed.value, session.hasPermission("dispatch.load_rates")),
   { defaultHidden: ["dispatch"] },
 );
 const nowMs = Date.now();
 const sortValue = (load: DispatchLoad, key: string): unknown => loadSortValue(load, key, nowMs);
 
 const { sort: urlSort, onSort } = useUrlSort(
-  qs.param("sort", [...LOAD_COLUMNS, DELIVERED_COLUMN].filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("sort", LOAD_SORT_KEYS),
   qs.param("dir", SORT_DIRECTIONS),
 );
 // Each tab opens by its row's own event time until a header is clicked (D-DLC4, `loadListOrder.ts`).
@@ -475,6 +476,7 @@ function openDetail(load: DispatchLoad) {
           <span :class="deliveredCell(row, nowMs).at ? 'tabular-nums' : 'text-ink-tertiary'">{{ at(deliveredCell(row, nowMs).at) }}</span>
           <p v-if="deliveredCell(row, nowMs).ahead" class="text-xs text-warning-700" title="McLeod has this time later than now: it was entered ahead.">Entered ahead in McLeod</p>
         </template>
+        <template v-for="k in RATE_KEYS" :key="k" #[`cell-${k}`]="{ row }"><LoadRateCell :charges="row.charges" :figure="k" /></template>
         <template #cell-dispatch="{ row }">
           <span :class="row.last_dispatch ? 'text-ink-secondary' : 'text-ink-tertiary'">{{ dispatchHeadline(row.last_dispatch) }}</span>
         </template>

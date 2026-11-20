@@ -1,10 +1,13 @@
 import { Router, type Request, type Response } from "express";
 import {
+  LOAD_RATES_PERMISSION,
   deliveredWindowQuerySchema,
   dispatchLoadRequestSchema,
   loadSearchQuerySchema,
   resolveExceptionRequestSchema,
 } from "@silvicom/shared";
+import { holdsNamedPermission } from "../../org/index.js";
+import { withLoadCharges } from "../loadCharges.js";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { requireModule } from "../../../middleware/requireModule.js";
 import { assignmentHistoryQuerySchema } from "@silvicom/shared";
@@ -104,11 +107,14 @@ export function dispatchRouter(): Router {
       }
       const { delivered_from: from, delivered_before: before } = q.data;
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const [loads, history_from] = await Promise.all([
+      const [loads, history_from, readsRates] = await Promise.all([
         listLoads(admin, req.auth!.orgId!, from && before ? { from, before } : undefined),
         loadsHistoryFrom(admin, req.auth!.orgId!),
+        holdsNamedPermission(req, LOAD_RATES_PERMISSION),
       ]);
-      res.json({ loads, history_from });
+      // D-RATE7: the price is WITHHELD, not hidden — without the switch the rows carry no `charges` key.
+      const rows = readsRates ? await withLoadCharges(admin, req.auth!.orgId!, loads as { id: string }[]) : loads;
+      res.json({ loads: rows, history_from });
     }),
   );
 
@@ -155,14 +161,20 @@ export function dispatchRouter(): Router {
     canView,
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const load = await getLoadDetail(admin, req.auth!.orgId!, param(req, "id"));
+      const [load, readsRates] = await Promise.all([
+        getLoadDetail(admin, req.auth!.orgId!, param(req, "id")),
+        holdsNamedPermission(req, LOAD_RATES_PERMISSION),
+      ]);
       if (!load) {
         res.status(404).json(apiError("not_found", "That load no longer exists"));
         return;
       }
       // Photo URLs are signed for five minutes; caching the envelope would outlive them.
       res.setHeader("Cache-Control", "no-store");
-      res.json({ load });
+      // D-RATE7: as on the list — no switch, no `charges` key.
+      // `id` is LOAD_COLUMNS' first column, read by this very id.
+      const priced = readsRates ? (await withLoadCharges(admin, req.auth!.orgId!, [load as typeof load & { id: string }]))[0] : load;
+      res.json({ load: priced });
     }),
   );
 

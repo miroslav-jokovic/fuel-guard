@@ -1,4 +1,4 @@
-import { isRecordId } from "@silvicom/shared";
+import { LOAD_RATES_PERMISSION, isRecordId } from "@silvicom/shared";
 import { Router } from "express";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { requireModule } from "../../../middleware/requireModule.js";
@@ -10,6 +10,7 @@ import { readLoadRoute } from "../liveMapLoadRoute.js";
 import { readDrivenPathCached } from "../liveMapDrivenPath.js";
 import { readDispatchBoard } from "../dispatchBoard.js";
 import { holdsSurface } from "../../../middleware/requireSurface.js";
+import { holdsNamedPermission } from "../../org/index.js";
 
 /**
  * The live map's read surface (LM6).
@@ -53,8 +54,10 @@ export function liveMapRouter(): Router {
     requireSection("dispatch", "view"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      // The note chips are the `notes` screen's (UNIT-NOTES-PLAN D-UN18): asked here, never assumed.
-      const board = await readDispatchBoard(admin, req.auth!.orgId!, { ...req.auth!, readsNotes: await readsNotes(req) });
+      // The note chips are the `notes` screen's (UNIT-NOTES-PLAN D-UN18), and each load's price the
+      // `dispatch.load_rates` switch's (LOAD-RATES-PLAN D-RATE7): both asked here, never assumed.
+      const [notes, rates] = await Promise.all([readsNotes(req), holdsNamedPermission(req, LOAD_RATES_PERMISSION)]);
+      const board = await readDispatchBoard(admin, req.auth!.orgId!, { ...req.auth!, readsNotes: notes, readsRates: rates });
       res.json({ ok: true, data: board });
     }),
   );

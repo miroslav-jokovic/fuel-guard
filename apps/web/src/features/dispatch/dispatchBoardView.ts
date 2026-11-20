@@ -184,6 +184,19 @@ export const BOARD_COLUMNS: DataTableColumn[] = [
 export const BOARD_LIVE_COLUMNS = ["hos", "now", "load", "nextStop", "next"] as const;
 
 /**
+ * What the current load pays (LOAD-RATES-PLAN D-RATE8), after Miles left: the two figures a dispatcher
+ * weighs a truck's run by. Only for a reader holding `dispatch.load_rates` (`withRateColumn`) — for anyone
+ * else it does not exist, so the picker does not list it, and the API sends them no `charges` (D-RATE7).
+ * Shown by default; `sm` because a figure up to "$11,000.00" fits, and its split note wraps.
+ */
+export const BOARD_RATE_COLUMN: DataTableColumn = { key: "rate", label: "Rate", width: "sm", sortable: true, numeric: true };
+export function withRateColumn(columns: DataTableColumn[], seesRates: boolean): DataTableColumn[] {
+  if (!seesRates) return columns;
+  const at = columns.findIndex((c) => c.key === "milesLeft") + 1;
+  return [...columns.slice(0, at), BOARD_RATE_COLUMN, ...columns.slice(at)];
+}
+
+/**
  * The board's table id, from the one place it is spelled (`SAVED_VIEW_TABLES`): the column picker's
  * storage key (`fg.cols.dispatch.board`) and the saved views' `table_id` (admitted by migration 0452),
  * so the two agree about what "the board" is called by construction.
@@ -197,7 +210,7 @@ export const BOARD_TABLE: SavedViewTable = "dispatch.board";
 export const BOARD_COLUMNS_ID = `${BOARD_TABLE}.v2`;
 
 /** The column keys a `?sort=` link may name — derived, so a new sortable column cannot be forgotten. */
-export const BOARD_SORT_KEYS = BOARD_COLUMNS.filter((c) => c.sortable).map((c) => c.key);
+export const BOARD_SORT_KEYS = [...BOARD_COLUMNS, BOARD_RATE_COLUMN].filter((c) => c.sortable).map((c) => c.key);
 /** The board opens soonest-free first, as the dispatchers' own board does. */
 export const BOARD_DEFAULT_SORT = "available";
 
@@ -245,6 +258,8 @@ export function boardSortValue(r: DispatchBoardRow, key: string): unknown {
       return r.current?.nextStop?.appointmentEnd ?? r.current?.nextStop?.appointmentStart ?? null;
     case "next":
       return r.next?.ref ?? null;
+    case "rate":
+      return r.current?.charges?.total_charge ?? null;
     default:
       return null;
   }
