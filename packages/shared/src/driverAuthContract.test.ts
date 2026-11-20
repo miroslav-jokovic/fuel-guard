@@ -5,6 +5,10 @@ import {
   toSyntheticDriverEmail,
   usernameFromName,
   driverAppAccess,
+  customPasswordSchema,
+  driverLoginRequestSchema,
+  DRIVER_PASSWORD_MIN_LENGTH,
+  driverPasswordProblem,
 } from "./driverAuthContract.js";
 
 describe("driver username rules", () => {
@@ -38,5 +42,22 @@ describe("driverAppAccess", () => {
     expect(driverAppAccess("u1", true)).toBe("active");
     expect(driverAppAccess("u1", false)).toBe("disabled");
     expect(driverAppAccess("u1", null)).toBe("disabled");
+  });
+});
+
+describe("driver password length", () => {
+  it("accepts an 8-character driver password, the Samsara length, and refuses 7", () => {
+    expect(DRIVER_PASSWORD_MIN_LENGTH).toBe(8);
+    expect(customPasswordSchema.safeParse("abcd2345").success).toBe(true);
+    expect(customPasswordSchema.safeParse("abcd234").success).toBe(false);
+    const login = (password: string) =>
+      driverLoginRequestSchema.safeParse({ username: "aaron", password });
+    expect(login("abcd2345").success).toBe(true);
+    expect(login("abcd234").success).toBe(false);
+    expect(driverPasswordProblem("abcd2345")).toBeNull();
+    expect(driverPasswordProblem("abcd234")).toBe("Password must be at least 8 characters.");
+    expect(driverPasswordProblem("a".repeat(129))).toBe(
+      "Password must be 128 characters or fewer.",
+    );
   });
 });

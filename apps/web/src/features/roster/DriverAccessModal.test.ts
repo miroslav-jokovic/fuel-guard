@@ -109,6 +109,27 @@ describe("DriverAccessModal", () => {
     expect(wrapper.text()).toContain("StrongPass123!");
   });
 
+  it("takes an 8-character chosen password, the Samsara length, and refuses 7", async () => {
+    mutations.create.mutateAsync.mockResolvedValue({ username: "mreyes", password: "abcd2345" });
+    const wrapper = render(driver());
+
+    await wrapper.get('input[name="password"]').setValue("abcd234");
+    expect(wrapper.text()).toContain("Password must be at least 8 characters.");
+    await wrapper.get("#driver-login-form").trigger("submit.prevent");
+    await flushPromises();
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+
+    await wrapper.get('input[name="password"]').setValue("abcd2345");
+    expect(wrapper.text()).not.toContain("Password must be at least");
+    await wrapper.get("#driver-login-form").trigger("submit.prevent");
+    await flushPromises();
+    expect(mutations.create.mutateAsync).toHaveBeenCalledWith({
+      driverId: "driver-1",
+      username: "mreyes",
+      password: "abcd2345",
+    });
+  });
+
   it("requires an explicit confirmation before disabling app access", async () => {
     mutations.disable.mutateAsync.mockResolvedValue({ ok: true });
     const wrapper = render(
