@@ -26,7 +26,11 @@ const LEADS = () => [
   outcome(2, { contacted: hoursAgo(60) }),
   outcome(3, { contacted: hoursAgo(30), applied: hoursAgo(6) }),
 ];
-const STAGES = [`${lead(1)}:contacted`, `${lead(1)}:converted`, `${lead(2)}:contacted`, `${lead(3)}:contacted`, `${lead(3)}:applied`];
+// V7e: each lead is also sent as itself (`lead`), so three leads make eight rows.
+const STAGES = [
+  `${lead(1)}:lead`, `${lead(1)}:contacted`, `${lead(1)}:converted`, `${lead(2)}:lead`, `${lead(2)}:contacted`,
+  `${lead(3)}:lead`, `${lead(3)}:contacted`, `${lead(3)}:applied`,
+];
 const REFUSED_LEAD = "120000000000002";
 
 type Fault = { name: string; meta?: FakeMetaFault; times?: number; refuse?: boolean };
@@ -87,7 +91,7 @@ async function runDays(w: ReturnType<typeof world>, lose: number): Promise<void>
 function expectOneEach(w: ReturnType<typeof world>, refused: boolean): void {
   expect(w.events.map((e) => e.source_event_ref).sort()).toEqual([...STAGES].sort());
   for (const ref of STAGES) {
-    const isRefused = refused && ref === `${lead(2)}:contacted`;
+    const isRefused = refused && ref.startsWith(`${lead(2)}:`);
     expect(meta.datasets.accepted(DATASET).filter((e) => e.event_id === ref), ref).toHaveLength(isRefused ? 0 : 1);
     expect(w.events.find((e) => e.source_event_ref === ref), ref).toMatchObject(isRefused ? { status: "failed", attempts: MAX_ATTEMPTS } : { status: "sent" });
   }
@@ -108,14 +112,14 @@ async function cleanCounts(): Promise<{ inserts: number; updates: number; calls:
 }
 
 describe("Outcome feed L3 — killed after every write and Meta call, under each fault: exactly one accepted event per stage row", () => {
-  it("a clean run makes the writes and calls the sweep kills at (5 inserts, 5 updates, 3 batches)", async () => {
-    expect(await cleanCounts()).toEqual({ inserts: 5, updates: 5, calls: 3 });
+  it("a clean run makes the writes and calls the sweep kills at (8 inserts, 8 updates, 4 batches)", async () => {
+    expect(await cleanCounts()).toEqual({ inserts: 8, updates: 8, calls: 4 });
   });
 
   const POINTS = [
-    ...[1, 2, 3, 4, 5].map((n) => ({ name: `insert ${n}`, kind: "insert" as const, n })),
-    ...[1, 2, 3, 4, 5].map((n) => ({ name: `update ${n}`, kind: "update" as const, n })),
-    ...[1, 2, 3].map((n) => ({ name: `answer ${n}`, kind: "answer" as const, n })),
+    ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ name: `insert ${n}`, kind: "insert" as const, n })),
+    ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ name: `update ${n}`, kind: "update" as const, n })),
+    ...[1, 2, 3, 4].map((n) => ({ name: `answer ${n}`, kind: "answer" as const, n })),
   ];
   const CASES = FAULTS.flatMap((f) => POINTS.map((p) => [`${p.name} × ${f.name}`, p, f] as const));
 

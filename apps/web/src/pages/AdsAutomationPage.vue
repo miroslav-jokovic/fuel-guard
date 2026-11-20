@@ -11,6 +11,7 @@ import { count } from "@/features/ads/spendLines";
 import { useAdsHealth } from "@/features/ads/useAdsOverview";
 import { useAdsTabs } from "@/features/ads/useAdsTabs";
 import AdsStepModes from "@/features/ads/AdsStepModes.vue";
+import AdsConversionLeadsCard from "@/features/ads/AdsConversionLeadsCard.vue";
 
 /**
  * Ads › Automation (ADS-PLATFORM-V2-PLAN V8's health page, drawn in V6's workspace; Q-APX18 (a)): is the machinery
@@ -45,6 +46,7 @@ const agents = computed(() => (view.value?.agents ?? []).map((a) => ({ ...a, lab
     <PageHeader description="Whether the ads machinery is running, and what each part of it is costing this month." />
     <AdsTabs />
     <AdsStepModes :can-open-settings="canOpenSettings" />
+    <AdsConversionLeadsCard />
     <QueryState
       :loading="health.isLoading.value"
       :error="health.error.value"

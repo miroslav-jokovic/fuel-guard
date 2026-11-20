@@ -56,7 +56,7 @@ export interface OutcomeCandidate {
 }
 
 /**
- * Every recorded stage of every lead from `provider`, one candidate each. Only the stages a row records
+ * The lead itself (`lead`, at its arrival) and every recorded stage of every lead from `provider`, one candidate each. Only the stages a row records
  * (`OUTCOME_STAGES`, derived from Q-AD37's list), so a `not_recorded` stage can never be a candidate. A lead from
  * another platform is not this platform's to hear about: a simulator lead never reaches real Meta, and a Meta
  * lead never reaches the simulator.
@@ -66,7 +66,8 @@ export function outcomeCandidates(outcomes: readonly LeadOutcome[], provider: Fe
   for (const o of outcomes) {
     if (o.provider !== provider) continue;
     for (const stage of OUTCOME_STAGES) {
-      const at = o.reached[stage];
+      // `lead` is the lead itself, at its arrival (V7e; contracts.ts says why Meta asks for it).
+      const at = stage === "lead" ? o.arrived_at : o.reached[stage];
       if (at === undefined) continue;
       const event_time = new Date(Math.max(Date.parse(at), Date.parse(o.arrived_at))).toISOString();
       out.push({
