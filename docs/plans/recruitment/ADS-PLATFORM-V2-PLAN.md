@@ -522,6 +522,21 @@ in one range are refused rather than summed. Ads › Overview shows it as a card
 `LeadQuality`'s wrong-number share by line type, and the Analyst's brief reading this report. Progress:
 `ads-progress/2026-11-19-2200-W-V7cd-cost-report.md`.
 
+**Built 2026-11-20 (V7e, the qualified-lead goal's readiness).** Read first, Meta's Conversion Leads pages
+(Conversions API › Conversion Leads integration, CRM steps 3–6, 2026-11-20): 200 leads a month, an upload at least
+daily, a "Lead Coverage" of at least 60 % ("the percentage of leads that have matching events uploaded to Meta"), and a
+stage reached by 1–40 % of leads within 28 days. **That reading found a gap in B6:** Meta asks for "the raw lead event
+that represents all leads generated on Meta", and the feed sent only the stages a recruiter's act records — a lead
+nobody had reached had no event, so no carrier could reach 60 %. The feed now sends each lead itself (`lead`, at its
+arrival) before its stages: migration **0637** widens `ads_outcome_events.stage` in the same merge as the shared list
+(`OUTCOME_STAGES = ["lead", …LEAD_OUTCOME_STAGES]`; `lead` is a feed event, not a stage a lead reaches, so the brief and
+the report are unchanged). `GET /api/ads/conversion-leads` (recruitment view; both route ledgers) measures each
+requirement on our rows — Meta leads of the last 30 days, the share with an event Meta accepted, the feed's switch, and
+each forward stage's 28-day rate on the leads 29–58 days old — and Ads › Automation shows it. **Shown, never offered:**
+the fifth line is Q-AD17, which only the sandbox answers, and Meta's pages name no API value for the goal, so no switch
+is built. Progress: `ads-progress/2026-11-20-1100-W-V7e-conversion-leads.md`. **V7 is built** except Tenstreet
+(Q-APX27) and the apply page (Q-APX28), which wait on their own answers; Indeed waits on Indeed's approval.
+
 ### V8 · What makes it enterprise grade
 
 Already on main: sealed tokens opened in one place, admin-only spend behind a fresh sign-in, two approvers above a

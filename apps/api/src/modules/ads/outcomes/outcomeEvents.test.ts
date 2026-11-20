@@ -10,9 +10,10 @@ const base: LeadOutcome = {
 };
 
 describe("outcome events — the pure half of B6", () => {
-  it("one candidate per recorded stage, its ref the lead id and the stage, in the shared stage order", () => {
+  it("the lead itself, then one candidate per recorded stage, its ref the lead id and the stage, in the shared stage order", () => {
     const c = outcomeCandidates([{ ...base, reached: { hired: "2026-11-05T05:00:00.000Z", contacted: "2026-11-01T16:00:00.000Z" } }]);
     expect(c.map((x) => [x.source_event_ref, x.stage, x.platform_lead_ref, x.campaign_id])).toEqual([
+      [`${LEAD}:lead`, "lead", "120000000000001", CAMP],
       [`${LEAD}:contacted`, "contacted", "120000000000001", CAMP],
       [`${LEAD}:hired`, "hired", "120000000000001", CAMP],
     ]);
@@ -20,11 +21,15 @@ describe("outcome events — the pure half of B6", () => {
 
   it("no unrecorded stage can become a candidate (Q-AD37: never sent)", () => {
     const reached = Object.fromEntries(UNRECORDED_LEAD_STAGES.map((s) => [s, "2026-11-02T00:00:00.000Z"]));
-    expect(outcomeCandidates([{ ...base, reached: reached as LeadOutcome["reached"] }])).toEqual([]);
+    expect(outcomeCandidates([{ ...base, reached: reached as LeadOutcome["reached"] }]).map((c) => c.stage)).toEqual(["lead"]);
+  });
+
+  it("every lead is sent as itself, at the time it arrived, with no stage reached yet (V7e: Meta's lead coverage)", () => {
+    expect(outcomeCandidates([base]).map((c) => [c.stage, c.event_time, c.source_event_ref])).toEqual([["lead", base.arrived_at, `${LEAD}:lead`]]);
   });
 
   it("a stage stamped before the lead arrived is sent at the lead's arrival (Meta may discard an earlier one)", () => {
-    const [c] = outcomeCandidates([{ ...base, reached: { contacted: "2026-11-01T14:00:00.000Z" } }]);
+    const [, c] = outcomeCandidates([{ ...base, reached: { contacted: "2026-11-01T14:00:00.000Z" } }]);
     expect(c!.event_time).toBe("2026-11-01T15:00:00.000Z");
   });
 

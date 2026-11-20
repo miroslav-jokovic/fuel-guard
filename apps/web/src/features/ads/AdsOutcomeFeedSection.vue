@@ -47,8 +47,9 @@ const SWITCH = "Tell Meta how far each lead got";
       </FormField>
       <div class="space-y-2 text-sm text-ink-muted" data-test="outcome-feed-help">
         <p>
-          Once a day, for each lead that came from a Meta ad, Silvicom sends the stages that lead reached, under their own names:
-          {{ sent }}.
+          Once a day, for each lead that came from a Meta ad, Silvicom sends the lead itself, as it came in, and then the
+          stages that lead reached, under their own names: {{ sent }}. Meta asks for the lead itself so it can count how
+          many of your leads it has heard about.
         </p>
         <p v-if="notSent">{{ notSent }} are not recorded anywhere yet, so they are never sent, not even as a zero.</p>
         <p v-else>A stage is sent only when a recruiter's act or a record on file reached it — nothing is sent as a zero.</p>

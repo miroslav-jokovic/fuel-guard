@@ -24,6 +24,7 @@ export * from "./leadOutcomes.js";
 export * from "./leadQuality.js";
 export * from "./adsReport.js";
 export * from "./leadCostReport.js";
+export * from "./conversionLeads.js";
 export * from "./conceptPerformance.js";
 export * from "./analystBrief.js";
 export * from "./aiRail.js";
