@@ -9,12 +9,15 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const SCAN = ['app', 'src'];
 const forbidden = [
-  { pattern: /\b(?:Inter|Arial|Helvetica|Open Sans|Poppins|Hanken|HankenGrotesk)\b/i, message: 'Lexend through AppText only' },
-  { pattern: /font-sans(?:-|\b)/, message: 'use semantic AppText variants instead of legacy font aliases' },
-  // Direction B D-DB3: weight is the FAMILY for a loaded custom face, so a Tailwind weight utility
-  // is silently inert — it looked like emphasis and rendered as none. Seventeen call sites were in
-  // exactly that state the moment Lexend replaced the platform face; use font-ui-md|sb|bold.
-  { pattern: /(?<![\w-])font-(?:thin|extralight|light|normal|medium|semibold|bold|extrabold|black)(?![\w-])/, message: 'weight is the family: use font-ui, font-ui-md, font-ui-sb or font-ui-bold' },
+  { pattern: /\b(?:Inter|Arial|Helvetica|Open Sans|Poppins|Hanken|HankenGrotesk|Lexend)\b/i, message: 'faces come from src/theme/typography.ts through AppText only', allow: ['src/theme/typography.ts'] },
+  // Visual 2026 D-DV8 (2026-11-20): type is a STYLE from src/theme/typography.ts, reached through
+  // AppText's `variant` and `weight` props. Any font class — a family, a weight or a size — is a
+  // second source of type, and a second class setting the same property is settled by stylesheet
+  // order, not by what the call site wrote. Seventeen `font-ui-*` overrides were replaced by `weight`.
+  { pattern: /(?<![\w-])font-(?:sans|serif|mono|ui|ui-md|ui-sb|ui-bold|display|thin|extralight|light|normal|medium|semibold|bold|extrabold|black)(?![\w-])/, message: 'type comes from AppText variant/weight (src/theme/typography.ts), never a font class' },
+  { pattern: /(?<![\w-])(?:uppercase|lowercase|capitalize|tracking-\w+)(?![\w-])/, message: 'case and tracking belong to a typography variant; a tracked small-caps kicker is banned (D-DV14)', allow: ['src/theme/typography.ts'] },
+  // D-DV2: glass is the operating system's (native tabs, headers). Content never carries it.
+  { pattern: /from\s+['"](?:expo-glass-effect|expo-blur|@callstack\/liquid-glass|expo-linear-gradient)['"]/, message: 'no glass, blur or gradient modules on content (D-DV2, D-DV14); native chrome provides glass' },
   { pattern: /<Text(?:\s|>)/, message: 'use AppText instead of raw React Native Text' },
   { pattern: /\bAlert\.alert\s*\(/, message: 'use ConfirmSheet or an intentional Banner instead of native Alert' },
   { pattern: /from\s+['"]@\/theme\/ramps['"]/, message: 'screens and components must use semantic color roles, not primitive ramps' },
@@ -40,6 +43,10 @@ const forbidden = [
 // style object is the easy way back to a neutral drop shadow, so the role is reserved to the theme.
 const forbiddenOutsideTheme = [
   { pattern: /\bshadowColor\b/, message: 'shadows come from src/theme/elevation.ts only' },
+  // D-DV8: a style object is the other way around the type system. `textStyle()` is the one door.
+  { pattern: /\b(?:fontFamily|fontWeight|fontSize|lineHeight|letterSpacing)\s*:/, message: 'type comes from textStyle() in src/theme/typography.ts' },
+  // D-DV14: emoji as icons are a generic-AI tell. Icons come from the Icon component.
+  { pattern: /\p{Extended_Pictographic}/u, message: 'no emoji in the UI (D-DV14); use the Icon component' },
 ];
 
 const files = [];
@@ -58,7 +65,10 @@ for (const path of files) {
   const insideTheme = path.includes('/src/theme/');
   const rules = insideTheme ? forbidden : [...forbidden, ...forbiddenOutsideTheme];
   lines.forEach((line, index) => {
+    // The rules judge code, not prose: a comment may name a banned face or carry a ⚠ (2026-11-20).
+    if (/^\s*(?:\/\/|\*|\/\*)/.test(line)) return;
     for (const rule of rules) {
+      if (rule.allow?.some((allowed) => path.endsWith(allowed))) continue;
       if (path.endsWith('src/components/AppText.tsx') && rule.pattern.source === '<Text(?:\\s|>)') continue;
       if (rule.pattern.test(line)) failures.push(`${path}:${index + 1} ${rule.message}`);
     }

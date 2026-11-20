@@ -293,9 +293,6 @@ importers:
 
   apps/driver:
     dependencies:
-      '@expo-google-fonts/lexend':
-        specifier: 0.4.1
-        version: 0.4.1
       '@hugeicons/core-free-icons':
         specifier: 4.2.3
         version: 4.2.3
@@ -1927,9 +1924,6 @@ packages:
     peerDependenciesMeta:
       '@noble/hashes':
         optional: true
-
-  '@expo-google-fonts/lexend@0.4.1':
-    resolution: {integrity: sha512-uddqvCw9zFeYVUqUmPkCxFqEd+YbmCKqpNpdzj+LhJwYM2AwjR8i+Zq5Qx7KhbP/vzIZUfSwC5bnZ3cx2ltqGw==}
 
   '@expo-google-fonts/material-symbols@0.4.42':
     resolution: {integrity: sha512-KZmHZRcthJ3KFZZlpzHjopA9guZgWR9fb3uVZlTR0BNlvG2pw1bnYBCpkze2PB0vRllwGhAM7lWXsfmcWCbXYg==}
@@ -10729,8 +10723,6 @@ snapshots:
     optionalDependencies:
       '@noble/hashes': 1.8.0
 
-  '@expo-google-fonts/lexend@0.4.1': {}
-
   '@expo-google-fonts/material-symbols@0.4.42': {}
 
   '@expo/cli@57.0.13(@expo/dom-webview@57.0.1)(@expo/metro-runtime@57.0.8)(expo-constants@57.0.9)(expo-font@57.0.1)(expo-router@57.0.11)(expo@57.0.11)(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)(typescript@6.0.3)':
@@ -12440,9 +12432,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.86.2': {}
 

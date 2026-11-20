@@ -115,22 +115,25 @@ export default function Gallery() {
         <Leaderboard view={buildLeaderboardView(undefined)} />
       </Section>
 
-      {/* Direction B B0.4 done-when: every variant, so a missing Lexend weight is visible rather
-          than silently falling back to the platform face. `label` and `numericInline` are the two
-          new roles; `numericInline` is the one the 2026-09-07 critique said was missing. */}
-      <Section title="Typography — Lexend 400/500/600/700">
+      {/* Visual 2026 V2 done-when: every variant in both faces, so a missing display cut shows up
+          as the platform face here rather than on a driver's phone. The display face sets a title
+          and a LONE figure; every figure that lines up with another is the tabular platform face
+          (D-DV8, D-DV15). */}
+      <Section title="Typography — platform face + Big Shoulders Display">
         <View className="gap-1 rounded-xl bg-surface-muted p-4">
           <AppText variant="screenTitle">Today</AppText>
-          <AppText variant="navigationTitle">Load LD-20481</AppText>
-          <AppText variant="label" tone="action">Label · reserved, no overlines since D-DB12</AppText>
-          <AppText variant="body">One typeface carries the whole app; the variant picks the weight.</AppText>
-          <AppText variant="rowTitle">Row title, Lexend Medium</AppText>
-          <AppText variant="action">Button label, Lexend SemiBold</AppText>
-          <AppText variant="supporting" tone="muted">Supporting information remains readable without competing.</AppText>
-          <AppText variant="caption" tone="muted">Caption · 12pt</AppText>
-          <AppText variant="numericInline">08:30 – 11:00</AppText>
-          <AppText variant="numericCompact">87</AppText>
-          <AppText variant="numericHero">438,795</AppText>
+          <AppText variant="numericHero">06:00</AppText>
+          <AppText variant="navigationTitle">Load 1184530</AppText>
+          <AppText variant="label" tone="muted">Rest of the day</AppText>
+          <AppText variant="body">Words are the platform face; the variant picks size and weight.</AppText>
+          <AppText variant="rowTitle">Row title, semibold</AppText>
+          <AppText variant="rowTitle" weight="regular">Row title, weight="regular"</AppText>
+          <AppText variant="action">Button label, semibold</AppText>
+          <AppText variant="supporting" tone="secondary">Supporting information remains readable without competing.</AppText>
+          <AppText variant="caption" tone="muted">Caption · 13pt</AppText>
+          <AppText variant="numericInline">06:00 – 08:00</AppText>
+          <AppText variant="numericInline">14:00 – 16:00</AppText>
+          <AppText variant="numericCompact">94</AppText>
         </View>
       </Section>
 

@@ -213,7 +213,9 @@ describe('roleHex', () => {
   ) as Record<string, Record<string, string>>;
 
   it('reads the navy the icons stand on out of the theme, not out of a literal', () => {
-    expect(roleHex(roles, 'light', 'hero')).toBe('#20283a');
+    // The carrier's measured wordmark navy since Visual 2026 V2 (D-DV3); it was Direction B's
+    // charcoal-navy #20283a until 2026-11-20.
+    expect(roleHex(roles, 'light', 'hero')).toBe('#0a2144');
   });
 
   it('refuses a role that does not exist', () => {

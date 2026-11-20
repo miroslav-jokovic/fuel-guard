@@ -256,7 +256,7 @@ function Fact({ label, value }: { label: string; value: string }) {
   return (
     <View className="flex-1 gap-0.5">
       <AppText variant="caption" tone="muted">{label}</AppText>
-      <AppText variant="supporting" className="font-ui-md" numberOfLines={2}>{value}</AppText>
+      <AppText weight="medium" variant="supporting" numberOfLines={2}>{value}</AppText>
     </View>
   );
 }

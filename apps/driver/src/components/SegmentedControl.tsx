@@ -70,11 +70,11 @@ export function SegmentedControl<T extends string>({
               }}
               className={`min-h-9 flex-row items-center justify-center gap-1 rounded-full px-4 ${fill}`}
             >
-              <AppText variant="supporting" tone={textTone} className="font-ui-md" numberOfLines={1}>
+              <AppText weight="medium" variant="supporting" tone={textTone} numberOfLines={1}>
                 {option.label}
               </AppText>
               {option.count != null ? (
-                <AppText variant="supporting" tone={textTone} className="font-ui-md" tabular>
+                <AppText weight="medium" variant="supporting" tone={textTone} tabular>
                   {option.count}
                 </AppText>
               ) : null}
@@ -102,7 +102,7 @@ export function SegmentedControl<T extends string>({
                 }}
                 className={`min-h-12 flex-row items-center gap-3 px-4 py-2 ${active ? 'bg-surface-selected' : 'bg-surface'}`}
               >
-                <AppText variant="body" className={`flex-1 ${active ? 'font-ui-sb' : ''}`}>
+                <AppText weight={active ? 'semibold' : undefined} variant="body" className="flex-1">
                   {option.label}
                 </AppText>
                 <Icon
@@ -143,9 +143,9 @@ export function SegmentedControl<T extends string>({
               className="min-h-11 flex-1 items-center justify-center rounded-full px-2"
             >
               <AppText
+                weight={active ? 'semibold' : 'medium'}
                 variant="supporting"
                 tone={active ? 'primary' : 'muted'}
-                className={active ? 'font-ui-sb' : 'font-ui-md'}
                 numberOfLines={1}
               >
                 {option.label}

@@ -51,28 +51,8 @@ export const layout = {
   largeTextBreakpoint: 1.35,
 } as const;
 
-/**
- * Semantic type metrics for the AppText primitive (Direction B §2.3). One typeface, Lexend, in four
- * weights; the variant picks the family because a weight utility is inert on a loaded custom face.
- *
- * `numericInline` closes the gap the 2026-09-07 critique named as P0-3: between `rowTitle` at 16 and
- * `numericCompact` at 24 there was nothing, so appointment windows, unit numbers, miles and
- * durations were rendering as 12pt muted captions — the figures a driver actually reads at a glance
- * were the smallest text on the screen.
- */
-export const typography = {
-  caption: { fontSize: 12, lineHeight: 16 },
-  label: { fontSize: 12, lineHeight: 16, letterSpacing: 0.96 },
-  supporting: { fontSize: 14, lineHeight: 20 },
-  body: { fontSize: 16, lineHeight: 22 },
-  rowTitle: { fontSize: 16, lineHeight: 22 },
-  action: { fontSize: 17, lineHeight: 22 },
-  navigationTitle: { fontSize: 18, lineHeight: 24 },
-  screenTitle: { fontSize: 28, lineHeight: 32 },
-  numericInline: { fontSize: 22, lineHeight: 28 },
-  numericCompact: { fontSize: 24, lineHeight: 28 },
-  numericHero: { fontSize: 40, lineHeight: 44 },
-} as const;
+/** Type lives in `typography.ts` (Visual 2026 D-DV8): faces, sizes and weights in one place. */
+export { TYPE as typography } from './typography';
 
 export const motion = {
   instant: 0,

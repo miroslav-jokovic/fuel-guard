@@ -69,7 +69,7 @@ export function UpcomingRow({ load, onPress }: { load: Load; onPress: () => void
       className="flex-row items-center gap-3 rounded-xl bg-surface px-4 py-3 active:bg-surface-selected"
     >
       <View className="h-13 w-13 items-center justify-center gap-0.5 rounded-lg bg-surface-muted">
-        <AppText variant="caption" tone="muted" className="font-ui-md">{dayTile(first?.appointment_start ?? null)}</AppText>
+        <AppText weight="medium" variant="caption" tone="muted" >{dayTile(first?.appointment_start ?? null)}</AppText>
         <AppText variant="numericInline">{clock(first?.appointment_start ?? null)}</AppText>
       </View>
       <View className="flex-1 gap-0.5">

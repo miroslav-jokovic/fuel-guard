@@ -176,9 +176,10 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
                 * sunlight. No `numberOfLines`: Dynamic Type STACKS rather than truncates (D-DB9).
                 */}
               <AppText
+                weight={focused ? 'semibold' : undefined}
                 variant="caption"
                 tone={focused ? 'onHero' : 'onHeroSecondary'}
-                className={`pt-1 text-center ${focused ? 'font-ui-sb' : ''}`}
+                className="pt-1 text-center"
               >
                 {label}
               </AppText>
