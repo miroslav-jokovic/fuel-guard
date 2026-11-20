@@ -1,0 +1,297 @@
+              Receiving Application Data From Tenstreet
+                                            API Guide (rev 11/2014)
+
+Contents
+Introduction ........................................................................................................................ 1
+Agreements and Acknowledgements ................................................................................. 2
+   Understanding the API .................................................................................................... 2
+   Debugging ....................................................................................................................... 2
+   Logging ............................................................................................................................ 2
+   Data Accuracy ................................................................................................................. 2
+   Support Requests ............................................................................................................ 2
+Overview ............................................................................................................................. 4
+   POST Request .................................................................................................................. 4
+   POST Response................................................................................................................ 4
+       Examples ..................................................................................................................... 6
+   Client Response............................................................................................................... 7
+       Example ....................................................................................................................... 7
+           Introduction
+           We POST the XML as a UTF-8 string with a content-type text/xml. I've attached some example XML strings
+           we'd POST over. Your listener must be able to accept secure connections (SSL). We only use SSL to send
+           data/documents to ensure the privacy of information contained within our systems while they are in
+           transit to you. When the listener has been set up, please notify Tenstreet so that final completion steps
+           can be performed.
+
+
+
+           Most of the fields in the export are straightforward, but if you have any questions, please let us know. It's
+           unlikely that all of these fields will appear in your particular application (the XML is a superset of all
+           possible fields). Custom fields appear in the CustomQuestions element (these are questions specific to the
+           customer on their application) and CustomDataElements element (these are equivalent to what we call
+           Tags, which are custom data fields in our dashboard app, which is where you may see many of the fields
+           specific to your company). We do add additional elements from time to time as the scope of our
+           application and processes expand, but we won't remove or change any existing elements (to maintain
+           backwards compatibility).
+
+
+
+
+Receiving Application Data from Tenstreet                    1|P a g e                                     11/6/2014
+           Agreements and Acknowledgements
+
+           Understanding the API
+           You are responsible for understanding the basics of xml and HTTP posting, and understanding the
+           information contained within this document.
+
+           Debugging
+           You are responsible for parsing the Tenstreet response for debugging purposes. Failure to do so will result
+           in data not being accepted into the system. If the posting type requires you to send a response back to
+           our system, you are also responsible for sending that response, otherwise our system will not consider
+           operations complete.
+
+           Logging
+           We expect you to keep both post and response logs of data that has been sent and received. We expect
+           this to be kept for at least 1 calendar year. Tenstreet keeps the same data for 1 calendar year. This
+           ensures the ability to audit all transactions from both sides.
+
+           Data Accuracy
+           If you have access to update multiple accounts (usually in the case of a job board), you also acknowledge
+           that you will be responsible for posting the correct information to the correct account. Tenstreet will only
+           validate that the passed Company ID and Password match, but will not attempt to validate that the
+           information being sent belongs to the Company ID provided.
+
+           Support Requests
+           We want you to receive and send data to our system as your business use requires. We have a dedicated
+           support group that handles requests about integrating your data with us at integrations@tenstreet.com.
+
+           If you need to contact us for support, please note that we are working toward getting you a response in
+           the order it was received in the support queue, and that can take several elapsed working days. Sending
+           more requests will just put your need further behind in the queue as we will have to handle them all
+           separately. So please send one really well-formed request at a time.
+
+           This service is very popular, technical, and requires us to free up resources to answer your questions. But
+           we will get to them.
+
+           When sending support requests, please include:
+           ----------------------------------------------
+           a) The Tenstreet XML response you are receiving if you are receiving one at all
+
+           b) your outbound or inbound ips (as relevant)
+
+           c) The URL you are posting to, as it is quite often that clients post to the development URL for their
+           production data and get a response that says the company id is invalid, so make sure you are posting to
+           the right environment.
+
+           d) The XML you are sending or receiving (as relevant), This speaks volumes to us, and will ultimately
+           expedite your request. Do not send us PII data like an SSN. Just replace that with xxx-xx-1234 in the file
+
+
+
+
+Receiving Application Data from Tenstreet                    2|P a g e                                      11/6/2014
+           before you send it. Or delete it completely, it is not usually relevant to a support case.
+
+           e) A phone number, time zone, and time frame in which we can reach you. Often these issues are less
+           overhead to resolve with a single phone call rather than multiple emails.
+
+
+
+
+Receiving Application Data from Tenstreet                     3|P a g e                                 11/6/2014
+           Overview
+
+           POST Request
+           There is no POST request for this service. The process will be triggered by an internal Tenstreet process,
+           which can be set up via your Tenstreet account manager.
+
+
+           POST Response
+           Please review the following list for information on the nodes that can be returned from the Tenstreet
+           system. For examples of what the XML may look like, please see the following files:
+
+
+           Post Body
+
+               •    PersonalData: This section is contains demographic info on the candidate.
+
+               •    ApplicationData: This is data from your application. Not all of these fields will be filled in every
+                    time, and depending on your application setup, some sections may not appear at all.
+                        o License: If endorsements are present, they'll be listed here (Tanker, X Endorsement,
+                             HazMat, DoublesTriples, Other). If your app asks about restrictions, these will be
+                             answered as yes/no.
+
+                        o    Accident: accident_nature will be things like Backing, Side-swiped, I was Rear- ended, hit
+                             parked vehicle/stationary, etc.
+
+                        o    UnemploymentPeriods: Describes unemployment along with start and end dates.
+
+                        o    Employers: Describes all past employers provided.
+
+                        o    Schools: Describes schools attended along with start and end data as well as location
+                             information.
+
+                        o    TruckingSchool: Courses can be Border Crossing, FMCSR, Log Books and Hazardous
+                             Materials.
+
+                        o    Military: Describes Military information such as; startdate, enddate, branch, discharge
+                             type, discharge rank, and discharge description
+
+                        o    MotorVechicleReports: yes/no to the question. If yes, the date of the incident and a
+                             description are required.
+
+                                  ▪   Suspension: Has any license, permit or privilege ever been denied, suspended
+                                      or revoked for any reason?
+
+                                  ▪   DuringSuspension: Have you ever been convicted of driving during license
+                                      suspension or revocation, or driving without a valid license or an expired
+                                      license, or are any charges pending?
+
+                                  ▪   ConvictedAlcoholSubstance: Have you ever been convicted for any alcohol or
+                                      controlled substance related offense while operating a motor vehicle, or are
+
+
+
+
+Receiving Application Data from Tenstreet                     4|P a g e                                       11/6/2014
+                                     any charges pending?
+
+                                ▪    ConvictedDrugs: Have you ever been convicted for possession, sale or transfer
+                                     of a drug, marijuana, amphetamines, or derivatives thereof, or are any charges
+                                     ending?
+
+                                ▪    ConvictedReckless: Have you ever been convicted of reckless driving, careless
+                                     driving or careless operation of a motor vehicle, or are any charges pending?
+
+                                ▪    PositiveTest: Have you ever tested positive, or refused to test, on any
+                                     preemployment drug or alcohol test administered by an employer to which you
+                                     applied for, but did not obtain, safety-sensitive transportation work covered by
+                                     DOT agency drug and alcohol testing rules during the past three years?
+
+                        o   CriminalRecord: just like MVR, yes/no to question. If yes, provide date of incident and a
+                            description.
+
+                                ▪    ConvictedCrime: Have you ever been convicted of a crime?
+
+                                ▪    DeferredProsecutions: Do you have any Deferred Prosecutions?
+
+                                ▪    ChargesPending: Or any criminal charges pending?
+
+                                ▪    Felony: Have you ever pled "guilty" to, been convicted of, or pled "no contest"
+                                     to a felony?
+
+                                ▪    CanadianMinistersPermit: If you have any felony convictions, do you currently
+                                     hold a ministers permit to enter or exit Canada?
+
+                                ▪    Misdemeanors: The question may vary if you choose to edit it, but the default
+                                     is: Have you, within the last five years, pled "guilty" to, been convicted of, had
+                                     prosecution deferred in connection with, or pled "no contest" to a
+                                     misdemeanor?
+
+                        o   Violations: Describes violations incurred by driver.
+
+                        o   CustomQuestions and CustomDataElements: Describes information distinct to your
+                            company.
+
+               •   ProviderVerifiedData: This is data from Xchange. Most interfaces ignore this data, since any
+                   changes people find while verifying employers and such are updated in ApplicationData. Still, it's
+                   here should you need it and if you're backing up data, you'd probably want to store the XML.
+
+               •   FormsData: If you decide to use any custom forms from the FormsEngine, their data would be
+                   here. export_sample2 has a couple of representative examples of how this data appears, but
+                   since the forms are built entirely for you, the fields will be completely different.
+
+               •   DriverChangeLog: Changes in status, worklist, recruiter (Primary User), processor (Secondary
+                   User), etc. are logged here.
+
+           As stated above, CustomDataElements are Tags in the dashboard. If you choose to export them, they will
+           appear in your XML as the following:
+
+
+
+
+Receiving Application Data from Tenstreet                   5|P a g e                                       11/6/2014
+           <CustomDataElement>
+                   <CustomDataPrompt>Flatbed Skills</CustomDataPrompt>
+                   <CustomDataValue>Yes</CustomDataValue>
+                   <CustomDataId>flatbed_skills</CustomDataId>
+                   <CustomDataCustomerCode>y</CustomDataCustomerCode>
+           </CustomDataElement>
+
+           CustomDataPrompt: Exactly as the Tag appears to the user in our UI CustomDataValue: the value of the
+           Tag CustomDataId: if you would like to cross reference the Tag name to something specific in your
+           system, we can put it here (so a prompt of Hire Date might be HireDate or hire_date here)
+           CustomDataCustomerCode: If the Tag is a dropdown in Tenstreet, we can cross reference the dropdown
+           value to a value meaningful in your system ("Yes" might become "y" or "1", for example)
+
+           For custom questions on your application, they appear as follows, in a manner similar to
+           CustomDataElements:
+
+           <CustomQuestions>
+                   <CustomDataElements>
+                           <CustomDataElement>
+                                   <CustomDataPrompt>Driver Number</CustomDataPrompt>
+                                   <CustomDataValue>1234567</CustomDataValue>
+                                   <CustomDataId>LegacyEmployeeNumber</CustomDataId>
+                           </CustomDataElement>
+                           <CustomDataElement>
+                                   <CustomDataPrompt>Orientation Location</CustomDataPrompt>
+                                   <CustomDataValue>LA, Broussard</CustomDataValue>
+                                   <CustomDataId>OrientationLocation</CustomDataId>
+                           </CustomDataElement>
+                           <CustomDataElement>
+                                   <CustomDataPrompt>Hire Date</CustomDataPrompt>
+                                   <CustomDataValue>04/01/2011</CustomDataValue>
+                                   <CustomDataId>HireDate</CustomDataId>
+                           </CustomDataElement>
+                           <CustomDataElement>
+                                   <CustomDataPrompt>Termination Date</CustomDataPrompt>
+                                   <CustomDataValue>04/15/2011</CustomDataValue>
+                                   <CustomDataId>TerminationDate</CustomDataId>
+                           </CustomDataElement>
+                   </CustomDataElements>
+           </CustomQuestions>
+
+
+           Examples
+           Sample XML Request 1 - Please click here
+           Sample XML Request 2 - Please click here
+           Sample XML Request 3 - Please click here
+
+
+
+
+Receiving Application Data from Tenstreet                  6|P a g e                                  11/6/2014
+           Client Response
+           In order for our poster to verify that the transfer process has worked properly, you must respond that the
+           information has been either accepted or rejected from your system before your listener script finishes.
+           This will help us to better troubleshoot a bad posting, should one occur. The nodes for posting back to let
+           Tenstreet know the status of the receive are as follows.
+
+
+           TenstreetResponse
+
+            Node                   Data Type        Description
+
+            Status                 String           ACCEPTED or REJECTED. The description node will
+                                                    contain more information regarding this message
+
+            Description            String           Description of what happened
+
+
+
+           Of these fields, the two that are absolutely required are Status and Description. The rest are optional.
+
+               1.    Status - ACCEPTED or REJECTED
+               2.    Description - This can say anything, and is visible in the user interface if the status is Rejected (so
+                     that a user can take action). Some of our customers have listeners that require certain fields to
+                     be set and have validation routines that run, echoing responses in the description upon failure.
+                     We show these to the user to remind them to populate certain fields.
+
+           Example
+           For an example XML file, please click here
+
+
+
+
+Receiving Application Data from Tenstreet                      7|P a g e                                        11/6/2014
+
