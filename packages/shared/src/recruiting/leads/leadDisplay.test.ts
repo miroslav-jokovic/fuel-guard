@@ -54,6 +54,12 @@ describe("a form's answers", () => {
       { key: "class_a_held", question: "Do you hold a valid Class A CDL?", answer: "maybe" },
     ]);
   });
+
+  it("a Tenstreet lead has no answer rows: its one key is the facts reader's JSON, shown under From Tenstreet (TS5)", () => {
+    const answers = { projection: JSON.stringify({ licences: [] }) };
+    expect(leadAnswerRows(answers, "tenstreet")).toEqual([]);
+    expect(leadAnswerRows(answers, "meta")).toHaveLength(1);
+  });
 });
 
 describe("a channel's name", () => {
