@@ -44,7 +44,21 @@ A scanner that Silvicom shows as **Not found** is unplugged or still in keyboard
 means another program on this PC holds the port. Needs version 1.1.0 of this program or newer — older
 versions keep printing and are shown as *Update station*.
 
-## Try it on a Mac or Linux machine
+## Install on a Mac (once; run again to update)
+
+The office Mac is the station today (the printer is on its USB). From this folder:
+
+```sh
+sh install-mac.sh --code ABCD-EFGH --api https://<your Silvicom address>   # first time
+sh install-mac.sh                                                          # update; keeps the pairing
+```
+
+It copies the program to `~/.silvicom-print-station/app` and starts it at login as the LaunchAgent
+`com.silvicom.print-station`, restarting it if it stops. Log: `~/.silvicom-print-station/station.log`.
+**Never point the LaunchAgent at a git checkout**: on 2026-11-20 the worktree it ran from had been
+deleted and no label printed for five days. After installing, the repository can go anywhere.
+
+## Try it on a Mac or Linux machine without installing
 
 ```sh
 node station.mjs printers                                  # what CUPS can print to
@@ -59,5 +73,8 @@ node station.mjs run                                       # Ctrl-C to stop
   the new PC. Pairing again cuts the old PC off.
 - **"Printed" means Windows' print queue accepted the label.** If the printer is out of paper, the
   label waits in Windows' queue and comes out when the roll is changed — don't press Print again.
-- **Revoked or re-paired:** the program stops and logs "Silvicom refused this station". Pair again.
+- **Revoked or re-paired:** the program logs "Silvicom refused this station" once and asks again every
+  five minutes, re-reading its config each time, so pairing again on this machine takes effect
+  without a restart. It never stops by itself: on 2026-11-15 the server refused a valid token during
+  a database outage, and the 1.1.0 station, which did stop, stayed stopped for five days.
 - Tests: `node --test "tools/print-station/*.test.mjs"` (run by `pnpm lint:agent-syntax`).

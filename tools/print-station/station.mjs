@@ -29,11 +29,25 @@ import { listPrinters, printRaw } from "./platform.mjs";
 import { createScannerRelay } from "./scanners.mjs";
 import { listSerialPorts, spawnReader, WINDOWS_READ_PORT } from "./serial.mjs";
 
-/** 1.1.0: reads scanners (the contract's SCANNER_STATION_MIN_VERSION). */
-export const VERSION = "1.1.0";
+/**
+ * 1.1.0: reads scanners (the contract's SCANNER_STATION_MIN_VERSION). 1.2.0: a refusal is waited out
+ * (REFUSED_RETRY_MS) instead of ending the program.
+ */
+export const VERSION = "1.2.0";
 /** How often the station re-announces itself and its printers (also its heartbeat between polls). */
 export const HELLO_EVERY_MS = 60_000;
 const BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
+/**
+ * How long a refused station waits before it asks again. Until 1.2.0 a refusal ENDED the program, on
+ * the reasoning that a revoked token cannot come back. But the station cannot tell a real revocation
+ * from a server that answered 401 by mistake, and on 2026-11-15 the server did exactly that during a
+ * database outage: the office station stopped at 17:43Z with a valid token and printed nothing for
+ * five days (the server now answers 503 there, stations.ts `stationForToken`). Asking again every
+ * five minutes costs a revoked station 288 tiny requests a day; NOT asking cost the shop its labels.
+ * Each retry re-reads the config file too, so `station.mjs pair` on this machine takes effect
+ * without restarting the service.
+ */
+export const REFUSED_RETRY_MS = 5 * 60_000;
 
 export function defaultConfigPath(platform = process.platform, env = process.env) {
   if (platform === "win32") return join(env.ProgramData ?? "C:\\ProgramData", "Silvicom", "PrintStation", "config.json");
@@ -151,14 +165,17 @@ export async function handleJob(job, config, deps) {
 }
 
 /**
- * The loop. Returns only when the server refuses the station (revoked, or re-paired elsewhere) or
- * `deps.stop()` says so; every other failure is backed off and retried, forever, because this runs
- * unattended. `deps.signal` aborts the wait in hand when the stop comes; the server checks for a
+ * The loop. Returns only when `deps.stop()` says so; every failure is waited out and retried, forever,
+ * because this runs unattended — an outage with backoff, a refusal (revoked, re-paired elsewhere, or
+ * a server mistaken about it) every REFUSED_RETRY_MS, re-reading the config through
+ * `deps.reloadConfig` in case this machine was paired again. `config` is updated IN PLACE, because
+ * the scanner relay holds the same object. `deps.signal` aborts the wait in hand when the stop comes; the server checks for a
  * hung-up poll before it claims a job (`printStation.ts`), so an abandoned poll strands nothing.
  */
 export async function runLoop(config, deps) {
   let failures = 0;
   let nextHello = 0;
+  let refused = false;
   while (!deps.stop()) {
     try {
       if (deps.now() >= nextHello) {
@@ -173,11 +190,22 @@ export async function runLoop(config, deps) {
         signal: deps.signal,
       });
       failures = 0;
+      refused = false;
       if (status === 200 && body?.job) await handleJob(body.job, config, deps);
     } catch (e) {
       if (e instanceof RefusedError) {
-        log(`Silvicom refused this station (${e.message}). Pair it again from Settings → Devices.`);
-        return "refused";
+        // Logged once per refusal, not every five minutes — a log of a week's retries says nothing.
+        if (!refused) log(`Silvicom refused this station (${e.message}). Asking again every ${REFUSED_RETRY_MS / 60_000} minutes; if it was revoked, pair it again from Settings → Devices.`);
+        refused = true;
+        await deps.sleep(REFUSED_RETRY_MS);
+        if (deps.stop()) break;
+        try {
+          if (deps.reloadConfig) Object.assign(config, deps.reloadConfig());
+        } catch (err) {
+          log(`could not re-read the config (${err?.message ?? err}); keeping the one in memory`);
+        }
+        nextHello = 0; // says hello first, and logs "connected" when it is accepted again
+        continue;
       }
       if (deps.stop()) break; // the stop aborted this request; it is not an outage
       const wait = BACKOFF_MS[Math.min(failures, BACKOFF_MS.length - 1)];
@@ -253,10 +281,10 @@ async function main(argv) {
       sleep: sleepUnless(stop.signal),
       stop: () => stop.signal.aborted,
       signal: stop.signal,
+      reloadConfig: () => readConfig(configPath),
     });
     scanners.stop();
-    // A refused station exits non-zero so the service manager shows it failed, rather than looping.
-    return result === "refused" ? 2 : 0;
+    return result === "stopped" ? 0 : 1;
   }
   console.log("Usage: node station.mjs pair <CODE> --api <https://…> | run | printers | ports   [--config <file>]");
   return command ? 1 : 0;
