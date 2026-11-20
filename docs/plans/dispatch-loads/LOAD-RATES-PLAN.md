@@ -129,7 +129,10 @@ reads them; a column nothing reads reads null forever (0383's rule).
 
 **D-RATE3 — Which loads get a price.** Only loaded movements (`loaded = 'L'`). An empty movement gets
 no `load_charges` row (§1.2: it repeats the order's charge). A movement whose `loaded` is null gets
-no row either.
+no row either. **A voided movement (`V`, our `canceled`) gets no row** (added 2026-11-20, measured): all
+622 voided loaded movements on orders since 2026-01-01 belong to orders McLeod voided too
+(`orders.status = 'V'` on 622 / 622), so the price was never earned. A row a load already has is
+deleted when McLeod voids it, turns it empty, or stops stating a total.
 
 **D-RATE4 — Split orders.** When `order_loaded_movements > 1`, each loaded leg shows the order's full
 total with the note "Order total · split over N trips". We do not divide it: McLeod does not divide it,
