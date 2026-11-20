@@ -63,7 +63,7 @@ export function StatusBlock({
         </View>
       ) : null}
       {figure ? (
-        <View className="flex-row flex-wrap items-baseline" style={{ columnGap: 8, paddingTop: 8 }}>
+        <View className="flex-row flex-wrap items-baseline" style={{ columnGap: 8, paddingTop: 2 }}>
           <AppText variant="numericHero" tone="onHero">{figure}</AppText>
           {figureSuffix ? (
             <AppText variant="numericInline" tone="onHeroSecondary">{figureSuffix}</AppText>

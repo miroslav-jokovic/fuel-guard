@@ -49,6 +49,26 @@ describe('the type system (Visual 2026 D-DV8, D-DV15)', () => {
     for (const variant of variants) expect(TYPE[variant].fontSize, variant).toBeGreaterThanOrEqual(13);
   });
 
+  it('never gives the display face a line height that cuts the top off its capitals and figures', () => {
+    // iOS trims an over-tall line from the top, so the line must keep the cap height: natural height
+    // (ascent + descent) minus the space above the caps (ascent - cap height), i.e. descent + cap height.
+    const font = readFileSync(join(ROOT, 'assets/fonts/BigShouldersDisplay-ExtraBold.ttf'));
+    const table = (tag: string) => {
+      for (let i = 0; i < font.readUInt16BE(4); i++) {
+        if (font.toString('latin1', 12 + 16 * i, 16 + 16 * i) === tag) return font.readUInt32BE(20 + 16 * i);
+      }
+      throw new Error(`no ${tag} table`);
+    };
+    const upm = font.readUInt16BE(table('head') + 18);
+    const descent = -font.readInt16BE(table('hhea') + 6);
+    const capHeight = font.readInt16BE(table('OS/2') + 88);
+    for (const variant of displayVariants) {
+      const { fontSize, lineHeight } = TYPE[variant];
+      const floor = ((descent + capHeight) / upm) * fontSize;
+      expect(lineHeight, `${variant} at ${fontSize}pt keeps its cap height`).toBeGreaterThanOrEqual(Math.ceil(floor) + 1);
+    }
+  });
+
   it('loads exactly the two display cuts the styles ask for, from files that exist', () => {
     const layout = readFileSync(join(ROOT, 'app/_layout.tsx'), 'utf8');
     expect(layout).toContain('[DISPLAY_FACE]: require("../assets/fonts/BigShouldersDisplay-ExtraBold.ttf") as number');

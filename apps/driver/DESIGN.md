@@ -197,14 +197,17 @@ No font class, `fontFamily`, `fontWeight` or `fontSize` exists anywhere else.
 | navigationTitle | platform | 17 / 22 | semibold | header titles, sheet headings |
 | numericInline | platform, **tabular** | 22 / 28 | semibold | times, windows and values in rows and timelines |
 | numericCompact | platform, **tabular** | 26 / 32 | semibold | a score, a count beside its label, entered numbers |
-| screenTitle | **Big Shoulders Display**, uppercase | 38 / 38 | ExtraBold | the tab screen's title |
-| numericHero | **Big Shoulders Display** | 64 / 60 | ExtraBold | the screen's ONE lone figure (06:00, "2") |
+| screenTitle | **Big Shoulders Display**, uppercase | 38 / 40 | ExtraBold | the tab screen's title |
+| numericHero | **Big Shoulders Display** | 64 / 68 | ExtraBold | the screen's ONE lone figure (06:00, "2") |
 
 - **Weight.** `weight="regular|medium|semibold|bold"` is the only way to change weight, and it applies
   only to the platform face. Bold Text steps every weight up one, and the display face switches to its
   Black cut.
 - **Tabular figures.** `tabular` forces tabular digits on a platform variant. The numeric platform
   variants are tabular by definition.
+- **Display line heights are measured.** Big Shoulders' natural line is 1.197em and iOS trims a shorter
+  line from the top, which cut the hero figures at 64/60 (2026-11-20). `tests/typography.test.ts` reads
+  the font file and refuses a line height that loses the cap height.
 - **The display face.** These are static 800 and 900 instances of the Google Fonts variable font, bundled
   in `assets/fonts/` with their OFL licence. The provenance is in `typography.ts`.
 
@@ -266,6 +269,7 @@ The tab shell is not a pattern you compose. It is the OS's own (D-DV1, V3). A ne
   - text: `AppText`;
   - actions: `Button`, `IconButton`, `ConfirmSheet`, `ChoiceSheet`;
   - forms: `Field`, `Input`, `NumericField`;
+  - counts: `CountBadge` (an unread count on an icon button, the only text that ignores text size);
   - feedback: `Banner`, `Toast`/`useToast`, `OfflineBanner`, `SyncStatus`;
   - progress: `Progress`, `TaskStepper`;
   - data: `Sparkline`, `TrendChart`;
