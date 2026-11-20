@@ -363,6 +363,21 @@ screens are restyled through primitives only (§3).
   - **The verdict and capture screens are restyled through primitives only** (plan §3). The scanner, the
     quality decision and the staging are untouched.
 
+- **D-DV23 · More, Settings, Messages, Notifications, Duty, Score, Auth (V8), 2026-11-20.**
+  - **Icons are Material Symbols glyphs from the bundled font**, on both platforms. HugeIcons and its name
+    map are deleted: the map drew `schedule` as an hourglass, both radio buttons alike and `pin_drop` as an
+    envelope. All 112 codepoints equal Google's published list and both fonts carry every one (measured;
+    `apps/driver/tests/icon-font.test.ts` reads the font's cmap). SF Symbols on iOS need `expo-symbols`,
+    a native module, and wait for V3b or V9 with `@expo/ui` and `expo-glass-effect`.
+  - **More is grouped rows with live values** (mock screen 8): no avatar, no cards, no discs. Duty stays on
+    Today only (D-DB17); the mock's End shift and Change truck rows are not added.
+  - **Score is a status block**: the week's grade as the figure, the rank beside it, the change in its colour,
+    the eight-week line inside the navy.
+  - **A screen whose fetch failed says so and nothing else.** Score said "No score yet" and Notifications
+    "Nothing yet" under a failed request; both now show only the error and Retry.
+  - **Sign-in already followed the system** (D-DB15's navy mark, display title, one amber action). Its
+    remaining tinted disc on the pending and wrong-app screens becomes a bare glyph.
+
 - **Q-DV7 · A photo for a stop that is already finished.** The mock's screen 3 offers "Add" for a seal photo
   missing from a completed pickup. The app cannot do that: `driver_complete_stop` (migration 0141) refuses
   any change to a completed stop, and a repeat of the same status returns before it inserts photos. V5 shows

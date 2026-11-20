@@ -9,10 +9,9 @@ import {
   type NotificationEvent,
 } from '@silvicom/shared';
 import {
-  Badge,
   AppText,
   Banner,
-  Card,
+  GroupedList,
   EmptyState,
   Icon,
   IconButton,
@@ -102,6 +101,7 @@ export default function NotificationsCentre() {
   return (
     <Screen padTop={false} flow="sections">
       <ScreenHeader
+        display
         title="Notifications"
         subtitle={unread > 0 ? `${unread} unread` : undefined}
         onClose={() => router.back()}
@@ -120,14 +120,20 @@ export default function NotificationsCentre() {
       <OfflineBanner />
 
       {q.isError && !q.data ? (
-        <Banner
-          tone="danger"
-          message={q.error.message || 'Could not load notifications.'}
-          actionLabel="Retry"
-          onAction={() => void q.refetch()}
-        />
+        <Section>
+          <Banner
+            tone="danger"
+            message={q.error.message || 'Could not load notifications.'}
+            actionLabel="Retry"
+            onAction={() => void q.refetch()}
+          />
+        </Section>
       ) : null}
-      {markRead.isError ? <Banner tone="danger" message={markRead.error.message || 'Could not mark notifications read.'} /> : null}
+      {markRead.isError ? (
+        <Section>
+          <Banner tone="danger" message={markRead.error.message || 'Could not mark notifications read.'} />
+        </Section>
+      ) : null}
 
       <Section title="Recent">
         {showSkeletons ? (
@@ -136,19 +142,18 @@ export default function NotificationsCentre() {
             <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
             <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
           </>
-        ) : rows.length === 0 ? (
-          <Card padded={false}>
-            <EmptyState
+        ) : rows.length === 0 && !(q.isError && !q.data) ? (
+          <EmptyState
               icon="notifications"
               title="Nothing yet"
               subtitle="Fleet alerts, assignments, and shift updates land here."
             />
-          </Card>
+          
         ) : (
-          <Card padded={false}>
-            {rows.map((n, index) => (
-              <View key={n.id} className={n.read_at === null ? 'bg-surface-selected' : ''}>
+          <GroupedList>
+            {rows.map((n) => (
                 <ListRow
+                  key={n.id}
                   icon={CATEGORY_ICON[n.category] ?? 'info'}
                   iconFill={n.read_at === null}
                   // Severity is the disc's tone, so an unread critical alert and an unread
@@ -160,14 +165,13 @@ export default function NotificationsCentre() {
                   right={
                     <View className="items-end gap-1">
                       <AppText variant="caption" tone="subtle" tabular>{timeLabel(n.created_at)}</AppText>
-                      {n.read_at === null ? <Badge label="New" tone={SEVERITY_TONE[n.severity] ?? 'info'} /> : null}
+                      {/* A word in the live cyan, never a pill (Visual 2026 D-DV14). */}
+                      {n.read_at === null ? <AppText variant="caption" weight="semibold" tone="accent">New</AppText> : null}
                     </View>
                   }
                 />
-                {index < rows.length - 1 ? <View className="ml-18 h-px bg-edge-subtle" /> : null}
-              </View>
             ))}
-          </Card>
+          </GroupedList>
         )}
       </Section>
 
@@ -175,7 +179,7 @@ export default function NotificationsCentre() {
           to configure what may arrive later (B6.7 / Q-DB4 keeps them on one screen). */}
       <Section title="Preferences">
       {prefsError ? <Banner tone="danger" message={prefsError} /> : null}
-      <Card padded={false}>
+      <GroupedList>
         {NOTIFICATION_CATEGORIES.map((category) => (
           isMutable(category) ? (
             <ToggleRow
@@ -194,7 +198,7 @@ export default function NotificationsCentre() {
             />
           )
         ))}
-      </Card>
+      </GroupedList>
       <AppText variant="caption" tone="subtle" className="pb-2 text-center">
         Muting is enforced by the server, so a muted category stays quiet on every device.
       </AppText>

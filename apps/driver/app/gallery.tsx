@@ -150,7 +150,7 @@ export default function Gallery() {
           <View className="flex-row items-center gap-4 pt-3">
             <Icon name="navigation" size={26} className="text-brand" />
             <Icon name="navigation" size={26} fill className="text-brand" />
-            <Icon name="star" size={26} variant="outlined" className="text-ink-muted" />
+            <Icon name="star" size={26} className="text-ink-muted" />
             <Icon name="star" size={26} fill className="text-warning" />
           </View>
         </Card>

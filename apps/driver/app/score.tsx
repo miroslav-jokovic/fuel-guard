@@ -2,22 +2,19 @@ import { View } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import {
   AppText,
-  Badge,
   Banner,
-  Card,
-  Icon,
+  GroupedList,
   ListRow,
   Screen,
   ScreenHeader,
   Section,
   Skeleton,
+  StatusBlock,
   TrendChart,
 } from '@/components';
 import { buildScoreView, type ScoreTile } from '@/features/score/scoreModel';
 import { useDriverScore } from '@/features/score/useDriverScore';
 import { useFeatures } from '@/session/useFeatures';
-
-const TILE_TONE = { safety: 'success', efficiency: 'info', idling: 'action' } as const;
 
 /**
  * The driver's week. The hero is the number and the trend; the sheet is what made it and what to do
@@ -40,7 +37,7 @@ export default function Score() {
   if (!features.isLoaded) {
     return (
       <Screen>
-        <ScreenHeader title="Score" subtitle="Weekly performance" />
+        <ScreenHeader display title="Score" onClose={() => router.back()} />
         <Skeleton className="w-full rounded-xl" style={{ height: 144 }} />
       </Screen>
     );
@@ -54,67 +51,45 @@ export default function Score() {
     .filter((v): v is number => v != null)
     .map((v) => Math.round(v));
 
-  const hero = (
-    <View className="gap-4">
-      <View className="flex-row items-start gap-3">
-        <View className="flex-1 gap-1">
-          <AppText variant="screenTitle" tone="onHero" accessibilityRole="header">Score</AppText>
-          <AppText variant="supporting" tone="onHeroSecondary">{view.weekLabel ?? 'Weekly performance'}</AppText>
-        </View>
-        {/* Always reachable from More and never a tab (D-DB14), so Close is unconditional. */}
-        <AppText variant="supporting" tone="onHeroSecondary" onPress={() => router.back()}>Close</AppText>
-      </View>
-
-      {loading ? (
-        <Skeleton className="w-full rounded-xl" style={{ height: 220 }} />
-      ) : view.state === 'empty' ? (
-        <Card variant="hero">
-          <AppText variant="navigationTitle" tone="onHero">No score yet</AppText>
-          <AppText variant="supporting" tone="onHeroSecondary">
-            Your first weekly grade posts after a full week on the road.
-          </AppText>
-        </Card>
-      ) : view.state === 'ineligible' ? (
-        <View className="gap-2 rounded-xl bg-hero-tile p-4">
-          <AppText variant="rowTitle" tone="onHero">This week is not ranked</AppText>
-          <AppText variant="supporting" tone="onHeroSecondary">{view.ineligibleNote}</AppText>
-        </View>
-      ) : (
-        <>
-          <View className="flex-row items-end gap-3">
-            <View className="gap-0.5">
-              <AppText variant="caption" tone="onHeroMuted">Weekly score</AppText>
-              <AppText variant="numericHero" tone="onHero">{String(view.score ?? 0)}</AppText>
-            </View>
-            <View className="flex-1 gap-1 pb-2">
-              {view.trend ? (
-                <Badge
-                  label={`${view.trend.label} vs last week`}
-                  tone="action"
-                  icon={view.trend.direction === 'up' ? 'trending_up' : 'trending_down'}
-                />
-              ) : null}
-              {view.rankLabel ? (
-                <AppText variant="caption" tone="onHeroSecondary">{view.rankLabel} in your fleet</AppText>
-              ) : null}
-            </View>
-          </View>
-          <TrendChart values={trend} />
-          {view.isWinner ? (
-            <View className="flex-row items-center gap-2">
-              <Icon name="military_tech" size={18} className="text-action" />
-              <AppText variant="supporting" tone="onHero">Top score in your fleet this week</AppText>
-            </View>
-          ) : null}
-        </>
-      )}
-    </View>
-  );
+  // Visual 2026 V8: the week is the screen's status block (D-DV6): the score as its one figure, the
+  // rank beside it, the change in its state colour, and the eight-week line inside the navy. The
+  // title is the screen's own in the display face, with Close, instead of a navy hero.
+  const trendTone = view.trend ? (view.trend.direction === 'up' ? 'live' : 'act') : 'live';
 
   return (
-    <Screen hero={hero} flow="sections">
+    <Screen padTop={false} flow="sections">
+      {/* Always reachable from More and never a tab (D-DB14), so Close is unconditional. */}
+      <ScreenHeader display title="Score" onClose={() => router.back()} />
+
+      <Section>
+        {/* A failed fetch shows only its banner below: "No score yet" would be a claim the app
+            cannot make when it never got an answer. */}
+        {loading ? (
+          <Skeleton className="w-full rounded-xl" style={{ height: 220 }} />
+        ) : query.isError && !query.data ? null : view.state === 'empty' ? (
+          <StatusBlock context="Weekly score" subject="No score yet" place="Your first weekly grade posts after a full week on the road." />
+        ) : view.state === 'ineligible' ? (
+          <StatusBlock context={view.weekLabel ?? 'Weekly score'} subject="This week is not ranked" place={view.ineligibleNote ?? undefined} />
+        ) : (
+          <StatusBlock
+            context={view.weekLabel ?? 'Weekly score'}
+            figure={String(view.score ?? 0)}
+            figureSuffix={view.rankLabel ? `${view.rankLabel} in your fleet` : undefined}
+            live={view.trend ? view.trend.label : undefined}
+            liveTone={trendTone}
+          >
+            <View className="pt-3">
+              <TrendChart values={trend} />
+            </View>
+            {view.isWinner ? (
+              <AppText variant="supporting" weight="semibold" tone="onHeroAct">Top score in your fleet this week</AppText>
+            ) : null}
+          </StatusBlock>
+        )}
+      </Section>
+
       {query.isError && !query.data ? (
-        <Section first>
+        <Section>
           <Banner
             tone="danger"
             message={query.error.message || 'Could not load your score.'}
@@ -125,29 +100,20 @@ export default function Score() {
       ) : null}
 
       {view.tiles.length > 0 ? (
-        <Section title="What made the score" first={!query.isError || Boolean(query.data)}>
-          <Card padded={false}>
-            {view.tiles.map((tile, index) => (
-              <View key={tile.key}>
-                <ScoreRow tile={tile} />
-                {index < view.tiles.length - 1 ? <View className="ml-18 h-px bg-edge-subtle" /> : null}
-              </View>
-            ))}
-          </Card>
+        <Section title="What made the score">
+          <GroupedList>
+            {view.tiles.map((tile) => <ScoreRow key={tile.key} tile={tile} />)}
+          </GroupedList>
         </Section>
       ) : null}
 
       {view.coaching ? (
         <Section title="Next opportunity">
-          {/* The one hero-coloured card on a sheet: the coaching line is the single thing on this
-              screen a driver can act on, and it earns the emphasis (D-DB2). */}
-          <View className="gap-2 rounded-xl bg-hero p-5">
-            <View className="h-11 w-11 items-center justify-center rounded-full bg-action-soft">
-              <Icon name="bolt" size={20} className="text-action-ink" />
-            </View>
-            <AppText variant="rowTitle" tone="onHero">Next opportunity</AppText>
-            <AppText variant="supporting" tone="onHeroSecondary">{view.coaching}</AppText>
-          </View>
+          {/* The coaching line is the one thing here a driver can act on: an amber glyph (act, D-DV5)
+              on a plain row, since one navy block per screen is the week's (D-DV6). */}
+          <GroupedList>
+            <ListRow icon="bolt" disc="caution" title={view.coaching} />
+          </GroupedList>
         </Section>
       ) : null}
     </Screen>
@@ -165,7 +131,6 @@ function ScoreRow({ tile }: { tile: ScoreTile }) {
       title={tile.label}
       subtitle={`${tile.definition} · ${tile.weightLabel} of your grade`}
       icon={tile.icon}
-      disc={TILE_TONE[tile.key]}
       right={
         <View className="items-end gap-0.5">
           <AppText variant="numericInline">{tile.value}</AppText>
