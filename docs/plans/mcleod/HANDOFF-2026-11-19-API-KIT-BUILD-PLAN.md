@@ -9,6 +9,14 @@ CLAUDE.md first). Work in the worktree **`/Users/miroslavjokovic/Projects/FG-mcl
 **`claude/mcleod-api-kit-build-plan`** (pushed; = main + commit `6a70d36a2`). Do not work in the main
 checkout — it is on another chat's branch.
 
+## READ FIRST (0) — round 3 of 2026-11-20 OUTRANKS everything below
+`docs/plans/mcleod/ROUND3-2026-11-20-API-KIT.md` (evidence `api-kit-round3/`) sets the precedence rule
+("every finding in every report is adopted unless ROUND3 §5 rejects it; later round wins"), replaces
+COUNCIL items in §2, lists the 10 facts only others can supply (§1), the consolidated asks (§3, full
+lists in `api-kit-round3/3-external.md`), and owner decisions Q-5..Q-8 (§4) on top of COUNCIL Q-1..Q-4.
+The PR order to start v2 from is `api-kit-round3/2-sequence.md` §1 with ROUND3 §2 applied.
+Read order: ROUND3 → COUNCIL → AUDIT → specs.
+
 ## READ FIRST (1) — the review council of 2026-11-20 OUTRANKS the audit below
 A second round (five reviewers: pipeline, driver, ops/security, office, red team on round 1) is in
 `docs/plans/mcleod/COUNCIL-2026-11-20-API-KIT.md` with evidence in `api-kit-council/`. It corrects the
