@@ -49,19 +49,10 @@ describe('screenTopPadding', () => {
     expect(screenBottomPadding(34, true)).toBe(layout.screenInset);
   });
 
-  it('clears the floating tab shell, because the scene now passes under it', () => {
-    /**
-     * The shell used to be an opaque `bg-canvas` band the scene ended above, so a tab screen needed
-     * no bottom allowance at all — this asserted exactly `sectionGap` for that case. It is now
-     * transparent and floats over the scene (owner ruling 2026-09-08), so the same 24pt would leave
-     * the last row of every list sitting under a 60pt capsule, unreadable and untappable.
-     */
-    const shellHeight = 106; // what BottomTabBarHeightContext reports on a 34pt-inset device
-    expect(screenBottomPadding(34, false, shellHeight)).toBe(shellHeight + layout.sectionGap);
-    // The safe-area inset is NOT added on top: the shell already sits on it, and adding both was
-    // the 34pt of dead space this padding was written to avoid in the first place.
-    expect(screenBottomPadding(34, false, shellHeight)).toBeLessThan(shellHeight + 34 + layout.sectionGap);
-    // A footer still owns its own spacing, tab bar or not.
-    expect(screenBottomPadding(34, true, shellHeight)).toBe(layout.screenInset);
+  it('takes the system tab bar from the inset, not from a measured shell (V3)', () => {
+    // A native tab's safe-area inset already includes its bar: 34pt home indicator + bar is one
+    // number, and adding a separate tab-bar height on top would double it.
+    expect(screenBottomPadding(83, false)).toBe(83 + layout.sectionGap);
+    expect(screenBottomPadding(83, true)).toBe(layout.screenInset);
   });
 });

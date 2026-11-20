@@ -1,42 +1,58 @@
-import { Tabs } from 'expo-router';
-import { TabBar } from '@/components/TabBar';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useFeatures } from '@/session/useFeatures';
+import { useTheme } from '@/theme/ThemeProvider';
+import { roleColors } from '@/theme/colors';
+import { TABS } from '@/components/nativeTabsModel';
 
 /**
- * Bottom tab shell — Home · Loads · Documents · More (D-DB14, owner ruling 2026-09-07, superseding
- * D51's Home · Loads · Score · More). Loads and Documents are dashboard-controllable blocks
- * (hardening plan Phase 4, D-PM1/D-PM3): `href: null` removes a disabled tab entirely — the Samsara
- * rule, a feature an org turned off simply doesn't appear. Home and More are never controllable
- * (fail-safe core).
+ * The tab shell is the operating system's own (Visual 2026 D-DV1, step V3).
  *
- * Documents is the driver's document surface: the bill-of-lading scanner and every compliance
- * verdict it produced. It had been a modal hub two taps inside More since the hardening plan's
- * Phase 3, which is how the scanner programme's whole front door went missing from the app's
- * navigation. Gated on `hazmat.capture`, the same entitlement the hub carried.
+ * On iOS 26 `NativeTabs` is a real `UITabBarController`, so the bar is Apple's floating Liquid Glass
+ * capsule. It adapts its glass to what scrolls under it, minimises on scroll the way the system apps
+ * do, and gets every future iOS revision without a change here. On Android it is the Material 3
+ * navigation bar. Direction B's custom `TabBar`, a JS capsule with a raised amber disc (D-DB11), and
+ * its geometry model are deleted. That shell had been redrawn four times, and it could only ever
+ * imitate the system.
  *
- * Score is NOT a tab: it is a weekly grade, read from More and summarised on Home. The route stays
- * in the navigator, hidden, so `/score` keeps working from More and from a notification. Messages
- * and Notifications are the top-bar icons on Home and rows in More (D51, restored — the one-day
- * Messages tab of D-DB13 is withdrawn). Navigate is deliberately NOT a tab: D52 moved navigation
- * to its own programme; `navigate.tsx` stays on disk as the seam, hidden and dev-only.
+ * Still the owner's rulings:
+ * - The tab set is Home · Loads · Documents · More (D-DB14).
+ * - Loads (`tab.loads`) and Documents (`hazmat.capture`) are fleet-controllable. A disabled tab is
+ *   not rendered at all, which is the Samsara rule: a feature the org turned off simply does not
+ *   appear. Home and More are never conditional.
+ * - There is no tab-switch motion (D-DB11 amendment). The system tab bar has none.
  *
- * Uses expo-router's stable <Tabs> navigator with a fully custom JS tab bar (`TabBar`) — our
- * HugeIcons SVG through the `Icon` component, token-exact colours, identical on both platforms.
+ * Score and Navigate were hidden JS tabs reached by URL. A hidden NATIVE tab cannot be navigated to
+ * at all, so both moved to the root stack (`app/score.tsx`, `app/navigate.tsx`) and keep their URLs.
+ * Messages and Notifications remain Home's top-bar icons and rows in More (D51).
+ *
+ * The selected tab takes the live cyan (D-DV5), read from the role for the theme the app is actually
+ * in. The app's own Theme setting can differ from the phone's, so `DynamicColorIOS` would be wrong.
+ * Icons are SF Symbols on iOS and Material Symbols on Android (D-DV11), listed in `nativeTabsModel.ts`.
  */
 export default function TabsLayout() {
   const { enabled } = useFeatures();
-  // `animation: 'none'`: the owner ruled every tab-switch motion out on 2026-09-07 — the disc's
-  // slide first, then the scene's cross-fade. A driver tapping a tab wants the screen, now.
+  const { themeKey } = useTheme();
+  const colors = roleColors[themeKey];
+  const visible = TABS.filter((tab) => !tab.feature || enabled(tab.feature));
+
   return (
-    <Tabs screenOptions={{ headerShown: false, animation: 'none' }} tabBar={(props) => <TabBar {...props} />}>
-      <Tabs.Screen name="home" options={{ title: 'Home' }} />
-      <Tabs.Screen name="loads" options={enabled('tab.loads') ? { title: 'Loads' } : { href: null }} />
-      {/* Reserved slot (D52): route exists, tab hidden. */}
-      <Tabs.Screen name="navigate" options={{ href: null }} />
-      <Tabs.Screen name="documents" options={enabled('hazmat.capture') ? { title: 'Documents' } : { href: null }} />
-      {/* Reached from More; never a tab (D-DB14). */}
-      <Tabs.Screen name="score" options={{ href: null }} />
-      <Tabs.Screen name="more" options={{ title: 'More' }} />
-    </Tabs>
+    <NativeTabs
+      tintColor={colors.accentInk}
+      iconColor={colors.inkSecondary}
+      labelStyle={{ color: colors.inkSecondary }}
+      badgeBackgroundColor={colors.danger}
+      minimizeBehavior="onScrollDown"
+      // Android: the Material 3 bar on the app's own surface, its selection pill a raised step.
+      backgroundColor={colors.surface}
+      indicatorColor={colors.surfaceMuted}
+      labelVisibilityMode="labeled"
+    >
+      {visible.map((tab) => (
+        <NativeTabs.Trigger key={tab.name} name={tab.name}>
+          <NativeTabs.Trigger.Label>{tab.label}</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon sf={tab.sf} md={tab.md} />
+        </NativeTabs.Trigger>
+      ))}
+    </NativeTabs>
   );
 }
