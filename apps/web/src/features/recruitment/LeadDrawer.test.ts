@@ -17,6 +17,8 @@ const api = vi.hoisted(() => ({
   held: null as null | Promise<void>,
   contacts: [] as unknown[],
   closures: [] as unknown[],
+  tenstreet: null as unknown,
+  gets: [] as string[],
 }));
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (path: string, init?: { method?: string; body?: unknown }) => {
@@ -46,6 +48,8 @@ async function render(lead = LEAD, write: (path: string, method: string) => unkn
     if (method !== "GET") return write(path, method);
     if (path.endsWith("/contacts")) return ok({ contacts: api.contacts });
     if (path.endsWith("/closures")) return ok({ closures: api.closures });
+    api.gets.push(path);
+    if (path.endsWith("/tenstreet")) return ok({ post: api.tenstreet });
     return ok(lead);
   };
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/:p(.*)*", component: { template: "<div />" } }] });
@@ -73,6 +77,8 @@ beforeEach(() => {
   api.held = null;
   api.contacts = [];
   api.closures = [];
+  api.tenstreet = null;
+  api.gets = [];
   session.role = "recruiter";
   session.can = () => true;
 });
@@ -431,5 +437,48 @@ describe("the lead's standing (V7b)", () => {
     expect(held.find('[data-test="standing-why"]').text()).toBe("Already drives for you");
     const plain = (await render(LEAD)).w;
     expect([plain.find('[data-test="standing"]').exists(), plain.find('[data-test="standing-why"]').exists()]).toEqual([false, false]);
+  });
+});
+
+describe("from Tenstreet (TS5)", () => {
+  const TS_LEAD: LeadRecord = { ...LEAD, channel: "tenstreet", source: "companysite", answers: { projection: '{"licences":[]}' } };
+  const VIEW = {
+    says: { status: "New Applicant", worklist: "AR Springdale", recruiter: "Jill Busby", app_referrer: null, app_source: null, last_application_date: null },
+    licences: [{ class: "A", cdl: true, current: true, state: "CA", endorsements: ["Tanker", "HazMat"] }],
+    employers: [{ name: "Acme Freight", start: "01/01/2005", end: "04/01/2011" }],
+    accidents: 1, violations: null,
+    mvr: [{ type: "Suspension", question: "Has any licence, permit or privilege ever been denied, suspended or revoked?", answer: false }],
+    tags: [{ prompt: "Job Class", value: "E3R" }],
+    custom: [{ question: "What position are you applying for?", answer: "Company Driver" }],
+    documents: [{ name: "mvr.pdf", category: "General", created: null }],
+    criminalWithheld: true,
+  };
+
+  it("a Tenstreet lead shows what Tenstreet sent, as of its post, and no raw JSON under What they answered", async () => {
+    api.tenstreet = { receivedAt: "2026-11-20T15:00:00Z", view: VIEW };
+    const { w } = await render(TS_LEAD);
+    const sec = w.find('[data-test="from-tenstreet"]');
+    expect(sec.text()).toContain("New Applicant");
+    expect(sec.find('[data-test="ts-licence"]').text()).toBe("Class A · CDL · CA · current · Tanker, HazMat");
+    expect(sec.find('[data-test="ts-counts"]').text()).toBe("Accidents: 1 listed · Moving violations: not asked");
+    expect(sec.find('[data-test="ts-mvr"]').text()).toContain("No");
+    expect(sec.find('[data-test="ts-withheld"]').exists()).toBe(true);
+    expect(sec.text()).toContain("Company Driver");
+    expect(sec.text()).toContain("mvr.pdf");
+    expect(w.text()).not.toContain("projection");
+    expect(w.find('[data-test="answer"]').exists()).toBe(false);
+  });
+
+  it("no withheld line when Tenstreet sent no criminal answers; a word when nothing has arrived yet", async () => {
+    api.tenstreet = { receivedAt: "2026-11-20T15:00:00Z", view: { ...VIEW, criminalWithheld: false } };
+    expect((await render(TS_LEAD)).w.find('[data-test="ts-withheld"]').exists()).toBe(false);
+    api.tenstreet = null;
+    expect((await render(TS_LEAD)).w.find('[data-test="from-tenstreet"]').text()).toContain("Nothing from Tenstreet to show yet");
+  });
+
+  it("another channel's lead, or a purged Tenstreet lead, never asks", async () => {
+    await render(LEAD);
+    await render({ ...TS_LEAD, purged_at: "2026-11-02T00:00:00Z", full_name: null, phone_e164: null });
+    expect(api.gets.filter((p) => p.endsWith("/tenstreet"))).toEqual([]);
   });
 });

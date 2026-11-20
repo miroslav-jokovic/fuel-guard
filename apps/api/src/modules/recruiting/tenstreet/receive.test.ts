@@ -123,7 +123,7 @@ describe("processTenstreetPost — a kept post becomes a lead", () => {
     await receive(w, SAMPLE);
     return w.posts[0]!;
   }
-  function jobWorld(post: Record<string, unknown>) {
+  function jobWorld(post: Record<string, unknown>, lead: { purged_at: string | null; stored?: "new" | "duplicate" } = { purged_at: null }) {
     const ingested: unknown[] = [];
     const rows: Array<Record<string, unknown>> = [{ processed_at: null, process_error: null, lead_id: null, ...post }];
     const rec = createSupabaseRecorder({
@@ -136,9 +136,10 @@ describe("processTenstreetPost — a kept post becomes a lead", () => {
           return postgrestFixture(rows)(q);
         },
         lead_match_verdicts: [], memberships: [], sms_suppressions: [], recruiting_openings: [],
+        recruiting_leads: postgrestFixture([{ id: "50000000-0000-4000-8000-000000000001", org_id: ORG, purged_at: lead.purged_at }]),
       },
       rpc: (fn, args) => {
-        if (fn === "ingest_lead") { ingested.push((args as { p_lead: unknown }).p_lead); return { lead_id: "50000000-0000-4000-8000-000000000001", stored: "new", matches: { leads: [], drivers: [] } }; }
+        if (fn === "ingest_lead") { ingested.push((args as { p_lead: unknown }).p_lead); return { lead_id: "50000000-0000-4000-8000-000000000001", stored: lead.stored ?? "new", matches: { leads: [], drivers: [] } }; }
         return null;
       },
     });
@@ -155,6 +156,23 @@ describe("processTenstreetPost — a kept post becomes a lead", () => {
     expect(j.rows[0]!.processed_at).toBeTruthy();
     expect(j.rec.rpcs().some((c) => c.fn === "emit_notification")).toBe(true);
     expectOrgScoped(j.rec, ORG);
+  });
+
+  it("a post that lands on a purged lead is processed and emptied at once: the details do not come back (TS5)", async () => {
+    const j = jobWorld({ ...(await kept()), org_id: ORG }, { purged_at: "2026-11-02T00:00:00Z", stored: "duplicate" });
+    const r = await processTenstreetPost({ admin: j.rec.client as never, env, configured: async () => [] }, ORG, "post-1");
+    expect(r).toMatchObject({ outcome: "processed", stored: "duplicate" });
+    expect(j.rows[0]).toMatchObject({ lead_id: "50000000-0000-4000-8000-000000000001", body_sealed: null });
+    expect(j.rows[0]!.purged_at).toBeTruthy();
+    expect(j.rows[0]!.processed_at).toBeTruthy();
+    expectOrgScoped(j.rec, ORG);
+  });
+
+  it("a post that lands on a lead not purged keeps its body", async () => {
+    const j = jobWorld({ ...(await kept()), org_id: ORG }, { purged_at: null, stored: "duplicate" });
+    await processTenstreetPost({ admin: j.rec.client as never, env, configured: async () => [] }, ORG, "post-1");
+    expect(j.rows[0]!.body_sealed).toEqual(expect.any(String));
+    expect(j.rows[0]!.purged_at ?? null).toBeNull();
   });
 
   it("a processed post is done: the job does nothing again", async () => {

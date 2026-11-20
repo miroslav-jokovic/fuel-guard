@@ -22,6 +22,10 @@ import { readTenstreetXml } from "./tenstreetXml.js";
  * D-TS8: a later post of the same applicant is the same lead (`ingest_lead` dedupes on DriverId); its Tenstreet
  * status is in the post, shown, and never moves our lead's status. Refreshing contact details from a later post is
  * not built (D-TS8's "only when no recruiter edited them" needs an edit record the lead does not keep).
+ *
+ * A post that lands on a PURGED lead (the person asked for their details to go; 0558 keeps an anonymous tombstone,
+ * which `ingest_lead` answers as the duplicate) is emptied in the same update that marks it processed — 0640's purge,
+ * body null and `purged_at` set — so Tenstreet re-sending the application does not bring the details back (TS5).
  */
 export interface ProcessPostResult { outcome: "processed" | "already" | "unreadable" | "not_found"; lead_id?: string; stored?: "new" | "duplicate" }
 
@@ -38,7 +42,7 @@ export async function processTenstreetPost(
   if (row.processed_at !== null) return { outcome: "already" };
   const now = deps.now ?? (() => new Date());
 
-  const mark = async (fields: { lead_id?: string; process_error?: string }) => {
+  const mark = async (fields: { lead_id?: string; process_error?: string; body_sealed?: null; purged_at?: string }) => {
     const { error: e } = await deps.admin.from("tenstreet_posts").update({ processed_at: now().toISOString(), ...fields })
       .eq("org_id", orgId).eq("id", postId).is("processed_at", null);
     if (e) throw new Error(`tenstreet_posts: ${e.message}`);
@@ -51,6 +55,9 @@ export async function processTenstreetPost(
     return { outcome: "unreadable" };
   }
   const r = await acceptLeadProjection(deps.admin, deps.configured, now, phoneLookupFor(deps.env), orgId, lead.lead);
-  await mark({ lead_id: r.ref });
+  const { data: landed, error: le } = await deps.admin.from("recruiting_leads").select("purged_at").eq("org_id", orgId).eq("id", r.ref).maybeSingle();
+  if (le) throw new Error(`recruiting_leads: ${le.message}`);
+  const purged = (landed as { purged_at: string | null } | null)?.purged_at != null;
+  await mark(purged ? { lead_id: r.ref, body_sealed: null, purged_at: now().toISOString() } : { lead_id: r.ref });
   return { outcome: "processed", lead_id: r.ref, stored: r.stored };
 }

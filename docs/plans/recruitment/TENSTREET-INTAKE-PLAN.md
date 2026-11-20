@@ -305,6 +305,15 @@ become a lead, because nothing writes 0640's `last_error`; the browser pass wait
 - No conversion changes. Prefill of our application from Tenstreet's employers/addresses is item 5.3 of
   the recruiter plan, later.
 
+**Built 2026-11-20 (TS5a)** (progress `ads-progress/2026-11-20-2230-S-TS5-from-tenstreet.md`). The lead drawer's
+"From Tenstreet" section, read from the newest processed post (`GET /api/recruitment/leads/:leadId/tenstreet`,
+`recruitment` view; `tenstreet/leadPost.ts`; the shared `tenstreetDrawerView`): Tenstreet's status, worklist and
+recruiter, licences (never the number), employers, accident and violation counts, the driving-record answers in the
+guide's own words, Tags, custom questions and document names. **Not shown:** the criminal-history answers and
+`ConvictedDrugs` (Q-TS11 (a)). Two fixes came with it: a Tenstreet lead's `answers.projection` JSON no longer shows
+under "What they answered", and deleting a lead's details now empties its Tenstreet posts too. A post that arrives
+for an already-purged lead is emptied as it is processed. **Not built:** the channel filter (Q-TS12).
+
 ### TS6 · Go live (staging → production)
 1. Owner, on **staging**: Settings → Tenstreet → Company ID, mode **test**, Generate key, switch on.
 2. Credentials go to Tenstreet **by phone** (D-TS7). Their TEST posts arrive and the card shows them
@@ -366,6 +375,25 @@ Each one carries a recommendation and the fallback the code takes if it is never
   today (no `tenstreet_id` anywhere in `supabase/` or `apps/api`). Importing it would link a hired
   driver back to their lead without phone/email matching. *Recommend* after TS6, as a one-column change
   to the roster sweep.
+- **Q-TS11 · Tenstreet's criminal-history answers in the lead drawer (open, counsel; raised 2026-11-20 by TS5).**
+  Every sample post carries `ApplicationData/CriminalRecords` (ConvictedCrime, DeferredProsecutions, ChargesPending,
+  Felony, CanadianMinistersPermit, Misdemeanors — yes/no with free text, e.g. sample 1's "back in 05, i stole a
+  truck"), and the driving-record block carries `ConvictedDrugs`, whose question (guide p.4) is possessing or selling a
+  drug — a criminal conviction, not a driving one. The Illinois Job Opportunities for Qualified Applicants Act bars an
+  employer from asking about criminal history on its application. Whether the 49 CFR 391.21 exception reaches these is
+  already one of counsel's points (`V7-OPEN-QUESTIONS-RESEARCH-2026-11-20.md`, Q-APX31: "the 391.21 exception");
+  the owner's own Tenstreet form asks them.
+  - (a) **Withhold until counsel rules.** The drawer shows none of them and says Tenstreet sent some. The sealed post
+    keeps them for the year the guide asks (Q-TS9), unread. *Built this way (TS5).*
+  - (b) Show them to `recruitment` viewers, as the rest of the drawer.
+  - (c) Show them only to the roles counsel names (a new named permission in the matrix).
+  *Recommend* (a) until counsel answers, then (c) if they may be seen at all — a named permission, never a
+  hand-written role list.
+- **Q-TS12 · The channel filter (TS5b) needs the queue to filter by channel.** `recruiting_lead_queue` (0561) takes
+  no channel, and the leads page has no channel filter at all (TS5's "the existing FilterSelect" was not there). Not a
+  ruling, a sequencing note: a migration adds `p_channels text[] default null` (old callers keep working), and the
+  page's filter ships in the NEXT merge (`lint:migration-ordering`). *Recommend* building it with the apply page and
+  Indeed, when there are four channels worth filtering.
 
 ---
 

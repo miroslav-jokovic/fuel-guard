@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useInfiniteQuery, useQuery } from "@tanstack/vue-query";
-import type { LeadClosureRecord, LeadContactRecord, LeadQueuePage, LeadRecord, OpeningListItem } from "@silvicom/shared";
+import type { LeadClosureRecord, LeadContactRecord, LeadQueuePage, LeadRecord, OpeningListItem, TenstreetLeadPost } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /** The office's reads of the lead queue (E4). "open" is the api's own default, so it sends no status at all. */
@@ -55,6 +55,22 @@ export function useLeadContactsQuery(leadId: Ref<string>) {
       const res = await apiFetch<{ contacts: LeadContactRecord[] }>(`/api/recruitment/leads/${encodeURIComponent(leadId.value)}/contacts`);
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load who contacted this lead.");
       return res.data.contacts;
+    },
+  });
+}
+
+/**
+ * What Tenstreet sent with a lead, from its newest processed post (TENSTREET-INTAKE-PLAN TS5; `GET …/tenstreet`).
+ * The drawer mounts its section only for a Tenstreet lead that is not purged, so no other lead ever asks.
+ */
+export function useLeadTenstreetQuery(leadId: Ref<string>) {
+  return useQuery({
+    queryKey: computed(() => ["recruitment", "leads", "tenstreet", leadId.value] as const),
+    enabled: computed(() => leadId.value !== ""),
+    queryFn: async (): Promise<TenstreetLeadPost | null> => {
+      const res = await apiFetch<{ post: TenstreetLeadPost | null }>(`/api/recruitment/leads/${encodeURIComponent(leadId.value)}/tenstreet`);
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load what Tenstreet sent.");
+      return res.data.post;
     },
   });
 }

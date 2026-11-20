@@ -12,7 +12,7 @@ export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
 };
 
 const CHANNEL_LABELS: Record<string, string> = {
-  meta: "Meta ad", phone_call: "Phone call", walk_in: "Walk-in", referral: "Referral", paste: "Pasted post",
+  meta: "Meta ad", phone_call: "Phone call", walk_in: "Walk-in", referral: "Referral", paste: "Pasted post", tenstreet: "Tenstreet",
 };
 /** A channel is an open list in the database (0553), so one with no label yet still reads as words. */
 export const leadChannelLabel = (channel: string): string => CHANNEL_LABELS[channel] ?? channel.replace(/_/g, " ");
@@ -88,8 +88,14 @@ export function leadVerdictWhy(v: LeadMatchVerdict): string {
 /** Contact answers are shown as the lead's own name, phone and email; the rest of a form is listed. */
 const CONTACT_KEYS = new Set(["full_name", "first_name", "last_name", "phone", "phone_number", "email"]);
 
-/** A form's answers in English, whichever language the person answered in; a key outside the catalogue reads as sent. */
-export function leadAnswerRows(answers: Record<string, string>): Array<{ key: string; question: string; answer: string }> {
+/**
+ * A form's answers in English, whichever language the person answered in; a key outside the catalogue reads as sent.
+ * A Tenstreet lead's `answers` is not a form: it is ONE key, `projection`, the facts reader's JSON (`facts/index.ts`),
+ * and the drawer shows what Tenstreet sent under "From Tenstreet" instead (TS5) — so it has no rows here, rather than
+ * a row of raw JSON.
+ */
+export function leadAnswerRows(answers: Record<string, string>, channel?: string): Array<{ key: string; question: string; answer: string }> {
+  if (channel === "tenstreet") return [];
   return Object.entries(answers)
     .filter(([key]) => !CONTACT_KEYS.has(key))
     .map(([key, raw]) => {

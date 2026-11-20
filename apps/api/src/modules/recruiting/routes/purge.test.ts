@@ -246,8 +246,11 @@ const CONVERTED = "50000000-0000-4000-8000-000000000004";
 const STRANGER = "50000000-0000-4000-8000-000000000005";
 
 /** The leads as `purge_lead` sees them: purged ids answer `already`, a converted one RL041, an unknown one RL040. */
-function seedLeads(over: { converted?: string[]; purged?: string[]; refuse?: string } = {}): SupabaseRecorder {
+/** TS5: the lead's kept Tenstreet posts, which a purge empties (0640's purge: body null, purged_at set). */
+let posts: Array<Record<string, unknown>> = [];
+function seedLeads(over: { converted?: string[]; purged?: string[]; refuse?: string; posts?: Array<Record<string, unknown>> } = {}): SupabaseRecorder {
   const purged = new Set(over.purged ?? []);
+  posts = (over.posts ?? []).map((p) => ({ org_id: ORG, body_sealed: "sealed", purged_at: null, ...p }));
   const leads = [
     { id: LEAD, org_id: ORG, phone_e164: "+17082365732", email_lower: "ray@example.com", purged_at: null },
     { id: SAME_PHONE, org_id: ORG, phone_e164: "+17082365732", email_lower: null, purged_at: null },
@@ -266,6 +269,14 @@ function seedLeads(over: { converted?: string[]; purged?: string[]; refuse?: str
         return postgrestFixture(leads)(q);
       },
       audit_logs: [],
+      tenstreet_posts: (q) => {
+        if (q.write?.method !== "update") return postgrestFixture(posts)(q);
+        // `.not("body_sealed", "is", null)`: only a post still holding its body is emptied.
+        const hit = postgrestFixture(posts)({ ...q, ops: q.ops.filter((o) => o.method !== "select" && o.method !== "not") })
+          .filter((p) => (p as { body_sealed: unknown }).body_sealed !== null);
+        for (const h of hit) Object.assign(h as object, q.write.payload as object);
+        return hit.map((h) => ({ id: (h as { id: string }).id }));
+      },
     },
     rpc: (fn, args) => {
       if (fn !== "purge_lead") return null;
@@ -331,6 +342,23 @@ describe("deleting a lead's personal details", () => {
     seedLeads({ purged: [LEAD] });
     expect(await (await purgeLeadAs("admin")).json()).toEqual({ purged: [], already: [LEAD], skipped_applicants: [] });
     expect(rec.writtenRows("audit_logs")).toEqual([]);
+  });
+
+  it("empties the lead's kept Tenstreet posts — only that lead's — and counts them on the audit row (TS5)", async () => {
+    seedLeads({ posts: [{ id: "p1", lead_id: LEAD }, { id: "p2", lead_id: LEAD }, { id: "p3", lead_id: STRANGER }, { id: "p4", lead_id: LEAD, body_sealed: null, purged_at: "2026-11-01T00:00:00Z" }] });
+    await purgeLeadAs("admin");
+    expect(posts.filter((p) => p.body_sealed === null).map((p) => p.id).sort()).toEqual(["p1", "p2", "p4"]);
+    expect(posts.find((p) => p.id === "p1")!.purged_at).toEqual(expect.any(String));
+    expect(posts.find((p) => p.id === "p4")!.purged_at).toBe("2026-11-01T00:00:00Z");
+    expect((rec.writtenRows("audit_logs")[0] as { meta: Record<string, unknown> }).meta).toMatchObject({ tenstreetPostsEmptied: 2 });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("a lead emptied before 0640 still has a post kept since emptied, and that one act is audited", async () => {
+    seedLeads({ purged: [LEAD], posts: [{ id: "p1", lead_id: LEAD }] });
+    expect(await (await purgeLeadAs("admin")).json()).toEqual({ purged: [], already: [LEAD], skipped_applicants: [] });
+    expect(posts[0]!.body_sealed).toBeNull();
+    expect(rec.writtenRows("audit_logs")).toEqual([expect.objectContaining({ action: "recruitment.lead_purged", meta: { already: true, tenstreetPostsEmptied: 1 } })]);
   });
 
   it("says why it refuses: the lead became an applicant, another carrier's lead, a malformed id", async () => {
