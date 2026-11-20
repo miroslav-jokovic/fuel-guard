@@ -64,13 +64,13 @@ describe("drainOnce", () => {
     const noEfs = testEnv({ EFS_SOAP_ENABLED: false });
     const rec = createSupabaseRecorder({ rpc: { claim_next_job: [] } });
     await drainOnce(noEfs, rec.client, "general");
-    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection", "backfill", "ads_lead_fetch"]);
+    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection", "backfill", "ads_lead_fetch", "tenstreet_post_process"]);
   });
 
   it("splits the drain by lane: the general lane never claims the EFS kind, even where EFS is on", async () => {
     const rec = createSupabaseRecorder({ rpc: { claim_next_job: [] } });
     await drainOnce(env, rec.client, "general");
-    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection", "backfill", "ads_lead_fetch"]);
+    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_kinds).toEqual(["financial_projection", "backfill", "ads_lead_fetch", "tenstreet_post_process"]);
     expect(drainKinds(testEnv({ EFS_SOAP_ENABLED: false }), "egress")).toEqual([]);
   });
 
