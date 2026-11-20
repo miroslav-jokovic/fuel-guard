@@ -24,6 +24,29 @@ To open one: Start → type `PowerShell` → right-click **Windows PowerShell** 
 
 ---
 
+## The VM as read on 2026-11-20 (B1 and B2 done)
+
+| Read on the VM | Value | Matches |
+|---|---|---|
+| Task state | `Running` | — |
+| `agent.mjs` SHA-256 | `a5cf3c9a…de35c2` | commit `b86466537` (its manifest line) |
+| `queries.mjs` SHA-256 | `405449e9…98437e` | commit `b86466537` |
+| `update-connector.ps1` SHA-256 | `bda8be45…d526e` | the script as of `b86466537` |
+| `ROSTER_MODE` | `create` | pass `-RosterMode create` |
+| `FINANCE_FEED` / `LUMPER_FEED` | `off` / `on` | the update leaves both lines as they are |
+| `C:\Silvicom\update-connector-before-rates.ps1` | copied (B2) | the rollback script for `b86466537` |
+| Backup folders | `backup-A`, `backup-949f417`, `backup-b864665`, `backup-lumper-feed-20261117-171223` | — |
+
+So **`<OLD_COMMIT>` = `b86466537547025df9aef158566ee1e4df70b3e7`**, `<OLD7>` = `b864665`, `<MODE>` = `create`.
+`backup-b864665` exists, so a rollback MUST rename it first (D1). Without that, the old script refuses
+to run.
+
+**The update will also install one connector change already on main** that the VM does not run yet:
+`0cf39defa` (merged after `b86466537`), which sweeps the ledger lines per posting key. It changes
+`agent.mjs`, `ledger.mjs` and `queries.mjs`, but only inside the **finance** sweep, and the VM has
+`FINANCE_FEED=off`, so that code does not run there. Claude re-checks this at R4 for anything else
+merged by then.
+
 ## Part A — what Claude does first (you wait)
 
 1. R1–R4 merged; the release approved by you and serving in production.
