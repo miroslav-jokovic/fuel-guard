@@ -8,7 +8,7 @@ type MdName = Extract<MaterialIcon['md'], string>;
 /**
  * The four tabs, in the owner's order (D-DB14), and the glyph each one carries on each platform
  * (Visual 2026 D-DV11). Pure data, so the order, the gating and the icon pairs are tested without a
- * renderer (`tests/native-tabs-model.test.ts`).
+ * renderer (`apps/driver/tests/native-tabs-model.test.ts`).
  *
  * The SF Symbols are outline at rest and filled when selected, which is the system apps'
  * convention. Material Symbols names are the Android equivalents. On SDK 57 Android takes one glyph
