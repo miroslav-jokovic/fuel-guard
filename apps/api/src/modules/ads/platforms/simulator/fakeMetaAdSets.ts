@@ -86,6 +86,12 @@ export class FakeAdSets {
     const promoted = json("promoted_object");
     if (!targeting) return bad("targeting is required");
     if (b.optimization_goal === "LEAD_GENERATION" && typeof promoted?.page_id !== "string") return bad("page_id needs to be passed as promoted_object");
+    // Q-AD17 (V7e, Q-APX33): the lead-ads create guide pairs `QUALITY_LEAD` with `destination_type=ON_AD` and a Page
+    // in `promoted_object`, and "may add the `pixel_id`" for a CRM source. OUR reading, for the sandbox to correct:
+    // the goal is accepted under EMPLOYMENT like any other — no Meta page restricts optimisation goals under a special
+    // ad category — and `pixel_id` is optional. Third parties report Meta requiring the Conversions API for this goal
+    // on new campaigns from April 2026; Meta's own page could not be read, so the fake does not invent that refusal.
+    if (b.optimization_goal === "QUALITY_LEAD" && typeof promoted?.page_id !== "string") return bad("page_id needs to be passed as promoted_object");
     const locations = ((targeting.geo_locations as { custom_locations?: unknown } | undefined)?.custom_locations ?? []) as Array<Record<string, unknown>>;
     for (const l of locations) {
       const miles = Number(l.radius) * (l.distance_unit === "kilometer" ? 0.621371 : 1);

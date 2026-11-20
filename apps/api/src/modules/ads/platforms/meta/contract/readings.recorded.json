@@ -1,5 +1,5 @@
 {
-  "//": "FakeMeta's answers to each OUR reading (contract/readings.ts), committed. Re-record from the fake when a fake's reading changes on purpose; never edit a value to match a sandbox run — correct the fake, then re-record (stage2-kit, ADS-RUNBOOK §7).",
+  "//": "FakeMeta's answers to each OUR reading (contract/readings.ts), committed. Re-record from the fake when a fake's reading changes on purpose; never edit a value to match a sandbox run \u2014 correct the fake, then re-record (stage2-kit, ADS-RUNBOOK \u00a77).",
   "readings": {
     "error-envelope": {
       "fake": "platforms/simulator/fakeMeta.ts",
@@ -93,6 +93,17 @@
       "observed": {
         "status": 200,
         "is_phone_sms_verify_enabled": "undefined"
+      }
+    },
+    "quality-lead-employment": {
+      "fake": "platforms/simulator/fakeMetaAdSets.ts",
+      "observed": {
+        "EMPLOYMENT with dataset: status": 200,
+        "EMPLOYMENT with dataset: error.code": "undefined",
+        "EMPLOYMENT with dataset: reads back optimization_goal": "QUALITY_LEAD",
+        "no category with dataset: status": 200,
+        "EMPLOYMENT without dataset: status": 200,
+        "EMPLOYMENT without dataset: error.code": "undefined"
       }
     }
   }
