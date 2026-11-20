@@ -68,7 +68,9 @@ Each decision below is final. A change is made by adding a new dated line, never
     - Expo Router native tabs and native stack;
     - `@expo/ui` for sheets, pickers, switches and menus.
   - Our design lives in the content: type, colour, the status block, the rows.
-  - The custom `TabBar` retires in V3.
+  - The tab bar is `NativeTabs` (`app/(tabs)/_layout.tsx`, glyphs in `src/components/nativeTabsModel.ts`) since V3.
+    Screen titles stay in the content in Big Shoulders (D-DV18). Score and Navigate are root-stack routes,
+    because a hidden native tab cannot be navigated to.
 - **D-DV2 · Glass belongs to the system.** The OS gives native chrome Liquid Glass on iOS 26 and
   Material 3 on Android. Content never carries glass, blur or gradients (`lint:design`). The single
   exception is controls floating over a map, on iOS 26 only, with a solid fallback. It is not built yet.
@@ -240,7 +242,8 @@ step makes each one a primitive. Before that step, compose it from `AppText`, `S
 | **Settings list** | More | Native grouped rows (`@expo/ui` List). No avatar photo, no icon discs | V8 |
 | **Pinned primary** | Load detail, pre-shift Today | One 56pt amber button above the tab bar or the home indicator | V4 `ActionBar` |
 
-The tab shell is not a pattern you compose. It is the OS's own (D-DV1, V3).
+The tab shell is not a pattern you compose. It is the OS's own (D-DV1, V3). A new tab needs an owner ruling
+(D-DB14) and a row in `nativeTabsModel.ts`. A screen reached only by URL goes in the root stack, never as a hidden tab.
 
 ### Building a new screen
 

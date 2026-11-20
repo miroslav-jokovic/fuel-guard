@@ -311,6 +311,19 @@ screens are restyled through primitives only (§3).
   - **Gates.** `lint:tokens`, `lint:design` and `test` refuse every way around these layers.
 - **Owner approval of the V1 mock, 2026-11-20:** "I approve this design and colors and visual pattern."
 
+- **D-DV17 · V3 needed no native build (measured 2026-11-20).** `NativeTabs` on SDK 57 is `react-native-screens`' native
+  bottom tabs, and 4.26.2 is already compiled into the installed dev client. The iOS 26.3 simulator drew Apple's Liquid
+  Glass tab bar from a JavaScript-only change, so `runtime-version.json` stays at 1.2.0 and §0's "each is a runtime-version
+  bump" was wrong for this step. `@expo/ui`, `expo-widgets` and `expo-glass-effect` (V4, V9) are still native additions.
+- **D-DV18 · Screen titles stay in the content, in Big Shoulders.** The approved mock sets every tab title in the
+  carrier's display face. A native large-title header would set it in SF Pro, so V3 does not adopt native headers on tab
+  screens. Pushed screens adopt the native stack header (back chevron, title) when their own step rebuilds them
+  (V6–V8), not before, so no screen is rewritten twice.
+- **D-DV19 · SDK 58 is its own step, not V3's first commit (Q-DV6's fallback).** SDK 58 moves React Native 0.86 → 0.88
+  and React 19.2 → 19.3, plus the native modules behind them (MapLibre, Sentry, the capture module's Kotlin and
+  Swift). V3 proved nothing visual needs it. It becomes **V3b**: one PR, `expo-doctor` clean, a native-android CI run and
+  a fresh dev client.
+
 ## 7. Progress log
 
 One file per entry in `docs/plans/drivers-app/visual-2026-progress/YYYY-MM-DD-HHMM-<step>.md`.
