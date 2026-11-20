@@ -62,7 +62,7 @@ import { drugAlcoholRouter } from "./modules/medstop/index.js";
 import { adsRouter, META_WEBHOOK_PATH, metaWebhookBootWarning, metaWebhookRouter } from "./modules/ads/index.js";
 import { roadsideInspectionsRouter } from "./modules/inspections/index.js";
 import { hazmatRouter, meHazmatRouter, publicHazmatRouter } from "./modules/hazmat/index.js";
-import { publicApplicationRouter, recordOrderedDrugTest, recruitingBriefSource, recruitingLeadSources, recruitmentRouter, releaseOrderedDrugTest } from "./modules/recruiting/index.js";
+import { publicApplicationRouter, recordOrderedDrugTest, recruitingBriefSource, recruitingLeadSources, recruitmentRouter, releaseOrderedDrugTest, TENSTREET_WEBHOOK_PATH, tenstreetBootWarning, tenstreetWebhookRouter } from "./modules/recruiting/index.js";
 import { complianceRouter } from "./modules/evidence/index.js";
 import { driverAppSettingsRouter, meRouter } from "./modules/driver-app/index.js";
 import { alertRoutingRouter, chatRouters, myAlertsRouter, notificationsRouter, messagesRouter } from "./modules/messaging/index.js";
@@ -304,6 +304,10 @@ function mountApiRouters(app: Express, env: Env): void {
   if (metaWebhookWarning) console.warn(metaWebhookWarning);
   const stepUpWarning = stepUpBootWarning(env); // Q-AD41 (b): a deploy that cannot do "Confirm it's you" says so here
   if (stepUpWarning) console.warn(stepUpWarning);
+  // Tenstreet's application posts (TS3): the URL secret + Company ID; its own text/xml parser, before the JSON one.
+  const tenstreetWarning = tenstreetBootWarning(env);
+  if (tenstreetWarning) console.warn(tenstreetWarning);
+  app.use(TENSTREET_WEBHOOK_PATH, tenstreetWebhookRouter({ kick: (e, admin, n) => drainKindNow(e, admin, "tenstreet_post_process", n) }));
   app.use(META_WEBHOOK_PATH, metaWebhookRouter({ kick: (e, admin, n) => drainKindNow(e, admin, "ads_lead_fetch", n) })); // Meta leadgen (ads B4b): X-Hub-Signature-256; no user auth
   app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth
 }

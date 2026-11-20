@@ -27,6 +27,9 @@ export { returnToDutyBlocked, returnToDutyStanding } from "./returnToDuty.js";
 export { partOneFactsForMedstop } from "./medstopApplicantFacts.js";
 // The LeadSink every platform lead enters by (D-AD17): the ads module's intake (B4) is handed this, never a table.
 export { recruitingLeadSink } from "./leads/leadSink.js";
+export { processTenstreetPost } from "./tenstreet/processPost.js";
+export { tenstreetBootWarning } from "./tenstreet/receive.js";
+export { TENSTREET_WEBHOOK_PATH, tenstreetWebhookRouter } from "./routes/tenstreetWebhook.js";
 export { lookUpMissingPhones, phoneLookupFor } from "./leads/phoneLookup.js";
 // S1b (D-AD17): an open opening as an ad brief; the composition root hands it to the ads router.
 export { recruitingBriefSource } from "./leads/adBriefSource.js";

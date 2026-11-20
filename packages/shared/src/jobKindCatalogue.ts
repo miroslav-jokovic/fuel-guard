@@ -104,6 +104,10 @@ export const JOB_KIND_CATALOGUE = {
   },
   ads_daily_brief: { label: "Writing the morning ads brief", area: "ads", hint: "The brief did not arrive this morning. Spend and leads are still recorded; tomorrow's brief covers its own day." },
   lead_uncontacted: { label: "Finding leads nobody has called yet", area: "recruiting" },
+  tenstreet_post_process: {
+    label: "Making a lead from a Tenstreet application", area: "recruiting", item: { key: "postId", noun: "Tenstreet post" },
+    hint: "The application is kept as Tenstreet sent it (without the SSN or the equal-opportunity answers); the job is retried and the lead appears once it runs.",
+  },
   ads_render: {
     label: "Drawing an ad picture", area: "ads", item: { key: "creativeId", noun: "Ad" },
     hint: "The picture service failed or this month's picture credits ran out (Settings › Ads control, AI and pictures). The ad can be regenerated.",

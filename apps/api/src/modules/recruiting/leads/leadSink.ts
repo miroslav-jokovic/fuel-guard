@@ -80,32 +80,43 @@ export function recruitingLeadSink(
   clock: () => Date = () => new Date(),
   lookup: PhoneLookupDeps | null = null,
 ): LeadSink {
-  return {
-    async accept(orgId, lead) {
-      const projection = leadFromPlatform(lead);
-      const r = await ingestLead(admin, orgId, projection, clock());
-      const contactable = projection.phone_e164 !== null || projection.email_lower !== null;
-      if (r.stored === "new") {
-        const owner = await assignFromOpening(admin, orgId, r.lead_id, projection.opening_id).catch((err: unknown) => {
-          console.error(`[lead-assign] org ${orgId}: lead ${r.lead_id} left unowned: ${err instanceof Error ? err.message : String(err)}`);
-          return null;
-        });
-        // LQ6 (Q-AD63 (a)): a lead whose own answer fails a hard requirement is stored, owned and listed, but rings
-        // nobody — the person told us, after the form's intro stated the requirement. `unknown` still rings (D-LS3).
-        // LR3 (audit F-LR9): a lead with nothing to dial is also said by the road that stored it
-        // (`alertNoContactDetail`) — the ads side's alert, since the fix is the form's.
-        const bell = newLeadBell({
-          contactable,
-          held: contactable && (await numberIsHeld(admin, orgId, r.lead_id, projection.phone_e164)),
-          matches: r.matches,
-          failsHard: contactable && (await failsHardRequirement(admin, orgId, r.lead_id)),
-        });
-        if (bell !== "none") await ringNewLead(admin, orgId, r.lead_id, configured, owner, bell === "again");
-        if (lookup) await lookUpLeadPhone(admin, orgId, r.lead_id, projection.phone_e164, lookup, clock());
-      }
-      return { stored: r.stored, ref: r.lead_id, contactable };
-    },
-  };
+  return { accept: (orgId, lead) => acceptLeadProjection(admin, configured, clock, lookup, orgId, leadFromPlatform(lead)) };
+}
+
+/**
+ * The sink's road for a lead already projected: a platform lead (`accept`, above) and a Tenstreet post
+ * (`recruiting/tenstreet/processPost.ts`) take the same steps after the store — owner, bell, number — so a
+ * Tenstreet applicant is rung like an ad lead, by the same rules.
+ */
+export async function acceptLeadProjection(
+  admin: SupabaseClient,
+  configured: ConfiguredRecipients,
+  clock: () => Date,
+  lookup: PhoneLookupDeps | null,
+  orgId: string,
+  projection: LeadProjection,
+): Promise<{ stored: "new" | "duplicate"; ref: string; contactable: boolean }> {
+  const r = await ingestLead(admin, orgId, projection, clock());
+  const contactable = projection.phone_e164 !== null || projection.email_lower !== null;
+  if (r.stored === "new") {
+    const owner = await assignFromOpening(admin, orgId, r.lead_id, projection.opening_id).catch((err: unknown) => {
+      console.error(`[lead-assign] org ${orgId}: lead ${r.lead_id} left unowned: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    });
+    // LQ6 (Q-AD63 (a)): a lead whose own answer fails a hard requirement is stored, owned and listed, but rings
+    // nobody — the person told us, after the form's intro stated the requirement. `unknown` still rings (D-LS3).
+    // LR3 (audit F-LR9): a lead with nothing to dial is also said by the road that stored it
+    // (`alertNoContactDetail`) — the ads side's alert, since the fix is the form's.
+    const bell = newLeadBell({
+      contactable,
+      held: contactable && (await numberIsHeld(admin, orgId, r.lead_id, projection.phone_e164)),
+      matches: r.matches,
+      failsHard: contactable && (await failsHardRequirement(admin, orgId, r.lead_id)),
+    });
+    if (bell !== "none") await ringNewLead(admin, orgId, r.lead_id, configured, owner, bell === "again");
+    if (lookup) await lookUpLeadPhone(admin, orgId, r.lead_id, projection.phone_e164, lookup, clock());
+  }
+  return { stored: r.stored, ref: r.lead_id, contactable };
 }
 
 export type NewLeadBell = "none" | "new" | "again";

@@ -768,6 +768,13 @@
   "support_impersonation_grants": [
     "apps/admin-api/src/lib/impersonation.ts"
   ],
+  "tenstreet_connections": [
+    "apps/api/src/modules/recruiting/tenstreet/receive.ts"
+  ],
+  "tenstreet_posts": [
+    "apps/api/src/modules/recruiting/tenstreet/processPost.ts",
+    "apps/api/src/modules/recruiting/tenstreet/receive.ts"
+  ],
   "thread_participants": [
     "apps/api/src/modules/messaging/messages.ts"
   ],
