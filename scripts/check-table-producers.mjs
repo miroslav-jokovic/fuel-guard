@@ -127,6 +127,9 @@ const WAIVERS = new Map([
   // held and the Settings page saves them.
   // phone_lookups (0583, LQ8a) left on 2026-11-19 in V7a / LQ8b: recruiting/leads/phoneLookup.ts writes it after a
   // lead is stored, and the uncontacted sweep retries the numbers it missed.
+  // LOAD-RATES-PLAN.md R1 (0638, 0639) ships schema-only: `load_charges` is new, but its writer reads
+  // 0638's new mirror columns, and a column and its reader never share a merge.
+  ["load_charges", "LOAD-RATES-PLAN.md R2 — loads/mirrorLoads.ts writes it from the mirror projection (schema-only, 0639; leaves in R2's merge)"],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

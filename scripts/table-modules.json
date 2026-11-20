@@ -1927,6 +1927,17 @@
         "why": "no rows yet (HB0 is schema only). Six rows per hired driver (five driver places, one countersignature). Signature evidence, append-only like application_packet_marks; retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
       }
     },
+    "load_charges": {
+      "module": "loads",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 150,
+        "why": "no rows yet (LOAD-RATES-PLAN R1 is schema only). One row per LOADED McLeod load; budget derived from lme_analytics 2026-11-20: 4,248 loaded movements in the 90 days to 2026-10-09 = 47/day, x3 headroom. The history read (VM guide Part C) adds one row per delivered loaded load already in the mirror, once (8,683 delivered loads were held on 2026-10-21, plus every one delivered since). Rebuilt from the raw mirror; goes with its load; retention unruled — DATA-LIFECYCLE-PLAN L9."
+      }
+    },
     "load_dispatches": {
       "module": "loads",
       "layer": "core",
