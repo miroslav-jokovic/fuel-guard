@@ -38,7 +38,7 @@ this section is what is true today and what comes next. When the two disagree, t
 | V8 health read (API) and token expiry (A-8, A-9) | built 2026-11-18: `GET /api/ads/health`; the token read daily with the reconcile, admins told 14 days before it lapses. Its page is V6's Automation tab | FakeMeta's `debug_token` |
 | V6 workspace | screens built 2026-11-19: Ads is its own sidebar section (Q-APX18 (a)) with Overview, Campaigns, Creative studio (brand kit, presets, swipe file), Automation (the health read) and Settings; the two old addresses redirect | web tests; not yet walked on staging |
 | V5 modes | built 2026-11-19: one enforced authority table, the steps and their modes, lowering a budget, Assisted start, the Automation tab; the agent's own lower ruled out until the canary (Q-APX23 (a)) | tests; not walked on staging |
-| V7 lead engine | read at its call sites 2026-11-19 (§4 V7); V7a–e being built around Q-APX24–28 | — |
+| V7 lead engine | V7a–d built 2026-11-19 (#2576, #2577); Q-APX24–28 ruled (a) 2026-11-20; V7e next; Tenstreet and the apply page wait on their own answers | tests; not walked on staging |
 
 Scorecard (`pnpm ads:readiness`): nine workers at L3, six at L2 (Copywriter, Art director, Craft judge,
 Finished-ad judge, Checker, Strategist), **none at L4**. `scripts/ads-certifications.json` is empty, so Launch
@@ -1051,7 +1051,7 @@ lead-volume curve of ours to set it from.
   benchmarks (Boostpoint's middle half, §2a.7). Automatic, but its three numbers would be guesses on our own fleet.
 - (c) Lower instead of pause on the daily-cap rule. Changes a rule the owner chose as a pause (`pause_at_daily_cap`).
 
-### Q-APX24 · What a lead's "score" is — OPEN, 2026-11-19
+### Q-APX24 · What a lead's "score" is — RULED (a), 2026-11-20
 
 **What was read.** D-LS2: rules decide, no model. `leadMatch` already gives one verdict per requirement with its
 evidence, `summariseLeadMatch` counts hard requirements unmet and unknown, and `compareLeadMatch` sorts without
@@ -1069,7 +1069,7 @@ why" — a number out of 100 says neither, and its weights would be invented (no
   weights have nothing of ours behind them, and HB 3773's audit asks why one person ranked over another.
 - (c) No score; the queue keeps today's order. V7's line goes unbuilt.
 
-### Q-APX25 · Should a lead keep its ad in a column? — OPEN, 2026-11-19
+### Q-APX25 · Should a lead keep its ad in a column? — RULED (a), 2026-11-20
 
 **What was read.** `recruiting_leads` is frozen after insert (RL013, 0553) and has no ad column; Meta's `ad_id`
 is in `raw` on every platform lead (`LEAD_FIELDS`). The publisher's record (`platform_refs.ads[]`) maps each Meta ad
@@ -1081,7 +1081,7 @@ to its creative and language, and the creative names its preset.
 - (b) A column filled at intake, beside `campaign_ref`. A second copy of a fact in `raw`; needs a migration, the
   two-merge rule, and a backfill of every existing lead.
 
-### Q-APX26 · What the report counts as "qualified", and what a source without spend shows — OPEN, 2026-11-19
+### Q-APX26 · What the report counts as "qualified", and what a source without spend shows — RULED (a), 2026-11-20
 
 **What was read.** `qualified` is a recruiter's qualify after a reached call (0578, Q-AD64 (a)); `applied` and `hired`
 are read from the application and the driver (`leadOutcomes.ts`). Spend is known for Meta only: Tenstreet, Indeed and
@@ -1094,7 +1094,7 @@ a typed-in lead carry none.
   form, not the person.
 - (c) Add a typed monthly spend per source now. A screen and a table for figures nobody has asked to type.
 
-### Q-APX27 · Tenstreet waits on its own plan's answers — OPEN, 2026-11-19
+### Q-APX27 · Tenstreet waits on its own plan's answers — RULED (a), 2026-11-20
 
 **What was read.** `TENSTREET-INTAKE-PLAN.md` (TS0–TS6, D-TS1–10, Q-TS1–10) and its meeting prep of 2026-11-19 sit in
 the owner's working copy, not on main. Its own order: TS1–TS3 may start before Tenstreet answers authentication
@@ -1108,7 +1108,7 @@ meeting with Tenstreet was on 2026-11-19 with its outcome not yet written down.
 - (b) Build TS1–TS3 now with the plan's recommendations (SSN and EEO dropped by the parser, status shown only). Fast;
   rules on the owner's three questions by building them.
 
-### Q-APX28 · "Our own apply page" does not exist — OPEN, 2026-11-19
+### Q-APX28 · "Our own apply page" does not exist — RULED (a), 2026-11-20
 
 **What was read.** The only apply page is the invite (`/apply/:token`): a recruiter creates the applicant first,
 then sends a link. Nothing public makes a lead. A public page is a new unauthenticated door taking a name, a phone and
@@ -1241,6 +1241,21 @@ Progress: `ads-progress/2026-11-19-1800-W-V5-assisted-start.md`. **V5 is built**
   needs no change to the table — only the rule, its threshold from our own figures, and a test. **V5 is built.**
 - **V7 next**, the lead engine (§4 V7), read at its call sites first as V5 was.
 
+**2026-11-20, the owner, to Q-APX24 to Q-APX28: *"Ok proceed as recommended."*** Taken as:
+
+- **Q-APX24 RULED (a).** A lead's standing is Call, Check first or Does not qualify by their answer, with its reasons
+  in words; no number, no weights. Built as V7b (`leadStanding`); nothing changes.
+- **Q-APX25 RULED (a).** A lead's ad is derived on read from Meta's `ad_id` in `raw` and the publisher's record; no
+  column. Built as V7c; a column is the later answer only if the read is measured slow.
+- **Q-APX26 RULED (a).** "Qualified" in the report is a recruiter's qualify or any later step taken with the person;
+  a source with no spend says "No spend recorded". Built as V7d.
+- **Q-APX27 RULED (a).** Tenstreet is its own track from `TENSTREET-INTAKE-PLAN.md`, started once the 2026-11-19
+  meeting's answers and the owner's D-TS4 (SSN), D-TS5 (EEO) and D-TS8 (status shown, never obeyed) are written
+  into that plan. The report already counts a `tenstreet` lead the day one arrives.
+- **Q-APX28 RULED (a).** The public apply page is its own step after V7e, designed once counsel answers Q-AD52
+  (texting consent on our own page).
+- **Next:** V7e, the qualified-lead switch's readiness (shown, not offered, until Q-AD17's sandbox answer).
+
 ## 6. Open, in one place
 
 | Id | Question | Recommendation | Who |
@@ -1257,11 +1272,11 @@ Progress: `ads-progress/2026-11-19-1800-W-V5-assisted-start.md`. **V5 is built**
 | Q-APX21 | What V5's modes are, step by step; step 6 cannot exist on Meta | **ruled (a) 2026-11-19, §5a**: one enforced table of who acts, a mode only where two are real; lowering a budget built | — |
 | Q-APX22 | Approved replacements are turned on today (Q-AD68); Q-APX1 put that after the canary | **ruled (a) 2026-11-19, §5a**: keep it; Level B means launching a new campaign | — |
 | Q-APX23 | When the agent should lower a budget on its own (Level A allows it; no rule exists) | **ruled (a) 2026-11-19, §5a**: none until the canary's data; lowering stays a person's step | — |
-| Q-APX24 | What a lead's "score" is | **(a)** an ordered standing with its reasons, no number | owner |
-| Q-APX25 | Whether a lead keeps its ad in a column | **(a)** derive on read from `raw` and the publisher's record | owner |
-| Q-APX26 | What "qualified" counts in the report; a source with no spend | **(a)** a recruiter's qualify or later; "no spend recorded", never $0 | owner |
-| Q-APX27 | Tenstreet's receiver | **(a)** its own track, after the meeting's answers and D-TS4/5/8 | owner |
-| Q-APX28 | A public apply page | **(a)** its own step after V7a–e, with Q-AD52's consent answer | owner |
+| Q-APX24 | What a lead's "score" is | **ruled (a) 2026-11-20, §5a**: an ordered standing with its reasons, no number; built (V7b) | — |
+| Q-APX25 | Whether a lead keeps its ad in a column | **ruled (a) 2026-11-20, §5a**: derived on read from `raw` and the publisher's record; built (V7c) | — |
+| Q-APX26 | What "qualified" counts in the report; a source with no spend | **ruled (a) 2026-11-20, §5a**: a recruiter's qualify or later; "no spend recorded", never $0; built (V7d) | — |
+| Q-APX27 | Tenstreet's receiver | **ruled (a) 2026-11-20, §5a**: its own track, after the meeting's answers and D-TS4/5/8 | owner (D-TS4/5/8) |
+| Q-APX28 | A public apply page | **ruled (a) 2026-11-20, §5a**: its own step after V7a–e, with Q-AD52's consent answer | counsel (Q-AD52) |
 | — | Meta app (id `META_APP_ID` and secret), system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 **2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want
