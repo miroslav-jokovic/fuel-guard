@@ -25,6 +25,15 @@ import { SMS_PRIVACY_PATH, SMS_STAFF_ALERTS_ANCHOR } from "@/lib/legalPaths";
  * "On their own" is `isStopMessage`'s rule since C2d2 (G-2): CANCEL, END and QUIT count only as the
  * whole message, the rest anywhere — which is why "please stop texting me" is still promised.
  *
+ * ── THREE WAYS IN, EACH ONE THE CODE HAS (2026-11-22, APPLY-PAGE-PLAN) ──────────────────────────
+ * Until 2026-11-22 the page named one way to agree — the box on the private application page — and two were
+ * live or built beside it: the recruiter's attestation that an applicant asked to be texted their link
+ * (`SMS_OFFICE_INVITE_ATTESTATION`, D-SMS11, since 2026-10-20) and the careers page's box (`SMS_APPLY_PAGE_CONSENT`,
+ * AP2). A careers-page lead has no application page and no email by right, so "every message is also sent by
+ * email" and "turn texts off on your application page" are now said only of the page that has them. What the
+ * messages are about is the union of the two boxes' own words, so neither box promises a message the terms
+ * do not name. STOP reaches every live consent on the number, a lead's included (`honourStop`, by number).
+ *
  * ⚠ It does NOT promise a confirmation text after STOP. `handleInboundSms` sends none, and whether
  * the toll-free network sends its own is unmeasured (SMS-OPT-IN-PLAN §7, 2026-09-25).
  */
@@ -53,22 +62,33 @@ const alertQuiet = `${alertTextClock(ALERT_TEXT_QUIET_DEFAULT.startMin)} to ${al
       <p>
         <span class="text-ink">Silvicom 360 driver application texts</span> are sent by
         {{ COMPANY_NAME }} for the trucking company you applied to, which is named at the start of every
-        message. They are transactional messages about your own driver application only: a link to fill
-        in your application, a reminder if you have not finished a step, and updates on its status, such
-        as its approval. We do not send marketing or promotional messages in this programme, and no
+        message. They are transactional messages about your own job application only: application
+        links, such as a link to fill in your driver application; a reminder if you have not finished a
+        step; interview and orientation scheduling; and updates on your application's status, such as
+        its approval. We do not send marketing or promotional messages in this programme, and no
         third-party content.
       </p>
     </LegalSection>
 
     <LegalSection id="opt-in" title="How you sign up, and that it is optional">
+      <p>You receive these texts only if you agree to them in one of these ways:</p>
+      <ul class="list-disc space-y-1.5 pl-5">
+        <li>
+          you tick the text-message box on a trucking company's careers page when you apply for a job
+          there, below the mobile number you entered;
+        </li>
+        <li>you tick the text-message box on your private driver application page, and enter your mobile number;</li>
+        <li>
+          you ask the trucking company's recruiter to text you your application link; the recruiter
+          records that you asked, and the first text says how to stop.
+        </li>
+      </ul>
+      <p>A box is never ticked for you.</p>
       <p>
-        You receive these texts only if you enter your mobile number and tick the text-message box on
-        your application page. The box is never ticked for you.
-      </p>
-      <p>
-        Agreeing is optional. It is not a condition of applying or of being considered for a job, and
-        saying no changes nothing about your application: every message is also sent by email, and your
-        application page always shows where things stand.
+        Agreeing is optional. It is not a condition of applying, of being considered for a job, or of
+        employment, and saying no changes nothing about your application: the trucking company can still
+        reach you by phone or email. If you have a private application page, every message about it is
+        also sent by email, and the page always shows where things stand.
       </p>
     </LegalSection>
 
@@ -95,14 +115,16 @@ const alertQuiet = `${alertTextClock(ALERT_TEXT_QUIET_DEFAULT.startMin)} to ${al
         Reply <span class="font-semibold text-ink">STOP</span> to any message at any time. These words
         also work when sent on their own: {{ stopWords.join(", ") }}. So does a plain request such as
         "please stop texting me".
-        You can also turn texts off on your application page, or ask the office of the trucking company
-        you applied to.
+        You can also ask the office of the trucking company you applied to, and, if you have a private
+        application page, turn texts off there.
       </p>
       <p>
-        Stopping takes effect straight away, for every application on that number and every other number
-        you gave for the same application. To start again after replying STOP, reply
-        <span class="font-semibold text-ink">START</span>, then turn texts back on from your application
-        page. If you turned texts off on your application page, turn them back on there.
+        Stopping takes effect straight away, for every text in this programme that company sends to that
+        number, and for
+        every other number you gave for the same driver application. To start again after replying STOP,
+        reply <span class="font-semibold text-ink">START</span>, then agree again: on your application
+        page, or by ticking the box the next time you apply. If you turned texts off on your application
+        page, turn them back on there.
       </p>
     </LegalSection>
 
@@ -119,8 +141,8 @@ const alertQuiet = `${alertTextClock(ALERT_TEXT_QUIET_DEFAULT.startMin)} to ${al
 
     <LegalSection id="delivery" title="Delivery">
       <p>
-        Mobile carriers are not liable for delayed or undelivered messages. If a text does not arrive,
-        your email and your application page carry the same information.
+        Mobile carriers are not liable for delayed or undelivered messages. If a text about your private
+        application page does not arrive, your email and that page carry the same information.
       </p>
     </LegalSection>
 

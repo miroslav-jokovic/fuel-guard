@@ -213,6 +213,21 @@ export function applyFlags(c: Omit<ApplyChecks, "flags">): ApplyFlag[] {
   return flags;
 }
 
+/**
+ * The flags a STORED lead carries, read back from `raw.checks.flags` (D-AP5). The background readers that act on a
+ * lead after it is stored — the "nobody has called" alarm, the phone-lookup retry, the cost report — select it with
+ * `APPLY_FLAGS_SELECT` and ask `isFlaggedLead`, so a flagged lead stays as quiet later as it was on arrival: listed,
+ * never rung, never paid for, never counted as a real lead. Only the careers page writes the path, so every other
+ * channel's lead (and a purged lead, whose raw is `{}`) reads as not flagged. A value that is not a list of known
+ * flags reads as not flagged, never a guess: a missed bell costs more than a false one.
+ */
+export const APPLY_FLAGS_SELECT = "apply_flags:raw->checks->flags";
+export function isFlaggedLead(row: { apply_flags?: unknown }): boolean {
+  const f = row.apply_flags;
+  // The known flags are `APPLY_FLAG_TEXT`'s keys — a Record over `ApplyFlag`, so a new flag cannot be missed here.
+  return Array.isArray(f) && f.some((x) => typeof x === "string" && Object.hasOwn(APPLY_FLAG_TEXT, x));
+}
+
 /** The office's words for each flag (the lead drawer, AP4). */
 export const APPLY_FLAG_TEXT: Record<ApplyFlag, string> = {
   robot_check_failed: "Cloudflare's robot check said this was not a person.",

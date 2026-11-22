@@ -52,6 +52,27 @@ describe("recruiting's LeadSources (V7d)", () => {
     expectOrgScoped(rec, ORG);
   });
 
+  /**
+   * APPLY-PAGE-PLAN D-AP5: a careers-page submission a robot check flagged is not a lead of its source until a person
+   * has worked it — a bot flood must not read as "Careers page: 400 leads". Worked (contacted here), a recruiter has
+   * vouched for it, and it counts like any lead. Rows carry `apply_flags` as PostgREST answers the select's alias.
+   */
+  it("leaves out a flagged careers-page lead nobody has worked, and counts one a recruiter contacted", async () => {
+    const page = { channel: "apply_page", campaign_ref: null, ad_ref: null };
+    const rec = world([
+      lead(1, { ...page, apply_flags: ["honeypot_filled"] }),
+      lead(2, { ...page, apply_flags: ["too_fast"] }),
+      lead(3, { ...page, apply_flags: [] }),
+      lead(4, { ...page, apply_flags: null }),
+    ], { recruiting_contacts: [{ org_id: ORG, lead_id: id(2), contacted_at: "2026-11-03T16:00:00Z" }] });
+    const got = await read(rec);
+    expect(got.map((l) => l.lead_id)).toEqual([id(2), id(3), id(4)]);
+    expect(got[0]!.reached.contacted).toBe("2026-11-03T16:00:00.000Z");
+    for (const l of got) expect(leadSourceOutcomeSchema.safeParse(l).success, "no extra key leaks out").toBe(true);
+    const select = rec.queries.find((q) => q.table === "recruiting_leads")!.ops.find((o) => o.method === "select")!.args[0];
+    expect(select).toContain("apply_flags:raw->checks->flags");
+  });
+
   it("the window holds on ARRIVAL at both ends, the end exclusive; a late-stored lead that arrived inside still counts", async () => {
     const rec = world([
       lead(1, { platform_created_at: "2026-10-31T23:00:00Z", received_at: "2026-11-01T06:00:00Z" }),

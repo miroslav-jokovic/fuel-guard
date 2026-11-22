@@ -9,6 +9,7 @@ import {
   applyFlags,
   applyQuestions,
   applySubmitSchema,
+  isFlaggedLead,
   type ApplyChecks,
 } from "./applyPageContract.js";
 import { factsFor } from "./facts/index.js";
@@ -127,5 +128,21 @@ describe("the flags are exactly the failed checks (D-AP5)", () => {
   it("every flag has the office's sentence", () => {
     const all = applyFlags({ ...clean, turnstile: "failed", honeypot: "filled", fill: "too_fast", address_last_hour: 9, number_last_day: 9 });
     for (const f of all) expect(APPLY_FLAG_TEXT[f].length).toBeGreaterThan(10);
+  });
+});
+
+describe("a stored lead's flags, read back (D-AP5)", () => {
+  it("a list holding one of our flags is flagged; empty, missing, purged, not a list, or not ours is not", () => {
+    expect(isFlaggedLead({ apply_flags: ["honeypot_filled"] })).toBe(true);
+    expect(isFlaggedLead({ apply_flags: ["made_up", "number_busy"] })).toBe(true);
+    for (const v of [[], null, undefined, "honeypot_filled", ["made_up"], [1, 2], { flags: ["too_fast"] }]) {
+      expect(isFlaggedLead({ apply_flags: v }), JSON.stringify(v)).toBe(false);
+    }
+    expect(isFlaggedLead({})).toBe(false);
+  });
+
+  it("knows every flag the checks can raise", () => {
+    const every = applyFlags({ turnstile: "failed", turnstile_errors: [], honeypot: "filled", fill: "too_fast", fill_ms: 1, address_last_hour: 99, number_last_day: 99 });
+    for (const f of [...every, "robot_check_missing", "form_token_invalid"]) expect(isFlaggedLead({ apply_flags: [f] }), f).toBe(true);
   });
 });
