@@ -113,6 +113,33 @@ Two faults on that site are the owner's to pass to the web developer (§6, AP5):
 
   An axe scan runs in `e2e:apply` on a phone viewport.
 - **D-AP8 · English first.** The page is in English. The Spanish copy and its texting wording are Q-AP2.
+- **D-AP9 · The careers pages live on `careers.silvicominc.com` (owner, 2026-11-22).** silvicominc.com stays the
+  front door; its Apply buttons link to `https://careers.silvicominc.com/careers/silvicom`. Staging's twin is
+  `staging-careers.360.silvicominc.com`. The owner chose this over two alternatives:
+  - `360.silvicominc.com/careers/…` reads as the product's address rather than the company's;
+  - embedding the form in WordPress is blocked by our `frame-ancestors 'self'`, is weaker for Google and Indeed, and
+    would put the texting wording in the web developer's hands.
+
+  How it is built:
+  - **One source.** `CAREERS_HOST` in `infra/server/<env>.env` is the only place the name is written. Caddy routes
+    on it, and compose.yml hands the api `CAREERS_URL=https://<CAREERS_HOST>`. That one value gives the link the
+    Settings card shows and the hostname Turnstile must report (`careersOrigin`). With it unset (a laptop, a test),
+    the office host serves `/careers` as before.
+  - **Only the applicant's pages on that name.** The host serves:
+    - `/careers/*`;
+    - `/api/public/careers/*`;
+    - built files, meaning any path with a file extension.
+
+    Everything else answers 404: the office sign-in, the rest of `/api`, and `/`. Measured on 2026-11-22 against
+    Caddy 2.10 with stub upstreams:
+    - `/login`, `/api/version` and `/api/public/application/…` answer 404;
+    - so do `/careers/../login` and `/careers/%2e%2e/login`, because Caddy normalises the path first;
+    - `/API/public/careers/x` reaches only the careers router, which matches without regard to case, as Express does.
+  - **The legal pages stay on the office host**, `360.silvicominc.com/privacy` and `/sms-terms`. The toll-free
+    verification registered them there, and their shared layout carries the office's "Sign in". The form links
+    to them in a new tab, with addresses the API gives it.
+  - **Same origin for the API.** Like `/api/public/application`, the page calls `/api/public/careers` on its own
+    origin. The api's CORS list therefore stays as it is, and no other origin is admitted.
 
 ## 3. Steps
 
@@ -153,8 +180,32 @@ Two faults on that site are the owner's to pass to the web developer (§6, AP5):
 - **AP4 · The lead drawer.** A "From the apply page" section shows each check's result in words, the opening, and
   the texting box: recorded, not ticked, or ticked but not recorded because the submission was flagged.
 - **AP5 · Hand-off (owner).** The handoff has two parts:
-  - **The Cloudflare account.** One Turnstile widget, Managed mode, hostnames `360.silvicominc.com` and the
-    staging host. It gives `TURNSTILE_SECRET_KEY` for the API and the site key for the web build.
+  - **The Cloudflare account.** Two Turnstile widgets in Managed mode, one per environment, so staging never holds
+    production's secret:
+    - production on hostname `careers.silvicominc.com`;
+    - staging on `staging-careers.360.silvicominc.com`.
+
+    Each gives a site key and a secret. Both go into that environment's api settings as `TURNSTILE_SITE_KEY` and
+    `TURNSTILE_SECRET_KEY`; the API hands the site key to the page (AP2).
+  - **One complete message to GoDaddy** (D-AP9), sent now so the names resolve by the time AP3 is on staging:
+
+    | Step | Type | Name (as typed in GoDaddy) | Value | TTL |
+    |---|---|---|---|---|
+    | ADD | A | `careers` | `44.236.127.194` | 1/2 hour |
+    | ADD | A | `staging-careers.360` | `44.239.69.109` | 1/2 hour |
+
+    - **What not to touch:** every other record, including `@`, `www`, `360`, `api.360`, `console.360`, the three
+      `staging…360` names and all mail records.
+    - **What we need back:** one screenshot of the full record list.
+    - **What was measured before sending (2026-11-22, `dig @ns21.domaincontrol.com`):**
+      - neither name exists yet, and there is no wildcard, so neither row replaces anything;
+      - no CAA record, so Let's Encrypt may issue;
+      - the two addresses are the ones `360` and `staging.360` already resolve to;
+      - SOA serial 2026111700.
+    - **After it lands:**
+      1. Check both names against `ns21` and `ns22`, and check that the SOA serial moved.
+      2. Restart Caddy once on each server, since ACME backs off while a name does not resolve.
+      3. `curl -I https://careers.silvicominc.com/careers/silvicom` answers 200 with a certificate for that name.
   - **One complete message to PS Web Consulting.** Point every Apply link at `/careers/<handle>`, retire the
     Gravity Form, and fix `/sms-terms/`. Drafted when AP3 is on staging, so it carries a link that works.
 
@@ -186,6 +237,16 @@ Two faults on that site are the owner's to pass to the web developer (§6, AP5):
   - (a) **recommended:** do not ask. Meta forbids both on its form. The DOT application asks them under its own
     consent (`application-11.pdf`), and a careers form holding licence numbers is a breach surface for no
     decision it makes.
+
+- **Q-AP6 · What `careers.silvicominc.com/` shows.** The root answers 404, because nothing records which carrier a
+  host belongs to. A driver who types the bare name gets nothing; every link we publish (the website, Indeed, Meta)
+  carries the full path, so today only someone typing it by hand meets it.
+  - (a) **recommended:** a `custom_host` column on `recruiting_careers_pages`, unique, set in the Settings card. The
+    root then shows that carrier's openings, and `CAREERS_HOST` stops being the only place the name lives. This takes
+    a migration and then its reader, two merges.
+  - (b) A Caddy redirect from `/` to `/careers/silvicom`. This restates the handle in a second place, a workaround
+    by this repo's rule.
+  - (c) Leave the 404.
 
 ## 5. The audit of 2026-11-22, and what it changed
 
@@ -254,11 +315,11 @@ application page receive them").
 - (c) Leave it. Texting a careers-page lead, or using invite-by-text, would then rest on an opt-in the carriers
   were never shown.
 
-The update, each field under Telnyx's 500-character limit (measured: 475 and 491):
+The update, each field under Telnyx's 500-character limit (measured: 479 and 491):
 
 | Field | Value |
 |---|---|
-| optInWorkflow | Three optional opt-ins, never pre-ticked. 1) Public careers page: start at https://360.silvicominc.com/careers/silvicom, open a job; its application form has an unticked text box under the mobile number, the full disclosure, and links to our SMS terms and privacy policy. 2) Private application page (360.silvicominc.com/apply/<token>, sent by email): screenshots attached. 3) An applicant on the phone asks a recruiter to text their link; the recruiter ticks an attestation. |
+| optInWorkflow | Three optional opt-ins, never pre-ticked. 1) Public careers page: start at https://careers.silvicominc.com/careers/silvicom, open a job; its application form has an unticked text box under the mobile number, the full disclosure, and links to our SMS terms and privacy policy. 2) Private application page (360.silvicominc.com/apply/<token>, sent by email): screenshots attached. 3) An applicant on the phone asks a recruiter to text their link; the recruiter ticks an attestation. |
 | useCaseSummary | Silvicom Inc, a carrier, texts truck-driver job applicants about their own application: application links, reminders for unfinished steps, interview and orientation scheduling, and status notices such as approval. Only applicants who opt in receive them: on our careers page, on their private application page, or by asking a recruiter. Optional, never a condition of applying. No marketing or third-party content. No texts at night. Every message names Silvicom Inc and says how to opt out. |
 
 `productionMessageContent` gains a careers-page sample when Q-AP1 writes the first lead message. Until then no

@@ -140,6 +140,16 @@ describe("GET — what the card is told", () => {
     });
   });
 
+  it("a server that names its careers host links there instead (D-AP9), still with no doubled slash", async () => {
+    await start(makeEnv({ CAREERS_URL: "https://careers.example.test/" }));
+    try {
+      seed({ page: { enabled: true, accommodation_email: "recruiting@silvicominc.com" } });
+      expect((await status()).publicUrl).toBe("https://careers.example.test/careers/silvicom");
+    } finally {
+      await start(makeEnv());
+    }
+  });
+
   it("each opening says whether it is published, from its NEWEST version; closed ones are not listed", async () => {
     seed();
     const byId = Object.fromEntries((await status()).openings.map((o) => [o.id, o]));

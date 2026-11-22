@@ -23,6 +23,11 @@ export const adsEnvFields = {
   // other would flag every applicant (a widget with nothing to verify it, or a verifier with no widget).
   TURNSTILE_SITE_KEY: z.string().min(1).optional(),
   TURNSTILE_SECRET_KEY: z.string().min(1).optional(),
+  // Where the careers pages are served (APPLY-PAGE-PLAN D-AP9): `https://<CAREERS_HOST>` from `infra/server/<env>.env`,
+  // set by compose.yml from the same value Caddy routes on, so the link, the robot check's hostname and the front
+  // door cannot disagree. Unset (a laptop, a test) = the office app's own origin, `WEB_APP_URL`, which serves
+  // `/careers` too.
+  CAREERS_URL: z.string().url().optional(),
   ADS_ENABLED: z.enum(["true", "false"]).default("false").transform((v) => v === "true"), // the ads orchestrator's tick (A6); off until Stage 1's exit — docs/WORKER-DEPLOYMENT.md § Ads
   // D-AD8 (Q-AD42 (b)): the Meta ad accounts a NON-production host may use — its sandbox accounts, comma-separated,
   // `act_` optional, parsed here to bare ids. Unset or empty = that host refuses every Meta account. Production never
