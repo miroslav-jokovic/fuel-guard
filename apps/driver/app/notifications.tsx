@@ -13,6 +13,7 @@ import {
   ScreenHeader,
   Section,
   Skeleton,
+  SkeletonRows,
   type Tone,
 } from '@/components';
 import { useMarkRead, useNotifications } from '@/features/notifications/useNotifications';
@@ -105,11 +106,7 @@ export default function NotificationsCentre() {
 
       <Section title="Recent">
         {showSkeletons ? (
-          <>
-            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
-            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
-            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
-          </>
+          <SkeletonRows count={3} />
         ) : rows.length === 0 && !(q.isError && !q.data) ? (
           <EmptyState
               icon="notifications"

@@ -38,8 +38,9 @@ export function ConfirmSheet({
   return (
     <SystemSheet visible={visible} onDismiss={onCancel}>
       <View className="flex-row items-start gap-3">
-        <View className={`h-11 w-11 items-center justify-center rounded-full ${TONE_SOFT[tone].bg}`}>
-          <Icon name={icon} size={21} fill className={TEXT_TONE_CLASS[TONE_SOFT[tone].textTone]} />
+        {/* A bare glyph in the state's colour; the tinted disc was a D-DB6 device D-DV5 retired. */}
+        <View className="h-7 justify-center">
+          <Icon name={icon} size={24} fill className={TEXT_TONE_CLASS[TONE_SOFT[tone].textTone]} />
         </View>
         <View className="flex-1 gap-1">
           <AppText variant="navigationTitle" accessibilityRole="header">{title}</AppText>

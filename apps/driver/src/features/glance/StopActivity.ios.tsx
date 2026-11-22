@@ -70,15 +70,22 @@ const StopActivity = (props: GlanceProps, environment: LiveActivityEnvironment) 
       </VStack>
     ),
     compactLeading: <Image systemName="truck.box.fill" color={c.onHeroLive} />,
-    // The narrow island slots take the appointment's clock: "7 hr, 59 min" does not fit there.
+    // The narrow island slots take the appointment's clock ("7 hr, 59 min" does not fit), behind a
+    // clock glyph: a bare time beside a truck reads as an arrival ETA, which D-DV13 forbids.
     compactTrailing: (
-      <Text modifiers={[font(t.line), monospacedDigit(), foregroundStyle(c.onHero)]}>
-        {props.at}
-      </Text>
+      <HStack spacing={3}>
+        <Image systemName="clock" color={c.onHeroSecondary} size={t.caption.size} />
+        <Text modifiers={[font(t.line), monospacedDigit(), foregroundStyle(c.onHero)]}>{props.at}</Text>
+      </HStack>
     ),
     minimal: <Image systemName="truck.box.fill" color={c.onHeroLive} />,
     expandedLeading: <Image systemName="truck.box.fill" color={c.onHeroLive} />,
-    expandedTrailing: <Text modifiers={[font(t.line), monospacedDigit(), foregroundStyle(c.onHero)]}>{props.at}</Text>,
+    expandedTrailing: (
+      <HStack spacing={3}>
+        <Image systemName="clock" color={c.onHeroSecondary} size={t.caption.size} />
+        <Text modifiers={[font(t.line), monospacedDigit(), foregroundStyle(c.onHero)]}>{props.at}</Text>
+      </HStack>
+    ),
     expandedCenter: (
       <Text modifiers={[font(t.title), foregroundStyle(c.onHero), lineLimit(1)]}>{props.title}</Text>
     ),

@@ -1,5 +1,5 @@
 import { Host, Picker, Text } from '@expo/ui/swift-ui';
-import { pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
+import { controlSize, pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
 import { haptics } from '@/lib/haptics';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { NativeSegmentedProps } from './NativeSegmented';
@@ -20,7 +20,9 @@ export function NativeSegmented<T extends string>({ options, value, onChange }: 
           haptics.select();
           onChange(next as T);
         }}
-        modifiers={[pickerStyle('segmented')]}
+        // `extraLarge` is the tallest system segmented control: the default is ~32pt, short of a
+        // gloved thumb (D-DV10's 48pt), and a drawn control would give up the system's own (V9 critique).
+        modifiers={[pickerStyle('segmented'), controlSize('extraLarge')]}
       >
         {options.map((option) => (
           <Text key={option.value} modifiers={[tag(option.value)]}>{option.label}</Text>

@@ -243,7 +243,7 @@ step makes each one a primitive. Before that step, compose it from `AppText`, `S
 | **Grouped rows** | Today, Loads, More | `Section` (its heading is the muted `label`), then a `GroupedList` of `ListRow`s on the canvas with no card around them. `disc={tone}` tints the glyph by state. Trailing figure `numericInline` or an action word in its state colour | **`Section` + `GroupedList` + `ListRow`** (V4, built) |
 | **Time groups** | Loads | Sections by time (Now, Next, Delivered this week, Earlier), not by status; offers first. The appointment is the trailing figure, the day in the note under it | **`loadsListModel` + `LoadRows`** (V6, built) |
 | **Timeline** | Load detail | Stops on a 2pt rail: cyan dot = current, green = done, hollow = ahead. Window figure largest in each stop. Required photos in words | **`Timeline`** (V6, built; rules `timelineStops`) |
-| **Map strip** | Stop | Fixed-height map at the top, full bleed (`Screen media`); floating controls are the only glass (D-DV2: Liquid Glass on iOS 26 through `expo-glass-effect`, V9; the solid white disc elsewhere). No ETA. Actions in a pinned footer: Navigate outlined + amber primary | **`MapStrip`** (V6, built) |
+| **Map strip** | Stop | Fixed-height map at the top, full bleed (`Screen media`); floating controls are the only glass (D-DV2: Liquid Glass on iOS 26 over the dark map, through `expo-glass-effect`, V9; the solid white disc in daylight and on Android, where glass did not separate from the roads). No ETA. Actions in a pinned footer: Navigate outlined + amber primary | **`MapStrip`** (V6, built) |
 | **Review queue** | Documents | Status block with the count, then the missing items first, then verdicts, then what was sent. Each status a word in its colour, never a pill | **`documentsModel` + `DocumentRows`** (V7, built); the tab badge is the same count |
 | **Settings list** | More | Grouped rows on the canvas (`GroupedList`). No avatar, no icon discs; a row's trailing value is the live fact ("3 new", "94 · #4") | **V8, built.** Stays `GroupedList`, not `@expo/ui` List: the native list is inset-grouped cards (against D-DV7) and titles in SF Pro (against D-DV18). Its controls are native (V9, D-DV25) |
 | **Swipe-to-act** | Messages, Notifications | Swipe a row left for ONE action it already has ("Mark read"), 96pt, on the neutral selected surface, never a status colour. Offered to screen readers as a named action too; a swipe is a shortcut, never the only way. No tray of actions, no invented actions | **`ListRow swipeAction` + `SwipeAction`** (V8 follow-up, built) |
@@ -276,7 +276,7 @@ The tab shell is not a pattern you compose. It is the OS's own (D-DV1, V3). A ne
   - feedback: `Banner`, `Toast`/`useToast`, `OfflineBanner`, `SyncStatus`;
   - progress: `Progress`, `TaskStepper`;
   - data: `Sparkline`, `TrendChart`;
-  - state: `Skeleton`, `EmptyState`;
+  - state: `SkeletonRows` for anything that loads as rows, `Skeleton` only for the one signature block, `EmptyState`;
   - choice: `SegmentedControl` (the system's segmented control, `NativeSegmented`; drawn only as chips),
     `ToggleRow` (the system's switch);
   - glance: `src/features/glance` (Live Activity, Lock Screen and home-screen widget; props from

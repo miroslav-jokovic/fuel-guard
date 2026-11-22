@@ -438,8 +438,9 @@ screens are restyled through primitives only (§3).
     - Each host takes the APP's colour scheme, which Settings → Theme may set apart from the phone's.
   - **`@expo/ui` List is not adopted.** The native list is inset-grouped cards, which D-DV7 forbids, and it
     sets titles in SF Pro, which D-DV18 forbids. More and Settings stay `GroupedList`, which V8 approved.
-  - **The map's back button is Liquid Glass on iOS 26** (`isLiquidGlassAvailable`), with the solid disc
-    elsewhere. It is `lint:design`'s one glass exception, by file. Over the navy no-signal field its glyph
+  - **The map's back button is Liquid Glass on iOS 26 over the dark map** (`isLiquidGlassAvailable`), with
+    the solid disc elsewhere: over the light map the glass measured about 1.2:1 against the roads, under
+    WCAG 1.4.11's 3:1 for a control (V9 critique). It is `lint:design`'s one glass exception, by file. Over the navy no-signal field its glyph
     takes the on-hero ink.
   - **Switch colour, for the owner to rule on.** iOS draws the system's own switch, so "on" is iOS
     green where the drawn switch was brand navy. Android's Material 3 palette defaults to lavender
@@ -453,6 +454,16 @@ screens are restyled through primitives only (§3).
     - A `.ts` Android stub beside `StopActivity.ios.tsx` won on iOS too, because Metro tries every
       platform for one extension before the next. Both are `.tsx` now.
     - The native sheet measured our content with no width limit; it is now bounded to the window.
+  - **The two V9 critiques (dark and light, isolated), 2026-11-22.** No banned device in V9's own code.
+    Fixed in V9:
+    - The app's countdowns now use the phone's words ("7 hr, 59 min"), through one formatter
+      (`src/lib/duration.ts`), so Today and the Lock Screen cannot disagree.
+    - The island's appointment time carries a clock glyph, so it is not read as an ETA.
+    - The system sheet takes its own width.
+    - `ConfirmSheet` loses its tinted disc (D-DV5).
+    - The segmented control is the system's `extraLarge` size (D-DV10).
+    - Daylight keeps the solid map back button.
+    Findings that predate V9 are listed in Q-DV8.
   - **Owner action before a device build:** register the App Group `group.com.silvicom.fuelguard.driver` and
     the widget extension `com.silvicom.fuelguard.driver.ExpoWidgetsTarget` for the Apple team. The
     simulator needs neither.
@@ -466,6 +477,33 @@ screens are restyled through primitives only (§3).
 
   **Recommend (b), in the feature plan.** A late seal or BOL photo is exactly what the office asks drivers
   for, and today the only way to send it is outside the app.
+
+- **Q-DV8 · System violations the V9 critiques found in screens that predate V9** (2026-11-22, both isolated
+  reviews). None is a banned device, but each breaks a rule this plan wrote. The owner rules on each:
+  - **(a) The Stop screen shows three ambers while a photo is missing** (V6).
+    - The amber camera glyph, the amber "Take" and the amber "Complete · 1 photo missing" button all sit
+      on one screen. The amber button names its own blocker and wraps to two lines.
+    - **Recommend:** while a required photo is missing, the primary is "Take seal photo" (amber). Complete
+      becomes the primary only when nothing is missing, and the in-row "Take" goes to ink. This changes what
+      the footer does, so it belongs in the features plan with D21's missing-photo reason.
+  - **(b) Today's next step is a second raised card** (V5, owner-approved).
+    - It breaks D-DV6's "one signature" and D-DV7, and puts the amber mid-screen rather than in the bottom
+      third (D-DV10).
+    - **Recommend:** keep it until the device gate. A thumb in a cab decides whether the mid-screen button
+      is a miss.
+  - **(c) Settings' sync row says "All synced · not yet"** (`SyncStatus.tsx`), under a "Sync" label that
+    repeats it. **Recommend:** "Not synced yet" when nothing has synced, and drop the label. Copy only.
+  - **(d) Loading states are stacks of rounded cards** (Notifications "Recent", seen on Android with no
+    API). **Recommend:** skeleton ROWS, the shape the content takes.
+  - **(e) The map's palette is uncontrolled.** OSM yellow and orange roads, MapLibre's blue "(i)" (which
+    reads as our cyan) and an unlabelled cyan dot. **Recommend:** a muted, navy-tinted style for both
+    themes, with the attribution in ink-muted.
+  - **(f) Switch colour** (the V9 question): system green on iOS (green is "done" here), and a navy-seeded
+    track on Android that resolves pale blue (cyan is "live"). **Recommend:** the owner rules. Either keep
+    the system's colours as chrome, with a D-DV5 note saying so, or set both platforms to a neutral ink
+    track.
+  - **(g) Raw "HTTP 404" reaches a driver** in error banners (seen with the dev harness). **Recommend:**
+    map every API failure to a sentence in the features plan.
 
 ## 7. Progress log
 

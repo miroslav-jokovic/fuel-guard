@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
-import { View, useWindowDimensions } from 'react-native';
+import { View } from 'react-native';
 import { BottomSheet, RNHostView } from '@expo/ui';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { roleColors } from '@/theme/colors';
 import { useTheme } from '@/theme/ThemeProvider';
 
@@ -27,8 +26,6 @@ export function SystemSheet({
   onDismiss: () => void;
   children: ReactNode;
 }) {
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
   const { themeKey } = useTheme();
   return (
     <BottomSheet
@@ -37,10 +34,12 @@ export function SystemSheet({
       containerColor={roleColors[themeKey].surfaceRaised}
       contentPadding={0}
     >
-      {/* Height follows the content; width is the sheet's. Measured unbounded, React Native laid the
-          rows out on one endless line and the sheet clipped both edges (V9, seen in the simulator). */}
+      {/* Height follows the content; width is the SHEET's, which iOS 26 insets from the screen edges.
+          Measured both ways in the simulator (V9): unbounded, the rows ran on one endless line; bounded
+          to the window, text touched the sheet's right edge. The system sheet keeps its own bottom
+          clearance, so only our 16pt rhythm is added. */}
       <RNHostView matchContents={{ vertical: true }}>
-        <View className="gap-4 px-5 pt-4" style={{ width, paddingBottom: insets.bottom + 16 }} accessibilityViewIsModal>
+        <View className="gap-4 px-5 pb-4 pt-4" accessibilityViewIsModal>
           {children}
         </View>
       </RNHostView>

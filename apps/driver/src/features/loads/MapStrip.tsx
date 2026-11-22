@@ -19,8 +19,9 @@ const HEIGHT = 250;
  * no routing service (D-DB8 / D-DV13) and a pannable map would promise one. Navigate, in the screen's
  * footer, hands the trip to the phone's own maps app instead.
  *
- * The back button floats over the map in Liquid Glass on iOS 26 (V9; D-DV2's one place we add our own
- * glass), and on the solid white disc everywhere else, the fallback the decision names. The glyph on
+ * The back button floats over the map in Liquid Glass on iOS 26 over the dark map (V9; D-DV2's one
+ * place we add our own glass), and on the solid white disc everywhere else, the fallback the decision
+ * names; over the light map the glass did not separate from the roads. The glyph on
  * the glass follows what is under it: the role theme's ink over the map (whose style follows the same
  * theme), the on-hero ink over the navy field, where ink would be navy on navy in the light theme.
  *
@@ -61,7 +62,10 @@ export function MapStrip({ stop, onBack }: { stop: LoadStop; onBack: () => void 
         </View>
       )}
       <View className="absolute left-4" style={{ top: insets.top + 8 }}>
-        {isLiquidGlassAvailable() ? (
+        {/* Glass over the DARK map only. Over the light map the glass disc measured ~1.2:1 against the
+            roads, under WCAG 1.4.11's 3:1 for a control, so daylight keeps the solid white disc,
+            D-DV2's named fallback (V9 critique). */}
+        {isLiquidGlassAvailable() && (isDark || !showMap) ? (
           <GlassView isInteractive glassEffectStyle="regular" style={{ borderRadius: 22 }}>
             <IconButton name="arrow_back" label="Back" variant={showMap ? 'plain' : 'glass'} onPress={onBack} />
           </GlassView>

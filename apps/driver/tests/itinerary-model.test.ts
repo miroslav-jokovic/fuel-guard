@@ -120,8 +120,8 @@ describe('windowVerdict', () => {
   });
 
   it('spells long gaps in hours', () => {
-    expect(detailTail(windowVerdict(stop(), Date.parse('2026-09-07T11:05:00Z'))?.detail)).toBe('Now 2 h 55 min early');
-    expect(detailTail(windowVerdict(stop(), Date.parse('2026-09-07T12:00:00Z'))?.detail)).toBe('Now 2 h early');
+    expect(detailTail(windowVerdict(stop(), Date.parse('2026-09-07T11:05:00Z'))?.detail)).toBe('Now 2 hr, 55 min early');
+    expect(detailTail(windowVerdict(stop(), Date.parse('2026-09-07T12:00:00Z'))?.detail)).toBe('Now 2 hr early');
   });
 
   it('is null with no window at all rather than inventing a verdict', () => {
@@ -158,7 +158,7 @@ describe('timelineStops (Visual 2026 V6, mock screen 5)', () => {
 
   it('the next stop is the only tappable one, with a countdown; the others carry no live line', () => {
     const [a, b] = timelineStops(twoStops({ required_photos: ['bol', 'seal'] }), Date.parse('2026-09-07T13:00:00Z'));
-    expect(a).toMatchObject({ state: 'next', tappable: true, live: { text: 'Window opens in 1 h', tone: 'live' } });
+    expect(a).toMatchObject({ state: 'next', tappable: true, live: { text: 'Window opens in 1 hr', tone: 'live' } });
     expect(a?.needs).toEqual({ text: 'Needs: BOL · seal', tone: 'secondary' });
     expect(b).toMatchObject({ state: 'pending', tappable: false, live: null });
   });
