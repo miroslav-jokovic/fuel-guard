@@ -172,7 +172,7 @@ afterEach(() => {
 describe("the row", () => {
   it("reads 'Home time until' the return, on the carrier's clock, where it read 'Now' — and only on the held truck", async () => {
     await render();
-    expect(lines(rowOf("773").querySelectorAll("td")[3]!)).toEqual(["Home time", "11/18/2026 8:00 AM"]);
+    expect(lines(rowOf("773").querySelectorAll("td")[3]!)).toEqual(["Home time", "until 11/18/2026 8:00 AM"]);
     expect(cells(rowOf("773"))[3]).toBe("Home timeuntil 11/18/2026 8:00 AM");
     expect(cells(rowOf("848"))[3]).toBe("Now");
     // …and Status says the same, not "Empty", which reads as "give it a load".
