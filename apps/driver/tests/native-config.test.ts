@@ -227,12 +227,19 @@ describe('app.config.ts — Android permissions (D-PR7)', () => {
 });
 
 describe('app.config.ts — Play’s SDK requirements (§6.0)', () => {
-  it('pins target and compile SDK to 36, the level Play requires from 2026-08-31', async () => {
+  it('pins target SDK to 36, the level Play requires from 2026-08-31', async () => {
     const properties = pluginOptions(await store(), 'expo-build-properties');
     const android = properties.android as Record<string, unknown>;
     expect(android.targetSdkVersion).toBe(36);
-    expect(android.compileSdkVersion).toBe(36);
     expect(android.minSdkVersion).toBe(24);
+  });
+
+  it("pins compile SDK and build tools to SDK 58's 37, never below the target", async () => {
+    const properties = pluginOptions(await store(), 'expo-build-properties');
+    const android = properties.android as Record<string, unknown>;
+    expect(android.compileSdkVersion).toBe(37);
+    expect(android.buildToolsVersion).toBe('37.0.0');
+    expect(android.compileSdkVersion as number).toBeGreaterThanOrEqual(android.targetSdkVersion as number);
   });
 
   it('pins the iOS deployment target', async () => {

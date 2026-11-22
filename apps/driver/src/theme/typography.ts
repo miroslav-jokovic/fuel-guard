@@ -118,7 +118,11 @@ export interface TextStyleOptions {
 /** The ONE way to get a text style. Pure, so it is unit-tested without a renderer. */
 export function textStyle(variant: TextVariant, options: TextStyleOptions = {}): TextStyle {
   const spec = TYPE[variant];
-  const style: TextStyle = { fontSize: spec.fontSize, lineHeight: spec.lineHeight };
+  // RN 0.88 types every style prop readonly; the style is assembled here, then handed out as TextStyle.
+  const style: { -readonly [K in keyof TextStyle]: TextStyle[K] } = {
+    fontSize: spec.fontSize,
+    lineHeight: spec.lineHeight,
+  };
 
   if (spec.face === 'display') {
     // Weight IS the family for a loaded custom face; Bold Text swaps to the Black cut.

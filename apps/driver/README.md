@@ -34,7 +34,7 @@ brew install watchman
 #    this line is just for the very first install.
 pnpm --filter @silvicom/shared build:rn
 
-# 4. Align every Expo/RN dependency to the exact versions Expo SDK 57 expects.
+# 4. Align every Expo/RN dependency to the exact versions Expo SDK 58 expects.
 cd apps/driver
 npx expo install --fix
 

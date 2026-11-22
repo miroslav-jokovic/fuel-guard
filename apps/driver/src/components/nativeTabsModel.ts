@@ -1,4 +1,4 @@
-import type { SFSymbolIcon, MaterialIcon } from 'expo-router/build/native-tabs/common/elements';
+import type { SFSymbolIcon, MaterialIcon } from 'expo-router/native-tabs';
 import type { FeatureKey } from '@silvicom/shared';
 
 /** Symbol name types from the icon component's own props, so a misspelt glyph fails typecheck. */
@@ -11,8 +11,9 @@ type MdName = Extract<MaterialIcon['md'], string>;
  * renderer (`apps/driver/tests/native-tabs-model.test.ts`).
  *
  * The SF Symbols are outline at rest and filled when selected, which is the system apps'
- * convention. Material Symbols names are the Android equivalents. On SDK 57 Android takes one glyph
- * for both states.
+ * convention. Material Symbols names are the Android equivalents, one glyph for both states. SDK 58
+ * accepts an `md` pair too; drawing a selected Android glyph is a visual change, so it waits for a
+ * screen step and the owner's look at it (D-DV24), not the SDK upgrade.
  */
 export interface TabSpec {
   name: 'home' | 'loads' | 'documents' | 'more';

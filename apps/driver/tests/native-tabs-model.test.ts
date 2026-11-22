@@ -32,7 +32,7 @@ describe('the native tab shell (Visual 2026 D-DV1, V3)', () => {
 
   it('draws the shell with the system tab bar, not a custom JS one', () => {
     const layout = readFileSync(join(ROOT, 'app/(tabs)/_layout.tsx'), 'utf8');
-    expect(layout).toContain("from 'expo-router/unstable-native-tabs'");
+    expect(layout).toContain("from 'expo-router/native-tabs'");
     expect(layout).not.toMatch(/tabBar=/);
     expect(existsSync(join(ROOT, 'src/components/TabBar.tsx'))).toBe(false);
   });

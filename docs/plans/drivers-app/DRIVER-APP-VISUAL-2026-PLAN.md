@@ -378,6 +378,30 @@ screens are restyled through primitives only (§3).
   - **Sign-in already followed the system** (D-DB15's navy mark, display title, one amber action). Its
     remaining tinted disc on the pending and wrong-app screens becomes a bare glyph.
 
+- **D-DV24 · SDK 58 (V3b), 2026-11-22.** Expo 58.0.26, React Native 0.88.1, React 19.3.0. `expo-doctor` 20/20.
+  `runtime-version.json` moves 1.3.0 → 1.4.0: every native module changed, so no 1.3.0 binary may receive this
+  JavaScript.
+  - **The upgrade brought two major versions with it.** `react-native-gesture-handler` 2 → 3 (the app uses only
+    `GestureHandlerRootView`, which is unchanged) and `@sentry/react-native` 7 → 8 (iOS 15 minimum, below our 16.4
+    floor; `init`, `setUser`, `beforeSend` and `beforeBreadcrumb` are unchanged). MapLibre moves 11.3.6 → 11.5.1,
+    still pinned exactly: features and fixes only, including an Android ANR fix.
+  - **`expo-symbols` is installed here, not in V9.** On SDK 58, `NativeTabs`' Android `md` icons load through
+    `expo-symbols` and throw without it ("`md` icons on Android require 'expo-symbols'"). V9 only has to start
+    drawing `Icon` with it on iOS (D-DV23). `NativeTabs` moves to its stable path, `expo-router/native-tabs`.
+    SDK 58 also takes a default/selected pair for Android's `md` glyph; the tabs keep one glyph until a screen
+    step proposes the pair, because that changes what the driver sees.
+  - **Android compiles against SDK 37.** React Native 0.88's catalogue and Expo's autolinking default moved
+    `compileSdk` to 37 and build tools to 37.0.0, so the pinned line moves with them. `targetSdkVersion` stays 36:
+    it is the level that changes runtime behaviour and the one Play's rule names.
+  - **RN 0.88's types are stricter in three places.** `useColorScheme()` may return `null` (`resolveThemeKey` takes
+    it and reads it as light), style props are readonly (`textStyle()` builds a mutable object, then returns
+    `TextStyle`), and a `ScrollView` ref is a `ScrollViewInstance`.
+  - **One upstream bug is patched in `node_modules`, labelled as a workaround.** Swift 6.2 on Xcode 26.2 and 26.3
+    refuses `expo-modules-jsi`'s `withEncodedValue` ("sending 'slot' risks causing data races",
+    [expo/expo#52754](https://github.com/expo/expo/issues/52754), open since 2026-11-02, still in 58.0.23).
+    Without the patch no iOS build compiles. `scripts/apply-patches.mjs` carries upstream's proposed fix and names
+    what removes it. SDK 57's own patch in that script retires, because 58 ships that fix.
+
 - **Q-DV7 · A photo for a stop that is already finished.** The mock's screen 3 offers "Add" for a seal photo
   missing from a completed pickup. The app cannot do that: `driver_complete_stop` (migration 0141) refuses
   any change to a completed stop, and a repeat of the same status returns before it inserts photos. V5 shows
