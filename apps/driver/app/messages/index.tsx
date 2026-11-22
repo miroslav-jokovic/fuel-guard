@@ -18,7 +18,7 @@ import {
   Section,
   Skeleton,
 } from '@/components';
-import { useMessagesRealtime, useStartThread, useThreads } from '@/features/messages/useMessages';
+import { useMarkThreadRead, useMessagesRealtime, useStartThread, useThreads } from '@/features/messages/useMessages';
 import { useFeatures } from '@/session/useFeatures';
 import { useSession } from '@/session/SessionProvider';
 
@@ -33,6 +33,7 @@ export default function MessagesInbox() {
   const features = useFeatures();
   const { userId } = useSession();
   const threads = useThreads(features.enabled('messages'));
+  const markRead = useMarkThreadRead();
   const startThread = useStartThread();
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -136,6 +137,8 @@ export default function MessagesInbox() {
                   title={t.last_message?.sender_name ?? threadTitle(t, userId ?? '')}
                   subtitle={messagePreview(t.last_message)}
                   onPress={() => router.push(`/messages/${t.id}` as never)}
+                // Swipe-to-act (V8 plan): opening a conversation already marks it read; this does it without opening.
+                swipeAction={t.unread > 0 ? { label: 'Mark read', icon: 'done', onAction: () => markRead.mutate(t.id) } : undefined}
                   right={
                     <View className="items-end gap-1">
                       <AppText variant="caption" tone="subtle" tabular>{shortTime(t.last_message_at)}</AppText>

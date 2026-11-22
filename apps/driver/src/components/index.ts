@@ -23,6 +23,7 @@ export { Sparkline } from './Sparkline';
 export { TrendChart } from './TrendChart';
 export { ConfirmSheet } from './ConfirmSheet';
 export { ChoiceSheet, type Choice } from './ChoiceSheet';
+export { SwipeAction, type RowSwipeAction } from './SwipeAction';
 export { SegmentedControl } from './SegmentedControl';
 export { TaskStepper, type TaskStep, type TaskStepState } from './TaskStepper';
 export { Skeleton } from './Skeleton';

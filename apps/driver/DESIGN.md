@@ -245,6 +245,7 @@ step makes each one a primitive. Before that step, compose it from `AppText`, `S
 | **Map strip** | Stop | Fixed-height map at the top, full bleed (`Screen media`); floating controls are the only glass (D-DV2; solid until `expo-glass-effect` lands). No ETA. Actions in a pinned footer: Navigate outlined + amber primary | **`MapStrip`** (V6, built) |
 | **Review queue** | Documents | Status block with the count, then the missing items first, then verdicts, then what was sent. Each status a word in its colour, never a pill | **`documentsModel` + `DocumentRows`** (V7, built); the tab badge is the same count |
 | **Settings list** | More | Grouped rows on the canvas (`GroupedList`). No avatar, no icon discs; a row's trailing value is the live fact ("3 new", "94 · #4") | **V8, built** (`@expo/ui` List waits for a native build) |
+| **Swipe-to-act** | Messages, Notifications | Swipe a row left for ONE action it already has ("Mark read"), 96pt, on the neutral selected surface, never a status colour. Offered to screen readers as a named action too; a swipe is a shortcut, never the only way. No tray of actions, no invented actions | **`ListRow swipeAction` + `SwipeAction`** (V8 follow-up, built) |
 | **Pinned primary** | Load detail, pre-shift Today | One 56pt amber button above the tab bar or the home indicator | V4 `ActionBar` |
 
 The tab shell is not a pattern you compose. It is the OS's own (D-DV1, V3). A new tab needs an owner ruling
@@ -268,7 +269,7 @@ The tab shell is not a pattern you compose. It is the OS's own (D-DV1, V3). A ne
 - **Use existing primitives first** (`src/components`):
   - layout: `Screen`, `ScreenHeader`, `Section`, `SectionLabel`, `GroupedList`, `ListRow`, `ActionBar`;
   - text: `AppText`;
-  - actions: `Button`, `IconButton`, `ConfirmSheet`, `ChoiceSheet`;
+  - actions: `Button`, `IconButton`, `ConfirmSheet`, `ChoiceSheet`, `ListRow`'s `swipeAction`;
   - forms: `Field`, `Input`, `NumericField`;
   - counts: `CountBadge` (an unread count on an icon button, the only text that ignores text size);
   - feedback: `Banner`, `Toast`/`useToast`, `OfflineBanner`, `SyncStatus`;
