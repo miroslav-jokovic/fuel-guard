@@ -1,4 +1,4 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { NativeTabs } from 'expo-router/native-tabs';
 import { useFeatures } from '@/session/useFeatures';
 import { useTheme } from '@/theme/ThemeProvider';
 import { roleColors } from '@/theme/colors';

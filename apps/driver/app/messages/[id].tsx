@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View, type ScrollViewInstance } from 'react-native';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   MESSAGE_REPORT_LABELS,
@@ -106,7 +106,7 @@ export default function ThreadScreen() {
   const [draft, setDraft] = useState('');
   const [reporting, setReporting] = useState<Message | null>(null);
   const [reportReason, setReportReason] = useState<MessageReportReason | null>(null);
-  const scroller = useRef<ScrollView>(null);
+  const scroller = useRef<ScrollViewInstance>(null);
   useMessagesRealtime(id, messagesEnabled);
 
   // An open conversation is a read conversation — once, when it loads, and again on new messages.
