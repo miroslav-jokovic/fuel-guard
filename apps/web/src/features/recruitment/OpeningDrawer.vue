@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AD_MONEY_PER, OPENING_BENEFIT_TERMS, OPENING_BONUS_KINDS, OPENING_EQUIPMENT, OPENING_SCHEDULES, adAreaSchema, type OpeningView, type PlaceSuggestion } from "@silvicom/shared";
+import { AD_MONEY_PER, BONUS_KIND_LABEL, EQUIPMENT_LABEL, OPENING_BENEFIT_TERMS, OPENING_BONUS_KINDS, OPENING_EQUIPMENT, OPENING_SCHEDULES, PAY_PER_LABEL, SCHEDULE_LABEL, adAreaSchema, benefitLabel, type OpeningView, type PlaceSuggestion } from "@silvicom/shared";
 import {
   AppButton as BaseButton,
   AppCallout,
@@ -13,7 +13,7 @@ import {
 } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { useToastStore } from "@/stores/toast";
-import { BONUS_KIND_LABEL, EQUIPMENT_LABEL, PAY_PER_LABEL, SCHEDULE_LABEL, benefitLabel, blankOpeningForm, openingFormFrom, openingSaveFrom, type OpeningForm } from "./openingForm";
+import { blankOpeningForm, openingFormFrom, openingSaveFrom, type OpeningForm } from "./openingForm";
 import OpeningProfileStep from "./OpeningProfileStep.vue";
 import PlaceSearchField from "./PlaceSearchField.vue";
 import { useSaveOpening } from "./useOpenings";

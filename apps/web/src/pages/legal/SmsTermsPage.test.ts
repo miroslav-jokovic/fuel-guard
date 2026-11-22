@@ -3,7 +3,7 @@ import { mount, RouterLinkStub } from "@vue/test-utils";
 import { SMS_STOP_KEYWORDS, alertTextHelpReply, smsHelpReply } from "@silvicom/shared";
 import SmsTermsPage from "@/pages/legal/SmsTermsPage.vue";
 import PrivacyPolicyPage from "@/pages/legal/PrivacyPolicyPage.vue";
-import { SMS_PRIVACY_ANCHOR, SMS_PRIVACY_PATH, SMS_STAFF_ALERTS_ANCHOR } from "@/lib/legalPaths";
+import { CAREERS_PRIVACY_ANCHOR, CAREERS_PRIVACY_PATH, SMS_PRIVACY_ANCHOR, SMS_PRIVACY_PATH, SMS_STAFF_ALERTS_ANCHOR } from "@/lib/legalPaths";
 
 /**
  * The two pages a toll-free verification reviewer opens from the opt-in screenshot (SMS-OPT-IN-PLAN
@@ -96,5 +96,25 @@ describe("the privacy policy's text-message section", () => {
     // The two sentences a verification reviewer reads for, in the form carriers expect.
     expect(w.text()).toContain("No mobile information will be shared with third parties or affiliates for marketing");
     expect(w.text()).toContain("opt-in data and consent will not be shared with any third parties");
+  });
+});
+
+/**
+ * APPLY-PAGE-PLAN AP3, D-AP7: the section the careers form and its footer link to (`CAREERS_PRIVACY_PATH`). It must
+ * name what the API actually records beside the form's fields: the address and browser (`raw.client`) and
+ * Cloudflare's check (`raw.checks`).
+ */
+describe("the privacy policy's careers page section", () => {
+  it("exists at the anchor the careers form links to, and names the address, the browser and Cloudflare's check", () => {
+    const w = mountPage(PrivacyPolicyPage);
+    const section = w.find(`#${CAREERS_PRIVACY_ANCHOR}`).element.closest("section");
+    expect(section, "the anchor heads a section").not.toBeNull();
+    const text = (section!.textContent ?? "").replace(/\s+/g, " ");
+    expect(CAREERS_PRIVACY_PATH).toBe(`/privacy#${CAREERS_PRIVACY_ANCHOR}`);
+    for (const kept of ["name, mobile number and email", "answers to the job's questions", "ticked the box", "internet address and browser", "Cloudflare Turnstile"]) {
+      expect(text).toContain(kept);
+    }
+    expect(text).toContain("does not ask for your licence number, your address, your date of birth or your Social Security number");
+    expect(text).toContain("A failed check never stops you applying");
   });
 });

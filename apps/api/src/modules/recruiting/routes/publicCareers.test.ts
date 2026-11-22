@@ -160,6 +160,22 @@ describe("what a stranger may see", () => {
     expect(v.accommodation).toEqual({ email: "recruiting@silvicominc.com", phone: null });
     expect(v.openings.map((o) => o.id)).toEqual([OPENING]);
     expect(v.openings[0]).toMatchObject({ title: "Regional dry van", areaLabel: "Chicago, IL", pay: { per: "mile", min_cents: 60, max_cents: 75 } });
+    // D-AP9: with no careers host set, both the page and the legal pages are the office host's.
+    expect([v.pageUrl, v.legalOrigin]).toEqual(["https://360.example.test/careers/silvicom", "https://360.example.test"]);
+  });
+
+  it("on a server with a careers host (D-AP9): the pages name it, the legal pages stay on the office host, the lead records it", async () => {
+    await start({ ...KEYS, CAREERS_URL: "https://careers.example.test", WEB_APP_URL: "https://360.example.test/" });
+    try {
+      seed();
+      const list = (await (await get("/silvicom")).json()) as CareersListView;
+      expect([list.pageUrl, list.legalOrigin]).toEqual(["https://careers.example.test/careers/silvicom", "https://360.example.test"]);
+      seed();
+      const job = (await (await get(`/silvicom/jobs/${OPENING}`)).json()) as ApplyJobView;
+      expect([job.pageUrl, job.legalOrigin]).toEqual([`https://careers.example.test/careers/silvicom/jobs/${OPENING}`, "https://360.example.test"]);
+    } finally {
+      await start();
+    }
   });
 
   it("a page that is off, a handle nobody holds, and a handle people cannot type all answer the same 404", async () => {

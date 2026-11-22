@@ -177,6 +177,19 @@ Two faults on that site are the owner's to pass to the web developer (§6, AP5):
   - The privacy policy paragraph.
   - The Openings editor's "not published: no top of pay range".
   - An `e2e:apply` spec with an axe scan at 390 × 844 and 1280 × 800.
+  - **Built 2026-11-22**, in two merges. Progress files: `ads-progress/2026-11-22-1700-S-AP3a-careers-host.md` and
+    `…-1900-S-AP3b-careers-pages.md`.
+    - **AP3a, #2613:** the careers host (D-AP9).
+    - **AP3b:**
+      - `/careers/:handle` and `/careers/:handle/jobs/:openingId`, under the applicant's layout;
+      - the job's facts, in words shared with the Openings editor (`openingText.ts`, with the pay range first);
+      - the form, the box, Turnstile and the footer;
+      - each page's title and canonical link;
+      - the privacy policy's careers section (`/privacy#careers-page`, legal 1.4);
+      - the Openings tab's line for an open job missing from the page.
+
+      Measured in Chromium against the built app under production's CSP: axe finds no WCAG 2.2 AA violation at
+      390 × 844 or 1280 × 800, and Cloudflare's script loads only where the server holds keys.
 - **AP4 · The lead drawer.** A "From the apply page" section shows each check's result in words, the opening, and
   the texting box: recorded, not ticked, or ticked but not recorded because the submission was flagged.
 - **AP5 · Hand-off (owner).** The handoff has two parts:

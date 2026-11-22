@@ -89,6 +89,13 @@ export interface CareersListView {
   handle: string;
   openings: CareersListOpening[];
   accommodation: ApplyAccommodation;
+  /** This page's own address on the careers host (D-AP9): the page's canonical link, one per job for Google and Indeed. */
+  pageUrl: string;
+  /**
+   * The office app's origin, where the Privacy Policy and SMS Terms live (D-AP9). They stay there: the toll-free
+   * verification registered them on that host. The page adds the paths, which are the web app's own.
+   */
+  legalOrigin: string;
 }
 
 /** `GET /api/public/careers/:handle/jobs/:openingId`: the job, its form, and the token the form is sent back with. */
@@ -113,6 +120,13 @@ export interface ApplyJobView {
   formToken: string | null;
   /** Turnstile's site key, or null when the server holds no Turnstile keys (D-AP6): the page then shows no widget. */
   turnstileSiteKey: string | null;
+  /** This page's own address on the careers host (D-AP9): the page's canonical link, one per job for Google and Indeed. */
+  pageUrl: string;
+  /**
+   * The office app's origin, where the Privacy Policy and SMS Terms live (D-AP9). They stay there: the toll-free
+   * verification registered them on that host. The page adds the paths, which are the web app's own.
+   */
+  legalOrigin: string;
 }
 
 // ── what the page sends ─────────────────────────────────────────────────────────────────────────

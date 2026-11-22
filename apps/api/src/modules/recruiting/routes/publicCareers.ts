@@ -10,6 +10,7 @@ import {
   type ApplyJobView,
   type CareersListView,
 } from "@silvicom/shared";
+import type { Env } from "../../../env.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -43,6 +44,11 @@ export interface PublicCareersDeps {
 /** `apiError`'s shape plus the field the page puts the sentence under. */
 const fieldError = (message: string, field: string) => ({ error: { ...apiError("bad_request", message).error, field } });
 
+/** One job's page: the address the lead records (`raw.page.url`) and the page's canonical link, built once. */
+const jobPageUrl = (env: Env, handle: string, openingId: string): string => `${careersPageUrl(env, handle)}/jobs/${openingId}`;
+/** The office app's origin (`WEB_APP_URL`), where the legal pages live (D-AP9). */
+const officeOrigin = (env: Env): string => env.WEB_APP_URL.replace(/\/+$/, "");
+
 const notFound = (res: import("express").Response) =>
   res.status(404).json(apiError("not_found", "This careers page or job is not available."));
 
@@ -52,7 +58,8 @@ export function publicCareersRouter(deps: PublicCareersDeps): Router {
   router.get(
     "/:handle",
     asyncHandler(async (req, res) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
       const page = await findCareersPage(admin, String(req.params.handle ?? ""));
       if (!page) return void notFound(res);
       const [carrier, openings] = await Promise.all([carrierName(admin, page.orgId), publishedOpenings(admin, page.orgId)]);
@@ -61,6 +68,8 @@ export function publicCareersRouter(deps: PublicCareersDeps): Router {
         handle: page.handle,
         accommodation: page.accommodation,
         openings: openings.map((o) => ({ id: o.id, title: o.title, pay: o.facts.pay, areaLabel: o.areaLabel, equipment: o.facts.equipment, schedule: o.facts.schedule })),
+        pageUrl: careersPageUrl(env, page.handle),
+        legalOrigin: officeOrigin(env),
       };
       res.set("Cache-Control", "no-store");
       res.json(view);
@@ -87,6 +96,8 @@ export function publicCareersRouter(deps: PublicCareersDeps): Router {
         accommodation: page.accommodation,
         formToken: issueFormToken(env, page.orgId, opening.id, new Date()),
         turnstileSiteKey: turnstileKeys(env)?.siteKey ?? null,
+        pageUrl: jobPageUrl(env, page.handle, opening.id),
+        legalOrigin: officeOrigin(env),
       };
       // The token is this request's own; a shared cache handing it to the next visitor would merge two people.
       res.set("Cache-Control", "no-store");
@@ -121,7 +132,7 @@ export function publicCareersRouter(deps: PublicCareersDeps): Router {
           configured: deps.recipientsFor(admin),
           carrier: await carrierName(admin, page.orgId),
           client: { ip: req.ip ?? null, userAgent: req.get("user-agent") ?? null },
-          pageUrl: `${careersPageUrl(env, page.handle)}/jobs/${opening.id}`,
+          pageUrl: jobPageUrl(env, page.handle, opening.id),
           ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
         },
         page, opening, parsed.data,

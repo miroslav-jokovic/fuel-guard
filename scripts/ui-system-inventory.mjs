@@ -927,6 +927,11 @@ function verifyAdoption() {
     "ApplyDoorPage.vue",
     // HW8a: the orientation videos on the same applicant link, in the same ApplyLayout — the same reason.
     "ApplyVideosPage.vue",
+    // APPLY-PAGE-PLAN AP3: the public careers list and job, in the same ApplyLayout for somebody with no session.
+    // The same no-workspace reason, and one of their own: a header's breadcrumb walks into the office app, which
+    // the careers host (D-AP9) does not serve.
+    "CareersListPage.vue",
+    "CareersJobPage.vue",
     "auth/AcceptInvitePage.vue",
     "auth/DriverAppRedirectPage.vue",
     // 0363: both render in AuthLayout beside LoginPage, for somebody who cannot sign in — the same

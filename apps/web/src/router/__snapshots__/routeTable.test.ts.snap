@@ -27,6 +27,21 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/apply/tok_123/videos",
   },
   {
+    "name": "careers",
+    "params": {
+      "handle": "silvicom",
+    },
+    "url": "/careers/silvicom",
+  },
+  {
+    "name": "careers-job",
+    "params": {
+      "handle": "silvicom",
+      "openingId": "op_1",
+    },
+    "url": "/careers/silvicom/jobs/op_1",
+  },
+  {
     "name": "accept-invite",
     "params": {},
     "url": "/accept-invite",
@@ -891,6 +906,26 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "billing",
     "path": "/billing",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "apply",
+      "public": true,
+      "title": "Careers",
+    },
+    "name": "careers",
+    "path": "/careers/:handle",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "apply",
+      "public": true,
+      "title": "Job",
+    },
+    "name": "careers-job",
+    "path": "/careers/:handle/jobs/:openingId",
     "redirect": null,
   },
   {

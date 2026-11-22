@@ -12,6 +12,7 @@ import { financeRoutes } from "./routes/finance";
 import { maintenanceRoutes } from "./routes/maintenance";
 import { settingsRoutes } from "./routes/settings";
 import { legalRoutes } from "./routes/legal";
+import { careersRoutes } from "./routes/careers";
 import { systemRoutes, notFoundRoute } from "./routes/system";
 
 /**
@@ -52,6 +53,7 @@ export const ROUTE_TABLE: readonly RouteRecordRaw[] = [
   ...maintenanceRoutes,
   ...settingsRoutes,
   ...legalRoutes,
+  ...careersRoutes,
   ...systemRoutes,
   // Must stay last: it matches everything. See `routes/system.ts`.
   notFoundRoute,
