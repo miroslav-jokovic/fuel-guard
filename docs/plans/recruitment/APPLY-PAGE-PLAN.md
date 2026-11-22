@@ -186,3 +186,80 @@ Two faults on that site are the owner's to pass to the web developer (§6, AP5):
   - (a) **recommended:** do not ask. Meta forbids both on its form. The DOT application asks them under its own
     consent (`application-11.pdf`), and a careers form holding licence numbers is a breach surface for no
     decision it makes.
+
+## 5. The audit of 2026-11-22, and what it changed
+
+Three faults the audit found, each measured in the code and in production before it was changed.
+
+**F-AP1 · A flagged lead was quiet only on arrival.** D-AP5 says a flagged submission rings nobody and is not
+looked up. Three background readers act on a lead after it is stored, and none of them knew about flags:
+
+| Reader | What it did with a flagged lead | Now |
+|---|---|---|
+| `leadUncontacted.ts`, the "nobody has called" alarm | rang it once it was past the carrier's threshold | counted as `flagged`, never rung |
+| `phoneLookup.ts` `lookUpMissingPhones`, the lookup retry | paid Telnyx for its number within 5 minutes | skipped while the lead is `new`; looked up once a recruiter has worked it, or when a clean lead has the same number |
+| `leadOutcomes.ts` `recruitingLeadSources`, the cost report's "by source" | counted it as a Careers page lead | left out until a person has worked it (contacted, qualified, converted…), then counted like any lead |
+
+All three read the lead's own stored `raw.checks.flags` through one select (`APPLY_FLAGS_SELECT`) and one rule
+(`isFlaggedLead`, shared). The lead-quality alert, the outcome feed and the brief read ad leads only, which carry a
+campaign and are never flagged, so they are unchanged. No other reader counts new leads (no badge, no dashboard figure).
+
+*Why "once worked" counts:* a flagged lead may be a real driver whose browser blocked Cloudflare's script. Once a
+recruiter has called or qualified them, a person has vouched for the lead; leaving it out of the report then would
+undercount a real one.
+
+**F-AP2 · The SMS terms named one way to agree; the code has three.** `/sms-terms` said texts come "only if you …
+tick the text-message box on your application page". But:
+- the recruiter's attestation (D-SMS11, live since 2026-10-20) also starts texts;
+- the careers page's box (AP2) does too.
+
+It also promised every applicant that "every message is also sent by email, and your application page always shows
+where things stand", which a careers-page lead does not have. Now the terms:
+- list all three ways to agree;
+- name the union of the two boxes' message kinds;
+- say what only a private application page has only of that page;
+- explain how to agree again after START.
+
+The privacy section says the same, and says what a recruiter's attestation stores (their address and browser, and
+their name on the audit row; `applicationInviteText.ts`). `LEGAL_VERSION` is 1.3.
+
+**F-AP3 · The company's name.** `COMPANY_NAME` printed "Silvicom Inc." and said production carried the same string.
+Measured 2026-11-22, three records agree on "Silvicom Inc", with no period:
+- FMCSA SAFER for US DOT 1864495: "Legal Name: SILVICOM INC";
+- production's `organizations.name`, which every consent's wording is composed from;
+- the toll-free verification's `businessName`.
+
+The constant now matches them. (SAFER's address reads "1301 W ARMITAGE AVE"; ours and the verification's omit the
+"W". They agree with each other, so this is left alone.)
+
+**Q-AP5 · The toll-free verification describes one way to agree — owner, then Telnyx.** The record
+(`14c37df3-1df5-57e2-b612-8127014e609e`, Verified 2026-09-30, read 2026-11-22) gives the private application page
+as the only opt-in, in its `optInWorkflow` and its `useCaseSummary` ("Only applicants who opt in on their own
+application page receive them").
+- *Measured:* production holds 6 consents, all `application`; no `office_invite` consent has ever been written.
+  So no text has gone out under an unregistered opt-in. The invite path can be used today, though, and the careers
+  page will add the second.
+- *What Telnyx documents:*
+  - `PATCH /v2/messaging_tollfree/verification/requests/{id}` exists ("particularly useful when there are pending
+    customer actions").
+  - Its opt-in guide gives a template per method and says every link must be public "or it will fail review".
+  - It does NOT say whether editing a Verified record sends it back for review, or whether the number keeps
+    sending meanwhile.
+- (a) **recommended:**
+  1. Ask Telnyx support those two questions first.
+  2. Then, once AP3 is live in production (the reviewer must be able to open the careers page), send the update
+     below in one PATCH, and before any lead is texted (Q-AP1).
+  3. Retake the application-page screenshots if that card has changed.
+- (b) Send it now. The careers page URL would 404 for the reviewer, which the guide says fails review.
+- (c) Leave it. Texting a careers-page lead, or using invite-by-text, would then rest on an opt-in the carriers
+  were never shown.
+
+The update, each field under Telnyx's 500-character limit (measured: 475 and 491):
+
+| Field | Value |
+|---|---|
+| optInWorkflow | Three optional opt-ins, never pre-ticked. 1) Public careers page: start at https://360.silvicominc.com/careers/silvicom, open a job; its application form has an unticked text box under the mobile number, the full disclosure, and links to our SMS terms and privacy policy. 2) Private application page (360.silvicominc.com/apply/<token>, sent by email): screenshots attached. 3) An applicant on the phone asks a recruiter to text their link; the recruiter ticks an attestation. |
+| useCaseSummary | Silvicom Inc, a carrier, texts truck-driver job applicants about their own application: application links, reminders for unfinished steps, interview and orientation scheduling, and status notices such as approval. Only applicants who opt in receive them: on our careers page, on their private application page, or by asking a recruiter. Optional, never a condition of applying. No marketing or third-party content. No texts at night. Every message names Silvicom Inc and says how to opt out. |
+
+`productionMessageContent` gains a careers-page sample when Q-AP1 writes the first lead message. Until then no
+such message exists to show.

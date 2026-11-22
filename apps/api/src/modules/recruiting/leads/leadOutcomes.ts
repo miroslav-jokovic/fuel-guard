@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DEFAULT_ORG_TIMEZONE, wallClockInZone, wallClockToUtc, type LeadOutcome, type LeadOutcomes, type LeadSourceOutcome, type LeadSources } from "@silvicom/shared";
+import { APPLY_FLAGS_SELECT, DEFAULT_ORG_TIMEZONE, isFlaggedLead, wallClockInZone, wallClockToUtc, type LeadOutcome, type LeadOutcomes, type LeadSourceOutcome, type LeadSources } from "@silvicom/shared";
 
 /**
  * Recruiting's `LeadOutcomes` (Q-AD34, ruled 2026-11-05): which stages each ad lead reached and when, read
@@ -107,6 +107,8 @@ interface OutcomeRow {
   ad_ref: string | null;
   arrived_at: string;
   reached: LeadOutcome["reached"];
+  /** A careers-page submission a robot check flagged (D-AP5); read only by the filter that drops an unworked one. */
+  flagged: boolean;
 }
 
 const META_AD_ID = /^[0-9]{1,40}$/;
@@ -121,13 +123,14 @@ async function readOutcomeRows(admin: SupabaseClient, orgId: string, w: { since:
   // window's end is NOT put on `received_at`: a lead the backfill stored hours late may have arrived inside it.
   const leadRows = await allPages("recruiting_leads", () => {
     let q = admin.from("recruiting_leads")
-      .select("id, channel, external_ref, campaign_ref, platform_created_at, received_at, ad_ref:raw->>ad_id")
+      .select(`id, channel, external_ref, campaign_ref, platform_created_at, received_at, ad_ref:raw->>ad_id, ${APPLY_FLAGS_SELECT}`)
       .eq("org_id", orgId);
     if (w.adsOnly) q = q.not("campaign_ref", "is", null);
     return q.gte("received_at", w.since).order("id");
   });
   const leads = leadRows
     .map((l) => ({
+      flagged: isFlaggedLead(l),
       id: String(l.id), provider: String(l.channel), ref: String(l.external_ref ?? ""), campaign: l.campaign_ref === null || l.campaign_ref === undefined ? null : String(l.campaign_ref),
       ad: typeof l.ad_ref === "string" && META_AD_ID.test(l.ad_ref) ? l.ad_ref : null,
       arrived: new Date(String(l.platform_created_at ?? l.received_at)).toISOString(),
@@ -203,6 +206,13 @@ async function readOutcomeRows(admin: SupabaseClient, orgId: string, w: { since:
       const end = lost.get(conv.driver);
       if (!hired && end) reached.lost_after_conversion = end.at;
     }
-    return { lead_id: l.id, provider: l.provider, platform_lead_ref: l.ref, campaign_id: l.campaign, ad_ref: l.ad, arrived_at: l.arrived, reached };
-  });
+    return { lead_id: l.id, provider: l.provider, platform_lead_ref: l.ref, campaign_id: l.campaign, ad_ref: l.ad, arrived_at: l.arrived, reached, flagged: l.flagged };
+  })
+    // A flagged careers-page submission (APPLY-PAGE-PLAN D-AP5) that NOBODY has worked is not counted as a lead of
+    // its source: a bot flood would read as "Careers page: 400 leads". It is still in the queue with its flags. Once
+    // a person contacts, qualifies or converts it, a recruiter has vouched for it — a real driver whose browser
+    // blocked the robot check — and it counts like any lead. Ad leads (`adsOnly`) carry a campaign and are never
+    // flagged, so the outcome feed and the brief are unmoved.
+    // `flagged` stays on the internal row: both readers below copy named fields out, so it never crosses the interface.
+    .filter((r) => !r.flagged || Object.keys(r.reached).length > 0);
 }
