@@ -408,7 +408,10 @@ screens are restyled through primitives only (§3).
     and an open stop on it, and otherwise disappears or says "No stop in progress". Every word is Today's
     (`activeLoadStatus`, `countdownLabel`), read through `src/features/glance/glanceModel.ts`, so the Lock
     Screen and Today cannot disagree. No ETA, no miles (D-DV13).
-  - **The countdown is the system's timer**, which stays right with the app asleep. It runs only while the
+  - **The countdown is the system's own relative date** ("Window opens in 7 hr, 59 min", Today's units),
+    which stays right with the app asleep. A timer was tried first: on the Lock Screen iOS hides its
+    seconds ("7:59:––"), and an H:MM:SS figure under the window's clock read as a second clock. The narrow
+    Dynamic Island slots show the appointment's time instead. It runs only while the
     window is ahead; past the start, the words say what happened ("Window open now", "Window closed"),
     never a timer counting up.
     - The Lock Screen widget's timeline has one entry per phase.

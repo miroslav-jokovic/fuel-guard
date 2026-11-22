@@ -1,4 +1,4 @@
-import { Text, VStack } from '@expo/ui/swift-ui';
+import { HStack, Text, VStack } from '@expo/ui/swift-ui';
 import { containerBackground, font, lineLimit, monospacedDigit, widgetURL } from '@expo/ui/swift-ui/modifiers';
 import { createWidget } from 'expo-widgets';
 import { idleProps, type GlanceProps } from './glanceModel';
@@ -25,11 +25,15 @@ const StopWidget = (props: GlanceProps) => {
         <Text modifiers={[font(t.place), monospacedDigit(), lineLimit(1)]}>{props.window}</Text>
       )}
       {counting ? (
-        <Text
-          date={new Date(props.countdownTo ?? Date.now())}
-          dateStyle="timer"
-          modifiers={[font(t.caption), monospacedDigit(), lineLimit(1)]}
-        />
+        // Relative ("7 hr, 59 min"), not a timer: the Lock Screen hides a timer's seconds.
+        <HStack spacing={4}>
+          <Text modifiers={[font(t.caption), lineLimit(1)]}>{props.countdownCaption}</Text>
+          <Text
+            date={new Date(props.countdownTo ?? Date.now())}
+            dateStyle="relative"
+            modifiers={[font(t.caption), monospacedDigit(), lineLimit(1)]}
+          />
+        </HStack>
       ) : props.line ? (
         <Text modifiers={[font(t.caption), lineLimit(1)]}>{props.line}</Text>
       ) : null}
