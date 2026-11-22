@@ -99,7 +99,7 @@ import { loadStopName } from "@/features/dispatch/dispatchBoardView";
 import LoadStopCell from "@/features/dispatch/LoadStopCell.vue";
 import { TYPE_OPTIONS, TYPE_VALUES, hazmatChipLabel, hazmatTone, matchesType } from "@/features/dispatch/loadType";
 import { BADGE_BASE, onTimeBadge, toneClass } from "@/lib/badges";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatDateTimeWrapping } from "@/lib/format";
 
 const PAGE_SIZE = 20;
 
@@ -473,7 +473,8 @@ function openDetail(load: DispatchLoad) {
           </div>
         </template>
         <template #cell-delivered="{ row }">
-          <span :class="deliveredCell(row, nowMs).at ? 'tabular-nums' : 'text-ink-tertiary'">{{ at(deliveredCell(row, nowMs).at) }}</span>
+          <!-- Breaks between date and time only: a third of a phone card (owner, 2026-11-22). -->
+          <span :class="deliveredCell(row, nowMs).at ? 'tabular-nums' : 'text-ink-tertiary'">{{ formatDateTimeWrapping(deliveredCell(row, nowMs).at, "—", zone) }}</span>
           <p v-if="deliveredCell(row, nowMs).ahead" class="text-xs text-warning-700" title="McLeod has this time later than now: it was entered ahead.">Entered ahead in McLeod</p>
         </template>
         <template v-for="k in RATE_KEYS" :key="k" #[`cell-${k}`]="{ row }"><LoadRateCell :charges="row.charges" :figure="k" :per-mile-line="k === 'rate'" /></template>

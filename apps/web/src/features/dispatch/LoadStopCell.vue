@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatDateTime } from "@/lib/format";
+import { formatDateTimeWrapping } from "@/lib/format";
 import { loadStopName, milesLeftWords } from "./dispatchBoardView";
 import type { DispatchStop } from "./useDispatchLoads";
 
@@ -23,7 +23,8 @@ const props = defineProps<{
   zone: string;
 }>();
 
-const at = (iso: string | null | undefined) => formatDateTime(iso, "—", props.zone);
+/** May break between the date and the time only: a phone card gives this cell a third of 390 px (owner, 2026-11-22). */
+const at = (iso: string | null | undefined) => formatDateTimeWrapping(iso, "—", props.zone);
 const city = (s: DispatchStop) => [s.city, s.state].filter(Boolean).join(", ");
 </script>
 

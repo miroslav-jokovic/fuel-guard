@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { describeDriverEdit, formatDate, formatDateTime, formatPhone, phoneDialString } from "./format";
+import { describeDriverEdit, formatDate, formatDateTime, formatDateTimeWrapping, formatPhone, phoneDialString } from "./format";
 
 describe("phoneDialString", () => {
   it("dials every US shape Samsara stores as +1 and ten digits", () => {
@@ -34,6 +34,23 @@ describe("formatDateTime", () => {
   });
   it("returns an em dash for missing timestamps", () => {
     expect(formatDateTime(null)).toBe("—");
+  });
+});
+
+describe("formatDateTimeWrapping", () => {
+  it("breaks between the date and the time, and nowhere else", () => {
+    const zone = "America/Chicago";
+    const stamp = "2026-10-27T18:00:00.000Z";
+    const out = formatDateTimeWrapping(stamp, "—", zone);
+    // The same string formatDateTime prints, with only the meridiem's space made unbreakable.
+    expect(out.replace(/\u00a0/g, " ")).toBe(formatDateTime(stamp, "—", zone));
+    expect(out).toBe("10/27/2026 1:00\u00a0PM");
+    expect(out.split(" ")).toEqual(["10/27/2026", "1:00\u00a0PM"]);
+    expect(formatDateTimeWrapping("2026-10-27T14:45:00.000Z", "—", zone)).toBe("10/27/2026 9:45\u00a0AM");
+  });
+  it("leaves the fallback alone", () => {
+    expect(formatDateTimeWrapping(null)).toBe("—");
+    expect(formatDateTimeWrapping(undefined, "No time")).toBe("No time");
   });
 });
 
