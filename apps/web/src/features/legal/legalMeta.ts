@@ -30,7 +30,9 @@
 // texts — the careers page's box (APPLY-PAGE-PLAN AP2), the application page's box, and asking a recruiter
 // (D-SMS11) — and what the messages are about is the two boxes' own words; the company's name is printed as its
 // registration reads, without the period.
-export const LEGAL_VERSION = "1.3";
+// 1.4 (2026-11-22): the privacy policy's section on the careers page's form — what it keeps, including the internet
+// address, the browser and Cloudflare Turnstile's check (APPLY-PAGE-PLAN AP3, D-AP7).
+export const LEGAL_VERSION = "1.4";
 export const LEGAL_EFFECTIVE = "22 November 2026";
 
 /**

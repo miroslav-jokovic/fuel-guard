@@ -15,8 +15,8 @@ import type { BadgeTone } from "@/lib/badges";
  * The Openings editor's form (Q-AD43 (b), Q-AD44 (a)), kept apart from the screen so what a save sends can be
  * tested. `openingSaveSchema` judges it, here as at the API, so the contract's own rule is what a person reads,
  * after the name of the field it is about. Nothing here restates a bound: the radius' 15–500, the pay basis
- * list and the equipment list are the contract's, and the words below are only their labels (tsc holds each
- * label map to its list, both ways).
+ * list and the equipment list are the contract's, and their words are shared `openingText.ts`'s (the careers page
+ * reads the same labels).
  *
  * Pay is typed in dollars and sent in cents (`AD_MONEY_PER`'s units, D-AD1), because nobody types "62" for
  * 62 cents a mile. The area's point comes only from the place search: there is no latitude field to fill.
@@ -26,29 +26,6 @@ type PayPer = (typeof AD_MONEY_PER)[number];
 type Schedule = (typeof OPENING_SCHEDULES)[number];
 type BonusKind = (typeof OPENING_BONUS_KINDS)[number];
 
-export const EQUIPMENT_LABEL: Record<Equipment, string> = {
-  dry_van: "Dry van",
-  reefer: "Reefer",
-  flatbed: "Flatbed",
-  tanker: "Tanker",
-  intermodal: "Intermodal",
-};
-export const PAY_PER_LABEL: Record<PayPer, string> = {
-  mile: "Per mile",
-  week: "Per week",
-  year: "Per year",
-  hour: "Per hour",
-  day: "Per day",
-  load: "Per load",
-};
-export const SCHEDULE_LABEL: Record<Schedule, string> = { otr: "Over the road", regional: "Regional", local: "Local" };
-export const BONUS_KIND_LABEL: Record<BonusKind, string> = { "sign-on bonus": "Sign-on bonus", "referral bonus": "Referral bonus" };
-/**
- * The benefit boxes are the claim checker's own catalogue (`OPENING_BENEFIT_TERMS`, derived from `PROMISE_TERMS`),
- * read as labels by capitalising the key: a term the checker learns is a box here with no edit. The list is in the
- * contract; this only says how a key reads.
- */
-export const benefitLabel = (key: string): string => key.charAt(0).toUpperCase() + key.slice(1);
 export const OPENING_STATUS_LABEL: Record<OpeningStatus, string> = { open: "Open", paused: "Paused", filled: "Filled", closed: "Closed" };
 export const OPENING_STATUS_TONE: Record<OpeningStatus, BadgeTone> = { open: "success", paused: "warning", filled: "info", closed: "neutral" };
 /** The kebab's words for moving an opening TO a status. */

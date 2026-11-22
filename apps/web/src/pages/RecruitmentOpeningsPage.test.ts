@@ -3,7 +3,7 @@ import { mount } from "@vue/test-utils";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
 import { createMemoryHistory, createRouter } from "vue-router";
-import { HIRING_PROFILE_V1, type OpeningView } from "@silvicom/shared";
+import { HIRING_PROFILE_V1, OPENING_UNPUBLISHED_TEXT, type OpeningView } from "@silvicom/shared";
 import PlaceSearchField from "@/features/recruitment/PlaceSearchField.vue";
 import RecruitmentOpeningsPage from "@/pages/RecruitmentOpeningsPage.vue";
 
@@ -142,6 +142,17 @@ describe("Recruitment › Openings", () => {
     await w.find(`[data-test="move-${OPENING}-paused"]`).trigger("click");
     await settle(w);
     expect(posts(`/api/recruitment/openings/${OPENING}/status`)).toEqual([{ status: "paused" }]);
+  });
+
+  // APPLY-PAGE-PLAN D-AP2: the office learns why an open job is missing from the careers page where it edits the job.
+  it("an open opening with no top of pay says it is not on the careers page; a published one and a paused one say nothing", async () => {
+    const noTop: OpeningView = { ...SAVED, id: "60000000-0000-4000-8000-000000000002", current: { ...SAVED.current!, facts: { ...SAVED.current!.facts, pay: { per: "mile", min_cents: 62, max_cents: null } } } };
+    const pausedNoTop: OpeningView = { ...noTop, id: "60000000-0000-4000-8000-000000000003", status: "paused" };
+    api.answer = world([SAVED, noTop, pausedNoTop], [PROFILE]);
+    const { w } = await render("/recruitment/openings");
+    expect(w.find(`[data-test="careers-gap-${noTop.id}"]`).text()).toBe(OPENING_UNPUBLISHED_TEXT.no_pay_top);
+    expect(w.find(`[data-test="careers-gap-${OPENING}"]`).exists()).toBe(false);
+    expect(w.find(`[data-test="careers-gap-${pausedNoTop.id}"]`).exists()).toBe(false);
   });
 
   it("opens a saved opening as its next version", async () => {

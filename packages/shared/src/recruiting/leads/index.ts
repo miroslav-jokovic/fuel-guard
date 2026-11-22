@@ -2,6 +2,7 @@
 // (`lint:boundaries`): the LeadSink, the queue and the screens all read these.
 export * from "./hiringProfile.js";
 export * from "./opening.js";
+export * from "./openingText.js";
 export * from "./leadContract.js";
 export * from "./leadMatch.js";
 export * from "./facts/index.js";

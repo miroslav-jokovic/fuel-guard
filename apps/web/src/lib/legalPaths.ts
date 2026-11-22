@@ -14,3 +14,12 @@ export const SMS_STAFF_ALERTS_ANCHOR = "staff-alerts";
 export const SMS_STAFF_ALERTS_TERMS_PATH = `${SMS_TERMS_PATH}#${SMS_STAFF_ALERTS_ANCHOR}`;
 export const SMS_PRIVACY_ANCHOR = "text-messages";
 export const SMS_PRIVACY_PATH = `/privacy#${SMS_PRIVACY_ANCHOR}`;
+
+/**
+ * The privacy policy's section on the public careers page's form (APPLY-PAGE-PLAN AP3, D-AP7): what it keeps,
+ * including the IP address and Cloudflare's check. The careers form and its footer link here, on the office host
+ * (D-AP9).
+ */
+export const PRIVACY_PATH = "/privacy";
+export const CAREERS_PRIVACY_ANCHOR = "careers-page";
+export const CAREERS_PRIVACY_PATH = `${PRIVACY_PATH}#${CAREERS_PRIVACY_ANCHOR}`;
