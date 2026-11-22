@@ -323,6 +323,34 @@ const config: ExpoConfig = {
     // MapLibre native map SDK (NAV NP0) — free/open vector tiles, no access token. The map hero in
     // B4.4 is a picture, not navigation: it needs no location permission, and both are blocked above.
     '@maplibre/maplibre-react-native',
+    /**
+     * Visual 2026 V9 (D-DV25): the glance surfaces. One widget, `StopWidget`, is the Lock Screen's
+     * accessoryRectangular on iOS and a home-screen widget on Android; the Live Activity
+     * (`StopActivity`) registers itself at runtime and is deliberately NOT listed here (the library's
+     * rule). Layouts: `src/features/glance/`.
+     *
+     * No push: the app updates its own activity while it runs, and the system timer carries the
+     * countdown while it sleeps. Push-to-update would need an APNs key on the server and a token
+     * table, a feature-plan decision, not a visual one. The widget extension needs the App Group
+     * `group.com.silvicom.fuelguard.driver` registered for the Apple team before a DEVICE build signs.
+     */
+    [
+      'expo-widgets',
+      {
+        bundleIdentifier: 'com.silvicom.fuelguard.driver.ExpoWidgetsTarget',
+        groupIdentifier: 'group.com.silvicom.fuelguard.driver',
+        enableAndroid: true,
+        widgets: [
+          {
+            name: 'StopWidget',
+            displayName: 'Next stop',
+            description: 'The stop you are driving to and its appointment window.',
+            ios: { supportedFamilies: ['accessoryRectangular'] },
+            android: { targetCellWidth: 3, targetCellHeight: 2, resizeMode: 'horizontal' },
+          },
+        ],
+      },
+    ],
     // The small icon Android draws in the status bar is a SILHOUETTE — only the alpha channel is
     // used and the system tints it, which is why `color` matters and the asset is white-on-transparent.
     [

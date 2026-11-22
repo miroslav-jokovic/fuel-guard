@@ -1,5 +1,6 @@
 import { View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Map, Camera, Marker } from '@maplibre/maplibre-react-native';
 import type { LoadStop } from '@silvicom/shared';
@@ -18,9 +19,10 @@ const HEIGHT = 250;
  * no routing service (D-DB8 / D-DV13) and a pannable map would promise one. Navigate, in the screen's
  * footer, hands the trip to the phone's own maps app instead.
  *
- * The back button floats over the map on a solid surface. D-DV2 allows glass on floating map controls
- * on iOS 26 only, and `expo-glass-effect` is a native addition this step does not make, so this is the
- * solid fallback the decision names.
+ * The back button floats over the map in Liquid Glass on iOS 26 (V9; D-DV2's one place we add our own
+ * glass), and on the solid white disc everywhere else, the fallback the decision names. The glyph on
+ * the glass follows what is under it: the role theme's ink over the map (whose style follows the same
+ * theme), the on-hero ink over the navy field, where ink would be navy on navy in the light theme.
  *
  * MapLibre fetches tiles live and there is no offline basemap, so with no signal, or a stop dispatch
  * did not geocode, the navy field with the address takes the strip's place rather than a grey box that
@@ -31,10 +33,11 @@ export function MapStrip({ stop, onBack }: { stop: LoadStop; onBack: () => void 
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const at: [number, number] | null = stop.lon != null && stop.lat != null ? [stop.lon, stop.lat] : null;
+  const showMap = online && at !== null;
 
   return (
     <View style={{ height: HEIGHT + insets.top }}>
-      {online && at ? (
+      {showMap && at ? (
         <View className="flex-1" pointerEvents="none">
           <Map style={{ flex: 1 }} mapStyle={mapStyleUrl(isDark)} logo={false} compass={false} attribution>
             <Camera center={at} zoom={13} duration={0} />
@@ -58,7 +61,13 @@ export function MapStrip({ stop, onBack }: { stop: LoadStop; onBack: () => void 
         </View>
       )}
       <View className="absolute left-4" style={{ top: insets.top + 8 }}>
-        <IconButton name="arrow_back" label="Back" variant="white" onPress={onBack} />
+        {isLiquidGlassAvailable() ? (
+          <GlassView isInteractive glassEffectStyle="regular" style={{ borderRadius: 22 }}>
+            <IconButton name="arrow_back" label="Back" variant={showMap ? 'plain' : 'glass'} onPress={onBack} />
+          </GlassView>
+        ) : (
+          <IconButton name="arrow_back" label="Back" variant="white" onPress={onBack} />
+        )}
       </View>
     </View>
   );

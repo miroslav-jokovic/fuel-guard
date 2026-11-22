@@ -402,6 +402,58 @@ screens are restyled through primitives only (§3).
     Without the patch no iOS build compiles. `scripts/apply-patches.mjs` carries upstream's proposed fix and names
     what removes it. SDK 57's own patch in that script retires, because 58 ships that fix.
 
+- **D-DV25 · Glance surfaces and native controls (V9), 2026-11-22.** One native build: `expo-widgets`,
+  `expo-glass-effect`, `@expo/ui` and `expo-symbols` (installed in V3b) in use. `runtime-version.json` 1.4.0 → 1.5.0.
+  - **The glance shows one thing: the stop being driven to.** It appears on duty, with a load in progress
+    and an open stop on it, and otherwise disappears or says "No stop in progress". Every word is Today's
+    (`activeLoadStatus`, `countdownLabel`), read through `src/features/glance/glanceModel.ts`, so the Lock
+    Screen and Today cannot disagree. No ETA, no miles (D-DV13).
+  - **The countdown is the system's timer**, which stays right with the app asleep. It runs only while the
+    window is ahead; past the start, the words say what happened ("Window open now", "Window closed"),
+    never a timer counting up.
+    - The Lock Screen widget's timeline has one entry per phase.
+    - The Live Activity goes stale at the next phase and then shows the window clock alone, which stays
+      true.
+  - **iOS:** a Live Activity on the Lock Screen and in the Dynamic Island, in Today's navy, plus an
+    `accessoryRectangular` Lock Screen widget in the system's monochrome. **Android:** a home-screen widget.
+    It shows only what stays true: Android widgets take a snapshot, not a timeline, and cannot run a timer.
+  - **No push.** The app updates its own activity while it runs. Push-to-update needs an APNs key on the
+    server and a token table, which belongs in the feature plan.
+  - **Sign-out ends the activity and blanks the widget.** A shared cab phone must not show the last
+    driver's stop.
+  - **Widget layouts read the type scale and the role colours as props** (`GLANCE_TYPE`, `GLANCE_COLORS`).
+    The widget runtime cannot reach `AppText` or the theme, and a literal there would be a second source of
+    type. `lint:design` now refuses a literal size in a `'widget'` file, and no longer mistakes
+    `@expo/ui`'s native `Text` for React Native's.
+  - **SF Symbols on iOS** come from a typed table (`src/theme/sfSymbols.ts`) covering all 112 Material
+    names. The compiler refuses a missing twin and a misspelt symbol. Android keeps the font.
+  - **Native controls (D-DV1):**
+    - Settings' Theme and Contrast are the system's segmented control: UISegmentedControl, or Material 3
+      segmented buttons on Android. At the largest text sizes they become the list.
+    - `ToggleRow` is the system's switch.
+    - `ConfirmSheet` and `ChoiceSheet` are the system's sheet, with our rows inside (`SystemSheet`).
+    - Each host takes the APP's colour scheme, which Settings → Theme may set apart from the phone's.
+  - **`@expo/ui` List is not adopted.** The native list is inset-grouped cards, which D-DV7 forbids, and it
+    sets titles in SF Pro, which D-DV18 forbids. More and Settings stay `GroupedList`, which V8 approved.
+  - **The map's back button is Liquid Glass on iOS 26** (`isLiquidGlassAvailable`), with the solid disc
+    elsewhere. It is `lint:design`'s one glass exception, by file. Over the navy no-signal field its glyph
+    takes the on-hero ink.
+  - **Switch colour, for the owner to rule on.** iOS draws the system's own switch, so "on" is iOS
+    green where the drawn switch was brand navy. Android's Material 3 palette defaults to lavender
+    (D-DV14), so its switches are seeded from the brand navy. Recommendation: keep the system green on
+    iOS, because a switch is system chrome (D-DV2).
+  - **Measured in the simulator, now pinned by tests:**
+    - A `null` in the widget props made `createWidget` throw at app start, a red screen instead of
+      Sign in; Swift dictionaries cannot hold null. Test: "carry no null anywhere, in every phase and
+      when idle (a Swift dictionary cannot hold one)". Registration is also guarded, so a failed glance
+      is a missing widget, never a broken app.
+    - A `.ts` Android stub beside `StopActivity.ios.tsx` won on iOS too, because Metro tries every
+      platform for one extension before the next. Both are `.tsx` now.
+    - The native sheet measured our content with no width limit; it is now bounded to the window.
+  - **Owner action before a device build:** register the App Group `group.com.silvicom.fuelguard.driver` and
+    the widget extension `com.silvicom.fuelguard.driver.ExpoWidgetsTarget` for the Apple team. The
+    simulator needs neither.
+
 - **Q-DV7 · A photo for a stop that is already finished.** The mock's screen 3 offers "Add" for a seal photo
   missing from a completed pickup. The app cannot do that: `driver_complete_stop` (migration 0141) refuses
   any change to a completed stop, and a repeat of the same status returns before it inserts photos. V5 shows

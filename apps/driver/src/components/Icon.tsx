@@ -1,6 +1,8 @@
-import { Text, type StyleProp, type TextStyle } from 'react-native';
+import { Platform, Text, type StyleProp, type TextStyle } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 import { roleColors } from '@/theme/colors';
 import { iconGlyph } from '@/theme/iconFont';
+import { sfGlyph } from '@/theme/sfSymbols';
 import { resolveIconColor } from '@/theme/iconColor';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
@@ -34,9 +36,10 @@ function colorFor(
 }
 
 /**
- * One icon: a Material Symbols glyph in its state colour (Visual 2026 D-DV11, V8). The colour is
- * resolved from the `text-*` class to a literal value, as before, so a class naming no role is caught
- * (`iconColor.ts`).
+ * One icon in its state colour, in the platform's own family (Visual 2026 D-DV11): an SF Symbol on
+ * iOS (V9, `sfSymbols.ts`), a Material Symbols glyph from the bundled font elsewhere (V8). Call sites
+ * name the Material Symbol on both. The colour is resolved from the `text-*` class to a literal value,
+ * as before, so a class naming no role is caught (`iconColor.ts`).
  *
  * An icon is decoration to assistive tech: the control it sits in carries the label. It does not
  * scale with the phone's text size, as the SVG it replaced did not, because the rows and buttons
@@ -47,6 +50,22 @@ function colorFor(
  */
 export function Icon({ name, size = 24, fill = false, className, color, style }: IconProps) {
   const { themeKey } = useTheme();
+  const tint = colorFor(className, color, themeKey);
+  if (Platform.OS === 'ios') {
+    return (
+      <SymbolView
+        name={sfGlyph(name, fill)}
+        size={size}
+        tintColor={tint}
+        weight="regular"
+        accessible={false}
+        accessibilityElementsHidden
+        importantForAccessibility="no"
+        // The symbol's box is the icon's box, as the glyph's is: callers lay it out by `size`.
+        style={[{ width: size, height: size }, style]}
+      />
+    );
+  }
   const { glyph, style: glyphStyle } = iconGlyph(name, fill, size);
   return (
     <Text
@@ -54,7 +73,7 @@ export function Icon({ name, size = 24, fill = false, className, color, style }:
       accessible={false}
       accessibilityElementsHidden
       importantForAccessibility="no"
-      style={[glyphStyle, { color: colorFor(className, color, themeKey) }, style]}
+      style={[glyphStyle, { color: tint }, style]}
     >
       {glyph}
     </Text>

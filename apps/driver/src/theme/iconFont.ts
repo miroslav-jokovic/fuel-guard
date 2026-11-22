@@ -14,9 +14,7 @@ import { MATERIAL_SYMBOLS, type MaterialSymbolName } from './materialSymbols.gen
  * fonts carry every one of them in their cmap. The fonts are subset by codepoint with no ligature
  * table, so the codepoint is the only way in, which is what `glyph` returns.
  *
- * iOS's SF Symbols, the other half of D-DV11, need `expo-symbols`, a native module, and wait for the
- * next native build (V3b or V9). Until then both platforms draw Material Symbols, which is still the
- * platform-family look D-DV11 asks for and one icon set instead of a vendor's.
+ * iOS draws SF Symbols instead (V9, `sfSymbols.ts`, through `expo-symbols`); this font is Android's.
  */
 export const ICON_FACE = 'MaterialSymbolsRounded';
 export const ICON_FACE_FILL = 'MaterialSymbolsRoundedFill';

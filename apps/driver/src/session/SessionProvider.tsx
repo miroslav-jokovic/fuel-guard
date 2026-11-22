@@ -4,6 +4,7 @@ import type { UserRole } from "@silvicom/shared";
 import { decodeClaims } from "@/lib/jwt";
 import { supabase } from "@/lib/supabase";
 import { env } from "@/lib/env";
+import { clearGlance } from "@/features/glance/glanceSync";
 
 /**
  * The resolved auth state that drives every routing decision (root guard) and gated UI.
@@ -116,7 +117,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         signIn: () => Promise.resolve(),
         signOut: () => {
           setDevBypass(false);
-          return Promise.resolve();
+          return clearGlance();
         },
         refresh: () => Promise.resolve(),
         activateDevBypass() {
@@ -180,6 +181,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       async signOut() {
         // Clear local state first so the guard reacts immediately (no waiting on the network).
         setSession(null);
+        // A shared cab phone's Lock Screen must not keep the last driver's stop (Visual 2026 D-DV25).
+        await clearGlance();
         try {
           await supabase.auth.signOut({ scope: "local" });
         } catch {
