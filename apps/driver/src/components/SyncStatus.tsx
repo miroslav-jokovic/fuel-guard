@@ -1,6 +1,5 @@
 import { View } from 'react-native';
 import { AppText } from './AppText';
-import { Badge } from './Badge';
 import { Icon } from './Icon';
 import { ListRow } from './ListRow';
 import { useIsOnline } from '@/lib/connectivity';
@@ -18,10 +17,11 @@ function relativeTime(ts: number | null): string {
 
 export function PendingBadge() {
   const { pending, needsAttention } = useSyncState();
+  // A status is a word in its colour, never a pill (Visual 2026 D-DV14, V8).
   if (needsAttention > 0) {
-    return <Badge label={`${needsAttention} needs attention`} tone="danger" icon="sync_problem" />;
+    return <AppText variant="supporting" weight="semibold" tone="danger" tabular>{`${needsAttention} need attention`}</AppText>;
   }
-  if (pending > 0) return <Badge label={`${pending} pending`} tone="info" />;
+  if (pending > 0) return <AppText variant="supporting" weight="semibold" tone="warning" tabular>{`${pending} waiting`}</AppText>;
   return null;
 }
 
@@ -45,9 +45,9 @@ export function SyncStatus() {
       onPress={() => { void runSync(); }}
       right={
         needsAttention > 0 ? (
-          <Badge label={String(needsAttention)} tone="danger" />
+          <AppText variant="supporting" weight="semibold" tone="danger" tabular>{`${needsAttention} failed`}</AppText>
         ) : pending > 0 ? (
-          <Badge label={String(pending)} tone="info" />
+          <AppText variant="supporting" weight="semibold" tone="warning" tabular>{`${pending} waiting`}</AppText>
         ) : (
           <Icon name="refresh" size={20} className="text-ink-secondary" />
         )

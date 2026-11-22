@@ -69,7 +69,9 @@ for (const path of files) {
     if (/^\s*(?:\/\/|\*|\/\*)/.test(line)) return;
     for (const rule of rules) {
       if (rule.allow?.some((allowed) => path.endsWith(allowed))) continue;
-      if (path.endsWith('src/components/AppText.tsx') && rule.pattern.source === '<Text(?:\\s|>)') continue;
+      // AppText is the text primitive; Icon draws a font glyph, which is not text (V8, iconFont.ts).
+      if ((path.endsWith('src/components/AppText.tsx') || path.endsWith('src/components/Icon.tsx'))
+        && rule.pattern.source === '<Text(?:\\s|>)') continue;
       if (rule.pattern.test(line)) failures.push(`${path}:${index + 1} ${rule.message}`);
     }
   });
