@@ -47,6 +47,36 @@
 	import api_replicas
 }
 
+# The public careers pages (APPLY-PAGE-PLAN D-AP9) on the company's own name. The same SPA and the same api replicas
+# as the office host, but only what an applicant needs is reachable here: the careers pages, their API, and the built
+# files those pages load (any path ending in a file extension — the same public files 360 serves to anyone).
+# Everything else is a 404, so the office's sign-in page and the rest of `/api` are never served under the careers
+# name. The legal pages stay on the office host, where the toll-free verification registered them; the form links
+# there (the API hands it the addresses). `/` is a 404 until Q-AP6 says which carrier a host's root belongs to.
+{$CAREERS_HOST} {
+	handle /api/public/careers/* {
+		import api_replicas
+	}
+	handle /api/* {
+		respond 404
+	}
+	@applicant path /careers /careers/*
+	handle @applicant {
+		reverse_proxy web:8080 {
+			health_uri /healthz
+		}
+	}
+	@file path_regexp \.[A-Za-z0-9]+$
+	handle @file {
+		reverse_proxy web:8080 {
+			health_uri /healthz
+		}
+	}
+	handle {
+		respond 404
+	}
+}
+
 # Q-AWS9 (open): the console may later be limited to the office IPs here, on top of its own login.
 {$CONSOLE_HOST} {
 	reverse_proxy console:8090 {

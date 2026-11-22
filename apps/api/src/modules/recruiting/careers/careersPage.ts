@@ -9,7 +9,7 @@ import {
 } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { listOpenings } from "../leads/hiringSetup.js";
-import { turnstileKeys } from "./applyChecks.js";
+import { careersOrigin, turnstileKeys } from "./applyChecks.js";
 
 /**
  * The careers page's row (APPLY-PAGE-PLAN AP1; 0641's `recruiting_careers_pages`): read and saved by Settings ›
@@ -33,8 +33,8 @@ async function readRow(admin: SupabaseClient, orgId: string): Promise<CareersPag
   return data as CareersPageRow | null;
 }
 
-/** `<WEB_APP_URL>/careers/<handle>`: the SPA serves the page; the API only answers it. */
-export const careersPageUrl = (env: Env, handle: string): string => `${env.WEB_APP_URL.replace(/\/+$/, "")}/careers/${handle}`;
+/** `<careers origin>/careers/<handle>`: the SPA serves the page; the API only answers it. */
+export const careersPageUrl = (env: Env, handle: string): string => `${careersOrigin(env)}/careers/${handle}`;
 
 export async function readCareersPage(admin: SupabaseClient, env: Env, orgId: string): Promise<CareersPageStatus> {
   const [row, openings] = await Promise.all([readRow(admin, orgId), listOpenings(admin, orgId)]);

@@ -98,6 +98,12 @@ describe("Turnstile, checked on the server", () => {
     expect((await verifyTurnstile(env(KEYS), "tok", null, "k", answering(200, { ...ok, action: "login" }).fetchImpl)).outcome).toBe("failed");
   });
 
+  it("a server with a careers host expects THAT host (D-AP9): the office app's own host then fails", async () => {
+    const careers = env({ ...KEYS, CAREERS_URL: "https://careers.example.test" });
+    expect((await verifyTurnstile(careers, "tok", null, "k", answering(200, { ...ok, hostname: "careers.example.test" }).fetchImpl)).outcome).toBe("passed");
+    expect((await verifyTurnstile(careers, "tok", null, "k", answering(200, ok).fetchImpl)).outcome).toBe("failed");
+  });
+
   it("Cloudflare's no fails with its codes; a spent token fails", async () => {
     expect(await verifyTurnstile(env(KEYS), "tok", null, "k", answering(200, { success: false, "error-codes": ["invalid-input-response"] }).fetchImpl))
       .toEqual({ outcome: "failed", errors: ["invalid-input-response"] });

@@ -91,6 +91,10 @@ services:
       SERVICE_NAME: api
       DEPLOY_ENVIRONMENT: ${ENV_NAME}
       DEPLOY_REGION: us-west-2
+      # D-AP9: the careers pages' origin, from the same <env>.env line Caddy routes on — the link the Settings card
+      # shows and the hostname the robot check must report (applyChecks.ts `careersOrigin`). The api only: nothing
+      # the worker runs builds a careers link.
+      CAREERS_URL: https://${CAREERS_HOST:?}
       # Until this server's cutover (AWS10 staging, AWS11 production) Railway keeps the scheduler
       # lanes: an AWS container that won the `egress` lease would poll WEX from an IP WEX has not
       # allowlisted yet. The lease would keep it to one poller either way (D-AWS8); this keeps it
@@ -235,6 +239,7 @@ services:
       WEB_HOST: ${WEB_HOST:?}
       API_HOST: ${API_HOST:?}
       CONSOLE_HOST: ${CONSOLE_HOST:?}
+      CAREERS_HOST: ${CAREERS_HOST:?}
       ACME_EMAIL: ${ACME_EMAIL:?}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

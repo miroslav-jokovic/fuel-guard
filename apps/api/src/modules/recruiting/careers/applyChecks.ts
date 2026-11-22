@@ -84,6 +84,12 @@ export function readFormToken(env: Env, orgId: string, openingId: string, token:
 export const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 export type FetchLike = (url: string, init: { method: string; body: URLSearchParams; signal: AbortSignal }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
+/**
+ * The origin the careers pages are served from (D-AP9): `CAREERS_URL` where a server sets it, else the office app's.
+ * One reading, for the link and for the robot check's hostname alike.
+ */
+export const careersOrigin = (env: Env): string => (env.CAREERS_URL ?? env.WEB_APP_URL).replace(/\/+$/, "");
+
 /** Cloudflare's error codes that are OURS (a key or request we sent wrong), not the person's: not a flag, but loud. */
 const OUR_FAULT = new Set(["missing-input-secret", "invalid-input-secret", "bad-request", "internal-error"]);
 
@@ -119,7 +125,7 @@ export async function verifyTurnstile(
   }
   const errors = Array.isArray(answer["error-codes"]) ? answer["error-codes"].filter((e): e is string => typeof e === "string").slice(0, 10) : [];
   if (answer.success === true) {
-    const host = new URL(env.WEB_APP_URL).hostname;
+    const host = new URL(careersOrigin(env)).hostname;
     if (answer.hostname !== host || answer.action !== APPLY_TURNSTILE_ACTION) {
       return { outcome: "failed", errors: [`hostname:${String(answer.hostname)}`, `action:${String(answer.action)}`] };
     }

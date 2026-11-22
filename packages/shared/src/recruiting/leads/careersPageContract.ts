@@ -87,7 +87,7 @@ export interface CareersPageStatus {
   enabled: boolean;
   accommodationEmail: string | null;
   accommodationPhone: string | null;
-  /** `<WEB_APP_URL>/careers/<handle>`, the link the company website points at; null until a handle is saved. */
+  /** `<careers origin>/careers/<handle>` (`CAREERS_URL`, else `WEB_APP_URL`; D-AP9), the link the company website points at; null until a handle is saved. */
   publicUrl: string | null;
   /** Whether the server holds both of Turnstile's keys (D-AP6). Off: every application is recorded as "not checked". */
   robotCheckReady: boolean;
