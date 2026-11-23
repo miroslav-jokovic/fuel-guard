@@ -1,5 +1,5 @@
 import { computed, type ComputedRef, type WritableComputedRef } from "vue";
-import { DRIVERS_QUERY_KEYS as K, DRIVERS_SEAT_NONE, DRIVERS_SHOW_ARCHIVED, type DriverStatus, FILE_FILTERS } from "@silvicom/shared";
+import { DRIVERS_QUERY_KEYS as K, DRIVERS_SEAT_NONE, DRIVERS_SHOW_ARCHIVED, type DriverStatus, FILE_FILTERS, HOME_TIME_FILTERS } from "@silvicom/shared";
 import { ANY_PARAM, type SortState, toggleSort, useQueryState } from "@silvicom/ui";
 
 /**
@@ -71,6 +71,8 @@ export interface RosterFilters {
    * "Clear filters" for the same reason: the reader needs the way back from a filter they did not pick.
    */
   seat: WritableComputedRef<string>;
+  /** Home time (HOME-TIME-VISIBILITY-PLAN D-HT23): a `HOME_TIME_FILTERS` word, or "" for no filter. */
+  home: WritableComputedRef<string>;
   /** `live` or `archived` — the value the "Show" control binds to. */
   view: WritableComputedRef<string>;
   showArchived: ComputedRef<boolean>;
@@ -164,6 +166,15 @@ export function useRosterFilters(): RosterFilters {
     set: (v) => setFiltering({ [K.seat]: v === DRIVERS_SEAT_NONE ? DRIVERS_SEAT_NONE : undefined }),
   });
 
+  // A word outside the vocabulary is no filter, as `?file=` is (`?home=banana` shows everybody).
+  const home = computed<string>({
+    get: () => {
+      const v = one(K.home) ?? "";
+      return (HOME_TIME_FILTERS as readonly string[]).includes(v) ? v : "";
+    },
+    set: (v) => setFiltering({ [K.home]: v || undefined }),
+  });
+
   const view = computed<string>({
     get: () => (showArchived.value ? "archived" : "live"),
     // Anything that is not the word `archived` means the live roster — including `?show=banana`.
@@ -190,7 +201,7 @@ export function useRosterFilters(): RosterFilters {
   });
 
   const active = computed(
-    () => Boolean(one(K.search) || one(K.status) || one(K.show) || one("dq") || one(K.due) || one(K.requirement) || one(K.file) || one(K.seat)),
+    () => Boolean(one(K.search) || one(K.status) || one(K.show) || one("dq") || one(K.due) || one(K.requirement) || one(K.file) || one(K.seat) || one(K.home)),
   );
 
   // Clears what narrows the roster and keeps the sort: the sort orders the list rather than
@@ -198,11 +209,11 @@ export function useRosterFilters(): RosterFilters {
   const reset = (): void =>
     set({
       q: undefined, status: undefined, show: undefined,
-      dq: undefined, due: undefined, req: undefined, file: undefined, seat: undefined, page: undefined,
+      dq: undefined, due: undefined, req: undefined, file: undefined, seat: undefined, home: undefined, page: undefined,
     });
 
   return {
-    search, status, defaultStatus, dqDue, dqRequirement, file, seat,
+    search, status, defaultStatus, dqDue, dqRequirement, file, seat, home,
     view, showArchived, sort, onSort, page, active, reset,
   };
 }

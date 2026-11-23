@@ -9,7 +9,11 @@ import {
   type Driver,
   type DriverOverviewRow,
   type FileFilterKind,
+  type HomeTimeFilter,
+  type HomeTimeState,
+  HOME_TIME_FILTERS,
   matchesDriverSearch,
+  matchesHomeTimeFilter,
 } from "@silvicom/shared";
 
 /**
@@ -35,6 +39,9 @@ export interface RosterRowFilters {
   file: string;
   due: string;
   req: string;
+  /** `?home=` (D-HT23) and each driver's live home-time state; a driver absent from the map has none. */
+  home: string;
+  homeStates: ReadonlyMap<string, HomeTimeState>;
 }
 
 /** Everything but the File word: the half of the predicate the counts hold still. */
@@ -46,6 +53,7 @@ function matchesExceptFile(
   if (Boolean(d.archived_at) !== f.showArchived) return false;
   if (f.status && d.status !== f.status) return false;
   if (f.seat === "none" && f.seated.has(d.id)) return false;
+  if (f.home && !matchesHomeTimeFilter(f.homeStates.get(d.id) ?? null, f.home)) return false;
   if (f.due || f.req) {
     const row = overview.get(d.id);
     if (!row || !matchesDqFilters(row, { due: f.due, req: f.req })) return false;
@@ -88,6 +96,23 @@ export function fileFilterCounts(
     if (!row || !matchesExceptFile(d, overview, f)) continue;
     const chip = fileChip(row);
     for (const k of FILE_FILTERS) if (matchesFileFilter(chip, k)) counts[k] += 1;
+  }
+  return counts;
+}
+
+/**
+ * How many rows each Home time word would leave, every other control as set — File included — so
+ * "Overdue (2)" is two rows (the D-DQ18 promise, for D-HT23).
+ */
+export function homeTimeFilterCounts(
+  drivers: readonly Driver[],
+  overview: ReadonlyMap<string, DriverOverviewRow>,
+  f: RosterRowFilters,
+): Record<HomeTimeFilter, number> {
+  const counts = Object.fromEntries(HOME_TIME_FILTERS.map((k) => [k, 0])) as Record<HomeTimeFilter, number>;
+  for (const d of filterRoster(drivers, overview, { ...f, home: "" })) {
+    const state = f.homeStates.get(d.id) ?? null;
+    for (const k of HOME_TIME_FILTERS) if (matchesHomeTimeFilter(state, k)) counts[k] += 1;
   }
   return counts;
 }

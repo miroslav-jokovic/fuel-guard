@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
-import type { Driver, DqRosterCell, DqRosterColumnKey } from "@silvicom/shared";
+import type { Driver, DqRosterCell, DqRosterColumnKey, HomeTimePeriod } from "@silvicom/shared";
 import { canManageDriverIdentity, driverAppAccess, unitsByDriver } from "@silvicom/shared";
 import {
   AppButton as BaseButton,
@@ -16,6 +16,7 @@ import { useVehiclesQuery } from "@/composables/useVehicles";
 import KebabMenu from "@/components/KebabMenu.vue";
 import FileCell from "@/components/files/FileCell.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
+import HomeTimeBadge from "@/components/homeTime/HomeTimeBadge.vue";
 import NotesCell from "@/components/notes/NotesCell.vue";
 import { useUnitNoteSummary } from "@/components/notes/useUnitNotes";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -57,6 +58,10 @@ const props = defineProps<{
    */
   selectable?: boolean;
   selected?: Set<string>;
+  /** Each driver's live home time, for a reader who may read it (D-HT24); absent for anybody else. */
+  homeTimes?: ReadonlyMap<string, HomeTimePeriod>;
+  /** The carrier's clock, for the home-time badge's day. */
+  zone?: string;
 }>();
 
 const emit = defineEmits<{
@@ -224,8 +229,13 @@ const notes = useUnitNoteSummary("driver", useDriversQuery().dataUpdatedAt);
     <template #cell-notes="{ row }"><NotesCell :id="row.id" kind="driver" :label="row.full_name" :summary="notes.summary.value[row.id]" /></template>
     <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>
     <template #cell-status="{ row }">
-      <StatusBadge :status="row.status" />
-      <span v-if="row.archived_at" :class="[BADGE_BASE, toneClass('neutral'), 'ml-2']">Archived</span>
+      <div class="flex flex-wrap items-center gap-1.5">
+        <StatusBadge :status="row.status" />
+        <span v-if="row.archived_at" :class="[BADGE_BASE, toneClass('neutral')]">Archived</span>
+        <!-- Home time beside employment (HOME-TIME-VISIBILITY-PLAN D-HT24): "is he working this week",
+             not a status value — D-HT4 keeps it out of `drivers.status`. Opens the period. -->
+        <HomeTimeBadge v-if="zone && homeTimes?.get(row.id)" :period="homeTimes.get(row.id)!" :zone="zone" />
+      </div>
     </template>
     <template #actions="{ row }">
       <KebabMenu v-if="session.can('roster')">
