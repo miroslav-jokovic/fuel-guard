@@ -84,7 +84,7 @@ export function filterBoard(
     if ((a.states.length || a.near || by) && (r.inShop || !availableNear(r.available, { states: a.states, near: a.near, by }))) return false;
     if (!term) return true;
     return [
-      r.unitNumber, r.fleetCode, r.driver?.name, r.current?.ref, r.current?.customerName, r.current?.trailerUnit,
+      r.unitNumber, r.fleetCode, r.driver?.name, r.coDriver?.name, r.current?.ref, r.current?.customerName, r.current?.trailerUnit,
       r.position?.place, r.current?.nextStop?.city, r.available?.city, r.available?.state, r.available?.postalCode, r.next?.ref,
     ]
       .filter((v): v is string => Boolean(v))

@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import type { Driver, DqRosterCell, DqRosterColumnKey } from "@silvicom/shared";
-import { canManageDriverIdentity, driverAppAccess } from "@silvicom/shared";
+import { canManageDriverIdentity, driverAppAccess, unitsByDriver } from "@silvicom/shared";
 import {
   AppButton as BaseButton,
   DataTable,
@@ -124,21 +124,13 @@ const expiry = (driverId: string, key: DqRosterColumnKey) =>
   dqExpiryBadge(requirementsByDriver.value.get(driverId)?.get(key), formatDate);
 
 /**
- * Vehicles assigned to a driver (assignment is set from the Vehicles page). Indexed for the same
- * reason as the rollup above — a per-row `.filter()` over the whole vehicle list is the same O(n²).
+ * The trucks a driver sits in, either seat (`unitsByDriver`, HOME-TIME-VISIBILITY-PLAN D-HT22) — the
+ * same map the page's search reads, so a unit this column shows is a unit the search finds. Until
+ * 2026-11-23 it listed the first seat only, and a co-driver's row read "—" while he was in the truck.
  */
 const { data: vehicles } = useVehiclesQuery();
-const unitsByDriver = computed(() => {
-  const byDriver = new Map<string, string[]>();
-  for (const v of vehicles.value ?? []) {
-    if (!v.assigned_driver_id) continue;
-    const units = byDriver.get(v.assigned_driver_id);
-    if (units) units.push(v.unit_number);
-    else byDriver.set(v.assigned_driver_id, [v.unit_number]);
-  }
-  return byDriver;
-});
-const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.join(", ") || "—";
+const unitsOf = computed(() => unitsByDriver(vehicles.value ?? []));
+const assignedUnits = (driverId: string) => unitsOf.value.get(driverId)?.join(", ") || "—";
 
 /** The Notes column's counts (UNIT-NOTES-PLAN D-UN12), refreshed with the roster's own list (D-UN10). */
 const notes = useUnitNoteSummary("driver", useDriversQuery().dataUpdatedAt);
@@ -229,7 +221,7 @@ const notes = useUnitNoteSummary("driver", useDriversQuery().dataUpdatedAt);
       >{{ expiry(row.id, "endorsement_hazmat")!.label }}</RouterLink>
       <span v-else class="text-ink-tertiary">—</span>
     </template>
-    <template #cell-notes="{ row }"><NotesCell kind="driver" :id="row.id" :label="row.full_name" :summary="notes.summary.value[row.id]" /></template>
+    <template #cell-notes="{ row }"><NotesCell :id="row.id" kind="driver" :label="row.full_name" :summary="notes.summary.value[row.id]" /></template>
     <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>
     <template #cell-status="{ row }">
       <StatusBadge :status="row.status" />
