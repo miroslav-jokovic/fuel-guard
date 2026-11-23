@@ -30,6 +30,7 @@ import BoardNotesCell from "./BoardNotesCell.vue";
 import LoadRateCell from "./LoadRateCell.vue";
 import BoardNoteChips from "./BoardNoteChips.vue";
 import BoardHomeTimeChips from "./BoardHomeTimeChips.vue";
+import HomeTimeBadge from "@/components/homeTime/HomeTimeBadge.vue";
 import { boardNoteSummary, boardNoteTargets } from "./boardNotes";
 
 /**
@@ -226,7 +227,15 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
     </template>
 
     <template #cell-driver="{ row }">
-      {{ row.driver?.name ?? row.current?.driverName ?? "—" }}
+      <div>{{ row.driver?.name ?? row.current?.driverName ?? "—" }}</div>
+      <!-- The second seat, which the board's search finds (HOME-TIME-VISIBILITY-PLAN D-HT22). -->
+      <div v-if="row.coDriver" class="text-xs text-ink-muted">and {{ row.coDriver.name }}</div>
+      <!-- Each seat on home time, whether or not the truck is held (D-HT24: a seat home on a truck that
+           still carries a load said it nowhere but a Warnings chip). The badge opens that driver's home
+           time — change, end, cancel — in one click (D-HT25). -->
+      <div v-for="h in row.homeTimes ?? []" :key="h.periodId" class="mt-0.5">
+        <HomeTimeBadge :period="h" :zone="zone" />
+      </div>
     </template>
 
     <template #cell-hos="{ row }">

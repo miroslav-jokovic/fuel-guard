@@ -185,3 +185,19 @@ Q-HT9 (a), Q-HT10 More filters, Q-HT11 no, Q-HT12 as read (Drivers list and Home
   gains a **Status** filter: the live list Overdue · Home · Scheduled, the closed list Ended · Canceled
   (which it used to mix), each option with the rows it leaves under the search as typed (`ht.state`);
   a state the list does not hold is no filter. `homeTimeTabView.ts`, tests 4; mutation run 3 of 3 caught.
+- 2026-11-23 — **HV4 built** (branch `claude/home-time-board`, stacked on HV3). The board's Driver cell
+  shows the second seat ("and Ben Cole") and a home-time badge for every seat on home time, held truck
+  or not — the case F5 found silent (a seat home on a truck still carrying a load, or a team truck
+  still running). The badge opens that driver's drawer in one click (D-HT25).
+  - **Not built, and why — two parts of D-HT23/24 the board already answers:**
+    - *A "Home time…" row action.* The board has no actions column, and adding one widens every row at
+      1440 px (HT3's rule: nothing is added as a column). The badge IS the one-click way to change, end
+      or cancel; marking a driver who is not home stays in the truck's drawer (two clicks, as HT3
+      designed).
+    - *A "Home time" board queue.* The board shows only two queues as tabs (`BOARD_TABS`, the
+      dispatchers' 2026-10 ruling); a third, hidden queue is reachable by URL only and nobody finds it.
+      The **Home time tab** next to History is that view, and since HV3 it filters by state.
+  - Tests: one board test (the Driver cell's badges on a held truck and on a running team truck, the
+    co-driver's name, the badge opening the drawer without the truck's). Mutation run: 2 of 3 caught;
+    the third — the badge's `.stop` removed — is not observable in jsdom (the row's `truck` write and the
+    badge's `homeTime` push race, and the push wins), so `.stop` stays as a guard the browser pass checks.
