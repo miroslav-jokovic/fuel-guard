@@ -338,7 +338,9 @@ trained; L5 ~1 week. That is **about 6–8 weeks in total**, against a licence f
 - **Q-LED3 The precision bar** in §4.4. **Recommendation:** accept the proposed numbers as a starting point,
   and reset them after L1's baseline.
 - **Q-LED4** Should the state machine run in JS (one event per detection frame) or natively (ported to Swift
-  and Kotlin, held to one test file)? Decide at L0 from measured event latency.
+  and Kotlin, held to one test file)? Decide at L0 from measured event latency. **Built natively,
+  2026-11-23 (§8, D-LED6):** the owner's gate had to hold the trace and the shutter on the same clock,
+  which a JS machine one bridge hop away cannot promise.
 
 ## 8. Progress log
 
@@ -417,6 +419,35 @@ trained; L5 ~1 week. That is **about 6–8 weeks in total**, against a licence f
   **Next (L2):** our own photos (owner/office: ~300 per `tools/edges/README.md` §1), then the §4.2
   refinement scored against plain (a) on both sets, then (a) converted to Core ML for L0. Q-LED2 waits on
   the owner.
+
+- **2026-11-23 — The capture gate (owner's rule, D-LED6) built into the iOS camera; on the owner's iPhone.**
+  The owner, on a phone: "when we open the scanner and point it at a document, the app must not take the
+  scan before the camera and the document are in a position that ensures our normalisation is decent; the
+  edge animation must not start until those conditions are met; and when the animation ends, it takes the
+  scan." **D-LED6** replaces §5 steps 2 and 4: nothing is drawn while a condition fails (one line of
+  words says which), the outline TRACES itself once every condition holds, the trace IS the hold, and its
+  end takes the photo. A condition breaking mid-trace rewinds it.
+  · Conditions, in the order the driver is told them (`LiveCaptureGate.swift`, starting values with their
+    sources): a page found (3 frames); every corner ≥ 1.5 % inside the frame; page ≥ 25 % of the frame;
+    corners within 20° of square and opposite edges within 0.8 of each other (straightening stays even);
+    straightened long edge ≥ the quality gate's `resolutionMinLongEdgePx`, passed in from the signed
+    capture config, not restated; camera not focusing or adjusting exposure; motion sensors calm
+    (ScanFromCam's 0.18/0.28 m/s², plus rotation); raw corners held within 1.5 % of the diagonal of an
+    anchor for 0.2 s before the trace and through its 0.8 s. Re-arm after a shot only when the page has
+    gone 0.5 s or a different page has been seen for 3 frames.
+  · **D-LED7:** the preview frames and the photo now share one 4:3 field of view (a 4:3 format ≤ 1920 px
+    wide, photos at the format's full resolution). The L0 1080p preset was 16:9, a crop the photo does
+    not share, so corners from it would have landed in the wrong place on the photo.
+  · The photo: the full-resolution original is kept; a page straightened by Core Image's perspective
+    correction is shown on the screen so the owner can judge the gate. That page is a PREVIEW, not the
+    product's normalisation — L2 refines the corners on the full-res photo, and L5 sends the original
+    through `capture-engine`. Nothing uploads.
+  · Q-LED4 answered by building: the gate runs natively (Swift), one decision file tested without a
+    camera; JS gets events only on gate transitions and at 10 Hz. Android's port follows at L4.
+  · Checks: `tests/ios/run-live-edge-tests.sh` 66 checks; four mutations (no anchor test in the trace,
+    fire at once, no settle, no motion gate) each fail it. `CaptureNative` compiles for iOS. Runtime 1.5.0.
+  · Still the spike's route (More → "Live edge prototype", development builds). "Capture BOL" still opens
+    VisionKit until L5 puts this camera behind the provider seam.
 
 ## Sources
 

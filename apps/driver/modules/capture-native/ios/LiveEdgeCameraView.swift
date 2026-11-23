@@ -1,53 +1,73 @@
 import AVFoundation
+import CoreMotion
 import ExpoModulesCore
 import UIKit
 import Vision
 
-// The live edge camera — step L0 of LIVE-EDGE-DETECTION-PLAN.md (D-LED2): our own camera with the
-// document outline drawn NATIVELY over the preview, so the outline never waits on the JavaScript
-// thread or the bridge. JavaScript receives only events, throttled, for the spike's measurements.
+// The live edge camera — LIVE-EDGE-DETECTION-PLAN.md, D-LED2: our own camera with the document outline
+// drawn NATIVELY over the preview, so the outline never waits on the JavaScript thread or the bridge.
 //
-// L0 is deliberately a viewfinder and nothing more: no photo, no gate, no auto-capture. It exists to
-// answer three things on a real phone before the rest is built — how fast detection runs, how far the
-// drawn outline trails the paper, and whether the owner prefers it to the VisionKit screen drivers have
-// today. Every decision it makes is in `LiveEdgeGeometry.swift`, which is tested without a camera.
+// It takes the photo itself, under the capture gate the owner set on 2026-11-23 (D-LED6,
+// `LiveCaptureGate.swift`): nothing is drawn until the page is placed well enough to straighten and the
+// phone and page are still; then the outline traces itself around the page, and when the trace ends the
+// photo is taken. Any condition breaking during the trace rewinds it. JavaScript is told why the gate is
+// waiting (`blocker`) and gets the photo (`onCapture`); every decision is in `LiveCaptureGate.swift` and
+// `LiveEdgeGeometry.swift`, which are tested without a camera (`tests/ios/run-live-edge-tests.sh`).
 //
 // Detector: Apple's `VNDetectDocumentSegmentationRequest` (candidate (b), plan §4.5) through a
-// `VNSequenceRequestHandler`, which keeps state between frames. It is the cheapest candidate to stand up
-// and the one VisionKit itself uses, so it is the honest first baseline; the heatmap model (a) is
-// measured against it next.
+// `VNSequenceRequestHandler`, which keeps state between frames. The heatmap model (a) is measured
+// against it at L1/L2 and replaces it here if it wins on our photos.
 
 final class LiveEdgeCameraView: ExpoView {
   let onDetection = EventDispatcher()
   let onCameraState = EventDispatcher()
+  let onCapture = EventDispatcher()
 
   var active = true { didSet { updateRunning() } }
   var strokeColor: UIColor = .white { didSet { applyColors() } }
   var fillColor: UIColor = UIColor.white.withAlphaComponent(0.12) { didSet { applyColors() } }
+  /// The outline's colour from the moment the photo is asked for.
+  var successColor: UIColor = .green
+  /// The quality gate's `resolutionMinLongEdgePx`, from the signed capture config. JavaScript always
+  /// passes it (`live-edge.tsx`); zero would switch the resolution condition off, never on.
+  var minPageLongEdgePx: Double = 0
 
   private let session = AVCaptureSession()
   private let sessionQueue = DispatchQueue(label: "capture-native.live-edge.session")
   private let previewLayer: AVCaptureVideoPreviewLayer
   private let fillLayer = CAShapeLayer()
   private let strokeLayer = CAShapeLayer()
+  private let flashLayer = CALayer()
   private let detector = LiveEdgeFrameDetector()
-  private let haptic = UIImpactFeedbackGenerator(style: .light)
+  private let photoOutput = AVCapturePhotoOutput()
+  private let motion = CMMotionManager()
+  private let lightHaptic = UIImpactFeedbackGenerator(style: .light)
+  private let shutterHaptic = UIImpactFeedbackGenerator(style: .medium)
 
+  private var device: AVCaptureDevice?
+  /// The photo's long edge in pixels, known once the session is configured (0 until then).
+  private var photoLongEdge: CGFloat = 0
+  private var photoInFlight: LiveEdgePhotoCapture?
   private var configured = false
   private var running = false
   private var displayLink: CADisplayLink?
   private var lastTick: CFTimeInterval?
 
+  private var gate = LiveCaptureGate()
+  private var motionGate = LiveMotionGate()
   private var hysteresis = LiveDetectionHysteresis()
   private var smoother = LiveQuadSmoother()
   private var spring = CriticalSpring()
+  /// The smoothed outline in VIEW coordinates — what is drawn.
   private var target: LiveQuad?
+  /// The last raw outline, normalised to the frame — what the photo is cropped to.
+  private var lastNormalized: LiveQuad?
   private var lastConfidence: Float = 0
   private var lastLatencyMs: Double = 0
   private var detectionTimes: [Double] = []
   private var lastEventTime: Double = 0
-  /// At most this many `onDetection` events a second. The overlay is native; the events exist for the
-  /// spike's readout, and 10 Hz is plenty to read while staying off the bridge's back.
+  /// At most this many `onDetection` events a second. The outline and the gate are native; the events
+  /// carry the readout and the reason the gate is waiting, and 10 Hz is plenty for both.
   private static let eventHz: Double = 10
 
   required init(appContext: AppContext? = nil) {
@@ -66,7 +86,11 @@ final class LiveEdgeCameraView: ExpoView {
     }
     fillLayer.strokeColor = nil
     strokeLayer.fillColor = nil
-    strokeLayer.lineWidth = 3
+    strokeLayer.lineWidth = 4
+    strokeLayer.strokeEnd = 0
+    flashLayer.backgroundColor = UIColor.white.cgColor
+    flashLayer.opacity = 0
+    layer.addSublayer(flashLayer)
     applyColors()
 
     detector.onResult = { [weak self] result in
@@ -81,6 +105,7 @@ final class LiveEdgeCameraView: ExpoView {
     previewLayer.frame = bounds
     fillLayer.frame = bounds
     strokeLayer.frame = bounds
+    flashLayer.frame = bounds
     CATransaction.commit()
   }
 
@@ -91,6 +116,7 @@ final class LiveEdgeCameraView: ExpoView {
 
   deinit {
     displayLink?.invalidate()
+    motion.stopDeviceMotionUpdates()
     let session = self.session
     sessionQueue.async { if session.isRunning { session.stopRunning() } }
   }
@@ -130,6 +156,7 @@ final class LiveEdgeCameraView: ExpoView {
     link.add(to: .main, forMode: .common)
     displayLink = link
     lastTick = nil
+    startMotion()
     sessionQueue.async { [weak self] in
       guard let self else { return }
       if !self.configured {
@@ -147,18 +174,43 @@ final class LiveEdgeCameraView: ExpoView {
   private func stop() {
     displayLink?.invalidate()
     displayLink = nil
+    motion.stopDeviceMotionUpdates()
     resetTracking()
     let session = self.session
     sessionQueue.async { if session.isRunning { session.stopRunning() } }
   }
 
+  /// Device motion at 60 Hz into `LiveMotionGate`. User acceleration is in g with gravity removed.
+  /// No permission is needed for device motion (only activity and pedometer data ask).
+  private func startMotion() {
+    guard motion.isDeviceMotionAvailable else {
+      // No sensor to ask: the outline's own anchor test is then the only stillness check.
+      motionGate.feed(acceleration: 0, rotation: 0, at: 0)
+      motionGate.feed(acceleration: 0, rotation: 0, at: LiveMotionGate.calmForSeconds)
+      return
+    }
+    motionGate.reset()
+    motion.deviceMotionUpdateInterval = 1.0 / 60
+    motion.startDeviceMotionUpdates(to: .main) { [weak self] data, _ in
+      guard let self, let data else { return }
+      let a = data.userAcceleration, r = data.rotationRate
+      self.motionGate.feed(
+        acceleration: (a.x * a.x + a.y * a.y + a.z * a.z).squareRoot() * 9.81,
+        rotation: (r.x * r.x + r.y * r.y + r.z * r.z).squareRoot(),
+        at: data.timestamp
+      )
+    }
+  }
+
   /// Runs on `sessionQueue`. Returns a reason when the camera cannot be set up, nil on success.
+  ///
+  /// D-LED7: the preview frames and the photo share ONE 4:3 field of view, so the corners found on a
+  /// frame are the corners on the photo, scaled. (The old 1080p preset was 16:9, a crop of the sensor
+  /// the photo does not share — corners from it would land in the wrong place.) A format whose frames
+  /// are at most 1920 px wide keeps detection at 30 fps; its photos are still full resolution.
   private func configure() -> String? {
     session.beginConfiguration()
     defer { session.commitConfiguration() }
-    // 1080p: enough for the detector (which works far smaller) and cheap enough to keep 30 fps. The
-    // photo the gate judges is NOT this stream — L5 takes a full-resolution still for that.
-    if session.canSetSessionPreset(.hd1920x1080) { session.sessionPreset = .hd1920x1080 }
     guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
       return "no back camera"
     }
@@ -173,15 +225,61 @@ final class LiveEdgeCameraView: ExpoView {
     output.setSampleBufferDelegate(detector, queue: detector.queue)
     guard session.canAddOutput(output) else { return "video output refused" }
     session.addOutput(output)
+    guard session.canAddOutput(photoOutput) else { return "photo output refused" }
+    session.addOutput(photoOutput)
+    // Portrait, as the app is and as Vision reads the frames (`.right`): the JPEG then carries the
+    // rotation that makes it upright, and the corners — measured upright — land where they belong.
+    if let connection = photoOutput.connection(with: .video) {
+      if #available(iOS 17.0, *) {
+        if connection.isVideoRotationAngleSupported(90) { connection.videoRotationAngle = 90 }
+      } else if connection.isVideoOrientationSupported {
+        connection.videoOrientation = .portrait
+      }
+    }
 
+    let format = Self.fourByThreeFormat(device)
     if (try? device.lockForConfiguration()) != nil {
+      if let format {
+        session.sessionPreset = .inputPriority
+        device.activeFormat = format
+      } else if session.canSetSessionPreset(.photo) {
+        session.sessionPreset = .photo
+      }
       if device.isFocusModeSupported(.continuousAutoFocus) { device.focusMode = .continuousAutoFocus }
       if device.isExposureModeSupported(.continuousAutoExposure) { device.exposureMode = .continuousAutoExposure }
       // A document is held 20–50 cm away; telling autofocus so stops it hunting to infinity first.
       if device.isAutoFocusRangeRestrictionSupported { device.autoFocusRangeRestriction = .near }
       device.unlockForConfiguration()
     }
+    let largest = device.activeFormat.supportedMaxPhotoDimensions.max { $0.width * $0.height < $1.width * $1.height }
+    if let largest { photoOutput.maxPhotoDimensions = largest }
+    photoOutput.maxPhotoQualityPrioritization = .quality
+    let long = CGFloat(max(photoOutput.maxPhotoDimensions.width, photoOutput.maxPhotoDimensions.height))
+    DispatchQueue.main.async { [weak self] in
+      self?.device = device
+      self?.photoLongEdge = long
+    }
     return nil
+  }
+
+  /// The 4:3 format with frames no wider than 1920 px that offers the largest photo, at 30 fps.
+  private static func fourByThreeFormat(_ device: AVCaptureDevice) -> AVCaptureDevice.Format? {
+    device.formats
+      .filter { f in
+        let d = CMVideoFormatDescriptionGetDimensions(f.formatDescription)
+        return d.width <= 1920 && d.width * 3 == d.height * 4
+          && CMFormatDescriptionGetMediaSubType(f.formatDescription) == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
+          && f.videoSupportedFrameRateRanges.contains { $0.maxFrameRate >= 30 }
+      }
+      .max { a, b in
+        func photo(_ f: AVCaptureDevice.Format) -> Int32 {
+          f.supportedMaxPhotoDimensions.map { $0.width * $0.height }.max() ?? 0
+        }
+        let (pa, pb) = (photo(a), photo(b))
+        if pa != pb { return pa < pb }
+        return CMVideoFormatDescriptionGetDimensions(a.formatDescription).width
+          < CMVideoFormatDescriptionGetDimensions(b.formatDescription).width
+      }
   }
 
   // MARK: Detection results (main thread)
@@ -192,30 +290,43 @@ final class LiveEdgeCameraView: ExpoView {
     detectionTimes.removeAll { result.time - $0 > 1 }
     lastLatencyMs = result.latencyMs
 
-    var screenQuad: LiveQuad?
-    if let normalized = result.quad {
-      let pixels = normalized.mapped { CGPoint(x: $0.x * result.imageSize.width, y: $0.y * result.imageSize.height) }
-      if LiveQuadValidator.check(pixels, imageSize: result.imageSize) == .ok {
-        screenQuad = normalized.mapped {
-          LiveEdgeMapping.aspectFill($0, imageSize: result.imageSize, viewSize: bounds.size)
-        }
-        lastConfidence = result.confidence
-      }
+    let size = result.imageSize
+    let framing = LiveFramingCheck.blocker(
+      result.quad,
+      imageSize: size,
+      photoScale: photoLongEdge > 0 ? photoLongEdge / max(size.width, size.height) : 1,
+      minPageLongEdgePx: CGFloat(minPageLongEdgePx)
+    )
+    // A page shape the validator refuses outright is not drawn or tracked at all.
+    let seen = framing != .noPage ? result.quad : nil
+    if let normalized = seen {
+      lastNormalized = normalized
+      lastConfidence = result.confidence
+      let viewQuad = normalized.mapped { LiveEdgeMapping.aspectFill($0, imageSize: size, viewSize: bounds.size) }
+      target = smoother.update(viewQuad, at: result.time, diagonal: hypot(bounds.width, bounds.height))
     }
+    if hysteresis.feed(valid: seen != nil, at: result.time) == .disappeared { smoother.reset() }
 
-    let diagonal = hypot(bounds.width, bounds.height)
-    if let quad = screenQuad { target = smoother.update(quad, at: result.time, diagonal: diagonal) }
-
-    switch hysteresis.feed(valid: screenQuad != nil, at: result.time) {
-    case .appeared: appear()
-    case .disappeared: disappear()
+    let settled = !(device?.isAdjustingFocus ?? false) && !(device?.isAdjustingExposure ?? false)
+    let action = gate.feed(LiveCaptureGate.Frame(
+      quad: seen?.mapped { CGPoint(x: $0.x * size.width, y: $0.y * size.height) },
+      framing: framing,
+      phoneStill: motionGate.still,
+      cameraSettled: settled,
+      time: result.time,
+      diagonal: hypot(size.width, size.height)
+    ))
+    switch action {
+    case .startTrace: startTrace()
+    case .cancelTrace: rewindTrace()
+    case .fire: takePhoto()
     case .none: break
     }
-    emitEvent(at: result.time)
+    emitEvent(at: result.time, force: action != .none)
   }
 
-  private func emitEvent(at time: Double) {
-    guard time - lastEventTime >= 1 / Self.eventHz else { return }
+  private func emitEvent(at time: Double, force: Bool) {
+    guard force || time - lastEventTime >= 1 / Self.eventHz else { return }
     lastEventTime = time
     var payload: [String: Any] = [
       "state": hysteresis.visible ? "tracking" : "searching",
@@ -223,62 +334,128 @@ final class LiveEdgeCameraView: ExpoView {
       "latencyMs": (lastLatencyMs * 10).rounded() / 10,
       "confidence": Double(lastConfidence),
     ]
+    switch gate.phase {
+    case .waiting(let blocker):
+      payload["gate"] = "waiting"
+      payload["blocker"] = blocker?.rawValue ?? "settling"
+    case .tracing: payload["gate"] = "tracing"
+    case .capturing: payload["gate"] = "capturing"
+    case .captured: payload["gate"] = "captured"
+    }
     if hysteresis.visible, let quad = target, bounds.width > 0, bounds.height > 0 {
       payload["corners"] = quad.points.map { [Double($0.x / bounds.width), Double($0.y / bounds.height)] }
     }
     onDetection(payload)
   }
 
+  // MARK: Photo
+
+  private func takePhoto() {
+    guard let corners = lastNormalized, photoInFlight == nil else {
+      gate.captureFinished(ok: false, at: CACurrentMediaTime())
+      return
+    }
+    strokeLayer.strokeColor = successColor.cgColor
+    shutterHaptic.impactOccurred()
+    if !reduceMotion {
+      let flash = CABasicAnimation(keyPath: "opacity")
+      flash.fromValue = 0.6
+      flash.toValue = 0
+      flash.duration = 0.25
+      flashLayer.add(flash, forKey: "flash")
+    }
+
+    let settings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
+    settings.maxPhotoDimensions = photoOutput.maxPhotoDimensions
+    settings.photoQualityPrioritization = .quality
+    let capture = LiveEdgePhotoCapture(corners: corners) { [weak self] result in
+      DispatchQueue.main.async { self?.photoFinished(result) }
+    }
+    photoInFlight = capture
+    let output = photoOutput
+    sessionQueue.async { output.capturePhoto(with: settings, delegate: capture) }
+  }
+
+  private func photoFinished(_ result: Result<LiveEdgeCapturedPhoto, Error>) {
+    photoInFlight = nil
+    let now = CACurrentMediaTime()
+    switch result {
+    case .success(let photo):
+      gate.captureFinished(ok: true, at: now)
+      onCapture([
+        "originalUri": photo.originalURL.absoluteString,
+        "pageUri": photo.pageURL.absoluteString,
+        "photoWidth": Double(photo.photoSize.width),
+        "photoHeight": Double(photo.photoSize.height),
+        "pageWidth": Double(photo.pageSize.width),
+        "pageHeight": Double(photo.pageSize.height),
+      ])
+    case .failure(let error):
+      gate.captureFinished(ok: false, at: now)
+      onCameraState(["status": "failed", "detail": "photo: \(error.localizedDescription)"])
+    }
+    hideOutline()
+  }
+
   // MARK: Drawing
 
   private var reduceMotion: Bool { UIAccessibility.isReduceMotionEnabled }
 
-  /// The Genius moment (plan §5 step 2): the stroke runs once around the page from its top-left corner
-  /// and the tint fades in behind it.
-  private func appear() {
+  /// Every condition holds: the outline traces itself around the page from its top-left corner, and
+  /// the tint fades in behind it. `tick` drives the trace from the gate's own clock.
+  private func startTrace() {
     guard let quad = target else { return }
     spring.snap(to: quad.flattened)
     setPath(quad)
-    fillLayer.removeAllAnimations()
     strokeLayer.removeAllAnimations()
-    fillLayer.opacity = 1
+    fillLayer.removeAllAnimations()
+    applyColors()
     strokeLayer.opacity = 1
-    strokeLayer.strokeEnd = 1
-    haptic.impactOccurred()
-    guard !reduceMotion else { return }
-
-    let draw = CABasicAnimation(keyPath: "strokeEnd")
-    draw.fromValue = 0
-    draw.toValue = 1
-    draw.duration = 0.28
-    draw.timingFunction = CAMediaTimingFunction(name: .easeOut)
-    strokeLayer.add(draw, forKey: "drawIn")
-
-    let tint = CABasicAnimation(keyPath: "opacity")
-    tint.fromValue = 0
-    tint.toValue = 1
-    tint.duration = 0.28
-    fillLayer.add(tint, forKey: "tintIn")
+    fillLayer.opacity = 1
+    setStrokeEnd(reduceMotion ? 1 : 0)
+    lightHaptic.impactOccurred()
   }
 
-  /// Fades, never snaps out of sight (plan §5 step 6).
-  private func disappear() {
+  /// A condition broke during the trace: the stroke runs back from where it stands, and fades.
+  private func rewindTrace() {
+    let from = strokeLayer.presentation()?.strokeEnd ?? strokeLayer.strokeEnd
+    setStrokeEnd(0)
+    strokeLayer.opacity = 0
+    fillLayer.opacity = 0
+    guard !reduceMotion else { return }
+    let back = CABasicAnimation(keyPath: "strokeEnd")
+    back.fromValue = from
+    back.toValue = 0
+    back.duration = 0.18
+    back.timingFunction = CAMediaTimingFunction(name: .easeIn)
+    strokeLayer.add(back, forKey: "rewind")
+    for shape in [strokeLayer, fillLayer] {
+      let fade = CABasicAnimation(keyPath: "opacity")
+      fade.fromValue = 1
+      fade.toValue = 0
+      fade.duration = 0.18
+      shape.add(fade, forKey: "fade")
+    }
+  }
+
+  /// After the photo: the outline fades, never snaps out of sight (plan §5 step 6).
+  private func hideOutline() {
     for shape in [fillLayer, strokeLayer] {
       let fade = CABasicAnimation(keyPath: "opacity")
       fade.fromValue = shape.presentation()?.opacity ?? shape.opacity
       fade.toValue = 0
-      fade.duration = reduceMotion ? 0 : 0.15
+      fade.duration = reduceMotion ? 0 : 0.25
       shape.opacity = 0
       shape.add(fade, forKey: "fadeOut")
     }
-    smoother.reset()
-    target = nil
   }
 
   private func resetTracking() {
+    gate.reset()
     hysteresis.reset()
     smoother.reset()
     target = nil
+    lastNormalized = nil
     fillLayer.opacity = 0
     strokeLayer.opacity = 0
     detector.reset()
@@ -288,10 +465,22 @@ final class LiveEdgeCameraView: ExpoView {
     let now = link.timestamp
     let dt = lastTick.map { now - $0 } ?? 0
     lastTick = now
-    guard hysteresis.visible, let quad = target else { return }
+    switch gate.phase {
+    case .tracing, .capturing: break
+    case .waiting, .captured: return
+    }
+    if !reduceMotion { setStrokeEnd(CGFloat(gate.traceProgress(at: now))) }
+    guard let quad = target else { return }
     let drawn = reduceMotion ? quad.flattened : spring.step(toward: quad.flattened, dt: dt)
     if reduceMotion { spring.snap(to: drawn) }
     setPath(LiveQuad(flattened: drawn))
+  }
+
+  private func setStrokeEnd(_ value: CGFloat) {
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    strokeLayer.strokeEnd = value
+    CATransaction.commit()
   }
 
   private func setPath(_ quad: LiveQuad) {
