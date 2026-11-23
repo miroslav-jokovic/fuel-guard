@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { IN_LIST_CHUNK, chunks, eachPage, fetchAllPaged, fetchAllPagedIn } from "./paging.js";
+import { IN_LIST_CHUNK, chunks, eachPage, fetchAllPaged, fetchAllPagedIn, mapChunks } from "./paging.js";
 
 /** A fake paged source: `total` rows of {id}, served in pages sized by the caller (via .range bounds),
  *  matching PostgREST. Records each [from,to] it was asked for. */
@@ -91,5 +91,49 @@ describe("fetchAllPagedIn", () => {
     });
     expect(rows).toEqual([]);
     expect(calls).toBe(0);
+  });
+});
+
+describe("mapChunks", () => {
+  it("keeps at most the concurrency in flight and returns results in chunk order however they finish", async () => {
+    const items = Array.from({ length: 5 * IN_LIST_CHUNK }, (_, i) => i);
+    let inFlight = 0;
+    let peak = 0;
+    const out = await mapChunks(
+      items,
+      async (chunk) => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        // Later chunks finish first, so an order kept by completion would come back reversed.
+        // (Microtask ticks, not a timer: this package carries no Node or DOM types.)
+        for (let k = 0; k < 10 - chunk[0]! / IN_LIST_CHUNK; k++) await Promise.resolve();
+        inFlight -= 1;
+        return chunk[0];
+      },
+      2,
+    );
+    expect(peak).toBe(2);
+    expect(out).toEqual([0, 50, 100, 150, 200]);
+  });
+
+  it("rejects on the first failure and starts no chunk after it", async () => {
+    const started: number[] = [];
+    const read = mapChunks(
+      Array.from({ length: 4 * IN_LIST_CHUNK }, (_, i) => i),
+      async (chunk) => {
+        started.push(chunk[0]!);
+        if (chunk[0] === 0) throw new Error("boom");
+        return chunk[0];
+      },
+      1,
+    );
+    await expect(read).rejects.toThrow("boom");
+    expect(started).toEqual([0]);
+  });
+
+  it("calls nothing for no items", async () => {
+    const fn = vi.fn();
+    expect(await mapChunks([], fn)).toEqual([]);
+    expect(fn).not.toHaveBeenCalled();
   });
 });

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { LOAD_COLUMNS, STOP_COLUMNS, one, type Join } from "./shared.js";
 import { labelOf, memberLabels } from "../../../lib/memberLabels.js";
 import { dispatchesByLoad } from "../dispatchToDriver.js";
-import { chunks, fetchAllPaged } from "../../../lib/paging.js";
+import { fetchAllPaged, mapChunks } from "../../../lib/paging.js";
 import { dispatcherLabel, loadDeliveredAt, type ActivityStop } from "@silvicom/shared";
 import { readFleetDispatchers } from "../../mcleod/index.js";
 import { deliveredCandidateIds, inWindow } from "./deliveredWindow.js";
@@ -55,10 +55,12 @@ export async function listLoads(admin: SupabaseClient, orgId: string, window?: D
   // (2026-10-09). `id` breaks created_at ties so no row falls between two pages.
   const base = () => admin.from("loads").select(LOAD_COLUMNS).eq("org_id", orgId);
   let rows: Row[];
+  let stops: { load_id: string }[];
   if (!window) {
     rows = await fetchAllPaged<Row>((from, to) =>
       pageOf(base().order("created_at", { ascending: false }).order("id", { ascending: true }).range(from, to)),
     );
+    stops = await stopsOf(admin, orgId, rows.map((r) => r.id));
   } else {
     const [open, canceled, candidates] = await Promise.all([
       fetchAllPaged<Row>((from, to) => pageOf(base().not("status", "in", "(delivered,canceled)").order("id").range(from, to))),
@@ -67,34 +69,25 @@ export async function listLoads(admin: SupabaseClient, orgId: string, window?: D
       ),
       deliveredCandidateIds(admin, orgId, window.from, window.before),
     ]);
-    const delivered: Row[] = [];
-    for (const ids of chunks(candidates)) {
-      const { data, error } = await base().eq("status", "delivered").in("id", ids);
-      if (error) throw new Error(error.message);
-      delivered.push(...((data ?? []) as unknown as Row[]));
-    }
-    rows = [...open, ...canceled, ...delivered].sort(
+    // The stops are read for every id the rows CAN hold — open, canceled and every delivery candidate —
+    // alongside the delivered rows rather than after them, since a candidate is either delivered or
+    // already among the open and canceled rows. Stops for a candidate that turns out to be neither are
+    // read and dropped with it below. Back to back, these two reads were 12 of the page's 17 seconds
+    // (measured 2026-11-23, 1,551 candidates).
+    const [deliveredParts, candidateStops] = await Promise.all([
+      mapChunks(candidates, async (ids) => {
+        const { data, error } = await base().eq("status", "delivered").in("id", ids);
+        if (error) throw new Error(error.message);
+        return (data ?? []) as unknown as Row[];
+      }),
+      stopsOf(admin, orgId, [...new Set([...open.map((r) => r.id), ...canceled.map((r) => r.id), ...candidates])]),
+    ]);
+    rows = [...open, ...canceled, ...deliveredParts.flat()].sort(
       (a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")) || a.id.localeCompare(b.id),
     );
+    stops = candidateStops;
   }
   if (rows.length === 0) return [];
-
-  // In id chunks (IN_LIST_CHUNK): one `.in()` over the whole board overflowed Node 22's header limit
-  // at 454 loads and failed every board read for an afternoon. A failed stops read now fails the board
-  // — it used to be ignored, which would have shown every load without its pickup and delivery.
-  const stops: { load_id: string }[] = [];
-  for (const ids of chunks(rows.map((r) => r.id))) {
-    const { data, error: stopsError } = await admin
-      .from("load_stops")
-      .select(STOP_COLUMNS)
-      // Scoped to the org as well as to ids an org-scoped read produced: the service role bypasses RLS,
-      // and a read that is only safe because of the query above it stops being safe when that changes.
-      .eq("org_id", orgId)
-      .in("load_id", ids)
-      .order("seq", { ascending: true });
-    if (stopsError) throw new Error(stopsError.message);
-    stops.push(...((data ?? []) as unknown as { load_id: string }[]));
-  }
 
   const byLoad = new Map<string, unknown[]>();
   for (const s of stops) {
@@ -160,15 +153,39 @@ export async function listLoads(admin: SupabaseClient, orgId: string, window?: D
   });
 }
 
+/**
+ * Every stop of these loads, each load's in `seq` order. In id chunks (IN_LIST_CHUNK): one `.in()` over
+ * the whole board overflowed Node 22's header limit at 454 loads and failed every board read for an
+ * afternoon. A failed stops read fails the board — it used to be ignored, which would have shown every
+ * load without its pickup and delivery. The chunks overlap (`mapChunks`), and a load's stops all sit
+ * in one chunk, so each load's order holds.
+ */
+async function stopsOf(admin: SupabaseClient, orgId: string, loadIds: string[]): Promise<{ load_id: string }[]> {
+  const parts = await mapChunks(loadIds, async (ids) => {
+    const { data, error } = await admin
+      .from("load_stops")
+      .select(STOP_COLUMNS)
+      // Scoped to the org as well as to ids an org-scoped read produced: the service role bypasses RLS,
+      // and a read that is only safe because of the query above it stops being safe when that changes.
+      .eq("org_id", orgId)
+      .in("load_id", ids)
+      .order("seq", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as unknown as { load_id: string }[];
+  });
+  return parts.flat();
+}
+
 /** The team second drivers' names, one org-scoped read in chunks (D-LA2). */
 async function coDriverNamesFor(admin: SupabaseClient, orgId: string, rows: Row[]): Promise<Map<string, string>> {
   const ids = [...new Set(rows.map((r) => r.co_driver_id).filter((v): v is string => typeof v === "string"))];
   const names = new Map<string, string>();
-  for (const part of chunks(ids)) {
+  const parts = await mapChunks(ids, async (part) => {
     const { data, error } = await admin.from("drivers").select("id, full_name").eq("org_id", orgId).in("id", part);
     if (error) throw new Error(error.message);
-    for (const d of (data ?? []) as { id: string; full_name: string | null }[]) if (d.full_name) names.set(d.id, d.full_name);
-  }
+    return (data ?? []) as { id: string; full_name: string | null }[];
+  });
+  for (const d of parts.flat()) if (d.full_name) names.set(d.id, d.full_name);
   return names;
 }
 

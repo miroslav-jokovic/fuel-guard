@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LoadCharges } from "@silvicom/shared";
-import { chunks } from "../../lib/paging.js";
+import { mapChunks } from "../../lib/paging.js";
 
 /**
  * What each load pays, read from `load_charges` (0639) — the one reader behind every screen that shows a
@@ -31,19 +31,22 @@ export async function readLoadCharges(
   loadIds: readonly string[],
 ): Promise<Map<string, LoadCharges>> {
   const byLoad = new Map<string, LoadCharges>();
-  for (const ids of chunks([...new Set(loadIds)])) {
+  // Chunks overlap (`mapChunks`): the Loads page passes ~1,800 ids, and one chunk after another this
+  // read alone added ~5 s to it for a reader who sees rates (measured 2026-11-23).
+  const parts = await mapChunks([...new Set(loadIds)], async (ids) => {
     const { data, error } = await admin.from("load_charges").select(COLUMNS).eq("org_id", orgId).in("load_id", ids);
     if (error) throw new Error(error.message);
-    for (const r of (data ?? []) as Record<string, unknown>[]) {
-      byLoad.set(String(r.load_id), {
-        total_charge: Number(r.total_charge),
-        linehaul: num(r.linehaul),
-        other_charges: num(r.other_charges),
-        currency: r.currency == null ? null : String(r.currency),
-        billed_miles: num(r.billed_miles),
-        order_loaded_movements: num(r.order_loaded_movements),
-      });
-    }
+    return (data ?? []) as Record<string, unknown>[];
+  });
+  for (const r of parts.flat()) {
+    byLoad.set(String(r.load_id), {
+      total_charge: Number(r.total_charge),
+      linehaul: num(r.linehaul),
+      other_charges: num(r.other_charges),
+      currency: r.currency == null ? null : String(r.currency),
+      billed_miles: num(r.billed_miles),
+      order_loaded_movements: num(r.order_loaded_movements),
+    });
   }
   return byLoad;
 }
