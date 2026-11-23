@@ -230,3 +230,11 @@ Q-HT9 (a), Q-HT10 More filters, Q-HT11 no, Q-HT12 as read (Drivers list and Home
     builds the name from `first_name`/`last_name` (`fleetIdentityReads.ts` `displayName`) and staging's
     drivers carry only `full_name`. Production has 0 of 181 seated drivers without them (measured
     2026-11-23), so it is staging data, not a production defect.
+- 2026-11-23 — **HV6, staging pass (part 2)** on `595e2a4` (#2625 deployed): the Drivers list's badge is
+  under AARON ACKISS's name at x 328 / y 461 of a 1440 × 900 screen, with the "Home time: Home now" chip.
+  Canceled through the badge → "Home time canceled"; the Drivers list shows no badge; the tab's ended
+  list shows the period as Canceled, signed by the dispatcher. Staging is left with that canceled
+  period and nothing live.
+  - **What is left:** the same walk on PRODUCTION after the release carries #2619–#2625, on LEONARD
+    BURRELL's real period (home until 11/24 21:32 UTC, truck 676) — read-only: look, do not change it.
+    Open question for the owner: Q-HT13 (map pin).
