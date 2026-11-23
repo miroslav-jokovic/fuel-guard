@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { matchesDriverSearch, type HomeTimePeriod } from "@silvicom/shared";
+import type { HomeTimePeriod } from "@silvicom/shared";
 import { AppButton as BaseButton, AppSegmentedControl, DataTable, DataWorkspace, FilterBar, TablePagination, useQueryState, type DataTableColumn } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
 import { HOME_TIME_END_WORDS, HOME_TIME_STATE_BADGE, HOME_TIME_TRUCK_WORDS, spanWords } from "@/components/homeTime/homeTimeView";
 import { useCanMarkHomeTime, useHomeTimeList } from "@/components/homeTime/useHomeTime";
 import { HOME_TIME_NEW, useHomeTimeDrawer } from "@/components/homeTime/useHomeTimeDrawer";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
+import { filterHomeTimes, homeTimeStateOptions, tabState } from "./homeTimeTabView";
 
 /**
  * The board's Home time tab (HOME-TIME-PLAN D-HT8): everyone scheduled, home or overdue — overdue
@@ -41,16 +43,15 @@ const at = (iso: string | null | undefined) => formatDateTime(iso, "—", props.
 const nowMs = computed(() => (list.data.value ? Date.parse(list.data.value.generatedAt) : Date.now()));
 
 const all = computed<HomeTimePeriod[]>(() => (show.value === "recent" ? list.data.value?.recent : list.data.value?.live) ?? []);
-const filtered = computed(() => {
-  const term = search.value.trim().toLowerCase();
-  if (!term) return all.value;
-  // The roster's one rule (HOME-TIME-VISIBILITY-PLAN D-HT22): the truck as a unit, never inside another number.
-  return all.value.filter((p) => matchesDriverSearch(term, { names: [p.driverName, p.markedByName], units: [p.unitNumber] }));
-});
+// The state choice (HOME-TIME-VISIBILITY-PLAN D-HT23, HV3): each list's own states, each with its count.
+const stateParam = qs.param("state");
+const state = computed({ get: () => tabState(show.value, stateParam.value), set: (v: string) => (stateParam.value = v) });
+const stateOptions = computed(() => homeTimeStateOptions(all.value, { show: show.value, term: search.value }));
+const filtered = computed(() => filterHomeTimes(all.value, { show: show.value, term: search.value, state: state.value }));
 
 const PAGE_SIZE = 20;
 const page = ref(1);
-watch([search, show], () => (page.value = 1));
+watch([search, show, state], () => (page.value = 1));
 watch(() => filtered.value.length, (n) => {
   const last = Math.max(1, Math.ceil(n / PAGE_SIZE));
   if (page.value > last) page.value = last;
@@ -77,7 +78,7 @@ const columns = computed<DataTableColumn[]>(() => [
 ]);
 
 const emptyText = computed(() => {
-  if (search.value.trim()) return "No driver matches this search.";
+  if (search.value.trim() || state.value) return "No driver matches these filters.";
   if (show.value === "recent") return "No home time ended in the last 60 days.";
   return canMark.value ? "Nobody is on home time. Mark a driver when he goes home, or ahead of time." : "Nobody is on home time.";
 });
@@ -93,9 +94,12 @@ const emptyText = computed(() => {
       search-placeholder="Search driver or truck…"
       :count="filtered.length"
       count-label="drivers"
-      :active-count="search.trim() ? 1 : 0"
-      @clear-all="search = ''"
+      :active-count="(search.trim() ? 1 : 0) + (state ? 1 : 0)"
+      @clear-all="search = ''; state = ''"
     >
+      <template #filters>
+        <FilterSelect v-model="state" label="Status" :options="stateOptions" />
+      </template>
       <template #actions>
         <BaseButton v-if="canMark" variant="primary" data-testid="home-time-mark" @click="drawer.open(HOME_TIME_NEW)">Mark home time</BaseButton>
       </template>
