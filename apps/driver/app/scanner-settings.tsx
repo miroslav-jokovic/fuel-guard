@@ -7,6 +7,7 @@ import { describeScanner, type ScannerFacts, type SettingsRow } from '@/features
 import { useSyncState } from '@/data/sync';
 import { useFeatures } from '@/session/useFeatures';
 import { getCaptureNativeModule } from '../modules/capture-native';
+import { liveEdgePageSource } from '@/capture/liveEdgePageSource';
 
 /**
  * Scanner settings (D-DB14, 2026-09-07) — what this phone will do when a driver captures a
@@ -33,7 +34,8 @@ export default function ScannerSettings() {
       if (!active) return;
       const platform: ScannerFacts['platform'] =
         Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'other';
-      setFacts({ platform, support, config });
+      // The same question the capture engine asks to pick the scanner, so this screen cannot disagree.
+      setFacts({ platform, support, config, ownCamera: liveEdgePageSource(native) !== null });
     })();
     return () => {
       active = false;

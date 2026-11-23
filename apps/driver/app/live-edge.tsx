@@ -5,9 +5,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText, Button, IconButton } from '@/components';
 import { roleColors } from '@/theme/colors';
 import { getCaptureConfig } from '@/capture/engine';
+import { scanHeadline } from '@/capture/scanHints';
 import {
   getLiveEdgeCameraView,
-  type LiveEdgeBlocker,
   type LiveEdgeCameraState,
   type LiveEdgeCapture,
   type LiveEdgeDetection,
@@ -27,34 +27,6 @@ import {
  * Colours are the dark theme's roles because the ground is always a camera feed, whatever the phone's
  * appearance setting: the accent cyan reads against paper and table alike, as the outline must.
  */
-
-/** What the driver should do, for each reason the gate is waiting. Order of the blockers: LiveCaptureGate.swift. */
-const HINT: Record<LiveEdgeBlocker, string> = {
-  noPage: 'Point the camera at a page',
-  offEdge: 'Fit the whole page in the frame',
-  tooFar: 'Move closer',
-  tilted: 'Hold the phone flat above the page',
-  lowResolution: 'Move closer',
-  focusing: 'Focusing…',
-  moving: 'Hold still',
-  settling: 'Hold still',
-};
-
-function headline(camera: LiveEdgeCameraState | null, detection: LiveEdgeDetection | null): string {
-  if (camera?.status === 'denied') return 'Camera access is off';
-  if (camera?.status === 'failed') return `Camera failed: ${camera.detail ?? 'unknown'}`;
-  if (!detection) return 'Starting the camera';
-  switch (detection.gate) {
-    case 'tracing':
-      return 'Hold still — scanning';
-    case 'capturing':
-      return 'Scanning…';
-    case 'captured':
-      return 'Scanned. Move to the next page';
-    case 'waiting':
-      return HINT[detection.blocker ?? 'noPage'];
-  }
-}
 
 export default function LiveEdgePrototype() {
   const router = useRouter();
@@ -107,7 +79,7 @@ export default function LiveEdgePrototype() {
       <View className="absolute left-0 right-0 flex-row items-start justify-between px-4" style={{ top: insets.top + 8 }}>
         <View className="shrink gap-1 rounded-lg bg-hero/80 px-3 py-2">
           <AppText variant="label" tone="onHeroLive" weight="semibold">
-            {headline(camera, detection)}
+            {scanHeadline(camera, detection)}
           </AppText>
           {detection ? (
             <AppText variant="caption" tone="onHeroSecondary" tabular>

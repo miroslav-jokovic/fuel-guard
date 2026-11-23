@@ -213,12 +213,32 @@ function toImageRef(n: NativeImage): ImageRef {
   return { uri: n.uri, width: n.width, height: n.height, bytes: n.bytes, mediaType: coerceMediaType(n.mediaType), sha256: n.sha256 };
 }
 
+/**
+ * Which camera produced a page, as the evidence record names it. The OS scanner (VisionKit / ML Kit) is
+ * `system_scanner`; our own camera with the D-LED6 capture gate is `raw_capture` — the mode DCE §2 named
+ * for it before it existed. The rest of the pipeline is identical, so this is the only difference a
+ * reader of the record can see, and it must be able to see it.
+ */
+export interface CaptureSource {
+  providerId: string;
+  captureMode: "system_scanner" | "raw_capture";
+}
+export const SYSTEM_SCANNER: CaptureSource = { providerId: "capture.native.system_scanner", captureMode: "system_scanner" };
+export const LIVE_EDGE_CAMERA: CaptureSource = { providerId: "capture.native.live_edge", captureMode: "raw_capture" };
+
 export function assemblePage(
   p: NativeScannedPage,
   measured: NativeImageMetrics | null,
   config: CaptureConfig,
   platform: "ios" | "android",
-  extra: { captureMs?: number; processingMs?: number; deviceModel?: string; osVersion?: string } = {},
+  extra: {
+    captureMs?: number;
+    processingMs?: number;
+    deviceModel?: string;
+    osVersion?: string;
+    /** Which camera took the page. Absent = the OS scanner, the only one before D-LED6. */
+    source?: CaptureSource;
+  } = {},
 ): CapturedPage {
   const original = toImageRef(p.original);
   const derived = toImageRef(p.derived);
@@ -263,7 +283,7 @@ export function assemblePage(
     metrics,
     ocr,
     metadata: {
-      providerId: "capture.native.system_scanner",
+      providerId: (extra.source ?? SYSTEM_SCANNER).providerId,
       providerVersion: "0.1.0",
       ocrEngineId: ocr.engine,
       configVersion: config.configVersion,
@@ -278,7 +298,7 @@ export function assemblePage(
     // The ORIGINAL's hash, which is what this field has always been documented to be — and, until
     // Phase 4b, was vacuously so, because a page had one file.
     integrityHash: p.original.sha256,
-    provenance: { captureMode: "system_scanner", osEnhanced: p.osEnhanced },
+    provenance: { captureMode: (extra.source ?? SYSTEM_SCANNER).captureMode, osEnhanced: p.osEnhanced },
   };
 }
 

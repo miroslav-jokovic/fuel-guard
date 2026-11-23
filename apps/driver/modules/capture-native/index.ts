@@ -163,6 +163,12 @@ export interface CaptureNativeModule {
    */
   measure(uri: string, analysisLongEdgePx: number): Promise<NativeImageMetrics>;
   recognize(uri: string): Promise<NativeOcr>;
+  /**
+   * iOS, runtime 1.5.0+: pages our own camera took (the live edge view, D-LED6) through the same
+   * pipeline as `scan()`'s — original, derivative, hash, OCR — answering in `scan()`'s shape. Optional
+   * because an older binary does not have it; the provider asks before using it.
+   */
+  processPages?(uris: string[], options: Pick<NativeScanOptions, "enhanceLongEdgePx" | "enhanceQuality">): Promise<NativeScanResult>;
   cancel(): void;
 }
 

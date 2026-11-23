@@ -449,6 +449,23 @@ trained; L5 ~1 week. That is **about 6–8 weeks in total**, against a licence f
   · Still the spike's route (More → "Live edge prototype", development builds). "Capture BOL" still opens
     VisionKit until L5 puts this camera behind the provider seam.
 
+- **2026-11-23 — One scanner for every document (owner), L5's seam built for iPhone.** The owner: "we are
+  using the same scanner for all documents", the outline animates around the page edge, the animation's
+  end takes the scan, and the existing pipeline does the rest. So:
+  · `app/scan.tsx` is the scanner screen (our camera + D-LED6 gate, page count, Done, Close). A capture
+    provider opens it through `src/capture/scanSession.ts` and awaits the pages.
+  · Native `processPages` runs those pages through the SAME `ImagePipeline` VisionKit's pages use
+    (original, derivative, hash, on-device OCR); `nativeSystemScannerProvider` takes a `PageSource`, so
+    measurement, `assemblePage` and the §5 gate are one code path whichever camera took the page. The
+    record names the camera: `capture.native.live_edge` / `raw_capture`, `osEnhanced: false`.
+  · `engine.ts` picks our camera wherever it exists (iPhone, runtime 1.5.0+), else the OS scanner, else
+    the plain camera. Capture BOL and a stop's BOL slot (`isDocumentSlot`, shared contract) both call
+    `scanDocument`; trailer, seal and damage stay plain photos. `decideCapture` moved to
+    `src/capture/captureDecision.ts` so both flows refuse and word a bad page identically.
+  · Android keeps ML Kit's scanner behind the same call until L4.
+  · Driver 576 tests, shared 18, Swift 66 checks; `CaptureNative` compiles; three mutants killed
+    (session not superseding, empty finish as a scan, a non-document slot scanned).
+
 ## Sources
 
 - Genius Scan SDK: https://geniusscansdk.com/features/ ·

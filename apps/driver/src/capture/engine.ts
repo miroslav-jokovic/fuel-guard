@@ -9,6 +9,8 @@ import {
 } from "@silvicom/capture-engine";
 import { createNativeSystemScannerProvider } from "./nativeSystemScannerProvider";
 import { createExpoImagePickerProvider } from "./expoImagePickerProvider";
+import { liveEdgePageSource } from "./liveEdgePageSource";
+import { getCaptureNativeModule } from "../../modules/capture-native";
 
 /**
  * Capture engine bootstrap (M6 / DCE §8). Loads + verifies the signed config, then picks the native
@@ -28,7 +30,12 @@ async function bootstrap(): Promise<{ config: CaptureConfig; provider: CapturePr
   if (cached) return cached;
   const { config } = await loadConfig({ bundled: BUNDLED_DEFAULT_CONFIG, verifier });
   let provider: CaptureProvider = createExpoImagePickerProvider(config);
-  const native = createNativeSystemScannerProvider(config, platform);
+  // One scanner for every document (owner, 2026-11-23): our own camera wherever it exists (iPhone,
+  // runtime 1.5.0+), else the OS scanner, else the plain camera. Same provider, same gate either way.
+  const ownCamera = liveEdgePageSource(getCaptureNativeModule());
+  const native = ownCamera
+    ? createNativeSystemScannerProvider(config, platform, ownCamera)
+    : createNativeSystemScannerProvider(config, platform);
   if (native) {
     try {
       const support = await native.isSupported();
@@ -41,10 +48,19 @@ async function bootstrap(): Promise<{ config: CaptureConfig; provider: CapturePr
   return cached;
 }
 
-/** Scan a BOL page: camera → gate. The caller decides accept/re-shoot from the ScanResult. */
-export async function scanBol(): Promise<ScanResult> {
+/**
+ * Scan a document: camera → gate. Every document in the app comes through here — the hazmat BOL and a
+ * stop's paperwork slot alike — so they share one scanner. The caller decides accept/re-shoot from the
+ * ScanResult.
+ */
+export async function scanDocument(maxPages: number): Promise<ScanResult> {
   const { provider } = await bootstrap();
-  return provider.scan({ maxPages: 10 });
+  return provider.scan({ maxPages });
+}
+
+/** Scan a BOL for a hazmat check: up to ten pages (the server's MAX_BOL_PAGES). */
+export async function scanBol(): Promise<ScanResult> {
+  return scanDocument(10);
 }
 
 export async function getCaptureConfig(): Promise<CaptureConfig> {

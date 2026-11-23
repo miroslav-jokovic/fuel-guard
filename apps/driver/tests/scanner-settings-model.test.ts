@@ -31,6 +31,12 @@ describe('scanner settings — which scanner this phone uses', () => {
     expect(view.scanner[0]!.tone).toBe('success');
   });
 
+  it('names our own scanner when this phone has it, and says how it takes the shot', () => {
+    const view = describeScanner({ ...base, ownCamera: true });
+    expect(view.scanner[0]!.title).toBe('Silvicom scanner');
+    expect(view.scanner[0]!.subtitle).toMatch(/outline traces the page edges and the scan is taken/);
+  });
+
   it('falls back to the camera when there is no native module at all', () => {
     const view = describeScanner({ ...base, support: null });
     expect(view.scanner[0]!.title).toBe('Built-in camera');

@@ -132,6 +132,32 @@ public class CaptureNativeModule: Module {
       }
     }
 
+    /**
+     The pages OUR camera took (the live edge view, D-LED6), through the SAME pipeline VisionKit's
+     pages go through — original at full resolution, the model-facing derivative, its hash and the
+     on-device OCR — so everything above this bridge (measure, assemblePage, the §5 gate, the outbox)
+     treats them exactly as it treats a VisionKit scan. One scanner for every document (owner,
+     2026-11-23); one pipeline behind it.
+
+     `osEnhanced` is false: these pages are straightened (perspective) but not colour-enhanced by the OS,
+     and the provenance says so rather than inheriting VisionKit's `true`.
+     */
+    AsyncFunction("processPages") { (uris: [String], options: [String: Any], promise: Promise) in
+      let longEdge = (options["enhanceLongEdgePx"] as? Int) ?? 1568
+      let quality = (options["enhanceQuality"] as? Int) ?? 80
+      var images: [UIImage] = []
+      for uri in uris {
+        guard let image = ImageLoader.load(uri) else {
+          promise.reject("PROVIDER_ERROR", "Could not load a scanned page at \(uri).")
+          return
+        }
+        images.append(image)
+      }
+      ImagePipeline.process(images: images, longEdge: longEdge, quality: quality, osEnhanced: false) { pages in
+        promise.resolve(["pages": pages, "cancelled": false])
+      }
+    }
+
     AsyncFunction("recognize") { (uri: String, promise: Promise) in
       guard let image = ImageLoader.load(uri) else {
         promise.reject("PROVIDER_ERROR", "Could not load an image at \(uri).")
@@ -267,7 +293,7 @@ private enum ImagePipeline {
    */
   private static let maxConcurrentPages = 2
 
-  static func process(images: [UIImage], longEdge: Int, quality: Int, completion: @escaping ([[String: Any]]) -> Void) {
+  static func process(images: [UIImage], longEdge: Int, quality: Int, osEnhanced: Bool = true, completion: @escaping ([[String: Any]]) -> Void) {
     let group = DispatchGroup()
     var results = [Int: [String: Any]]()
     let lock = NSLock()
@@ -281,7 +307,7 @@ private enum ImagePipeline {
         // thread, so the peak is the sum of every page rather than of the two in flight. This is the
         // difference between bounding concurrency and actually bounding memory.
         autoreleasepool {
-          let page = makePage(image, longEdge: longEdge, quality: quality)
+          let page = makePage(image, longEdge: longEdge, quality: quality, osEnhanced: osEnhanced)
           lock.lock(); results[idx] = page; lock.unlock()
         }
         slots.signal()
@@ -312,7 +338,7 @@ private enum ImagePipeline {
   // resize allocates the derivative's bitmap, so the peak is one large buffer rather than two. Step
   // 1.4 bounded this pipeline to two pages in flight; doubling the per-page peak would have undone
   // half of that.
-  private static func makePage(_ image: UIImage, longEdge: Int, quality: Int) -> [String: Any] {
+  private static func makePage(_ image: UIImage, longEdge: Int, quality: Int, osEnhanced: Bool) -> [String: Any] {
     let original: [String: Any] = autoreleasepool {
       let data = image.jpegData(compressionQuality: 1.0) ?? Data()
       return describe(data, width: Int(image.size.width * image.scale), height: Int(image.size.height * image.scale))
@@ -327,7 +353,7 @@ private enum ImagePipeline {
     return [
       "original": original,
       "derived": derived,
-      "osEnhanced": true,
+      "osEnhanced": osEnhanced,
       "ocr": OcrEngine.recognizeSync(resized),
     ]
   }
