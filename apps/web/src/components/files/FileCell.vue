@@ -6,6 +6,7 @@ import { DQ_KIND_LABELS, FILE_CHIP_LABELS, type PaperThumb } from "@silvicom/sha
 import { apiFetch } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
+import HoverCard from "@/components/ui/HoverCard.vue";
 
 /**
  * A unit's or a driver's papers in one table cell (UNIT-FILES-PLAN UF4, D-UF7): up to three
@@ -98,23 +99,23 @@ async function download(documentId: string): Promise<void> {
     @dragleave.prevent="dragging = Math.max(0, dragging - 1)"
     @drop.prevent="onDrop"
   >
-    <div v-for="p in props.papers" :key="p.documentId" class="group relative" data-test="file-thumb">
-      <BaseButton
-        variant="ghost"
-        size="sm"
-        class="size-8 overflow-hidden rounded-detail p-0 ring-1 ring-edge"
-        :aria-label="`Open ${label(p.kind)} for ${props.subjectLabel}`"
-        @click="emit('open', p.documentId)"
-      >
-        <img v-if="p.thumbUrl" :src="p.thumbUrl" alt="" class="size-full object-cover" loading="lazy" />
-        <AppIcon v-else :icon="DocumentTextIcon" class="size-4 text-ink-tertiary" aria-hidden="true" />
-      </BaseButton>
+    <div v-for="p in props.papers" :key="p.documentId" data-test="file-thumb">
       <!-- The hover card: what the paper is and until when. Shown on focus too, so a keyboard reader
-           gets it without a pointer. -->
-      <div
-        role="tooltip"
-        class="invisible absolute left-0 top-full z-popover mt-1 w-56 rounded-surface bg-surface p-3 text-xs shadow-overlay ring-1 ring-edge group-focus-within:visible group-hover:visible"
-      >
+           gets it without a pointer. Painted in a layer above the table (HoverCard) — as an absolute
+           child of this cell it was clipped by the table's scroller and drawn under the next rows. -->
+      <HoverCard>
+        <template #trigger>
+          <BaseButton
+            variant="ghost"
+            size="sm"
+            class="size-8 overflow-hidden rounded-detail p-0 ring-1 ring-edge"
+            :aria-label="`Open ${label(p.kind)} for ${props.subjectLabel}`"
+            @click="emit('open', p.documentId)"
+          >
+            <img v-if="p.thumbUrl" :src="p.thumbUrl" alt="" class="size-full object-cover" loading="lazy" />
+            <AppIcon v-else :icon="DocumentTextIcon" class="size-4 text-ink-tertiary" aria-hidden="true" />
+          </BaseButton>
+        </template>
         <p class="font-medium text-ink">{{ label(p.kind) }}</p>
         <p v-if="provesOf(p.documentId)?.goodUntil" class="text-ink-muted">
           Good until {{ formatDate(provesOf(p.documentId)!.goodUntil!) }}
@@ -123,10 +124,11 @@ async function download(documentId: string): Promise<void> {
              McLeod paper's filing date is the import run, which says nothing about the paper. -->
         <p class="text-ink-muted">Dated {{ formatDate(p.datedAt) }}</p>
         <p v-if="p.uploadedBy" class="text-ink-muted">Filed {{ formatDate(p.filedAt) }} by {{ p.uploadedBy }}</p>
+        <!-- A pointer shortcut: the gallery this thumb opens has the same Download for the keyboard. -->
         <BaseButton size="sm" variant="ghost" class="mt-2 -ml-2" @click="download(p.documentId)">
           <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" /> Download
         </BaseButton>
-      </div>
+      </HoverCard>
     </div>
 
     <BaseButton
@@ -139,29 +141,28 @@ async function download(documentId: string): Promise<void> {
       @click="emit('open')"
     >+{{ more }}</BaseButton>
 
-    <div v-if="props.outstanding?.length" class="group relative" data-test="file-outstanding">
-      <BaseButton
-        variant="ghost"
-        size="sm"
-        class="text-ink-muted"
-        :aria-label="`${props.outstanding.length} outstanding on ${props.subjectLabel}'s file`"
-        @click="emit('outstanding')"
-      >
-        <AppIcon :icon="ClipboardDocumentListIcon" class="size-4" aria-hidden="true" />
-      </BaseButton>
-      <!-- Opens LEFTWARD from the control's right edge: the control ends the cell, File is often the
-           last column on screen, and the table's horizontal scroller clips anything past its edge. -->
-      <div
-        role="tooltip"
-        class="invisible absolute right-0 top-full z-popover mt-1 w-72 whitespace-normal rounded-surface bg-surface p-3 text-xs shadow-overlay ring-1 ring-edge group-focus-within:visible group-hover:visible"
-      >
+    <div v-if="props.outstanding?.length" data-test="file-outstanding">
+      <!-- Ends the cell, and File is often the last column on screen, so it prefers to open LEFTWARD;
+           flip/shift keep it on screen either way now that the table's scroller no longer clips it. -->
+      <HoverCard placement="bottom-end" width="w-72">
+        <template #trigger>
+          <BaseButton
+            variant="ghost"
+            size="sm"
+            class="text-ink-muted"
+            :aria-label="`${props.outstanding.length} outstanding on ${props.subjectLabel}'s file`"
+            @click="emit('outstanding')"
+          >
+            <AppIcon :icon="ClipboardDocumentListIcon" class="size-4" aria-hidden="true" />
+          </BaseButton>
+        </template>
         <p class="font-medium text-ink">Still needed</p>
         <ul class="mt-1 space-y-1">
           <li v-for="o in props.outstanding" :key="o.key" class="text-ink-muted">
             <span class="text-ink">{{ o.label }}</span> · {{ itemStatus(o) }}
           </li>
         </ul>
-      </div>
+      </HoverCard>
     </div>
   </div>
 </template>

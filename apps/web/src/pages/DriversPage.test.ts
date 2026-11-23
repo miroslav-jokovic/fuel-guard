@@ -487,8 +487,8 @@ describe("DriversPage roster table", () => {
 
   it("opens the gallery on the paper that was clicked, for that driver, and only one", async () => {
     const w = await mountPage();
-    // The thumb itself, not the hover card's Download button beside it.
-    const thumbs = w.findAll("tbody tr")[0]!.findAll("[data-test=file-thumb] > button");
+    // The thumb itself — HoverCard's trigger span holds it; the card's Download is in body until hovered.
+    const thumbs = w.findAll("tbody tr")[0]!.findAll("[data-test=file-thumb] > span > button");
     await thumbs[1]!.trigger("click");
     await flushPromises();
 
@@ -580,10 +580,16 @@ describe("DriversPage roster table", () => {
   it("lists what a file still needs on the File cell, even with no paper on it (D-DQ22)", async () => {
     const w = await mountPage();
     const rows = w.findAll("tbody tr");
-    // d-2 has no papers at all — the 183-of-183 case — and still says what is outstanding.
-    const card = rows[1]!.find("[data-test=file-outstanding]");
-    expect(card.findAll("li").map((li) => li.text())).toEqual(["CDL · Expired 01/01/2026"]);
-    expect(rows[0]!.find("[data-test=file-outstanding]").text()).toContain("Hazmat endorsement");
+    // d-2 has no papers at all — the 183-of-183 case — and still says what is outstanding. The card is
+    // a HoverCard: it opens on hover, in body, above the table.
+    const openCard = async (row: number) => {
+      document.body.querySelectorAll("[data-test=hover-card]").forEach((n) => n.remove());
+      await rows[row]!.find("[data-test=file-outstanding] > span").trigger("pointerenter");
+      return document.body.querySelector("[data-test=hover-card]")!;
+    };
+    const card = await openCard(1);
+    expect(Array.from(card.querySelectorAll("li"), (li) => li.textContent?.replace(/\s+/g, " ").trim())).toEqual(["CDL · Expired 01/01/2026"]);
+    expect((await openCard(0)).textContent).toContain("Hazmat endorsement");
   });
 
   it("opens the upload panel from the outstanding control for a reader who files", async () => {
