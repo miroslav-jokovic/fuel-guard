@@ -3,7 +3,6 @@ import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AppText, Banner, ConfirmSheet, GroupedList, Icon, ListRow, Screen, ScreenHeader, Section } from '@/components';
 import { useThreads } from '@/features/messages/useMessages';
-import { useNotifications } from '@/features/notifications/useNotifications';
 import { homeScoreSummary } from '@/features/score/scoreModel';
 import { useDriverScore } from '@/features/score/useDriverScore';
 import { useFeatures } from '@/session/useFeatures';
@@ -53,7 +52,6 @@ export default function More() {
   const name = driver.data?.driver.full_name ?? email ?? 'Signed in';
   // The live counts at the end of the Work rows (mock screen 8): what is new, and this week's score.
   const threads = useThreads(messagesEnabled);
-  const notifs = useNotifications(notificationsEnabled);
   const week = homeScoreSummary(useDriverScore(scoreEnabled).data);
   const newCount = (n: number | undefined) =>
     n && n > 0 ? <AppText variant="supporting" weight="semibold" tone="accent" tabular>{`${n} new`}</AppText> : undefined;
@@ -108,14 +106,11 @@ export default function More() {
         </View>
       </Section>
 
-      {scoreEnabled || messagesEnabled || notificationsEnabled ? (
+      {scoreEnabled || messagesEnabled ? (
         <Section title="Work">
           <GroupedList>
             {messagesEnabled ? (
               <ListRow title="Messages" icon="mail" right={newCount(threads.data?.unread_total)} onPress={() => router.push('/messages')} />
-            ) : null}
-            {notificationsEnabled ? (
-              <ListRow title="Notifications" icon="notifications" right={newCount(notifs.data?.unread)} onPress={() => router.push('/notifications')} />
             ) : null}
             {scoreEnabled ? (
               <ListRow
@@ -136,6 +131,11 @@ export default function More() {
       <Section title="Settings">
         <GroupedList>
           <ListRow title="Appearance and sync" subtitle="Theme, contrast, failed syncs, app version" icon="settings" onPress={() => router.push('/settings')} />
+          {/* Notification switches live under Settings, not beside Messages (Q-DF-7, 2026-11-23):
+              the inbox itself is the Today bell. See notification-settings.tsx. */}
+          {notificationsEnabled ? (
+            <ListRow title="Notifications" subtitle="Which alerts reach this phone" icon="notifications" onPress={() => router.push('/notification-settings')} />
+          ) : null}
           {hazmatEnabled ? (
             <ListRow title="Scanner" subtitle="How documents are captured on this phone" icon="qr_code_scanner" onPress={() => router.push('/scanner-settings')} />
           ) : null}

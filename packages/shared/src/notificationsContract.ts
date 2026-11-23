@@ -196,7 +196,9 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   load_offered: "New loads",
   load_changed: "Load changes",
   load_canceled: "Cancellations",
-  message_received: "Messages",
+  // "New message alerts", not "Messages": on the driver's settings screen a bare "Messages" reads as
+  // the Messages page itself (Q-DF-7, 2026-11-23).
+  message_received: "New message alerts",
   duty_auto_closed: "Shift closed automatically",
   performance_week: "Weekly score",
   training_due: "Training reminders",
