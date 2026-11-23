@@ -201,3 +201,18 @@ Q-HT9 (a), Q-HT10 More filters, Q-HT11 no, Q-HT12 as read (Drivers list and Home
     co-driver's name, the badge opening the drawer without the truck's). Mutation run: 2 of 3 caught;
     the third — the badge's `.stop` removed — is not observable in jsdom (the row's `truck` write and the
     badge's `homeTime` push race, and the push wins), so `.stop` stays as a guard the browser pass checks.
+- 2026-11-23 — **HV5 built** (branch `claude/home-time-map-loads`, stacked on HV4). The Dashboard's
+  Dispatch map: the badge beside the truck's state on the truck card, and beside the driver's name on his
+  rail row — read once by `LiveMapWorkspace` (the map's feed carries only the driver's id and name) and
+  handed down, with the drawer mounted there. The Loads list: each seat on home time under the driver's
+  name, in `LoadDriverCell.vue` (moved out of `DispatchLoadsPage.vue`, which stood at 499 of 500 lines; now
+  495), with the drawer mounted on the page. Both only for readers of Dispatch (Q-HT9 (a)).
+  - **Not built: a home-time look for the truck's pin.** The pin's glyph is the truck's MOTION state
+    (`liveMapLayer.ts`, D-LM20), and a second meaning on one glyph needs its own design pass; the card
+    and the rail say it, one click from the pin. Open as Q-HT13 below.
+  - Tests: map workspace 1, map card 2, Loads cell 3. Mutation run: 5 of 5 caught.
+
+- **Q-HT13 — Should a truck at its driver's house look different on the map?** *(a)* Leave the pin as
+  motion only — the card and rail say home time (built). *(b)* A small house mark on the pin for a held
+  truck. **Recommend (a)** until a dispatcher asks: a parked truck is already grey, and a second mark on
+  two hundred pins is noise.

@@ -220,3 +220,19 @@ describe("LiveMapVehicleFacts — the route toggle (D-TC7)", () => {
     expect(mountCard({ route: off }).findAll("button").some((b) => b.text() === "Hide route")).toBe(false);
   });
 });
+
+describe("LiveMapVehicleFacts — the driver's home time (HOME-TIME-VISIBILITY-PLAN D-HT24)", () => {
+  const withDriver = { ...vehicle(null), driver: { id: "d1", name: "Reyes" } } as LiveMapVehicle;
+  const period = { driverId: "d1", driverName: "Reyes", state: "active" as const, startAt: "2026-11-16T21:32:00Z", expectedReturnAt: "2026-11-24T21:32:00Z" };
+  const card = (homeTimes?: ReadonlyMap<string, typeof period>) =>
+    mount(LiveMapVehicleFacts, { props: { vehicle: withDriver, board, homeTimes: homeTimes as never, zone: "America/Chicago" }, global: { plugins: [router] } });
+
+  it("says it beside the truck's state when the driver is on home time", () => {
+    expect(card(new Map([["d1", period]])).find("[data-home-time-badge]").text()).toBe("Home until 11/24");
+  });
+
+  it("says nothing for a driver who is not, or for a reader handed no home time", () => {
+    expect(card(new Map()).find("[data-home-time-badge]").exists()).toBe(false);
+    expect(card(undefined).find("[data-home-time-badge]").exists()).toBe(false);
+  });
+});

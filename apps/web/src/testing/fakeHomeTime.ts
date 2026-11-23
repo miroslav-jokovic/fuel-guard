@@ -26,6 +26,9 @@ export function fakeHomeTime(list: HomeTimeListResponse | undefined = undefined,
   return {
     HOME_TIME_KEY: ["home-time"] as const,
     useCanMarkHomeTime: () => computed(() => false),
+    // Off by default: a screen that shows home time only to readers of Dispatch shows none here.
+    useHomeTimeVisible: () => computed(() => false),
+    useLiveHomeTimes: () => ({ list: query(list), byDriver: computed(() => new Map((list?.live ?? []).map((p) => [p.driverId, p] as const))) }),
     useHomeTimeList: () => query(list),
     useHomeTimeDrivers: () => query(drivers),
     useMarkHomeTime: write,

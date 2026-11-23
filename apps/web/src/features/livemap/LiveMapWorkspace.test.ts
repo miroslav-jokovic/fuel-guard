@@ -76,6 +76,25 @@ const board = {
   refetch: vi.fn(),
 };
 
+/**
+ * Home time (HOME-TIME-VISIBILITY-PLAN D-HT24): off unless a case turns it on, with the periods it
+ * lists. The workspace reads it once and hands it to the rail and the card.
+ */
+const homeTime = vi.hoisted(() => ({ visible: false, live: [] as { driverId: string; driverName: string; state: string; startAt: string; expectedReturnAt: string }[] }));
+vi.mock("@/components/homeTime/useHomeTime", async () => {
+  const { computed } = await import("vue");
+  const fake = (await import("@/testing/fakeHomeTime")).fakeHomeTime();
+  return {
+    ...fake,
+    useHomeTimeVisible: () => computed(() => homeTime.visible),
+    useLiveHomeTimes: () => ({ byDriver: computed(() => new Map(homeTime.live.map((p) => [p.driverId, p] as const))) }),
+  };
+});
+vi.mock("@/composables/useOrgTimezone", async () => {
+  const { ref } = await import("vue");
+  return { useOrgTimezone: () => ({ zone: ref("America/Chicago") }) };
+});
+
 vi.mock("./useLiveMapBoard", () => ({
   LIVE_MAP_POLL_MS: 5_000,
   LIVE_MAP_QUERY_KEY: ["livemap", "positions"],
@@ -156,7 +175,7 @@ async function mountWorkspace(at = "/live-map") {
   return mount(LiveMapWorkspace, {
     global: {
       plugins: [router],
-      stubs: { LiveMapCanvas: canvasStub, AppIcon: true },
+      stubs: { LiveMapCanvas: canvasStub, AppIcon: true, HomeTimeDrawer: true },
     },
   });
 }
@@ -184,6 +203,18 @@ describe("LiveMapWorkspace (DR5)", () => {
     installStorage();
     board.data.value = BOARD;
     board.isError.value = false;
+    homeTime.visible = false;
+    homeTime.live = [];
+  });
+
+  it("says a driver's home time on his rail row, only to a reader who may read it (HOME-TIME-VISIBILITY-PLAN D-HT24)", async () => {
+    homeTime.live = [{ driverId: "drv-1", driverName: "Jordan Ellis", state: "overdue", startAt: "2026-09-10T12:00:00.000Z", expectedReturnAt: "2026-09-15T17:00:00.000Z" }];
+    const hidden = await mountWorkspace();
+    expect(hidden.find("[data-home-time-badge]").exists()).toBe(false);
+    homeTime.visible = true;
+    const shown = await mountWorkspace();
+    const rail = shown.findComponent({ name: "LiveMapRail" });
+    expect(rail.find("[data-home-time-badge]").text()).toBe("Overdue since 09/15");
   });
 
   /**
