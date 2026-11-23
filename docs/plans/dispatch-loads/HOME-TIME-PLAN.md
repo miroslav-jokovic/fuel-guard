@@ -711,3 +711,9 @@ sidebar.
   - **Not done here, and why:** no number is bought and nothing is submitted to Telnyx — both wait for
     the owner to confirm the second-number route. The opt-in screenshots are still to make.
   - Tests: api 9 more, web 2 more, shared 1 more. Mutation run: 7 deliberate breakages, 7 caught.
+
+- 2026-11-23 — **Owner: the status cannot be seen, edited or cancelled where people look, filters are
+  weak, the Drivers list cannot search by truck.** Measured and planned in
+  `HOME-TIME-VISIBILITY-PLAN.md` (HV0–HV6, D-HT21–26, Q-HT9–12): the Drivers list search finds a
+  truck's own driver for 2 of 178 trucks and a wrong driver for 138; home time is shown only on the
+  Dispatch board.
