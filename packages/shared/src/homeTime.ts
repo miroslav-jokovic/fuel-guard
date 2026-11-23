@@ -213,3 +213,35 @@ export const HOME_TIME_ALERT_SEVERITY: Record<HomeTimeAlertKind, "info" | "warni
   home_time_overdue: "warning",
   home_time_truck_limit: "warning",
 };
+
+// ── the Drivers list's Home time filter (HOME-TIME-VISIBILITY-PLAN D-HT23) ──────────────────────────
+
+/**
+ * `?home=` on the Drivers list. `on` is home now (home or overdue); `off` is not home now, which
+ * includes a driver whose home time is only scheduled — he is still working. Anything else is no filter.
+ */
+export const HOME_TIME_FILTERS = ["on", "overdue", "scheduled", "off"] as const;
+export type HomeTimeFilter = (typeof HOME_TIME_FILTERS)[number];
+
+export const HOME_TIME_FILTER_LABELS: Record<HomeTimeFilter, string> = {
+  on: "Home now",
+  overdue: "Overdue",
+  scheduled: "Scheduled",
+  off: "Not home now",
+};
+
+/** Does a driver whose live period is in `state` (null: none) pass the filter? */
+export function matchesHomeTimeFilter(state: HomeTimeState | null, filter: string): boolean {
+  switch (filter) {
+    case "on":
+      return state !== null && isHomeNow(state);
+    case "overdue":
+      return state === "overdue";
+    case "scheduled":
+      return state === "scheduled";
+    case "off":
+      return state === null || !isHomeNow(state);
+    default:
+      return true;
+  }
+}

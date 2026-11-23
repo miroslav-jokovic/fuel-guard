@@ -25,6 +25,8 @@ export const DRIVERS_QUERY_KEYS = {
   requirement: "req",
   seat: "seat",
   show: "show",
+  /** HOME-TIME-VISIBILITY-PLAN D-HT23: `HOME_TIME_FILTERS`. */
+  home: "home",
 } as const;
 
 /** `seat=none`: active drivers holding no truck (set by the Operations tab's Seats card). */

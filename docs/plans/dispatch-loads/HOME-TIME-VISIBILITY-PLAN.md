@@ -172,3 +172,12 @@ Q-HT9 (a), Q-HT10 More filters, Q-HT11 no, Q-HT12 as read (Drivers list and Home
   (it read "—" for the second seat). The Home time tab and the drawer's driver picker use the same rule;
   the picker ranks an exact unit first. The board's search gains the co-driver. Tests: shared 10, web 4;
   mutation run: 5 deliberate breakages (the old substring search among them), 5 caught.
+- 2026-11-23 — **HV2 built** (branch `claude/home-time-badge`, stacked on HV1). `HomeTimeBadge.vue` — "Home
+  time from 11/26", "Home until 11/24", "Overdue since 11/24" in red — opens the driver's home-time drawer
+  on a click. Drivers list: the badge beside the employment badge in Status, and a **Home time** filter
+  under More filters (Home now · Overdue · Scheduled · Not home now, each with its count, `?home=`), with
+  its chip; the page mounts the drawer. Driver page: the badge, then a button that says what it does
+  (Mark home time / Change or end home time). Shown only to readers of Dispatch (Q-HT9 (a),
+  `useHomeTimeVisible`). Tests: shared 6, web 8, two roster snapshots updated for the Status cell's new
+  wrapper; mutation run: 6 deliberate breakages, 6 caught. `DriversPage.vue` is at 476 lines (the
+  file-size warning it already had at 459; the logic went to `useRosterHomeTime.ts`).

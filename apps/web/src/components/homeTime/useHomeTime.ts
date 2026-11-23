@@ -10,6 +10,7 @@ import {
   type HomeTimePeriod,
 } from "@silvicom/shared";
 import { apiFetch, type ApiResult } from "@/lib/api";
+import { useModulesQuery } from "@/composables/useModules";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -35,6 +36,24 @@ async function read<T>(call: Promise<ApiResult<T>>, fallback: string): Promise<T
 export function useCanMarkHomeTime() {
   const session = useSessionStore();
   return computed(() => session.hasPermission(HOME_TIME_PERMISSION));
+}
+
+/**
+ * May this person READ home time at all (HOME-TIME-VISIBILITY-PLAN Q-HT9, ruled (a) 2026-11-23)? The
+ * route is behind the Dispatch module and `dispatch: view`; anybody else would be answered 403, so the
+ * roster and the driver page ask nothing and show nothing for them rather than an error.
+ */
+export function useHomeTimeVisible() {
+  const session = useSessionStore();
+  const modules = useModulesQuery();
+  return computed(() => session.canView("dispatch") && (modules.data.value?.has("dispatch") ?? false));
+}
+
+/** Each driver's live period, by driver id — the list the tab shows, read once for a whole page. */
+export function useLiveHomeTimes(enabled: Ref<boolean>) {
+  const list = useHomeTimeList(enabled);
+  const byDriver = computed(() => new Map((list.data.value?.live ?? []).map((p) => [p.driverId, p] as const)));
+  return { list, byDriver };
 }
 
 /**

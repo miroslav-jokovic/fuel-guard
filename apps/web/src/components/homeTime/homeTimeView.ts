@@ -72,6 +72,28 @@ export const HOME_TIME_STATE_BADGE: Record<HomeTimeState, { label: string; tone:
   canceled: { label: "Canceled", tone: "neutral" },
 };
 
+/**
+ * The one status badge's words (HOME-TIME-VISIBILITY-PLAN D-HT21), on every surface that names a
+ * driver: the day on the carrier's clock in the badge, the full time in its title. Only a LIVE period
+ * has a badge; an ended or canceled one says nothing here.
+ */
+export function homeTimeStatusWords(
+  p: { state: HomeTimeState; startAt: string; expectedReturnAt: string },
+  zone: string,
+): { label: string; title: string; tone: Tone } | null {
+  const full = (iso: string) => formatDateTime(iso, "—", zone);
+  switch (p.state) {
+    case "scheduled":
+      return { label: `Home time from ${dayShort(p.startAt, zone)}`, title: `Home time scheduled from ${full(p.startAt)}, back ${full(p.expectedReturnAt)}`, tone: "neutral" };
+    case "active":
+      return { label: `Home until ${dayShort(p.expectedReturnAt, zone)}`, title: `On home time, due back ${full(p.expectedReturnAt)}`, tone: "brand" };
+    case "overdue":
+      return { label: `Overdue since ${dayShort(p.expectedReturnAt, zone)}`, title: `Home time overdue: was due back ${full(p.expectedReturnAt)}`, tone: "danger" };
+    default:
+      return null;
+  }
+}
+
 /** Where the truck is, as a sentence about this period — the form's own labels are the shared ones. */
 export const HOME_TIME_TRUCK_WORDS: Record<HomeTimeDisposition, string> = {
   with_driver: "With the driver",
