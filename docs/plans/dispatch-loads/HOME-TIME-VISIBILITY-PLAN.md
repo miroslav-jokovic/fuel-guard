@@ -181,3 +181,7 @@ Q-HT9 (a), Q-HT10 More filters, Q-HT11 no, Q-HT12 as read (Drivers list and Home
   `useHomeTimeVisible`). Tests: shared 6, web 8, two roster snapshots updated for the Status cell's new
   wrapper; mutation run: 6 deliberate breakages, 6 caught. `DriversPage.vue` is at 476 lines (the
   file-size warning it already had at 459; the logic went to `useRosterHomeTime.ts`).
+- 2026-11-23 — **HV3 built** (branch `claude/home-time-tab-filters`, stacked on HV2). The Home time tab
+  gains a **Status** filter: the live list Overdue · Home · Scheduled, the closed list Ended · Canceled
+  (which it used to mix), each option with the rows it leaves under the search as typed (`ht.state`);
+  a state the list does not hold is no filter. `homeTimeTabView.ts`, tests 4; mutation run 3 of 3 caught.
