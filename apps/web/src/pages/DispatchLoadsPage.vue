@@ -68,6 +68,9 @@ import { AppCallout, AppSegmentedControl, AppTabs, AppButton as BaseButton, Data
 import { SORT_DIRECTIONS, TablePagination, sortRows, useQueryState, useUrlSort } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
+import LoadDriverCell from "@/features/dispatch/LoadDriverCell.vue";
+import HomeTimeDrawer from "@/components/homeTime/HomeTimeDrawer.vue";
+import { useHomeTimeVisible, useLiveHomeTimes } from "@/components/homeTime/useHomeTime";
 import { useTableColumns } from "@/composables/useTableColumns";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
@@ -107,6 +110,9 @@ const session = useSessionStore();
 const router = useRouter();
 const qs = useQueryState();
 const { zone } = useOrgTimezone();
+// Home time beside each driver (HOME-TIME-VISIBILITY-PLAN D-HT24), for a reader of Dispatch; the badge opens the drawer below.
+const homeVisible = useHomeTimeVisible();
+const { byDriver: homeTimes } = useLiveHomeTimes(homeVisible);
 
 // Loads or Activity (D-LA8): one page, so the Dispatcher / fleet choice carries across.
 const view = qs.param("view", ["loads", "activity"], "loads");
@@ -431,18 +437,7 @@ function openDetail(load: DispatchLoad) {
           <p class="truncate text-xs text-ink-muted" :class="row.customer_name ? '' : 'mt-1'" title="Dispatcher in McLeod">{{ row.dispatcher_name ?? "No dispatcher" }}</p>
         </template>
         <template #cell-driver_name="{ row }">
-          <p :class="row.driver_name ? 'text-ink' : 'text-ink-tertiary'">{{ row.driver_name ?? "No driver" }}</p>
-          <!-- D-LA2: a team's second seat, as McLeod names it. -->
-          <p v-if="row.co_driver_name" class="text-xs text-ink-secondary" title="Team driver">+ {{ row.co_driver_name }}</p>
-          <p class="text-xs tabular-nums text-ink-muted" title="Truck / trailer">
-            <!-- D-DB6 point 4: the truck opens on the Dispatch board, its drawer open; HOS and GPS live there. -->
-            <BaseButton
-              v-if="row.vehicle_unit"
-              variant="link"
-              :to="{ name: 'assignments', query: { truck: row.vehicle_unit } }"
-              @click.stop
-            >{{ row.vehicle_unit }}</BaseButton><template v-else>No truck</template> / {{ row.trailer_unit ?? "no trailer" }}
-          </p>
+          <LoadDriverCell :row="row" :home-times="homeVisible ? homeTimes : undefined" :zone="zone" />
         </template>
         <template v-for="end in ['pickup', 'delivery'] as const" :key="end" #[`cell-${end}`]="{ row }">
           <LoadStopCell
@@ -495,5 +490,6 @@ function openDetail(load: DispatchLoad) {
     </template>
 
     <DispatchLoadDrawer :load="dispatching" @close="dispatching = null" />
+    <HomeTimeDrawer v-if="homeVisible" :zone="zone" />
   </div>
 </template>

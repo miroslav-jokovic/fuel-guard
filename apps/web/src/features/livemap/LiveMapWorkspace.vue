@@ -13,6 +13,9 @@ import { useLoadRoute } from "@/composables/useLoadRoute";
 import { useDrivenPath } from "@/composables/useDrivenPath";
 import { useLiveMapView } from "./useLiveMapView";
 import { LIVE_MAP_POLL_MS } from "./useLiveMapBoard";
+import HomeTimeDrawer from "@/components/homeTime/HomeTimeDrawer.vue";
+import { useHomeTimeVisible, useLiveHomeTimes } from "@/components/homeTime/useHomeTime";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
 
 /**
  * The map IS the page (D-DR5, DESIGN-REFRESH-2026-09.md §4), with the fleet down its left (D-DR25).
@@ -213,6 +216,15 @@ watch(railVisible, async () => {
   await nextTick();
   canvas.value?.resize();
 });
+
+/**
+ * Home time on the map (HOME-TIME-VISIBILITY-PLAN D-HT24): read ONCE here, for the rail's two hundred
+ * rows and the card, from the same cache the Dispatch board's Home time tab reads — and only for a
+ * reader who may (Q-HT9 (a)). The badge opens the one drawer mounted below.
+ */
+const homeVisible = useHomeTimeVisible();
+const { byDriver: homeTimes } = useLiveHomeTimes(homeVisible);
+const { zone } = useOrgTimezone();
 </script>
 
 <template>
@@ -238,6 +250,8 @@ watch(railVisible, async () => {
         :error-message="errorMessage"
         :poll-seconds="pollSeconds"
         :viewport-only="viewportOnly"
+        :home-times="homeVisible ? homeTimes : undefined"
+        :zone="zone"
         @update:search="setSearch($event)"
         @update:states="stateFilter = $event"
         @update:viewport-only="viewportOnly = $event"
@@ -402,10 +416,13 @@ watch(railVisible, async () => {
             :board="board.data.value!"
             density="compact"
             :route="routeCard"
+            :home-times="homeVisible ? homeTimes : undefined"
+            :zone="zone"
             @toggle-route="toggleRoute"
           />
         </template>
       </div>
     </div>
+    <HomeTimeDrawer v-if="homeVisible" :zone="zone" />
   </div>
 </template>

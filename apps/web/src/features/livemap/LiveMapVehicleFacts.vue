@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { loadBoardState, type LiveMapBoard, type LiveMapDrivenPath, type LiveMapLoadRoute, type LiveMapStop, type LiveMapVehicle, type LoadStatus } from "@silvicom/shared";
+import { loadBoardState, type HomeTimePeriod, type LiveMapBoard, type LiveMapDrivenPath, type LiveMapLoadRoute, type LiveMapStop, type LiveMapVehicle, type LoadStatus } from "@silvicom/shared";
 import { BADGE_BASE, toneClass, vehicleStateTone } from "@/lib/badges";
 import { STATE_LABEL } from "./liveMapLayer";
 import { engineWords, formatAge, fuelMetric, routeWords, stopAddress } from "./liveMapWords";
@@ -8,6 +8,7 @@ import GatedLink from "@/components/GatedLink.vue";
 import { FactList, type Fact, AppButton as BaseButton, AppIconButton } from "@silvicom/ui";
 import { RouteIcon, UserIcon, VehicleIcon } from "@silvicom/ui/icons";
 import { useOpens } from "@/composables/useOpens";
+import HomeTimeBadge from "@/components/homeTime/HomeTimeBadge.vue";
 
 /**
  * What one truck is doing right now — the body of both readings of a selection (D-DR5).
@@ -55,11 +56,18 @@ const props = defineProps<{
    * card has no route button — the rail's reading of the facts does not draw on a map.
    */
   route?: { shown: boolean; pending: boolean; error: string | null; data: LiveMapLoadRoute | null; driven?: LiveMapDrivenPath | null };
+  /**
+   * Each driver's live home time, read once by the workspace (HOME-TIME-VISIBILITY-PLAN D-HT24) — absent
+   * for a reader who cannot read it — and the carrier's clock for its badge.
+   */
+  homeTimes?: ReadonlyMap<string, HomeTimePeriod>;
+  zone?: string;
 }>();
 
 const emit = defineEmits<{ toggleRoute: [] }>();
 
 const compact = computed(() => props.density === "compact");
+const home = computed(() => (props.vehicle.driver ? (props.homeTimes?.get(props.vehicle.driver.id) ?? null) : null));
 const opens = useOpens();
 
 // The load's status in the Loads board's words (`loadBoardState`), never the raw enum: until
@@ -132,6 +140,9 @@ const endFacts = computed<Fact[]>(() => ends.value.map((end) => ({ key: end.labe
     <div class="flex items-center gap-2">
       <span :class="[BADGE_BASE, vehicleStateTone(vehicle.state)]">{{ STATE_LABEL[vehicle.state] }}</span>
       <span v-if="vehicle.inShop" :class="[BADGE_BASE, toneClass('neutral')]">In shop</span>
+      <!-- The driver's home time, beside the truck's state (D-HT24): a parked truck at his house is not
+           "Stopped, give it a load". One click opens his home time (D-HT25). -->
+      <HomeTimeBadge v-if="home && zone" :period="home" :zone="zone" />
       <span class="text-xs text-ink-muted">Fix {{ formatAge(vehicle.ageSeconds) }}</span>
     </div>
 
