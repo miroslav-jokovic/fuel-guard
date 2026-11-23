@@ -6,6 +6,7 @@ import {
   missingPhotoSlots,
   nextStop,
   photoSlotLabel,
+  isDocumentSlot,
   stopPhotoPath,
   stopProgress,
   type LoadStop,
@@ -180,5 +181,14 @@ describe("deliveredWindowQuerySchema (LOADS-ACTIVITY-PLAN D-LA6)", () => {
   it("refuses a window that ends before it starts, and a date with no time", () => {
     expect(deliveredWindowQuerySchema.safeParse({ delivered_from: before, delivered_before: from }).success).toBe(false);
     expect(deliveredWindowQuerySchema.safeParse({ delivered_from: "2026-10-12", delivered_before: before }).success).toBe(false);
+  });
+});
+
+describe("isDocumentSlot", () => {
+  it("scans the bill of lading and photographs everything else", () => {
+    expect(isDocumentSlot("bol")).toBe(true);
+    for (const slot of ["trailer", "seal", "damage", "load_secured", "other", "custom_slot"]) {
+      expect(isDocumentSlot(slot)).toBe(false);
+    }
   });
 });

@@ -162,6 +162,9 @@ function RootNavigator() {
       {/* Hazmat capture + verdict (hardening plan Phase 3) — same modal contract as the other
           contextual surfaces. The hub itself is the Documents TAB since D-DB14. */}
       <Stack.Screen name="hazmat/capture" options={{ presentation: "modal" }} />
+      {/* The scanner (D-LED6): full screen, and no swipe-down — a driver steadying a page must not
+          dismiss it by accident. Close is its own button. */}
+      <Stack.Screen name="scan" options={{ presentation: "fullScreenModal", gestureEnabled: false }} />
       <Stack.Screen name="hazmat/[loadId]" options={{ presentation: "modal" }} />
       {/* Notification centre (Phase 6) — opened from the Home bell, gated on `notifications`. */}
       <Stack.Screen name="notifications" options={{ presentation: "modal" }} />

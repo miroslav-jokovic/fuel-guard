@@ -3,7 +3,8 @@
 #
 # Compiles the SAME LiveEdgeGeometry.swift the module ships, for macOS, with plain swiftc, and runs
 # LiveEdgeGeometryMain.swift against it: mapping, the validator, overlap, the One Euro filter,
-# hysteresis and the spring. No camera, simulator or Xcode project.
+# hysteresis and the spring — and LiveCaptureGate.swift (LiveCaptureGateChecks.swift): framing,
+# motion and the trace-then-shoot gate (D-LED6). No camera, simulator or Xcode project.
 #
 # ⚠ macOS ONLY, and therefore NOT a CI gate, for the same reason as run-metrics-parity.sh: no iOS job
 # exists in CI. Run it on every change to LiveEdgeGeometry.swift.
@@ -23,5 +24,6 @@ trap 'rm -rf "$OUT"' EXIT
 # Top-level statements are only allowed in a file called main.swift, so the checks are copied under
 # that name rather than wrapped in an @main type that would add nothing.
 cp "$HERE/LiveEdgeGeometryMain.swift" "$OUT/main.swift"
-swiftc -O -o "$OUT/live-edge-tests" "$MODULE/ios/LiveEdgeGeometry.swift" "$OUT/main.swift"
+swiftc -O -o "$OUT/live-edge-tests" "$MODULE/ios/LiveEdgeGeometry.swift" "$MODULE/ios/LiveCaptureGate.swift" \
+  "$HERE/LiveCaptureGateChecks.swift" "$OUT/main.swift"
 "$OUT/live-edge-tests"

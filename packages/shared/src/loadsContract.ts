@@ -56,6 +56,17 @@ export function photoSlotLabel(slot: string): string {
   return PHOTO_SLOT_LABELS[slot] ?? slot.replace(/_/g, " ");
 }
 
+/**
+ * The slots that hold a DOCUMENT rather than a photo of a thing. A document is scanned — the scanner
+ * finds the page, straightens it and checks it can be read (owner, 2026-11-23: one scanner for every
+ * document); a trailer, a seal or damage is photographed as it is.
+ */
+export const DOCUMENT_PHOTO_SLOTS: readonly string[] = ["bol"] satisfies readonly PhotoSlot[];
+
+export function isDocumentSlot(slot: string): boolean {
+  return DOCUMENT_PHOTO_SLOTS.includes(slot);
+}
+
 // ── read shapes ───────────────────────────────────────────────────────────────
 export const loadStopPhotoSchema = z.object({
   id: recordId(),

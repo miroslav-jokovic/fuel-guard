@@ -158,6 +158,8 @@ do {
 
 check("a quad survives flattening", LiveQuad(flattened: rect(1, 2, 3, 4).flattened) == rect(1, 2, 3, 4))
 
+liveCaptureGateChecks()
+
 if failures.isEmpty {
   print("✓ live edge geometry: \(passed) checks passed")
 } else {
