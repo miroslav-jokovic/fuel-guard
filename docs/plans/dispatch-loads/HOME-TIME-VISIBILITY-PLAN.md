@@ -216,3 +216,17 @@ Q-HT9 (a), Q-HT10 More filters, Q-HT11 no, Q-HT12 as read (Drivers list and Home
   motion only — the card and rail say home time (built). *(b)* A small house mark on the pin for a held
   truck. **Recommend (a)** until a dispatcher asks: a parked truck is already grey, and a second mark on
   two hundred pins is noise.
+- 2026-11-23 — **HV6, staging pass (part 1)** as the staging dispatcher, on `968f521`: marked AARON ACKISS
+  (truck 733) home until 11/26 through the tab's form — the picker answered "733" with that one driver.
+  Seen: the Home time tab row and its Status filter; the Drivers list's badge and `?home=on` (one row);
+  the Dashboard map's badge; the board's row for 733 ("Home time until 11/26" in Available, "Home time" in
+  Status, the badge in Driver); the driver page's badge and **Change or end home time**; the badge
+  opening the drawer with Back from home time · Change · Truck is back at the yard · Cancel home time.
+  The Drivers list search "733" returned that one driver.
+  - **Fixed from the pass:** the Drivers list's badge sat in Status, the LAST of fifteen columns, off the
+    screen at 1440 px — present in the DOM and seen by nobody. It moves under the driver's name, the
+    column that never scrolls (branch `claude/home-time-name-column`).
+  - **Seen, not changed:** the board names truck 733's driver "Unnamed driver" on staging. The board
+    builds the name from `first_name`/`last_name` (`fleetIdentityReads.ts` `displayName`) and staging's
+    drivers carry only `full_name`. Production has 0 of 181 seated drivers without them (measured
+    2026-11-23), so it is staging data, not a production defect.

@@ -69,7 +69,10 @@ exports[`DriversPage roster table > renders the archived view unchanged by the R
   <tbody class="divide-y divide-edge-subtle">
     <tr class="hover:bg-surface-subtle">
       <td class="w-10 pl-6 pr-2 py-3"><input type="checkbox" class="size-4 rounded-control border-edge-control accent-brand-600" aria-label="Select Gone Away"></td>
-      <td class="px-4 py-3 text-left font-medium text-ink">Gone Away</td>
+      <td class="px-4 py-3 text-left font-medium text-ink">
+        <div>Gone Away</div>
+        <!--v-if-->
+      </td>
       <td class="px-4 py-3 text-left text-ink-secondary">—</td>
       <td class="px-4 py-3 text-left"><span class="text-xs text-ink-tertiary">—</span></td>
       <td class="px-4 py-3 text-left text-ink-secondary">—</td>
@@ -86,12 +89,7 @@ exports[`DriversPage roster table > renders the archived view unchanged by the R
       <td class="px-4 py-3 text-left text-ink-secondary tabular-nums">—</td>
       <td class="px-4 py-3 text-left text-ink-secondary">—</td>
       <td class="px-4 py-3 text-left">
-        <div class="flex flex-wrap items-center gap-1.5">
-          <!-- Raw machine token; \`capitalize\` locally since BADGE_BASE no longer transforms case (R0b). --><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-surface-subtle text-ink-muted ring-1 ring-inset ring-edge capitalize">terminated</span><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-surface-subtle text-ink-muted ring-1 ring-inset ring-edge">Archived</span>
-          <!-- Home time beside employment (HOME-TIME-VISIBILITY-PLAN D-HT24): "is he working this week",
-             not a status value — D-HT4 keeps it out of \`drivers.status\`. Opens the period. -->
-          <!--v-if-->
-        </div>
+        <!-- Raw machine token; \`capitalize\` locally since BADGE_BASE no longer transforms case (R0b). --><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-surface-subtle text-ink-muted ring-1 ring-inset ring-edge capitalize">terminated</span><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-surface-subtle text-ink-muted ring-1 ring-inset ring-edge ml-2">Archived</span>
       </td>
       <td class="w-12 pl-2 pr-6 text-right py-2">
         <div class="inline-block text-left"><button type="button" class="rounded-control p-1 text-ink-tertiary hover:bg-surface-muted hover:text-ink-secondary focus:ring-2 focus:ring-focus-ring focus:outline-none" aria-label="Actions" aria-expanded="false" aria-haspopup="menu"><svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-5">
@@ -176,7 +174,10 @@ exports[`DriversPage roster table > renders the roster table unchanged by the R2
   <tbody class="divide-y divide-edge-subtle">
     <tr class="hover:bg-surface-subtle">
       <td class="w-10 pl-6 pr-2 py-3"><input type="checkbox" class="size-4 rounded-control border-edge-control accent-brand-600" aria-label="Select Marcus Reyes"></td>
-      <td class="px-4 py-3 text-left font-medium text-ink">Marcus Reyes</td>
+      <td class="px-4 py-3 text-left font-medium text-ink">
+        <div>Marcus Reyes</div>
+        <!--v-if-->
+      </td>
       <td class="px-4 py-3 text-left text-ink-secondary">marcus</td>
       <td class="px-4 py-3 text-left"><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-info-50 text-info-700 ring-1 ring-inset ring-info-600/20" title="as of 3h ago">Driving</span></td>
       <td class="px-4 py-3 text-left text-ink-secondary">T-118</td>
@@ -248,13 +249,8 @@ exports[`DriversPage roster table > renders the roster table unchanged by the R2
       <td class="px-4 py-3 text-left text-ink-secondary tabular-nums">(555) 867-5309</td>
       <td class="px-4 py-3 text-left text-ink-secondary">T-118, T-902</td>
       <td class="px-4 py-3 text-left">
-        <div class="flex flex-wrap items-center gap-1.5">
-          <!-- Raw machine token; \`capitalize\` locally since BADGE_BASE no longer transforms case (R0b). --><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-success-50 text-success-700 ring-1 ring-inset ring-success-600/20 capitalize">active</span>
-          <!--v-if-->
-          <!-- Home time beside employment (HOME-TIME-VISIBILITY-PLAN D-HT24): "is he working this week",
-             not a status value — D-HT4 keeps it out of \`drivers.status\`. Opens the period. -->
-          <!--v-if-->
-        </div>
+        <!-- Raw machine token; \`capitalize\` locally since BADGE_BASE no longer transforms case (R0b). --><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-success-50 text-success-700 ring-1 ring-inset ring-success-600/20 capitalize">active</span>
+        <!--v-if-->
       </td>
       <td class="w-12 pl-2 pr-6 text-right py-2">
         <div class="inline-block text-left"><button type="button" class="rounded-control p-1 text-ink-tertiary hover:bg-surface-muted hover:text-ink-secondary focus:ring-2 focus:ring-focus-ring focus:outline-none" aria-label="Actions" aria-expanded="false" aria-haspopup="menu"><svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-5">
@@ -268,7 +264,10 @@ exports[`DriversPage roster table > renders the roster table unchanged by the R2
     <!--v-if-->
     <tr class="hover:bg-surface-subtle">
       <td class="w-10 pl-6 pr-2 py-3"><input type="checkbox" class="size-4 rounded-control border-edge-control accent-brand-600" aria-label="Select Ana Whitfield"></td>
-      <td class="px-4 py-3 text-left font-medium text-ink">Ana Whitfield</td>
+      <td class="px-4 py-3 text-left font-medium text-ink">
+        <div>Ana Whitfield</div>
+        <!--v-if-->
+      </td>
       <td class="px-4 py-3 text-left text-ink-secondary">—</td>
       <td class="px-4 py-3 text-left"><span class="text-xs text-ink-tertiary">—</span></td>
       <td class="px-4 py-3 text-left text-ink-secondary">—</td>
@@ -308,13 +307,8 @@ exports[`DriversPage roster table > renders the roster table unchanged by the R2
       <td class="px-4 py-3 text-left text-ink-secondary tabular-nums">—</td>
       <td class="px-4 py-3 text-left text-ink-secondary">—</td>
       <td class="px-4 py-3 text-left">
-        <div class="flex flex-wrap items-center gap-1.5">
-          <!-- Raw machine token; \`capitalize\` locally since BADGE_BASE no longer transforms case (R0b). --><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-success-50 text-success-700 ring-1 ring-inset ring-success-600/20 capitalize">active</span>
-          <!--v-if-->
-          <!-- Home time beside employment (HOME-TIME-VISIBILITY-PLAN D-HT24): "is he working this week",
-             not a status value — D-HT4 keeps it out of \`drivers.status\`. Opens the period. -->
-          <!--v-if-->
-        </div>
+        <!-- Raw machine token; \`capitalize\` locally since BADGE_BASE no longer transforms case (R0b). --><span class="inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium bg-success-50 text-success-700 ring-1 ring-inset ring-success-600/20 capitalize">active</span>
+        <!--v-if-->
       </td>
       <td class="w-12 pl-2 pr-6 text-right py-2">
         <div class="inline-block text-left"><button type="button" class="rounded-control p-1 text-ink-tertiary hover:bg-surface-muted hover:text-ink-secondary focus:ring-2 focus:ring-focus-ring focus:outline-none" aria-label="Actions" aria-expanded="false" aria-haspopup="menu"><svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" color="currentColor" class="size-5">
