@@ -1,19 +1,11 @@
-import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
-import {
-  NOTIFICATION_CATEGORIES,
-  NOTIFICATION_CATEGORY_LABELS,
-  isMutable,
-  type NotificationCategory,
-  type NotificationEvent,
-} from '@silvicom/shared';
+import type { NotificationEvent } from '@silvicom/shared';
 import {
   AppText,
   Banner,
   GroupedList,
   EmptyState,
-  Icon,
   IconButton,
   ListRow,
   OfflineBanner,
@@ -21,21 +13,21 @@ import {
   ScreenHeader,
   Section,
   Skeleton,
-  ToggleRow,
   type Tone,
 } from '@/components';
-import { useMarkRead, useNotifications, useUpdatePreferences } from '@/features/notifications/useNotifications';
+import { useMarkRead, useNotifications } from '@/features/notifications/useNotifications';
 import { resolveDeepLink } from '@/features/notifications/deepLink';
 import { CATEGORY_ICON } from '@/features/notifications/categoryIcon';
 import { useFeatures } from '@/session/useFeatures';
-import { haptics } from '@/lib/haptics';
 
 /**
  * The notification centre (Phase 6 / D53) — the honest fallback behind the push fast path: a driver
  * who denied the OS permission still sees everything here. Tapping a row marks it read and opens
- * the thing it's about (deep link translated to an app route — never trusted raw). Preferences
- * live at the bottom: category mutes (minus the NON_MUTABLE set — a canceled load is not a
- * preference) — enforced server-side, recorded here.
+ * the thing it's about (deep link translated to an app route — never trusted raw).
+ *
+ * This screen is the inbox ONLY. The category switches moved to `notification-settings.tsx`
+ * (More › Settings) on 2026-11-23, when the owner read inbox + switches + the Messages row as one
+ * page (Q-DF-7; the "split later" Direction B's Q-DB4 left open). That file says why.
  */
 
 const SEVERITY_TONE: Record<string, Tone> = { info: 'info', warning: 'warning', critical: 'danger' };
@@ -54,13 +46,6 @@ export default function NotificationsCentre() {
   const features = useFeatures();
   const q = useNotifications(features.isLoaded && features.enabled('notifications'));
   const markRead = useMarkRead();
-  const updatePrefs = useUpdatePreferences();
-  const [prefsError, setPrefsError] = useState<string | null>(null);
-
-  const muted = useMemo(
-    () => new Set(q.data?.preferences.muted_categories ?? []),
-    [q.data?.preferences.muted_categories],
-  );
 
   if (features.isLoaded && !features.enabled('notifications')) return <Redirect href="/home" />;
   if (!features.isLoaded) {
@@ -79,23 +64,6 @@ export default function NotificationsCentre() {
   const openRow = (n: NotificationEvent) => {
     if (n.read_at === null) markRead.mutate([n.id]);
     router.push(resolveDeepLink(n.deep_link));
-  };
-
-  const toggleMute = async (category: NotificationCategory) => {
-    setPrefsError(null);
-    const next = new Set(muted);
-    if (next.has(category)) next.delete(category);
-    else next.add(category);
-    try {
-      await updatePrefs.mutateAsync({
-        muted_categories: [...next].filter((c): c is NotificationCategory =>
-          (NOTIFICATION_CATEGORIES as readonly string[]).includes(c),
-        ),
-      });
-      haptics.select();
-    } catch (e) {
-      setPrefsError(e instanceof Error ? e.message : 'Could not save your notification settings.');
-    }
   };
 
   return (
@@ -175,34 +143,6 @@ export default function NotificationsCentre() {
         )}
       </Section>
 
-      {/* Preferences move to the END: a driver opening this screen came to read what arrived, not
-          to configure what may arrive later (B6.7 / Q-DB4 keeps them on one screen). */}
-      <Section title="Preferences">
-      {prefsError ? <Banner tone="danger" message={prefsError} /> : null}
-      <GroupedList>
-        {NOTIFICATION_CATEGORIES.map((category) => (
-          isMutable(category) ? (
-            <ToggleRow
-              key={category}
-              title={NOTIFICATION_CATEGORY_LABELS[category]}
-              value={!muted.has(category)}
-              disabled={updatePrefs.isPending}
-              onValueChange={() => { void toggleMute(category); }}
-            />
-          ) : (
-            <ListRow
-              key={category}
-              title={NOTIFICATION_CATEGORY_LABELS[category]}
-              subtitle="Always on · safety-critical"
-              right={<Icon name="lock" size={18} className="text-ink-subtle" />}
-            />
-          )
-        ))}
-      </GroupedList>
-      <AppText variant="caption" tone="subtle" className="pb-2 text-center">
-        Muting is enforced by the server, so a muted category stays quiet on every device.
-      </AppText>
-      </Section>
     </Screen>
   );
 }

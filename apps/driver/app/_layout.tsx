@@ -165,6 +165,8 @@ function RootNavigator() {
       <Stack.Screen name="hazmat/[loadId]" options={{ presentation: "modal" }} />
       {/* Notification centre (Phase 6) — opened from the Home bell, gated on `notifications`. */}
       <Stack.Screen name="notifications" options={{ presentation: "modal" }} />
+      {/* Notification switches (Q-DF-7, 2026-11-23) — opened from More › Settings. */}
+      <Stack.Screen name="notification-settings" options={{ presentation: "modal" }} />
       {/* Messages (Phase 7) — inbox + conversation, gated on `messages`. */}
       <Stack.Screen name="messages/index" options={{ presentation: "modal" }} />
       <Stack.Screen name="messages/[id]" options={{ presentation: "modal" }} />
