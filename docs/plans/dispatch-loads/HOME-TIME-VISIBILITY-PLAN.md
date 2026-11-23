@@ -146,7 +146,9 @@ change meaning).
 Each PR: mutation-proved tests per the repo's rule, every gate run, and its own browser pass for the
 screens it touches.
 
-## 5. Questions for the owner
+## 5. Questions for the owner — ANSWERED 2026-11-23: "go with your recommendations"
+
+Q-HT9 (a), Q-HT10 More filters, Q-HT11 no, Q-HT12 as read (Drivers list and Home time tab).
 
 - **Q-HT9 — Who sees the home-time badge on the Drivers list and the driver page?** The home-time read
   is behind `dispatch: view`; a recruiter or safety manager does not hold it. *(a)* Only people who can
@@ -161,3 +163,12 @@ screens it touches.
 - **Q-HT12 — Which filters did "filters are not good" mean?** This plan reads it as the Drivers list and
   the Home time tab. If it was another screen (the board's Available/State filter, Loads), name it and it
   joins HV1–HV4.
+
+## 6. Progress log
+
+- 2026-11-23 — **HV1 built** (branch `claude/home-time-visibility-plan`). `driverSearch.ts` in shared:
+  `driverSearchRank`, `matchesDriverSearch`, `unitsByDriver`. The Drivers list searches the trucks its
+  Vehicles column shows plus Samsara's signed-in truck; the column now lists a co-driver's truck too
+  (it read "—" for the second seat). The Home time tab and the drawer's driver picker use the same rule;
+  the picker ranks an exact unit first. The board's search gains the co-driver. Tests: shared 10, web 4;
+  mutation run: 5 deliberate breakages (the old substring search among them), 5 caught.

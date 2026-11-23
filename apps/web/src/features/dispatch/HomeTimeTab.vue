@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { HomeTimePeriod } from "@silvicom/shared";
+import { matchesDriverSearch, type HomeTimePeriod } from "@silvicom/shared";
 import { AppButton as BaseButton, AppSegmentedControl, DataTable, DataWorkspace, FilterBar, TablePagination, useQueryState, type DataTableColumn } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
@@ -44,7 +44,8 @@ const all = computed<HomeTimePeriod[]>(() => (show.value === "recent" ? list.dat
 const filtered = computed(() => {
   const term = search.value.trim().toLowerCase();
   if (!term) return all.value;
-  return all.value.filter((p) => [p.driverName, p.unitNumber, p.markedByName].some((v) => v?.toLowerCase().includes(term)));
+  // The roster's one rule (HOME-TIME-VISIBILITY-PLAN D-HT22): the truck as a unit, never inside another number.
+  return all.value.filter((p) => matchesDriverSearch(term, { names: [p.driverName, p.markedByName], units: [p.unitNumber] }));
 });
 
 const PAGE_SIZE = 20;

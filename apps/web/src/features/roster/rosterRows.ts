@@ -9,6 +9,7 @@ import {
   type Driver,
   type DriverOverviewRow,
   type FileFilterKind,
+  matchesDriverSearch,
 } from "@silvicom/shared";
 
 /**
@@ -29,6 +30,8 @@ export interface RosterRowFilters {
   /** "none" = only drivers no vehicle seats. */
   seat: string;
   seated: ReadonlySet<string>;
+  /** The trucks each driver sits in (`unitsByDriver`) — what the Vehicles column shows, so search finds it. */
+  units: ReadonlyMap<string, readonly string[]>;
   file: string;
   due: string;
   req: string;
@@ -47,11 +50,15 @@ function matchesExceptFile(
     const row = overview.get(d.id);
     if (!row || !matchesDqFilters(row, { due: f.due, req: f.req })) return false;
   }
-  const term = f.term.toLowerCase();
-  if (!term) return true;
-  return [d.full_name, d.employee_id, d.phone, d.samsara_username]
-    .filter(Boolean)
-    .some((x) => x!.toLowerCase().includes(term));
+  // HOME-TIME-VISIBILITY-PLAN D-HT22: the truck is searched as a unit, and a phone only by its digits.
+  // The substring search this replaces found a truck's own driver for 2 of 178 trucks on 2026-11-23,
+  // and another driver — one whose phone held the digits — for 138.
+  return matchesDriverSearch(f.term, {
+    names: [d.full_name, d.samsara_username],
+    ids: [d.employee_id],
+    units: [...(f.units.get(d.id) ?? []), d.current_hos_vehicle],
+    phones: [d.phone],
+  });
 }
 
 export function filterRoster(

@@ -43,6 +43,7 @@ import {
   canManageDriverIdentity,
   DQ_EXPORT_MAX_DRIVERS,
   seatedDriverIds,
+  unitsByDriver,
   dqDueFilterOptions,
   fileFilterOptions,
   type FileFilterKind,
@@ -146,6 +147,7 @@ const {
 } = useRosterFilters();
 const { data: vehicles } = useVehiclesQuery();
 const seated = computed(() => seatedDriverIds(vehicles.value ?? []));
+const units = computed(() => unitsByDriver(vehicles.value ?? []));
 
 /**
  * How many controls narrow the roster, for FilterBar's one "Clear filters" — a count where
@@ -242,6 +244,7 @@ const rowFilters = computed<RosterRowFilters>(() => ({
   showArchived: showArchived.value,
   seat: seat.value,
   seated: seated.value,
+  units: units.value,
   file: fileFilter.value,
   due: dqDue.value,
   req: dqRequirement.value,
@@ -335,7 +338,7 @@ async function onSubmit(input: DriverInput) {
     <FilterBar
       v-model:search="search"
       embedded
-      search-placeholder="Search name, driver ID, employee ID, phone…"
+      search-placeholder="Search name, truck, driver ID, phone…"
       :count="filtered.length"
       count-label="drivers"
       :active-count="activeFilterCount"
@@ -376,7 +379,6 @@ async function onSubmit(input: DriverInput) {
     <DriverRosterTable
       :selectable="canBuildBinder"
       :selected="selected"
-      @update:selected="select"
       :rows="pageRows"
       :columns="rosterColumns.visible.value"
       :loading="isLoading"
@@ -389,6 +391,7 @@ async function onSubmit(input: DriverInput) {
       :page="page"
       :page-size="ROSTER_PAGE_SIZE"
       :total="filtered.length"
+      @update:selected="select"
       @sort="onSort"
       @retry="refetch"
       @update:page="page = $event"

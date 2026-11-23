@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
+  driverSearchRank,
   formatNotesParam,
   type HomeTimeChange,
   type HomeTimeMark,
@@ -89,12 +90,23 @@ const description = computed(() => {
   return [driverName.value, unitNumber.value ? `Truck ${unitNumber.value}` : null].filter(Boolean).join(" · ") || undefined;
 });
 
+/**
+ * The picker filters with the roster's rule, not the combobox's label substring (HOME-TIME-VISIBILITY-PLAN
+ * D-HT22): "67" listed every label holding 67; now a truck number finds that truck first, then the
+ * trucks it starts, then names.
+ */
+const pickerQuery = ref("");
 const driverOptions = computed(() => {
   const home = new Set((list.data.value?.live ?? []).map((p) => p.driverId));
-  return (drivers.data.value ?? []).map((d) => ({
-    value: d.driverId,
-    label: [d.driverName, d.unitNumber ? `Truck ${d.unitNumber}` : null, home.has(d.driverId) ? "home time marked" : null].filter(Boolean).join(" · "),
-  }));
+  const term = pickerQuery.value;
+  return (drivers.data.value ?? [])
+    .map((d) => ({ d, rank: driverSearchRank(term, { names: [d.driverName], units: [d.unitNumber] }) }))
+    .filter((x): x is { d: (typeof x)["d"]; rank: number } => x.rank !== null)
+    .sort((a, b) => a.rank - b.rank)
+    .map(({ d }) => ({
+      value: d.driverId,
+      label: [d.driverName, d.unitNumber ? `Truck ${d.unitNumber}` : null, home.has(d.driverId) ? "home time marked" : null].filter(Boolean).join(" · "),
+    }));
 });
 const chosen = computed({ get: () => "", set: (id: string) => id && drawer.choose(id) });
 
@@ -178,7 +190,7 @@ function openNotes(): void {
         "
       >
         <FormField v-if="choosing" v-slot="{ id }" label="Driver">
-          <ComboSelect :id="id" v-model="chosen" :options="driverOptions" placeholder="Search a driver or a truck" />
+          <ComboSelect :id="id" v-model="chosen" :options="driverOptions" server-filtered placeholder="Search a driver or a truck" @update:query="pickerQuery = $event" />
         </FormField>
 
         <template v-else-if="period">
