@@ -159,6 +159,13 @@ const notes = useUnitNoteSummary("driver", useDriversQuery().dataUpdatedAt);
     @sort="emit('sort', $event)"
     @retry="emit('retry')"
   >
+    <!-- Home time under the NAME (HOME-TIME-VISIBILITY-PLAN D-HT24), the one column that never scrolls
+         away. It first sat beside the employment badge in Status — the last of fifteen columns, off the
+         screen at 1440 px on staging 2026-11-23, so the roster "showed" it to nobody. Opens the period. -->
+    <template #cell-full_name="{ row }">
+      <div>{{ row.full_name }}</div>
+      <HomeTimeBadge v-if="zone && homeTimes?.get(row.id)" :period="homeTimes.get(row.id)!" :zone="zone" class="mt-0.5" />
+    </template>
     <template #cell-samsara_username="{ row }">{{ row.samsara_username || "—" }}</template>
     <template #cell-phone="{ row }"><PhoneContact :phone="row.phone" :name="row.full_name" /></template>
     <template #cell-current_hos_status="{ row }">
@@ -229,13 +236,8 @@ const notes = useUnitNoteSummary("driver", useDriversQuery().dataUpdatedAt);
     <template #cell-notes="{ row }"><NotesCell :id="row.id" kind="driver" :label="row.full_name" :summary="notes.summary.value[row.id]" /></template>
     <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>
     <template #cell-status="{ row }">
-      <div class="flex flex-wrap items-center gap-1.5">
-        <StatusBadge :status="row.status" />
-        <span v-if="row.archived_at" :class="[BADGE_BASE, toneClass('neutral')]">Archived</span>
-        <!-- Home time beside employment (HOME-TIME-VISIBILITY-PLAN D-HT24): "is he working this week",
-             not a status value — D-HT4 keeps it out of `drivers.status`. Opens the period. -->
-        <HomeTimeBadge v-if="zone && homeTimes?.get(row.id)" :period="homeTimes.get(row.id)!" :zone="zone" />
-      </div>
+      <StatusBadge :status="row.status" />
+      <span v-if="row.archived_at" :class="[BADGE_BASE, toneClass('neutral'), 'ml-2']">Archived</span>
     </template>
     <template #actions="{ row }">
       <KebabMenu v-if="session.can('roster')">

@@ -67,6 +67,22 @@ vi.mock("@/composables/useDrivers", () => ({
   useArchiveDriver: () => idleMutation(),
 }));
 vi.mock("@/composables/useVehicles", () => ({ useVehiclesQuery: () => ({ data: vehicles }) }));
+/** Home time (HOME-TIME-VISIBILITY-PLAN D-HT24): off unless a case turns it on. */
+const homeTime = vi.hoisted(() => ({ visible: false, live: [] as { driverId: string; driverName: string; state: string; startAt: string; expectedReturnAt: string }[] }));
+vi.mock("@/components/homeTime/useHomeTime", async () => {
+  const { computed, ref: vref } = await import("vue");
+  return {
+    useHomeTimeVisible: () => computed(() => homeTime.visible),
+    useLiveHomeTimes: () => ({
+      list: { data: vref({ live: homeTime.live }) },
+      byDriver: computed(() => new Map(homeTime.live.map((p) => [p.driverId, p] as const))),
+    }),
+  };
+});
+vi.mock("@/composables/useOrgTimezone", async () => {
+  const { ref: vref } = await import("vue");
+  return { useOrgTimezone: () => ({ zone: vref("America/Chicago") }) };
+});
 vi.mock("@/composables/useCompliance", () => ({
   useComplianceOverviewQuery: () => ({ data: overview }),
   // UF4b: the gallery fetches a driver's papers only when it opens, so the roster's own load is
@@ -296,6 +312,7 @@ const mountPage = async (at = "/drivers") => {
         // The upload dialog's two steps have their own suites; this file pins which driver it opens on.
         DocumentDropCard: true,
         RequirementDrawer: true,
+        HomeTimeDrawer: true,
       },
     },
   });
@@ -313,6 +330,21 @@ const showArchived = async (w: Awaited<ReturnType<typeof mountPage>>) => {
 };
 
 describe("DriversPage roster table", () => {
+  it("says home time under the driver's NAME, the column that never scrolls off a 1440 px screen (HOME-TIME-VISIBILITY-PLAN HV6)", async () => {
+    homeTime.visible = true;
+    homeTime.live = [{ driverId: "d-1", driverName: "Marcus Reyes", state: "overdue", startAt: "2026-11-16T21:32:00Z", expectedReturnAt: "2026-11-24T21:32:00Z" }];
+    try {
+      const w = await mountPage();
+      const nameCell = w.findAll("tbody td").find((td) => td.text().startsWith("Marcus Reyes"))!;
+      expect(nameCell.find("[data-home-time-badge]").text()).toBe("Overdue since 11/24");
+      expect(w.findAll("[data-home-time-badge]")).toHaveLength(1);
+      w.unmount();
+    } finally {
+      homeTime.visible = false;
+      homeTime.live = [];
+    }
+  });
+
   it("renders the roster table unchanged by the R2 extraction", async () => {
     const table = (await mountPage()).find("table");
     expect(table.exists()).toBe(true);
