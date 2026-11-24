@@ -646,6 +646,9 @@
   "phone_lookups": [
     "apps/api/src/modules/recruiting/leads/phoneLookup.ts"
   ],
+  "pilot_bill_mails": [
+    "apps/api/src/modules/fuel-spend/pilotBillMail.ts"
+  ],
   "pilot_price_mails": [
     "apps/api/src/modules/posted-prices/pilotPriceMail.ts"
   ],

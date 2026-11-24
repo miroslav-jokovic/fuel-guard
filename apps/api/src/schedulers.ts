@@ -17,7 +17,7 @@ import { startStorageReconcileScheduler, startStorageBackupScheduler, storageBac
 import { startNotificationPushScheduler, startChatLedgerVerifyScheduler, startRealtimeProbeScheduler, startChatExportSweeper } from "./modules/messaging/index.js";
 import { startDqExportSweeper } from "./modules/evidence/index.js";
 import { startPatternSweepScheduler } from "./modules/anomalies/index.js";
-import { startFuelSpendRollupScheduler } from "./modules/fuel-spend/index.js";
+import { startFuelSpendRollupScheduler, startPilotBillMailScheduler } from "./modules/fuel-spend/index.js";
 import { startFinancialProjectionScheduler, startFinancialFreshnessScheduler } from "./modules/financial/index.js";
 import { startFleetpalScheduler } from "./modules/fleetpal/index.js";
 import { startMedstopScheduler } from "./modules/medstop/index.js";
@@ -71,6 +71,7 @@ export const SCHEDULERS: readonly ScheduledTask[] = [
   { name: "efs-card-sync", lane: "egress", start: startEfsCardSyncScheduler },
   { name: "posted-prices", lane: "general", start: startPostedPriceScheduler }, // global posted-price refresh from Pilot's public table
   { name: "pilot-price-mail", lane: "general", start: startPilotPriceMailScheduler }, // PILOT-PRICE-MAIL-PLAN: every 20 min, load the emailed Pilot "Better Of" quote (48 h link) into fuel_prices; OFF without EFS_GRAPH_* + EFS_INGEST_ORG_ID
+  { name: "pilot-bill-mail", lane: "general", start: startPilotBillMailScheduler }, // PILOT-INVOICE-FORMAT-ANALYSIS §4: hourly, record each weekly Pilot bill PDF from the Pilot-Bills folder and check it; OFF without EFS_GRAPH_* + EFS_INGEST_ORG_ID
   { name: "duty-session-sweeper", lane: "general", start: startDutySessionSweeper }, // close abandoned driver shifts so their truck is released (D44.5)
   { name: "storage-reconcile", lane: "general", start: startStorageReconcileScheduler }, // §13.5/M11 + DQF B7: nightly orphan sweep of every evidence bucket
   { name: "storage-backup", lane: "general", start: startStorageBackupScheduler }, // D13: nightly copy of every evidence bucket to the off-provider S3 bucket; OFF unless STORAGE_BACKUP_* set

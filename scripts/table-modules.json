@@ -1179,6 +1179,17 @@
         "why": "raw posted-price feed. Measured 888/day. Retention unruled \u2014 L9."
       }
     },
+    "pilot_bill_mails": {
+      "module": "fuel-spend",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "new in 0644 (2026-11-24, PILOT-INVOICE-FORMAT-ANALYSIS step 3): one row per Pilot weekly bill email read from the Pilot-Bills folder, updated in place on a retry; one bill a week, forwarded by up to two people, so about 100 rows a year. A work record, not evidence \u2014 the bill is in fuel_statements."
+      }
+    },
     "pilot_price_mails": {
       "module": "posted-prices",
       "layer": "infra",

@@ -142,3 +142,13 @@ attachment read is fine at that size.
   (D-FC4). A `Tax` line on the new invoice is now read as sales tax, not merchandise. On INV-59656 with
   production's quotes: invoice total $341,127.06 (= printed), retail $394,755.16, savings $53,628.10, 349 of
   499 truck-diesel lines quoted, and the two lines billed over the quote (4599 TN $20.03, 372 CA $9.55).
+- 2026-11-24 — step 2 merged (#2642). Step 3 built: migration 0644 `pilot_bill_mails` (renumbered from 0643, which the mail gateway took first) (one row per email,
+  Message-ID key, states recorded / duplicate / refused / failed / no_pdf), `pilotBillMail.ts` +
+  `pilotBillMailScheduler.ts` (lane general, hourly, folder `Pilot-Bills`, reuses `EFS_GRAPH_*` +
+  `EFS_INGEST_ORG_ID`), `graphFolderReader.pdfAttachments` (read-only, always `$value`), the server PDF decode
+  `lib/pdfWords.ts` (the toll statement's; verified on the real files: INV-59656 960 lines ties, F2 782 lines
+  ties), then the SAME `ingestFuelStatement` + `runFuelReconciliation` the upload calls. Identical bytes settle as
+  `duplicate` against `fuel_statements.source_sha256`. `GET /api/fueling/statements/mail` + "From Pilot's email"
+  on Pilot invoices. The ledger and its writer ship in one merge (`lint:table-producers`: a new table needs its
+  producer in the same PR; new tables are exempt from the ordering rule). Done = a `pilot_bill_mails` row with
+  state `recorded` landing in production by itself after the release.
