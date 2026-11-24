@@ -505,6 +505,62 @@ screens are restyled through primitives only (§3).
   - **(g) Raw "HTTP 404" reaches a driver** in error banners (seen with the dev harness). **Recommend:**
     map every API failure to a sentence in the features plan.
 
+### 6.2 Rulings on Q-DV4, Q-DV7 and Q-DV8 (owner, 2026-11-24: "proceed as suggested and proposed")
+
+The owner ruled on the proposals as written. The order below is the build order, one PR each.
+
+- **D-DV26 · Q-DV8 (g): every failure a driver sees is a sentence.** One table in `src/lib/` turns
+  a failed request into driver words by its status and code. The status number goes to Sentry and the
+  build card, never into a banner. `lint:design` refuses `HTTP ` in a banner or toast string.
+  - 0 / network: "No connection. We'll send it when you're back online."
+  - 401 / 403: "You've been signed out. Sign in again."
+  - 404: "This was changed by the office. Pull down to refresh."
+  - 409: "Someone else already updated this."
+  - 429 / 5xx: "Our server is busy. Trying again in a minute."
+  A server message written for the driver (a domain refusal with its own code) still passes through.
+- **D-DV27 · Q-DV8 (a): the Stop footer does one thing at a time.** While a required photo is
+  missing, the amber primary is "Take <slot> photo" and opens that slot's capture. It becomes
+  "Complete stop" only once nothing is missing. The in-row "Take" goes to ink. The existing
+  complete-without-photo path (D21's reason sheet) stays, as a text button under the primary.
+- **D-DV28 · Q-DV8 (e): the map is ours.** A Silvicom light and dark style, derived from
+  OpenFreeMap's `liberty` and `dark`: navy-tinted neutral roads, muted water, no coloured POI
+  labels, the attribution in ink-muted, and the truck as a labelled amber mark so it never reads as
+  live cyan. Served by the web app and selected through the existing `mapStyleUrl` setting. The owner
+  sees both themes in screenshots before it merges.
+- **D-DV29 · Q-DV8 (f): a switch is the phone's chrome.** iOS keeps the system green and Android
+  keeps Material 3's seeded track. D-DV5's colour roles govern our drawn state, not system controls.
+  DESIGN.md records this exception.
+- **Q-DV8 (b) → held until the device gate.** Today's next-step card stays. If a thumb misses it in
+  a cab, it flattens into a row and "Arrived" moves into the pinned `ActionBar`.
+- **D-DV30 · Q-DV7 → (b): a late photo for a finished stop.** A new RPC that ADDS photos to a
+  completed stop and nothing else. The status, the times and the existing photos stay locked
+  (migration 0141's guard is unchanged). Each late photo is stamped late with its own time, and the
+  office sees "Late photo received" on the load. It arrives through a new outbox kind, so it works
+  offline. The work splits into two merges per `lint:migration-ordering`: first the migration and API
+  route, then the app's "Add" on the *Done today* row.
+- **D-DV31 · Q-DV4: "Tight" is computed by the server.** McLeod has no planned drive minutes, only
+  loaded miles (`move_distance`, migration 0267), so the candidate rule in Q-DV4 cannot be written.
+  Instead, every ~10 minutes, for each driver on duty with an open stop:
+  - Take the truck's last Samsara position and ask HERE truck routing for the drive time to the stop,
+    through the existing cached `getOrComputeRoute` (`apps/api/src/modules/routing/routeGeometry.ts`).
+  - The stop is "Tight" when now + drive time + 30 min exceeds the appointment window's end.
+  - The phone shows only the word, in amber. No ETA and no miles reach the driver (D-DV13 stands).
+  - When HERE has no answer, the fallback is no word, never a guess. Miles ÷ 50 mph was rejected:
+    it is wrong in traffic and in cities.
+  - Before building, measure the HERE cost: one route per active driver per 10 minutes, less the
+    cache hits.
+- **Push for the Live Activity → deferred until the device gate shows a stale glance.** The
+  countdown already uses the system's relative date, so it stays right while the app sleeps. Push
+  matters only when the office moves a stop while the app is asleep.
+- **Android 16 Live Updates → deferred** until the app's own build reports show most drivers on
+  Android 16.
+
+**The release lane, corrected 2026-11-24.** The self-hosted APK and OTA lanes were retired on
+2026-10-22 (`d313fa8a1`). The only lane is `driver-store.yml`, which has never run: the repository has
+no `EXPO_TOKEN` secret, there is no EAS project, and no `driver-v*` tag exists. Until the owner's
+one-time P2.3 setup (`apps/driver/EAS.md`) is done, nothing in this plan reaches a driver's phone. That
+setup is the first owner action, ahead of the device gate.
+
 ## 7. Progress log
 
 One file per entry in `docs/plans/drivers-app/visual-2026-progress/YYYY-MM-DD-HHMM-<step>.md`.
