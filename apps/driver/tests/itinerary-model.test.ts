@@ -180,13 +180,13 @@ describe('timelineStops (Visual 2026 V6, mock screen 5)', () => {
 });
 
 describe('photoRows (mock screen 6)', () => {
-  it('lists missing photos first, in amber "Take", and taken ones with a Retake', () => {
+  it('lists missing photos first, with "Take" in ink (the footer is the one amber), and taken ones with a Retake', () => {
     const rows = photoRows(
       stop({ required_photos: ['trailer', 'bol', 'seal'], photos: [{ id: 'p', slot: 'seal', storage_path: 'x', captured_at: null, uploaded_at: 'x' }] }),
       [{ slot: 'trailer', capturedAt: Date.parse('2026-09-07T14:02:00Z') }],
     );
     expect(rows.map((r) => [r.slot, r.state, r.action.text, r.action.tone])).toEqual([
-      ['bol', 'required', 'Take', 'act'],
+      ['bol', 'required', 'Take', 'ink'],
       ['trailer', 'captured', 'Retake', 'secondary'],
       ['seal', 'already', 'Retake', 'secondary'],
     ]);

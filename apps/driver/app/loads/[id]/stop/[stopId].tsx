@@ -27,6 +27,7 @@ import { capturePhotoForSlot } from '@/features/loads/stopCapture';
 import {
   outstandingSlots,
   reasonRequiredToComplete,
+  stopFooter,
   type SessionCapture,
 } from '@/features/loads/stopCaptureModel';
 import { messagePreview, sortThreads } from '@silvicom/shared';
@@ -86,7 +87,6 @@ export default function StopCapture() {
   // on a delivery opened before its pickup was done.
   const position = [...load.stops].sort((x, y) => x.seq - y.seq).findIndex((x) => x.id === stop.id) + 1;
   const navigateTo = mapsUrl(stop, Platform.OS === 'ios' ? 'ios' : 'android');
-  const pending = stop.status === 'pending';
   // Q-DB5: a thread belongs to this stop only by the load it references. There is no stop-level
   // linkage in the contract, so no row appears when nothing carries the ref.
   const thread = sortThreads(threads.data?.threads ?? []).find((t) => t.load_ref === load.ref) ?? null;
@@ -150,14 +150,23 @@ export default function StopCapture() {
       ? 'Why are you skipping this stop?'
       : `Missing ${outstanding.map(photoSlotLabel).join(', ')} — why?`;
 
-  const completeLabel = outstanding.length === 0
-    ? 'Complete stop'
-    : `Complete · ${outstanding.length} ${outstanding.length === 1 ? 'photo' : 'photos'} missing`;
-  // ONE amber action (D-DV5): arriving while the stop is pending, completing once arrived. The other
-  // stays reachable as a quiet button under it, because a driver may finish without marking arrival.
-  const primary = pending
-    ? { label: 'Mark arrived', icon: undefined, onPress: () => void submit('arrived') }
-    : { label: completeLabel, icon: 'check_circle' as const, onPress: onComplete };
+  // ONE amber action, one thing at a time (D-DV5, D-DV27): arrive, then take what is missing, then
+  // complete. What it says is `stopFooter`, which is tested; completing anyway stays a quiet button.
+  const footer = stopFooter(stop, captures);
+  const primary = footer.primary;
+  const onPrimary = () => {
+    if (primary.kind === 'arrive') void submit('arrived');
+    else if (primary.kind === 'take') void takePhoto(primary.slot);
+    else onComplete();
+  };
+  const onQuiet = (kind: 'complete' | 'skip') => {
+    if (kind === 'complete') {
+      onComplete();
+      return;
+    }
+    setReason('');
+    setReasonMode('skipped');
+  };
 
   return (
     <Screen
@@ -185,31 +194,19 @@ export default function StopCapture() {
                   label={primary.label}
                   size="lg"
                   variant="primary"
-                  icon={primary.icon}
-                  haptic="success"
-                  loading={complete.isPending}
-                  onPress={primary.onPress}
+                  icon={primary.kind === 'take' ? 'photo_camera' : primary.kind === 'complete' ? 'check_circle' : undefined}
+                  haptic={primary.kind === 'take' ? undefined : 'success'}
+                  loading={primary.kind === 'take' ? busySlot === primary.slot : complete.isPending}
+                  onPress={onPrimary}
                 />
               </View>
             </View>
-            <View className="flex-row gap-2">
-              {pending ? (
-                <View className="flex-1">
-                  {/* The count lives on the amber button once arrived; here it made the quiet button wrap. */}
-                  <Button label="Complete stop" variant="ghost" size="sm" onPress={onComplete} />
+            <View className={fontScale >= layout.largeTextBreakpoint ? 'gap-1' : 'flex-row gap-2'}>
+              {footer.quiet.map((action) => (
+                <View key={action.kind} className={fontScale >= layout.largeTextBreakpoint ? '' : 'flex-1'}>
+                  <Button label={action.label} variant="ghost" size="sm" onPress={() => onQuiet(action.kind)} />
                 </View>
-              ) : null}
-              <View className="flex-1">
-                <Button
-                  label="Skip stop"
-                  variant="ghost"
-                  size="sm"
-                  onPress={() => {
-                    setReason('');
-                    setReasonMode('skipped');
-                  }}
-                />
-              </View>
+              ))}
             </View>
             <View className="flex-row items-center justify-center gap-1 pb-1">
               <Icon name="cloud_sync" size={14} className="text-ink-subtle" />

@@ -7,8 +7,9 @@ import { roleColors } from '@/theme/colors';
 import { useTheme } from '@/theme/ThemeProvider';
 
 /**
- * The stop's photos as rows (Visual 2026 V6, mock screen 6): a missing photo first, with its glyph and
- * the word "Take" in amber (D-DV5: act); a taken one in green with "Retake". Tapping either opens the
+ * The stop's photos as rows (Visual 2026 V6, mock screen 6): a missing photo first, with a plain glyph
+ * and "Take" in ink; a taken one in green with "Retake". Since D-DV27 (2026-11-24) the missing row is
+ * not amber: the footer's primary takes the photo and is the screen's one amber (Q-DV8 a). Tapping either opens the
  * camera for that slot. A photo taken in this session shows its thumbnail beside the word, so the
  * driver can check it is the right paper. What each row says is `photoRows`, which is tested.
  *
@@ -34,7 +35,7 @@ export function PhotoRows({
           <ListRow
             key={row.slot}
             icon={row.state === 'required' ? 'photo_camera' : 'check_circle'}
-            disc={row.state === 'required' ? 'caution' : 'success'}
+            disc={row.state === 'required' ? undefined : 'success'}
             title={photoSlotLabel(row.slot)}
             subtitle={row.detail}
             disabled={busySlot !== null && busySlot !== row.slot}
@@ -51,7 +52,7 @@ export function PhotoRows({
                       className="h-10 w-10 rounded-md"
                     />
                   ) : null}
-                  <AppText variant="supporting" weight="semibold" tone={row.action.tone === 'act' ? 'action' : 'secondary'}>
+                  <AppText variant="supporting" weight="semibold" tone={row.action.tone === 'secondary' ? 'secondary' : undefined}>
                     {row.action.text}
                   </AppText>
                 </View>
