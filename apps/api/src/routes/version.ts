@@ -10,6 +10,7 @@ import { getSchedulerHealth, laneHealthy } from "../lib/schedulerHealth.js";
 import { getStorageBackupHealth, storageBackupHealthy } from "../modules/org/index.js";
 import { getPushHealth, getRealtimeHealth, pushHealthy, realtimeHealthy } from "../modules/messaging/index.js";
 import { stepUpReadiness } from "../envAuth.js";
+import { gatewayHealthy, getGatewayHealth } from "../modules/broker-mail/index.js";
 
 /**
  * `GET /api/version` — what is actually running (ship-pipeline plan D0.3).
@@ -36,6 +37,9 @@ import { stepUpReadiness } from "../envAuth.js";
  * setting NAMES from `stepUpMissing` in envAuth.ts). The one piece of configuration this route publishes, and only as
  * names: which settings are absent is not a secret, their values never appear. Staging ran two weeks without one of
  * them, and every admin act behind a fresh sign-in failed while the prompt blamed the password.
+ * And since BROKER-MAIL-READER-PLAN §6 (2026-11-24), whenever the broker-mail gateway is switched on and its
+ * heartbeat stopped, or the canary mailbox opened and switched it off (`mailGateway`, with the commit it runs —
+ * modules/broker-mail/gatewayHealth.ts). A gateway nobody switched on is `off`, which is healthy.
  *
  * `GET /api/version/ready` is the same verdict as an HTTP STATUS — 200 when `ok`, 503 when not — for
  * an external uptime monitor that can only read a status code (D-RLY5). `/healthz` cannot be that:
@@ -46,7 +50,7 @@ export function versionRouter(): Router {
   const router = Router();
 
   const read = async (env: Parameters<typeof getSchemaStatus>[0] & Parameters<typeof stepUpReadiness>[0]) => {
-    const [schema, maintenance, schedulers, storageBackup, realtime, webPush, version] = await Promise.all([
+    const [schema, maintenance, schedulers, storageBackup, realtime, webPush, version, mailGateway] = await Promise.all([
       getSchemaStatus(env),
       getMaintenanceHealth(env),
       getSchedulerHealth(env),
@@ -54,6 +58,7 @@ export function versionRouter(): Router {
       getRealtimeHealth(env),
       getPushHealth(env),
       getReleaseVersion(),
+      getGatewayHealth(env),
     ]);
     const stepUp = stepUpReadiness(env);
     const ok =
@@ -63,8 +68,9 @@ export function versionRouter(): Router {
       storageBackupHealthy(storageBackup.state) &&
       realtimeHealthy(realtime.state) &&
       pushHealthy(webPush.state) &&
+      gatewayHealthy(mailGateway.state) &&
       stepUp === "ready";
-    return { schema, maintenance, schedulers, storageBackup, realtime, webPush, version, stepUp, ok };
+    return { schema, maintenance, schedulers, storageBackup, realtime, webPush, version, mailGateway, stepUp, ok };
   };
 
   router.get(
@@ -72,7 +78,7 @@ export function versionRouter(): Router {
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
       const build = getBuildInfo();
-      const { schema, maintenance, schedulers, storageBackup, realtime, webPush, version, stepUp, ok } = await read(env);
+      const { schema, maintenance, schedulers, storageBackup, realtime, webPush, version, mailGateway, stepUp, ok } = await read(env);
       res.setHeader("Cache-Control", "no-store");
       res.json({
         service: `${APP_NAME} API`,
@@ -91,6 +97,7 @@ export function versionRouter(): Router {
         storageBackup,
         realtime,
         webPush,
+        mailGateway,
         stepUp,
         ok,
       });
@@ -101,7 +108,7 @@ export function versionRouter(): Router {
     "/ready",
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
-      const { schema, maintenance, schedulers, storageBackup, realtime, webPush, stepUp, ok } = await read(env);
+      const { schema, maintenance, schedulers, storageBackup, realtime, webPush, mailGateway, stepUp, ok } = await read(env);
       res.setHeader("Cache-Control", "no-store");
       // The body names what failed, for the person who opens the alert; the status is the verdict.
       res.status(ok ? 200 : 503).json({
@@ -113,6 +120,7 @@ export function versionRouter(): Router {
         storageBackup: storageBackup.state,
         realtime: realtime.state,
         webPush: webPush.state,
+        mailGateway: mailGateway.state,
         stepUp,
       });
     }),

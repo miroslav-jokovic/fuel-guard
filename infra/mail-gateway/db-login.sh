@@ -8,6 +8,16 @@
 #   bash infra/mail-gateway/db-login.sh <staging|production> probe-drop   P0: remove the throwaway login
 #   bash infra/mail-gateway/db-login.sh <staging|production> login        after PR-a: turn mail_gateway on
 #                                                                          (re-running it = rotating it)
+#   bash infra/mail-gateway/db-login.sh <staging|production> seed         write the ONE config row (P1)
+#   bash infra/mail-gateway/db-login.sh <staging|production> on|off       switch the gateway on / off
+#   bash infra/mail-gateway/db-login.sh <staging|production> body on|off  body reading (Q-BMR9: day 4)
+#
+# `seed` takes MAILGW_ORG_ID (the org's id), MAILGW_MAIL_DOMAINS (e.g. "silvicominc.com", Q-BMR10) and
+# MAILGW_EXCLUDE_EMAILS (Q-BMR11: linked dispatchers left out on purpose, comma-separated sign-in
+# emails — each must be a member of that org, or nothing is written). It always writes the row
+# switched OFF; `on` is a separate, deliberate act. Until P2's admin screen replaces it, this is the
+# "seed statement" of D-BMR3 — run by a person, because the org and the people are facts of one
+# database, not of the code, and a migration would carry production's ids into the public repo.
 # Needs: AWS_PROFILE=silvicom, `supabase login` done, psql, python3, jq.
 # Inputs (environment): MAILGW_PROJECT_REF — REQUIRED for staging (Supabase dashboard → Project
 # Settings → General → Reference ID); production's is public in the repo already.
@@ -33,9 +43,9 @@
 set -euo pipefail
 
 ENV_NAME="${1:?environment: staging or production}"
-MODE="${2:?mode: check | probe | probe-drop | login}"
+MODE="${2:?mode: check | probe | probe-drop | login | seed | on | off | body}"
 case "$ENV_NAME" in staging|production) ;; *) echo "unknown environment: $ENV_NAME" >&2; exit 2 ;; esac
-case "$MODE" in check|probe|probe-drop|login) ;; *) echo "unknown mode: $MODE" >&2; exit 2 ;; esac
+case "$MODE" in check|probe|probe-drop|login|seed|on|off|body) ;; *) echo "unknown mode: $MODE" >&2; exit 2 ;; esac
 
 ACCOUNT=891568748437
 export AWS_DEFAULT_REGION=us-west-2
@@ -82,6 +92,7 @@ say "environment $ENV_NAME, project $REF, pooler $POOLER_HOST"
 case "$MODE" in
 check)
   for r in mail_gateway mailgw_probe; do say "role $r: $(role_state "$r")   ([] = does not exist)"; done
+  say "config row: $(q "select org_id, enabled, body_reading, mail_domains, cardinality(excluded_user_ids) excluded, canary_result, disabled_reason from mail_gateway_config")"
   for p in DATABASE_URL DATABASE_URL_PROBE; do
     if aws ssm describe-parameters --parameter-filters "Key=Name,Values=$PARAMS/$p" --query 'Parameters[0].LastModifiedDate' --output text | grep -qv None; then
       say "parameter $PARAMS/$p exists (value not read)"; else say "parameter $PARAMS/$p: none"; fi
@@ -128,5 +139,40 @@ login)
   case "$result" in "ok mail_gateway") ;; *) echo "login failed — parameter NOT written. The role now has a password nobody holds: fix the cause and re-run" >&2; exit 4 ;; esac
   put_secret "$PARAMS/DATABASE_URL" "postgresql://mail_gateway.$REF:$pw@$POOLER_HOST:6543/postgres?sslmode=require"
   say "wrote $PARAMS/DATABASE_URL; the gateway reads it at its next cold start"
+  ;;
+seed)
+  org="${MAILGW_ORG_ID:?set MAILGW_ORG_ID to the org the gateway serves}"
+  domains="${MAILGW_MAIL_DOMAINS:?set MAILGW_MAIL_DOMAINS, e.g. silvicominc.com}"
+  [[ "$org" =~ ^[0-9a-f-]{36}$ ]] || { echo "MAILGW_ORG_ID is not a uuid" >&2; exit 2; }
+  [[ "$domains" =~ ^[a-z0-9.,-]+$ ]] || { echo "MAILGW_MAIL_DOMAINS: lower-case domains, comma-separated, nothing else" >&2; exit 2; }
+  emails="${MAILGW_EXCLUDE_EMAILS:-}"
+  [[ "$emails" =~ ^[a-z0-9.@,_+-]*$ ]] || { echo "MAILGW_EXCLUDE_EMAILS: lower-case addresses, comma-separated" >&2; exit 2; }
+  # One statement: the excluded addresses resolve to members of THIS org, or nothing is inserted — a
+  # typo can never leave someone silently read.
+  out=$(q "with want as (select unnest(string_to_array(nullif('$emails', ''), ',')) e),
+              hit as (select u.id from want w join auth.users u on lower(u.email) = w.e
+                       join public.memberships m on m.user_id = u.id and m.org_id = '$org')
+           insert into public.mail_gateway_config (org_id, enabled, body_reading, mail_domains, excluded_user_ids)
+           select '$org', false, false, string_to_array('$domains', ','), coalesce((select array_agg(id) from hit), '{}')
+            where (select count(*) from want) = (select count(*) from hit)
+           on conflict (org_id) do update
+              set mail_domains = excluded.mail_domains, excluded_user_ids = excluded.excluded_user_ids, updated_at = now()
+           returning org_id, enabled, mail_domains, cardinality(excluded_user_ids) excluded")
+  [ "$out" != "[]" ] || { echo "nothing written: an excluded address is not a member of that org, or the org does not exist" >&2; exit 4; }
+  say "config row: $out  (switched OFF — '$0 $ENV_NAME on' when ready)"
+  ;;
+on|off)
+  v=$([ "$MODE" = on ] && echo true || echo false)
+  # Switching on clears a canary shut-off's reason: the person doing it has looked (D-BMR14).
+  out=$(q "update public.mail_gateway_config set enabled = $v, updated_at = now(),
+             disabled_reason = case when $v then null else disabled_reason end
+           returning enabled, canary_result, disabled_reason")
+  [ "$out" != "[]" ] || { echo "no config row — run seed first" >&2; exit 4; }
+  say "gateway: $out"
+  ;;
+body)
+  case "${3:-}" in on) v=true ;; off) v=false ;; *) echo "body on|off" >&2; exit 2 ;; esac
+  say "body reading: $(q "update public.mail_gateway_config set body_reading = $v, updated_at = now() returning body_reading")"
+  if [ "$v" = true ]; then echo "  (Simo's role must be Application Mail.Read too, or every body read is refused — Q-BMR9)"; fi
   ;;
 esac
