@@ -3851,6 +3851,61 @@
         "budget_rows_per_day": 1,
         "why": "LUMPER-REVISED-RC-PLAN D-LRC6 (0624): one row per org per weekday the reminder runs, about 260 a year per carrier. The record that a morning's reminder went and to how many, so no window."
       }
+    },
+    "broker_mail_messages": {
+      "module": "broker-mail",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 90,
+        "partition": null,
+        "budget_rows_per_day": 3000,
+        "why": "new in 0643 (2026-11-24, P1): one row per external Inbox message in a derived dispatcher mailbox; 14 mailboxes x ~150 external a day ~ 2,100, budgeted 3,000. Pruned at 90 days from received_at (Q-BMR6)."
+      }
+    },
+    "mail_gateway_cycles": {
+      "module": "broker-mail",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 14,
+        "partition": null,
+        "budget_rows_per_day": 1440,
+        "why": "new in 0643 (2026-11-24, P1): one row per gateway run, one run a minute = 1,440 a day; the heartbeat and the measure week's counts. Pruned at 14 days from started_at."
+      }
+    },
+    "mail_gateway_mailboxes": {
+      "module": "broker-mail",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0643 (2026-11-24, P1): one row per mailbox the derived list has held; grows with the dispatch office (14 today), never with time."
+      }
+    },
+    "mail_gateway_cursors": {
+      "module": "broker-mail",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0643 (2026-11-24, P1): one Graph delta position per read folder of a derived mailbox (Inbox, its subfolders, Sent); rewritten in place, never appended."
+      }
+    },
+    "mail_gateway_config": {
+      "module": "broker-mail",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "static",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0643 (2026-11-24, P1): exactly one row (unique index on a constant): the org the gateway serves and its switches (D-BMR3, D-BMR12)."
+      }
     }
   }
 }

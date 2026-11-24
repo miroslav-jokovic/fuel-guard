@@ -55,7 +55,7 @@ Code facts were checked on `origin/main` on the date above; vendor facts are fro
 | F11 | Dispatcher → user: `tms_dispatchers.user_id` (`is_system`, `is_active`). Member email: `org_member_directory` reads `auth.users.email` and `suspended_at`. | `mcleod/dispatchLinks.ts`, 0393 |
 | F12 | ~~The company's own mail domains are stored: `organizations.allowed_domains`.~~ **Wrong (measured 2026-11-24):** that column is the *invite* allowlist, empty means "no restriction" (`shared/emailDomain.ts:19`), and production's is empty — the rule as written kept none of the 9 linked dispatchers. No list of our mail domains exists → Q-BMR10. | 0003, 0392, production |
 | F13 | No broker or customer domain list exists. | `schema.generated.sql` |
-| F14 | Load references for matching: `loads.ref`, `loads.po_number`, `loads.consignee_ref`, `load_stops.po_number`, `mcleod_dispatch_movements.consignee_refno`. | `schema.generated.sql` |
+| F14 | Load references for matching: `loads.ref`, `loads.pickup_number`, `loads.consignee_ref`, `load_stops.po_number`. **Corrected at build (2026-11-24):** `loads` has no `po_number`, and no code joins a McLeod movement to a load, so `mcleod_dispatch_movements.consignee_refno`/`blnum` wait for that join (the week counts the misses). | `schema.generated.sql`, `loads/dispatchLoads/search.ts` |
 | F15 | Texts: `textOne` always applies the quiet window; `drainAlertTexts` is called only from the home-time run; the door check looks at the phone only; a delivery row has no link to its subject; the catalogue has no `mandatory` flag. | `messaging/alertTexts.ts`, `shared/alertRouting.ts` |
 | F16 | The app image installs only api/web/admin packages; a new workspace app is not installed into it. A new app with a `test` script is run by CI's `test-packages` and `pnpm -r typecheck`. | `infra/image/Dockerfile:36`, `ci.yml:587` |
 | F17 | `aws-production.yml` takes a `sha` on the `production` branch; `release.yml` has nightly / hotfix / rollback modes; rollback never reverses a migration. | workflows |
@@ -113,7 +113,7 @@ and a self-test case in the same PR. The file and function budgets apply to it.
   | `mailgw_begin_cycle(commit)` | takes the one-runner lease; returns settings and the derived mailbox list (D-BMR5) |
   | `mailgw_save_cursor(mailbox, folder, link)` | stores a folder's delta position |
   | `mailgw_record_messages(jsonb)` | upserts envelope rows; refuses a mailbox not in the derived list |
-  | `mailgw_match_refs(text[])` | returns which tokens are a load reference (F14) — nothing else about the load |
+  | ~~`mailgw_match_refs(text[])`~~ | **folded into `mailgw_record_messages` at build (0643):** the gateway hands over tokens with each envelope and learns nothing back about any load |
   | `mailgw_mark_threads(jsonb)` | answered / still waiting, with `thread_checked_at` |
   | `mailgw_record_probe(mailbox, result)` | canary and "still connected" results (D-BMR14) |
   | `mailgw_end_cycle(counts)` | heartbeat + the cycle's counts |
@@ -133,6 +133,10 @@ and a self-test case in the same PR. The file and function budgets apply to it.
 - A signature never changes in place: a new shape is a new function; the old one is dropped a release
   after its last caller. The gateway treats "function does not exist" as *not ready*: it ends the run
   quietly (F10 — on staging the code can arrive minutes before its migration).
+- Every door function takes the cycle id `mailgw_begin_cycle` returned and refuses a call outside
+  that lease (`55P03`). The helpers (config, lease, derived list, token rule) are executable by no
+  client role and not by `mail_gateway`. The one exception is `mailgw_derived_mailboxes`, which
+  service_role may call, so P2's admin list shows the same rule.
 - Role settings (`connection limit 3`, `statement_timeout`) pass `lint:role-settings`.
 
 **D-BMR4 — Graph allowlist in code.** One function builds every Graph URL from a closed list. P1:
@@ -171,8 +175,8 @@ mailbox: `connected`/`not_connected`/`over_quota`/`still_connected_after_unlink`
 lifecycle block, and the 90-day and 14-day windows are added to `RETENTION_RULES`
 (`org/dataRetentionPolicy.ts`) in the same PR — the gate checks the two against each other.
 
-**D-BMR8 — Matching happens in the database.** The gateway sends candidate tokens to
-`mailgw_match_refs`; SQL compares them, normalised, with F14 for loads active in the last 45 days.
+**D-BMR8 — Matching happens in the database.** The gateway sends candidate tokens with each envelope
+to `mailgw_record_messages`; SQL compares them, normalised, with F14 for loads active in the last 45 days.
 The gateway cannot list loads. P1 is exact match only.
 
 **D-BMR9 — "Answered" is decided inside one mailbox, with a second check.** All proof lives in the
@@ -430,6 +434,16 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
   - **Who made the apps:** the owner, from his own account, with `infra/mail-gateway/entra-apps.sh`
     (Azure CLI). The admin's part shrank to one Exchange script, which ends with removing the owner
     from the two apps' owners.
+- 2026-11-24 — **P1 PR-a built** (owner: "proceed while we wait for Simo"; PR-a needs no Graph proof).
+  Migration 0643 contains the role, five tables, a door of six functions plus four helpers, and the
+  door matrix `mail-gateway-door.test.mjs`. Changes from the plan, each recorded above: the token match
+  is folded into the write (no `mailgw_match_refs`), and F14 is corrected. The matrix walks every
+  function and table in `public` on the platform's default ACL, and **found that 38 older definer
+  functions still carry PUBLIC execute**, which any login inherits. 34 are trigger functions, which
+  Postgres refuses to call directly; the matrix proves that by calling one. The other 4 are the RLS
+  helpers, whose ACL already names anon, authenticated and service_role one by one. 0643 revokes
+  PUBLIC from those four, but only where all three named grants are present. Result: `mail_gateway`
+  can call exactly the six door functions and holds no privilege on any of the 365 tables, views and sequences in `public`.
 
 ## Sources
 
