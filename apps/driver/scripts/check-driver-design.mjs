@@ -48,6 +48,10 @@ const forbiddenOutsideTheme = [
   { pattern: /\b(?:fontFamily|fontWeight|fontSize|lineHeight|letterSpacing)\s*:/, message: 'type comes from textStyle() in src/theme/typography.ts' },
   // D-DV14: emoji as icons are a generic-AI tell. Icons come from the Icon component.
   { pattern: /\p{Extended_Pictographic}/u, message: 'no emoji in the UI (D-DV14); use the Icon component' },
+  // D-DV26 (2026-11-24): a status number is not a sentence. "HTTP 404" reached drivers' banners
+  // through api.ts's fallback (V9 critique, Q-DV8 g). errorWords.ts keeps it in `detail` only; the
+  // build card shows the version endpoint's status to support, which is the one other reader.
+  { pattern: /HTTP \$\{/, message: 'a failure reaches a driver as a sentence from src/lib/errorWords.ts, never "HTTP <status>" (D-DV26)', allow: ['src/lib/errorWords.ts', 'src/lib/api.ts', 'src/features/support/BuildInfoCard.tsx'] },
 ];
 
 const files = [];
