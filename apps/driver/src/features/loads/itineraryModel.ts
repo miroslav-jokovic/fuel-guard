@@ -189,8 +189,9 @@ export interface PhotoRowView {
   state: PhotoTileState;
   /** "Required", "Taken 06:02", "Already added". */
   detail: string;
-  /** The trailing word: amber "Take" for a missing photo (D-DV5: act), "Retake" otherwise. */
-  action: { text: string; tone: 'act' | 'secondary' };
+  /** The trailing word: "Take" in ink for a missing photo, "Retake" in secondary. Not amber: the
+   *  footer's primary is the screen's one amber and already names the missing photo (D-DV27). */
+  action: { text: string; tone: 'ink' | 'secondary' };
 }
 
 /** The stop screen's photos as rows (mock screen 6), missing ones first. */
@@ -205,7 +206,7 @@ export function photoRows(
       slot,
       state,
       detail: state === 'captured' && shot ? `Taken ${clock(new Date(shot.capturedAt).toISOString())}` : state === 'already' ? 'Already added' : 'Required',
-      action: state === 'required' ? { text: 'Take', tone: 'act' } : { text: 'Retake', tone: 'secondary' },
+      action: state === 'required' ? { text: 'Take', tone: 'ink' } : { text: 'Retake', tone: 'secondary' },
     };
   });
   return [...rows.filter((r) => r.state === 'required'), ...rows.filter((r) => r.state !== 'required')];

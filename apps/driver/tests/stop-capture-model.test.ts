@@ -5,6 +5,7 @@ import {
   outstandingSlots,
   reasonRequiredToComplete,
   satisfiedSlots,
+  stopFooter,
   type SessionCapture,
 } from '@/features/loads/stopCaptureModel';
 
@@ -77,5 +78,41 @@ describe('buildStopPhotos', () => {
   });
   it('is empty for no captures (a plain arrive or skip)', () => {
     expect(buildStopPhotos({ orgId: 'o', driverId: 'd', loadId: 'l', captures: [] })).toEqual([]);
+  });
+});
+
+describe('stopFooter (D-DV27, Q-DV8 a)', () => {
+  const at = (status: LoadStop['status'], required: string[], photos: LoadStopPhoto[] = []) => ({ status, required_photos: required, photos });
+
+  it('offers arrival first, with completing reachable quietly', () => {
+    expect(stopFooter(at('pending', ['seal']), [])).toEqual({
+      primary: { kind: 'arrive', label: 'Mark arrived' },
+      quiet: [{ kind: 'complete', label: 'Complete stop' }, { kind: 'skip', label: 'Skip stop' }],
+    });
+  });
+
+  it('once arrived, the one primary takes the missing photo instead of naming it as a blocker', () => {
+    const footer = stopFooter(at('arrived', ['seal', 'trailer']), []);
+    expect(footer.primary).toEqual({ kind: 'take', label: 'Take seal photo', slot: 'seal' });
+    expect(footer.quiet[0]).toEqual({ kind: 'complete', label: 'Complete without 2 photos' });
+    expect(footer.primary.label).not.toMatch(/missing/);
+  });
+
+  it('scans a document slot rather than photographing it', () => {
+    expect(stopFooter(at('arrived', ['bol']), []).primary).toEqual({ kind: 'take', label: 'Scan BOL', slot: 'bol' });
+  });
+
+  it('moves to the next missing photo as each is taken, then to Complete', () => {
+    const required = ['seal', 'trailer'];
+    expect(stopFooter(at('arrived', required), [cap('seal')]).primary).toEqual({ kind: 'take', label: 'Take trailer photo', slot: 'trailer' });
+    expect(stopFooter(at('arrived', required), [cap('seal')]).quiet[0]?.label).toBe('Complete without photo');
+    expect(stopFooter(at('arrived', required, [photo('trailer')]), [cap('seal')])).toEqual({
+      primary: { kind: 'complete', label: 'Complete stop' },
+      quiet: [{ kind: 'skip', label: 'Skip stop' }],
+    });
+  });
+
+  it('completes a stop that needs no photos', () => {
+    expect(stopFooter(at('arrived', []), []).primary.kind).toBe('complete');
   });
 });
