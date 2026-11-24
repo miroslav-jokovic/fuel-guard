@@ -4,10 +4,14 @@ import { supabase } from "./supabase";
 import { deviceHeader } from "./deviceKey";
 import { clearDeviceLimited, markDeviceLimited } from "./deviceLimit";
 import { DEVICE_LIMIT_REACHED } from "@silvicom/shared";
+import { ERROR_WORDS, driverError } from "./errorWords";
 
 export interface ApiError {
   code: string;
+  /** Always a sentence a driver can read (D-DV26): `driverError` chooses it. */
   message: string;
+  /** The status, code and server text, for Sentry and the build card. Never shown in a banner. */
+  detail?: string;
 }
 export interface ApiResult<T> {
   ok: boolean;
@@ -102,9 +106,9 @@ export async function apiFetch<T = unknown>(
       error: timedOut
         ? {
             code: "timeout",
-            message: "The request timed out. Check your connection and try again.",
+            message: ERROR_WORDS.timeout,
           }
-        : { code: "network", message: "Network error. Your entry is saved and will sync." },
+        : { code: "network", message: ERROR_WORDS.network },
     };
   } finally {
     clearTimeout(timer);
@@ -128,7 +132,7 @@ export async function apiFetch<T = unknown>(
     return {
       ok: false,
       status: res.status,
-      error: err ?? { code: "error", message: `HTTP ${res.status}` },
+      error: driverError(res.status, err),
       ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
     };
   }
@@ -139,7 +143,7 @@ export async function apiFetch<T = unknown>(
       return {
         ok: false,
         status: res.status,
-        error: { code: "bad_response", message: "Unexpected response from server." },
+        error: { code: "bad_response", message: ERROR_WORDS.unexpected, detail: `HTTP ${res.status} · response did not match its schema` },
       };
     }
     return { ok: true, status: res.status, data: parsed.data };
