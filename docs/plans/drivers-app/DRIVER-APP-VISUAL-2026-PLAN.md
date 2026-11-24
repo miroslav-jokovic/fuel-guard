@@ -527,8 +527,12 @@ The owner ruled on the proposals as written. The order below is the build order,
 - **D-DV28 · Q-DV8 (e): the map is ours.** A Silvicom light and dark style, derived from
   OpenFreeMap's `liberty` and `dark`: navy-tinted neutral roads, muted water, no coloured POI
   labels, the attribution in ink-muted, and the truck as a labelled amber mark so it never reads as
-  live cyan. Served by the web app and selected through the existing `mapStyleUrl` setting. The owner
-  sees both themes in screenshots before it merges.
+  live cyan. The owner sees both themes in screenshots before it merges.
+  - *Amended at build, 2026-11-24:* the style is BUNDLED in the app (`apps/driver/src/lib/basemap/`),
+    not served by the web app. It is one transform of liberty driven by `theme.roles.json`, so a
+    re-valued role re-colours the map with no second copy, and the map needs one download fewer
+    before it draws. `EXPO_PUBLIC_MAP_STYLE_URL(_DARK)` still overrides it. The stop is an ink pin,
+    not the cyan dot, and the attribution is our own ink-muted line in place of MapLibre's blue (i).
 - **D-DV29 · Q-DV8 (f): a switch is the phone's chrome.** iOS keeps the system green and Android
   keeps Material 3's seeded track. D-DV5's colour roles govern our drawn state, not system controls.
   DESIGN.md records this exception.
