@@ -142,7 +142,7 @@ attachment read is fine at that size.
   (D-FC4). A `Tax` line on the new invoice is now read as sales tax, not merchandise. On INV-59656 with
   production's quotes: invoice total $341,127.06 (= printed), retail $394,755.16, savings $53,628.10, 349 of
   499 truck-diesel lines quoted, and the two lines billed over the quote (4599 TN $20.03, 372 CA $9.55).
-- 2026-11-24 — step 2 merged (#2642). Step 3 built: migration 0643 `pilot_bill_mails` (one row per email,
+- 2026-11-24 — step 2 merged (#2642). Step 3 built: migration 0644 `pilot_bill_mails` (renumbered from 0643, which the mail gateway took first) (one row per email,
   Message-ID key, states recorded / duplicate / refused / failed / no_pdf), `pilotBillMail.ts` +
   `pilotBillMailScheduler.ts` (lane general, hourly, folder `Pilot-Bills`, reuses `EFS_GRAPH_*` +
   `EFS_INGEST_ORG_ID`), `graphFolderReader.pdfAttachments` (read-only, always `$value`), the server PDF decode

@@ -11,7 +11,7 @@ import type { StatementIngestResult } from "./fuelStatementIngest.js";
  *
  * The owner moves Pilot's weekly bill into miki@'s `Pilot-Bills` folder with an Outlook rule, PDF attached
  * (ruled 2026-11-24). Each run lists the folder's last two weeks and, for every email not yet settled in
- * `pilot_bill_mails` (0643), reads each PDF attachment ON THE SERVER (`readPdfWords` — the same pdf.js decode
+ * `pilot_bill_mails` (0644), reads each PDF attachment ON THE SERVER (`readPdfWords` — the same pdf.js decode
  * and the same `splitTextRun` as the browser's upload), records it through `ingestFuelStatement`, and runs the
  * invoice check through `runFuelReconciliation`. Both are the functions the Pilot invoices upload calls, so an
  * emailed bill and an uploaded one cannot be recorded or checked differently. The mailbox is never changed.
