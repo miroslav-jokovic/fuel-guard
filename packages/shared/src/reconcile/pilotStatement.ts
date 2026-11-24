@@ -76,6 +76,9 @@ export interface StatementLine extends PilotReportFill {
    * `fuel_transactions.total_cost` holds and therefore what the reconciler must compare against.
    */
   invoiceTotal: number | null;
+  /** Pilot's Vehicle ID and Driver ID prompts — printed only by the 2026-11 invoice (`pilotInvoice.ts`). */
+  vehicleId?: string | null;
+  driverId?: string | null;
 }
 
 /** The totals Pilot prints on the last page — the statement checking its own arithmetic, for us to reuse. */
@@ -175,7 +178,7 @@ export function classifyStatementProduct(code: string | null): { product: Report
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────────────────────────
-const numOf = (s: string | undefined): number | null => {
+export const numOf = (s: string | undefined): number | null => {
   if (s == null) return null;
   const t = s.replace(/[$,\s]/g, "");
   if (t === "" || !/^-?\.?\d/.test(t)) return null;
@@ -201,7 +204,7 @@ const usDate = (s: string): string | null => {
 };
 
 /** Group words into printed lines by y, each line's words ordered left-to-right. */
-function toRows(words: StatementWord[]): { y: number; cells: StatementWord[] }[] {
+export function toRows(words: StatementWord[]): { y: number; cells: StatementWord[] }[] {
   const bands = new Map<number, StatementWord[]>();
   for (const w of words) {
     const k = Math.round(w.y / ROW_TOLERANCE);

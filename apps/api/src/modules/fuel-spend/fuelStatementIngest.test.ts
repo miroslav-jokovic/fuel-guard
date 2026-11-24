@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../../testing/supabaseRecorder.js";
 import { ingestFuelStatement, STATEMENT_BUCKET } from "./fuelStatementIngest.js";
+import { splitTextRun, type StatementWord } from "@silvicom/shared";
 import { statementWords, w, X } from "./statementWords.fixture.js";
 
 /**
@@ -63,7 +64,7 @@ describe("ingestFuelStatement", () => {
     const rec = seed();
     const r = await ingestFuelStatement(rec.client, ORG, USER, { words: [w("Some", 10, 10), w("other", 40, 10)] });
     expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/isn't a Pilot statement/);
+    expect(r.error).toMatch(/isn't a Pilot weekly statement or invoice/);
     expect(rec.queries.some((q) => q.write)).toBe(false);
   });
 
@@ -146,4 +147,38 @@ describe("ingestFuelStatement", () => {
     // `fuel_stations` is the GLOBAL station registry — public reference facts, shared across orgs.
     expectOrgScoped(rec, ORG, { exempt: ["fuel_stations"] });
   });
+
+  it("records Pilot's 2026-11 invoice layout, which prints no period, retail total or savings total", async () => {
+    const rec = seed({ fuel_stations: [{ id: "st-612", brand: "pilot", store_number: "612", state: "AZ" }] });
+    const r = await ingestFuelStatement(rec.client, ORG, USER, { words: invoiceWords(), filename: "Standard_Invoice_Gen_Template_INV-59656.pdf" });
+    expect(r.ok).toBe(true);
+    expect(r.invoiceNo).toBe("INV-59656");
+    expect([r.periodStart, r.periodEnd]).toEqual(["2026-11-17", "2026-11-22"]);
+    const stmt = rec.queries.find((q) => q.table === "fuel_statements" && q.write)?.write?.payload as Record<string, unknown>;
+    expect(stmt).toMatchObject({ invoice_no: "INV-59656", billing_date: "2026-11-23", invoice_total: 811.92,
+      retail_total: 948.54, savings: 136.62, printed_amount: 811.92, printed_retail: null, printed_savings: null });
+    const lines = rec.queries.find((q) => q.table === "fuel_statement_lines" && q.write)?.write?.payload as Array<Record<string, unknown>>;
+    expect(lines.map((l) => [l.ticket_no, l.site_number, l.state, l.station_id, l.tank_type])).toEqual([
+      ["0883000001", "4569", "SC", null, "reefer"],
+      ["0564000003", "612", "AZ", "st-612", "tractor"],
+    ]);
+  });
 });
+
+/** Two lines of the 2026-11 invoice in its measured geometry (pilotInvoice.test.ts has the full layout). */
+function invoiceWords(): StatementWord[] {
+  const run = (text: string, x: number, y: number): StatementWord[] => splitTextRun({ text, x, y, page: 1, width: text.length * 3.3 });
+  const cols = [19.0, 57.6, 107.3, 168.3, 241.8, 313.5, 372.3, 431.4, 490.2, 549.3, 589.9, 645.3, 707.5];
+  const row = (y: number, cells: string[]) => cells.flatMap((c, i) => run(c, cols[i]!, y));
+  const header: [string, number][] = [["Card#", 19.0], ["Unit Number", 57.9], ["Date", 125.1], ["Transaction #", 178.6],
+    ["Store Location", 249.4], ["Vehicle ID", 322.4], ["Driver ID", 383.4], ["Odometer", 440.0], ["Product", 502.5],
+    ["Qty", 558.9], ["Sales Tax", 598.2], ["Retail $", 659.7]];
+  return [
+    ...run("Acct No: 139445", 13.4, 22.8), ...run("Invoice No: INV-59656", 13.4, 83.8), ...run("Billing Date: 11/23/2026", 13.4, 96),
+    ...header.flatMap(([t, x]) => run(t, x, 161.4)),
+    ...row(170.5, ["111111", "813", "11/17/2026", "0883000001", "4569 Hardeeville", "530001", "1234", "13445", "Reefer", "11.44", "$0.00", "$60.03", "$59.37"]),
+    ...run("SC", 240.3, 178.9),
+    ...row(207.2, ["333333", "708", "11/22/2026", "0564000003", "612 Winslow AZ", "530003", "1234", "246618", "Truck Diesel", "107.65", "$0.00", "$888.51", "$752.55"]),
+    ...run("Amount Purchased: $811.92", 13.4, 300), ...run("USD Total: $811.92", 13.4, 312), ...run("Transaction Tax: $0.00", 13.4, 324),
+  ];
+}

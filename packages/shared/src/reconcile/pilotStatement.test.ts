@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parsePilotStatement, splitTextRun, classifyStatementProduct, type StatementWord } from "./pilotStatement.js";
+import { parsePilotWeeklyBill } from "./pilotInvoice.js";
 
 /**
  * A synthetic statement in the REAL geometry of `db139445F.pdf` (invoice 795506105, 2026-08-17 →
@@ -170,5 +171,13 @@ describe("parsePilotStatement", () => {
   it("reports gallons as a note, never a rejection — Pilot totals unrounded quantities", () => {
     expect(r.tieOut.ok).toBe(true);
     expect(r.tieOut.unitsDelta).toBeCloseTo(0, 1);
+  });
+});
+
+describe("parsePilotWeeklyBill on the old statement layout", () => {
+  it("reads a StatementDBS_US statement exactly as parsePilotStatement does", () => {
+    const { layout, ...rest } = parsePilotWeeklyBill(DOC);
+    expect(layout).toBe("statement");
+    expect(rest).toEqual(parsePilotStatement(DOC));
   });
 });
