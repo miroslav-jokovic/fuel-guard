@@ -21,6 +21,8 @@
 -- (`lint:migration-ordering`); the statement ingest starts writing them in the next one. Old statements' lines
 -- read null forever — that layout never printed them.
 --
+-- raw-access-waiver: fuel-spend's own DDL on its own table (fuel_statement_lines, 0243) — no cross-module read.
+--
 -- Rollback: `alter table public.fuel_statement_lines drop column pilot_vehicle_id, drop column pilot_driver_id`.
 
 alter table public.fuel_statement_lines
