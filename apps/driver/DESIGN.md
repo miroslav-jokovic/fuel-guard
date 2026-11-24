@@ -87,6 +87,10 @@ Each decision below is final. A change is made by adding a new dated line, never
   - **Green = done.**
   - Everything else is ink on a neutral ground.
   - Status colours sit outside the brand's two-colour rule by owner ruling Q-DV2, and only as state.
+  - **These roles govern what WE draw, not the system's own controls** (D-DV29, owner ruling
+    2026-11-24). A switch is phone chrome: iOS draws "on" in its system green and Android in Material
+    3's track seeded from the brand navy. Neither is our "done" or "live"; a driver reads a switch the
+    way every other app on the phone taught them. Never repaint a system control to fit these roles.
 - **D-DV6 · One signature per screen.** At most one raised block per screen carries what the screen is
   about:
   - Today: the current stop with its appointment window.
