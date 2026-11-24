@@ -512,12 +512,14 @@ The owner ruled on the proposals as written. The order below is the build order,
 - **D-DV26 · Q-DV8 (g): every failure a driver sees is a sentence.** One table in `src/lib/` turns
   a failed request into driver words by its status and code. The status number goes to Sentry and the
   build card, never into a banner. `lint:design` refuses `HTTP ` in a banner or toast string.
-  - 0 / network: "No connection. We'll send it when you're back online."
-  - 401 / 403: "You've been signed out. Sign in again."
+  - 0 / network: "No connection. Anything you entered is saved and will send when you're back online."
+  - 401: "You've been signed out. Sign in again."
+  - 403: "Your account can't do this. Ask the office." (A 403 is a permission, not a sign-out.)
   - 404: "This was changed by the office. Pull down to refresh."
-  - 409: "Someone else already updated this."
+  - 409: "Someone else already updated this. Pull down to refresh."
+  - 400 / 422: "Something in this entry wasn't accepted. Check it and try again."
   - 429 / 5xx: "Our server is busy. Trying again in a minute."
-  A server message written for the driver (a domain refusal with its own code) still passes through.
+  A server message written for the driver (a 403, 409 or 422 with its own code) still passes through.
 - **D-DV27 · Q-DV8 (a): the Stop footer does one thing at a time.** While a required photo is
   missing, the amber primary is "Take <slot> photo" and opens that slot's capture. It becomes
   "Complete stop" only once nothing is missing. The in-row "Take" goes to ink. The existing
