@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   acceptLoadRequestSchema,
+  addStopPhotosRequestSchema,
   acceptanceCopy,
   changeEquipmentRequestSchema,
   completeStopRequestSchema,
@@ -29,6 +30,7 @@ import {
 } from "../dutySessions.js";
 import {
   acceptLoad,
+  addStopPhotos,
   completeStop,
   declineLoad,
   getDriverLoads,
@@ -388,6 +390,22 @@ export function meRouter(): Router {
       const body = res.locals.body as ReturnType<typeof completeStopRequestSchema.parse>;
       await runLoadMutation(req, res, "load.stop_recorded", (admin, orgId, driverId) =>
         completeStop(admin, orgId, driverId, pathParam(req, "id"), pathParam(req, "stopId"), req.auth!.userId, body),
+      );
+    }),
+  );
+
+  /**
+   * A late photo for a stop the driver already finished (D-DV30, migration 0645). Photos only; the
+   * stop stays as it was finished. Idempotent on the client photo UUIDs, so an outbox replay is free.
+   */
+  router.post(
+    "/loads/:id/stops/:stopId/photos",
+    ...driverOnly,
+    validateBody(addStopPhotosRequestSchema),
+    asyncHandler(async (req, res) => {
+      const body = res.locals.body as ReturnType<typeof addStopPhotosRequestSchema.parse>;
+      await runLoadMutation(req, res, "load.stop_photos_added", (admin, orgId, driverId) =>
+        addStopPhotos(admin, orgId, driverId, pathParam(req, "id"), pathParam(req, "stopId"), req.auth!.userId, body),
       );
     }),
   );

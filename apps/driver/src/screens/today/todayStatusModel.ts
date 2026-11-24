@@ -1,4 +1,4 @@
-import { missingPhotoSlots, nextStop, photoSlotLabel, stopProgress, type Load, type LoadStop } from '@silvicom/shared';
+import { latePhotoOpen, missingPhotoSlots, nextStop, photoSlotLabel, stopProgress, type Load, type LoadStop } from '@silvicom/shared';
 import type { Tone } from '@/components/tone';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 import { countdownLabel } from './todayModel';
@@ -14,10 +14,11 @@ import { countdownLabel } from './todayModel';
  *   the live line counts down to it. `total_miles` is the whole load, so it is not shown beside a stop.
  * - **No "Tight"** (Q-DV4, deferred to the feature plan). A closed window is said plainly, in amber.
  * - **No action the app cannot take.** The mock's screen 3 offers "Add" for a photo missing from a
- *   FINISHED stop. `driver_complete_stop` (migration 0141) refuses any change to a completed or skipped
- *   stop, and a replay of the same status returns before its photos are inserted, so that button would
- *   be a promise the server breaks. The gap is shown as an amber row under "Done today" instead, and
- *   the missing capability is Q-DV7 in the plan.
+ *   FINISHED stop. Until 2026-11-24 the server took none (`driver_complete_stop`, 0141, refuses any
+ *   change to a finished stop), so the gap was a record with no action (Q-DV7). Migration 0645 added
+ *   `driver_add_stop_photos` (D-DV30): a completed stop now takes a late photo for
+ *   LATE_PHOTO_WINDOW_DAYS, and the row offers "Add photo" exactly while `latePhotoOpen` says the
+ *   server will take it. After that, or on a skipped stop, it is a record again.
  */
 
 export interface StatusBlockView {
@@ -245,8 +246,8 @@ export function upcomingLoadRows(loads: readonly Load[], now: number = Date.now(
  * What the driver finished today: the current load's worked stops, then loads delivered today.
  *
  * A stop completed without one of its required photos keeps its amber glyph and names the photo.
- * It is a record, not a task: no destination and no chevron, because the server takes no photo for a
- * finished stop (see the header, Q-DV7).
+ * Inside the late-photo window it opens the stop, where the photo is taken and sent (D-DV30), with
+ * "Add photo" in secondary ink: the amber stays with the glyph and Today's one next step (D-DV5).
  */
 export function doneTodayRows(input: {
   current: Load | null;
@@ -271,8 +272,9 @@ export function doneTodayRows(input: {
         kindWord(s),
         missing.length > 0 ? `${capitalise(photoList(missing))} ${plural(missing.length, 'photo')} missing` : null,
       ].filter(Boolean).join(' · '),
-      figure: clock(doneAt),
-      figureNote: s.status === 'skipped' ? 'skipped' : 'completed',
+      ...(missing.length > 0 && latePhotoOpen(s, input.now ?? Date.now()) && input.current
+        ? { word: { text: 'Add photo', tone: 'secondary' as const }, href: `/loads/${input.current.id}/stop/${s.id}` }
+        : { figure: clock(doneAt), figureNote: s.status === 'skipped' ? 'skipped' : 'completed' }),
     });
   }
   for (const l of input.previous) {

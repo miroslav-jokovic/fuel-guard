@@ -1,4 +1,5 @@
 import {
+  latePhotoOpen,
   missingPhotoSlots,
   nextStop,
   photoSlotLabel,
@@ -23,8 +24,9 @@ import {
  *   (simulator, 2026-11-20), and a list where everything is urgent says nothing is.
  * - "Take" is offered only where the app can take it: the load's next open stop. Its later stops
  *   say "Later".
- *   A finished stop's gap is shown as a record with no action, because `driver_complete_stop`
- *   (migration 0141) refuses photos for a finished stop (Q-DV7).
+ *   A COMPLETED stop's gap says "Add" while the server takes a late photo for it (D-DV30, migration
+ *   0645, `latePhotoOpen`) — on the load being driven AND on a delivered one, since the last stop is
+ *   where a late photo is most often owed. Past that window it is a record with no action again.
  * - "Sent" counts photos the server already holds (`uploaded_at`), which is what "received" means.
  *   Photos still on the phone are the outbox's to report (the sync rows), never counted here.
  */
@@ -35,8 +37,11 @@ export interface MissingPhotoRow {
   stopId: string;
   title: string;
   subtitle: string;
-  /** `take`: open stop, can capture now. `later`: a later stop on the run. `record`: finished, no action. */
-  when: 'take' | 'later' | 'record';
+  /**
+   * `take`: open stop, can capture now. `late`: a completed stop that still takes a late photo
+   * (D-DV30). `later`: a later stop on the run. `record`: finished, no action.
+   */
+  when: 'take' | 'late' | 'later' | 'record';
 }
 
 export interface DocumentsView {
@@ -50,7 +55,9 @@ export interface DocumentsView {
 
 export function documentsView(loads: readonly Load[], now: number = Date.now()): DocumentsView {
   const missing: MissingPhotoRow[] = [];
-  const working = loads.filter((l) => l.status === 'in_transit');
+  // The load being driven owes its photos; a delivered one owes only the late photos the server
+  // still takes for its completed stops (D-DV30).
+  const working = loads.filter((l) => l.status === 'in_transit' || l.status === 'delivered');
 
   for (const load of working) {
     const next = nextStop(load);
@@ -58,6 +65,8 @@ export function documentsView(loads: readonly Load[], now: number = Date.now()):
       const finished = stop.status === 'completed' || stop.status === 'skipped';
       // A skipped stop was explained with a reason (D21); its photos are not owed.
       if (stop.status === 'skipped') continue;
+      const late = finished && latePhotoOpen(stop, now);
+      if (load.status === 'delivered' && !late) continue;
       for (const slot of missingPhotoSlots(stop)) {
         missing.push({
           key: `${stop.id}-${slot}`,
@@ -65,13 +74,13 @@ export function documentsView(loads: readonly Load[], now: number = Date.now()):
           stopId: stop.id,
           title: `${photoSlotLabel(slot)} · ${stop.name}`,
           subtitle: `Load ${load.ref} · stop ${stop.seq} · ${stop.kind === 'pickup' ? 'pickup' : 'delivery'}${finished ? ' · finished without it' : ''}`,
-          when: finished ? 'record' : stop.id === next?.id ? 'take' : 'later',
+          when: late ? 'late' : finished ? 'record' : stop.id === next?.id ? 'take' : 'later',
         });
       }
     }
   }
-  // What the driver can do now first, then later stops, then the records.
-  const rank = { take: 0, later: 1, record: 2 } as const;
+  // What the driver can do now first (the open stop, then late photos), then later stops, then records.
+  const rank = { take: 0, late: 1, later: 2, record: 3 } as const;
   missing.sort((a, b) => rank[a.when] - rank[b.when]);
 
   const actionable = missing.filter((m) => m.when !== 'record').length;

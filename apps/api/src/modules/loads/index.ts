@@ -36,6 +36,7 @@ export { readDriverPickupsSince, type DriverPickup } from "./driverPickups.js";
 export { recordStopEtaPredictions, type StopEtaPrediction } from "./etaPredictions.js";
 export {
   acceptLoad,
+  addStopPhotos,
   completeStop,
   declineLoad,
   getDriverLoads,

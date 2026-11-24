@@ -82,7 +82,7 @@ describe('buildStopPhotos', () => {
 });
 
 describe('stopFooter (D-DV27, Q-DV8 a)', () => {
-  const at = (status: LoadStop['status'], required: string[], photos: LoadStopPhoto[] = []) => ({ status, required_photos: required, photos });
+  const at = (status: LoadStop['status'], required: string[], photos: LoadStopPhoto[] = [], completed_at: string | null = null) => ({ status, required_photos: required, photos, completed_at });
 
   it('offers arrival first, with completing reachable quietly', () => {
     expect(stopFooter(at('pending', ['seal']), [])).toEqual({
@@ -95,7 +95,7 @@ describe('stopFooter (D-DV27, Q-DV8 a)', () => {
     const footer = stopFooter(at('arrived', ['seal', 'trailer']), []);
     expect(footer.primary).toEqual({ kind: 'take', label: 'Take seal photo', slot: 'seal' });
     expect(footer.quiet[0]).toEqual({ kind: 'complete', label: 'Complete without 2 photos' });
-    expect(footer.primary.label).not.toMatch(/missing/);
+    expect(footer.primary?.label).not.toMatch(/missing/);
   });
 
   it('scans a document slot rather than photographing it', () => {
@@ -113,6 +113,32 @@ describe('stopFooter (D-DV27, Q-DV8 a)', () => {
   });
 
   it('completes a stop that needs no photos', () => {
-    expect(stopFooter(at('arrived', []), []).primary.kind).toBe('complete');
+    expect(stopFooter(at('arrived', []), []).primary?.kind).toBe('complete');
+  });
+});
+
+describe('stopFooter on a finished stop (D-DV30, late photos)', () => {
+  const NOW = Date.parse('2026-11-24T18:00:00Z');
+  const done = (status: LoadStop['status'], required: string[], completedAt: string, photos: LoadStopPhoto[] = []) =>
+    ({ status, required_photos: required, photos, completed_at: completedAt });
+
+  it('takes a missing photo late, then sends it, inside the window', () => {
+    const stop = done('completed', ['seal'], '2026-11-24T09:00:00Z');
+    expect(stopFooter(stop, [], NOW)).toEqual({ primary: { kind: 'take', label: 'Take seal photo', slot: 'seal' }, quiet: [] });
+    expect(stopFooter(stop, [cap('seal')], NOW)).toEqual({ primary: { kind: 'send', label: 'Send photo' }, quiet: [] });
+  });
+
+  it('lets part of them go now, quietly, while another is still missing', () => {
+    const stop = done('completed', ['seal', 'bol'], '2026-11-24T09:00:00Z');
+    expect(stopFooter(stop, [cap('seal')], NOW)).toEqual({
+      primary: { kind: 'take', label: 'Scan BOL', slot: 'bol' },
+      quiet: [{ kind: 'send', label: 'Send photo now' }],
+    });
+  });
+
+  it('offers nothing the server would refuse: past the window, a skipped stop, or nothing missing', () => {
+    expect(stopFooter(done('completed', ['seal'], '2026-11-09T09:00:00Z'), [], NOW)).toEqual({ primary: null, quiet: [] });
+    expect(stopFooter(done('skipped', ['seal'], '2026-11-24T09:00:00Z'), [], NOW)).toEqual({ primary: null, quiet: [] });
+    expect(stopFooter(done('completed', ['seal'], '2026-11-24T09:00:00Z', [photo('seal')]), [], NOW)).toEqual({ primary: null, quiet: [] });
   });
 });

@@ -25,6 +25,8 @@ export const LOAD_ACCEPT_KIND = 'load_accept';
 export const LOAD_DECLINE_KIND = 'load_decline';
 export const LOAD_START_KIND = 'load_start';
 export const LOAD_STOP_KIND = 'load_stop';
+/** A late photo for a finished stop (D-DV30, migration 0645): photos only, the stop is not moved. */
+export const LOAD_STOP_PHOTOS_KIND = 'load_stop_photos';
 
 export const HAZMAT_CAPTURE_KIND = 'hazmat_capture';
 
@@ -144,6 +146,36 @@ export function registerSyncHandlers(): void {
       await post(`/api/me/loads/${payload.load_id}/stops/${payload.stop_id}`, {
         status: payload.status,
         ...(payload.skip_reason ? { skip_reason: payload.skip_reason } : {}),
+        ...(payload.occurred_at ? { occurred_at: payload.occurred_at } : {}),
+        photos: photos.map((p) => ({
+          id: p.id,
+          slot: p.slot,
+          storage_path: p.storage_path,
+          ...(p.captured_at ? { captured_at: p.captured_at } : {}),
+        })),
+      });
+    },
+  });
+
+  // A late photo for a stop already finished (D-DV30). Same order and the same idempotency as a
+  // completion: bytes first, then the record, both keyed by the client UUIDs, so a replay is free.
+  registerHandler(LOAD_STOP_PHOTOS_KIND, {
+    invalidates: LOAD_KEYS,
+    run: async (record) => {
+      const payload = (record.payload ?? {}) as {
+        load_id?: string;
+        stop_id?: string;
+        occurred_at?: string;
+        photos?: QueuedStopPhoto[];
+      };
+      const photos = payload.photos ?? [];
+      if (!payload.load_id || !payload.stop_id || photos.length === 0) {
+        throw new SyncError('Queued late photo is malformed', 422);
+      }
+      for (const photo of photos) {
+        await uploadStopPhoto(photo);
+      }
+      await post(`/api/me/loads/${payload.load_id}/stops/${payload.stop_id}/photos`, {
         ...(payload.occurred_at ? { occurred_at: payload.occurred_at } : {}),
         photos: photos.map((p) => ({
           id: p.id,

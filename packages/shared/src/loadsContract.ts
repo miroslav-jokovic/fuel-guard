@@ -160,6 +160,36 @@ export const completeStopRequestSchema = z.object({
 });
 export type CompleteStopRequest = z.infer<typeof completeStopRequestSchema>;
 
+/**
+ * How long after a stop is completed a driver may still add a late photo to it (D-DV30). The SAME
+ * number is `driver_add_stop_photos`'s DL007 guard in migration 0645; the app reads it from here to
+ * decide whether to offer "Add", so the button never appears for a photo the server would refuse.
+ */
+export const LATE_PHOTO_WINDOW_DAYS = 14;
+
+/**
+ * `POST /api/me/loads/:loadId/stops/:stopId/photos` — a late photo for a stop the driver already
+ * finished (migration 0645). Photos only: the finished stop's status, times and reason stay as they are.
+ */
+export const addStopPhotosRequestSchema = z.object({
+  photos: z.array(stopPhotoInputSchema).min(1).max(12),
+  occurred_at: z.string().optional(),
+});
+export type AddStopPhotosRequest = z.infer<typeof addStopPhotosRequestSchema>;
+
+/**
+ * True while a COMPLETED stop still takes a late photo: completed, and within the window. A skipped
+ * stop never does (it was never visited), and a pending or arrived one goes through completion instead.
+ */
+export function latePhotoOpen(
+  stop: Pick<LoadStop, "status" | "completed_at">,
+  now: number = Date.now(),
+): boolean {
+  if (stop.status !== "completed" || !stop.completed_at) return false;
+  const done = Date.parse(stop.completed_at);
+  return Number.isFinite(done) && now - done < LATE_PHOTO_WINDOW_DAYS * 86_400_000;
+}
+
 // ── derivations shared by the app and the web dashboard ───────────────────────
 /** The three buckets the driver app groups loads into. */
 export function loadBucket(status: LoadStatus): "upcoming" | "current" | "previous" {

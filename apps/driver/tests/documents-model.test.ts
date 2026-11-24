@@ -36,14 +36,30 @@ describe('documentsView (mock screen 7)', () => {
     expect(view.missingNote).toBe('Both are on load 1184530. The office sees them as soon as you send them.');
   });
 
-  it('a finished stop without its photo is a record at the end, not counted as something to do (Q-DV7)', () => {
+  it('a completed stop without its photo takes it late inside the window, counted as something to do (D-DV30)', () => {
     const view = documentsView([load({
-      stops: [stop(1, { status: 'completed', required_photos: ['seal'] }), stop(2, { required_photos: ['bol'] })],
+      stops: [stop(1, { status: 'completed', completed_at: at(9), required_photos: ['seal'] }), stop(2, { required_photos: ['bol'] })],
+    })], NOW);
+    expect(view.missing.map((m) => m.when)).toEqual(['take', 'late']);
+    expect(view.missing[1]?.subtitle).toMatch(/finished without it$/);
+    expect(view.actionable).toBe(2);
+  });
+
+  it('past the late-photo window the gap is a record at the end, not counted', () => {
+    const view = documentsView([load({
+      stops: [stop(1, { status: 'completed', completed_at: at(9, -15), required_photos: ['seal'] }), stop(2, { required_photos: ['bol'] })],
     })], NOW);
     expect(view.missing.map((m) => m.when)).toEqual(['take', 'record']);
-    expect(view.missing[1]?.subtitle).toMatch(/finished without it$/);
     expect(view.actionable).toBe(1);
     expect(view.missingNote).toMatch(/^It is on load 1184530\./);
+  });
+
+  it('a delivered load owes only the late photos of its completed stops, inside the window', () => {
+    const view = documentsView([
+      load({ status: 'delivered', stops: [stop(1, { status: 'completed', completed_at: at(9), required_photos: ['bol'] })] }),
+      load({ id: '5', status: 'delivered', stops: [stop(1, { status: 'completed', completed_at: at(9, -20), required_photos: ['bol'] })] }),
+    ], NOW);
+    expect(view.missing.map((m) => [m.loadId, m.when])).toEqual([['11111111-1111-4111-8111-111111111111', 'late']]);
   });
 
   it('owes nothing for a skipped stop, or on a load not being driven yet (offered, accepted, delivered)', () => {
