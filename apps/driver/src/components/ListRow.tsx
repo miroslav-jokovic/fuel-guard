@@ -6,6 +6,7 @@ import { TONE_SOFT, type Tone } from './tone';
 import { haptics } from '@/lib/haptics';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 import { ui } from '@/theme/classes';
+import { SwipeAction, type RowSwipeAction } from './SwipeAction';
 
 /**
  * A row on the canvas (Visual 2026 D-DV7, D-DV10): at least 56pt, a leading glyph, a title and an
@@ -28,6 +29,7 @@ export function ListRow({
   onPress,
   disabled = false,
   destructive = false,
+  swipeAction,
 }: {
   title: string;
   subtitle?: string;
@@ -39,6 +41,11 @@ export function ListRow({
   onPress?: () => void;
   disabled?: boolean;
   destructive?: boolean;
+  /**
+   * One action behind a swipe from the right (`SwipeAction`), also offered to screen readers as a
+   * named action, since nobody can find a swipe by ear.
+   */
+  swipeAction?: RowSwipeAction;
 }) {
   const tone = destructive ? 'danger' : disabled ? 'disabled' : 'primary';
   const discAppearance = disc ? TONE_SOFT[disc] : null;
@@ -74,17 +81,24 @@ export function ListRow({
   if (!onPress) return <View accessible className={className}>{content}</View>;
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={() => {
-        haptics.select();
-        onPress();
-      }}
-      className={`${className} active:bg-surface-selected`}
-    >
-      {content}
-    </Pressable>
+    <SwipeAction action={swipeAction}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled }}
+        accessibilityActions={swipeAction ? [{ name: 'swipeAction', label: swipeAction.label }] : undefined}
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === 'swipeAction') swipeAction?.onAction();
+        }}
+        disabled={disabled}
+        onPress={() => {
+          haptics.select();
+          onPress();
+        }}
+        // The row is opaque so it covers the action it slides off (bg-canvas, the ground it sits on).
+        className={`${className} ${swipeAction ? 'bg-canvas' : ''} active:bg-surface-selected`}
+      >
+        {content}
+      </Pressable>
+    </SwipeAction>
   );
 }

@@ -130,6 +130,8 @@ export default function NotificationsCentre() {
                   title={n.title}
                   subtitle={n.body ?? undefined}
                   onPress={() => openRow(n)}
+                  // Swipe-to-act (V8 plan): the one action a notification already has, on an unread row.
+                  swipeAction={n.read_at === null ? { label: 'Mark read', icon: 'done', onAction: () => markRead.mutate([n.id]) } : undefined}
                   right={
                     <View className="items-end gap-1">
                       <AppText variant="caption" tone="subtle" tabular>{timeLabel(n.created_at)}</AppText>
