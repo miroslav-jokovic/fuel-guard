@@ -2431,6 +2431,12 @@ async function main() {
         `insert into application_ask_agains (org_id, invitation_id, path, question) ` +
         `select '${org}', i.id, '["experience"]'::jsonb, 'rls' from i`,
       // 0604 (U2): a remembered device hangs on an invitation the same way; the hash is 64 hex characters.
+      // 0643 (broker mail, D-BMR6): a cursor belongs to a mailbox row by the composite (org_id, mailbox)
+      // FK, which the column-by-column seeder cannot satisfy. The mailbox row first, then its cursor.
+      mail_gateway_cursors: (org) =>
+        `insert into mail_gateway_mailboxes (org_id, mailbox) values ('${org}', 'rls@example.com') on conflict do nothing;` +
+        `insert into mail_gateway_cursors (org_id, mailbox, folder_id, folder_role, delta_link) ` +
+        `values ('${org}', 'rls@example.com', 'rls-folder', 'inbox', 'https://graph.microsoft.com/rls');`,
       application_trusted_devices: (org) =>
         `with d as (insert into drivers (org_id, full_name) values ('${org}', 'rls ' || gen_random_uuid()) returning id), ` +
         `i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at) ` +

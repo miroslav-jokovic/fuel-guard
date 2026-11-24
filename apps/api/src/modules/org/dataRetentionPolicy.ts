@@ -68,6 +68,27 @@ export const RETENTION_RULES: RetentionRule[] = [
   },
   {
     /**
+     * Broker-mail envelopes (0643, Q-BMR6): sender, time and subject of an external message in a
+     * dispatcher's mailbox. Ninety days is the ruling; nothing in 360 needs an older one.
+     */
+    table: "broker_mail_messages",
+    timeColumn: "received_at",
+    keepDays: 90,
+    strategy: "id",
+    orgScoped: true,
+    why: "Envelope facts of dispatcher mail are kept ninety days by the owner's ruling (Q-BMR6); no body was ever stored.",
+  },
+  {
+    /** The mail gateway's run log (0643): one row a minute — the heartbeat and the measure week's counts. */
+    table: "mail_gateway_cycles",
+    timeColumn: "started_at",
+    keepDays: 14,
+    strategy: "id",
+    orgScoped: true,
+    why: "One row per gateway run; two weeks covers the measure week and any incident review.",
+  },
+  {
+    /**
      * U2 (0604): a device an applicant asked to be remembered. The token is dead thirty days after it
      * was made (`TRUSTED_DEVICE_TTL_DAYS`) and is only ever checked on a link that still resolves, so a
      * row older than ninety days opens nothing. `audit_logs` keeps the record that it was remembered.

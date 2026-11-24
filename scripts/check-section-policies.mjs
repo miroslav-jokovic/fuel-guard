@@ -97,6 +97,11 @@ const MODULE_SECTIONS = {
   // brief's consumer (recruitment, for openings) plus the named admin capabilities `ads.connection`
   // and `ads.spend` (A5); a role-named policy on its tables would be a door around both.
   ads: null,
+  // broker-mail (0643, BROKER-MAIL-READER-PLAN D-BMR3): deny-all to every client. The mail gateway
+  // reaches its tables only through mailgw_* functions as its own login; the API reads them with
+  // the service role from P2 and gates on dispatch.broker-mail / dispatch.broker-mail.all, so a
+  // role-named policy on these tables would be a door around both.
+  "broker-mail": null,
   // Ask AI's meter (0584, F21 R2): deny-all to every client, written and read only by the API. The
   // assistant's endpoint gates on the `ask-ai` surface and, per tool, on the section matrix (F21 R5,
   // D-AI1), so a role-named policy on its ledger would be a door around both.
