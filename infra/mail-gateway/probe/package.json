@@ -1,0 +1,11 @@
+{
+  "//": "P0 probe for the mail gateway's Lambda (index.mjs). NOT a workspace package — pnpm-workspace.yaml covers apps/* and packages/* only — so nothing here enters the lockfile or the app image. setup.sh installs these exact versions into a temporary folder with npm and zips them with index.mjs. Pinned, so two runs of setup.sh ship the same bytes.",
+  "name": "silvicom-mailgw-probe",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@aws-sdk/client-ssm": "3.1176.0",
+    "@aws-sdk/client-sts": "3.1176.0",
+    "postgres": "4.1.1"
+  }
+}
