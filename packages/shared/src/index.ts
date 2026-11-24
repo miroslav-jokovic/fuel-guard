@@ -86,6 +86,7 @@ export * from "./reconcile/fuelMatch.js";
 export * from "./reconcile/pilotExportTieOut.js";
 export * from "./reconcile/pilotStatement.js";
 export * from "./reconcile/pilotStatementTieOut.js";
+export * from "./reconcile/pilotInvoice.js";
 export * from "./calendarDay.js";
 export * from "./displayDate.js";
 export * from "./calendarDay.js";
