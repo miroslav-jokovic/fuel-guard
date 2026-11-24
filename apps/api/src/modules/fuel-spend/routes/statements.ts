@@ -11,6 +11,7 @@ import { runFuelReconciliation } from "../fuelReconRun.js";
 import { listReconRuns, readReconRun } from "../reconRunRead.js";
 import { readWeeklyBill } from "../weeklyBillRead.js";
 import { weeklyBillWorkbook } from "../weeklyBillWorkbook.js";
+import { readPilotBillMails } from "../pilotBillMail.js";
 
 
 /** Statement + reconciliation routes — moved here from routes/fueling/networks.ts at the P1.6
@@ -110,6 +111,19 @@ export function registerStatementRoutes(router: Router): void {
         },
       });
       res.json(result);
+    }),
+  );
+
+  // The weekly bills the API pulled from the Pilot-Bills folder itself (PILOT-INVOICE-FORMAT-ANALYSIS §4): what
+  // became of each recent email — recorded (and which invoice), a duplicate, refused and why, or no PDF. The
+  // fuel section's VIEW set, the gate of the invoice checks it sits above.
+  router.get(
+    "/statements/mail",
+    requireOrg,
+    requireSection("fuel", "view"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json({ mails: await readPilotBillMails(admin, req.auth!.orgId!) });
     }),
   );
 

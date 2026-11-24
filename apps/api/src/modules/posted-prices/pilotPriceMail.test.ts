@@ -49,7 +49,9 @@ async function deps(messages: FolderMessage[], over: Partial<PilotPriceMailDeps>
   const listSince = vi.fn(async (_folder: string, _since: Date) => messages);
   const download = vi.fn(async (_link: string): Promise<QuoteDownload> => ({ ok: true, bytes, fileName: "pq-x-11192026.xlsx" }));
   const ingest = vi.fn(async (_grid: Cell[][]): Promise<PilotIngestResult> => LOADED);
-  const d: PilotPriceMailDeps = { reader: { listSince }, download, ingest, now: () => NOW, ...over };
+  // The price feed never reads attachments; the bill pull (fuel-spend/pilotBillMail.ts) does.
+  const pdfAttachments = vi.fn(async () => [] as { name: string; bytes: Buffer }[]);
+  const d: PilotPriceMailDeps = { reader: { listSince, pdfAttachments }, download, ingest, now: () => NOW, ...over };
   return { d, listSince, download, ingest };
 }
 

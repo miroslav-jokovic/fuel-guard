@@ -15,6 +15,7 @@ import { ArrowUpTrayIcon } from "@silvicom/ui/icons";
 import { RECON_STATUS_LABELS } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import CheckInvoiceDrawer from "@/features/reconcile/CheckInvoiceDrawer.vue";
+import BillMailCard from "@/features/reconcile/BillMailCard.vue";
 import { useReconRunsQuery, type ReconRunSummaryRow } from "@/features/reconcile/useReconRuns";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
@@ -127,6 +128,8 @@ function onRecorded(runId: string) {
         </template>
       </DataTable>
     </DataWorkspace>
+
+    <BillMailCard />
 
     <CheckInvoiceDrawer :open="checking" @close="checking = false" @recorded="onRecorded" />
   </div>
