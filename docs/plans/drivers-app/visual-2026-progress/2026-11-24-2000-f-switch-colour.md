@@ -1,0 +1,1 @@
+2026-11-24 · Q-DV8 (f) · A switch is the phone's chrome (D-DV29). `apps/driver/DESIGN.md` D-DV5 now says the colour roles govern what we draw, not system controls: iOS keeps its green "on", Android keeps Material 3's navy-seeded track. No code change; the native `ToggleRow` (V9) already does this.
