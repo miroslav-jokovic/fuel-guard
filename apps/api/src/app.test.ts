@@ -89,6 +89,8 @@ describe("GET /api/version", () => {
     expect(Object.keys(body.realtime as object).sort()).toEqual(["lastProbeAt", "latencyMs", "sendFailures24h", "state"]);
     // A state and three platform-wide device counts (pushHealth.ts) — no org, no person, no endpoint.
     expect(Object.keys(body.webPush as object).sort()).toEqual(["delivered24h", "failing24h", "rejected24h", "state"]);
+    // A state, the gateway's commit and one timestamp (gatewayHealth.ts) — no org, no mailbox, no count.
+    expect(Object.keys(body.mailGateway as object).sort()).toEqual(["commit", "lastCycleAt", "state"]);
     const keys = Object.keys(body).sort();
     expect(keys).toEqual([
       "branch",
@@ -96,6 +98,8 @@ describe("GET /api/version", () => {
       "commitShort",
       "deploymentId",
       "env",
+      // The broker-mail gateway's heartbeat (BROKER-MAIL-READER-PLAN §6): running, and which commit.
+      "mailGateway",
       "maintenance",
       "ok",
       // The Realtime probe's state (CHA4): is the database's broadcast reaching a subscriber.
