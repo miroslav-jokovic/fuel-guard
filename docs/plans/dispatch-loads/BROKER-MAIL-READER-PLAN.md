@@ -411,6 +411,25 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
   unlinked McLeod logins answer brokers; the dispatchers have been told (A9 ✔). Of the nine, none
   has a 360 account matching it (member list measured). So D-BMR5 cannot derive their mailboxes
   until each person is a linked 360 user.
+- 2026-11-24 — **P0 proofs on staging, three of four passed** (owner-run `prove.sh`, run from the
+  gateway's own Lambda):
+  - **Sign-in with no secret (V7, B-4): passed on the first try.** The token was RS256, came from the
+    regional endpoint (`sts.us-west-2`), had `sub` exactly equal to the staging role ARN, and a
+    300-second lifetime. Entra exchanged it for a Graph token. The KMS certificate fallback is not
+    needed.
+  - **No Entra-consented permission (first half of V2): passed.** The Graph token carries no `roles`
+    claim, and a directory read is refused (403 `Authorization_RequestDenied`).
+  - **Custom login through the pooler (V8) and Lambda's changing address (A11): passed.**
+    `mailgw_probe.<project>` was accepted on 6543 and 5432 (Postgres 17.11), and a table read was
+    refused (`permission denied for table organizations`). **The two projects sit on different
+    pooler clusters** (staging `aws-0-us-west-2`, production `aws-1-us-west-2`). A wrong host says
+    "tenant/user not found" before it asks for a password; `db-login.sh` now defaults per environment.
+  - **Still to come:** mailbox readable under Exchange roles alone (second half of V2), canary
+    refused, body refused under `Mail.ReadBasic`. These wait on the Exchange step. Every mailbox line
+    answered 404 `ErrorInvalidUser` because the mailboxes do not exist yet.
+  - **Who made the apps:** the owner, from his own account, with `infra/mail-gateway/entra-apps.sh`
+    (Azure CLI). The admin's part shrank to one Exchange script, which ends with removing the owner
+    from the two apps' owners.
 
 ## Sources
 

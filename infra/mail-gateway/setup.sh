@@ -75,11 +75,11 @@ fi
 ISSUER=$(jq -r '.IssuerIdentifier // empty' <<<"$fed")
 
 # ---- 2. Artifact bucket (§6: written once per commit, never overwritten) -------------------------
-if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then say "bucket $BUCKET exists"; else
+if aws s3api head-bucket --bucket "$BUCKET" >/dev/null 2>&1; then say "bucket $BUCKET exists"; else
   todo "create bucket $BUCKET"
   run aws s3api create-bucket --bucket "$BUCKET" --create-bucket-configuration LocationConstraint="$REGION" >/dev/null
 fi
-if ! $CHECK || aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+if ! $CHECK || aws s3api head-bucket --bucket "$BUCKET" >/dev/null 2>&1; then
   run aws s3api put-public-access-block --bucket "$BUCKET" --public-access-block-configuration \
     BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
   run aws s3api put-bucket-encryption --bucket "$BUCKET" --server-side-encryption-configuration \

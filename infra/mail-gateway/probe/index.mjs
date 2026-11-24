@@ -149,7 +149,9 @@ export async function handler(event = {}) {
       const expectBody = event.expectBody === true;
       step("body_reading", bodyPresent === expectBody, { status: b.status, code: b.code, bodyPresent, expectBody });
     } else {
-      step("body_reading", false, { error: "test mailbox Inbox is empty — send it one message and run again" });
+      // A mailbox that does not exist (404) or is refused has no message to try; only an opened,
+      // empty Inbox asks for a test message (2026-11-24: the first run said "empty" for a 404).
+      step("body_reading", false, { error: delta.status === 200 ? "test mailbox Inbox is empty — send it one message and run again" : `no message to try: the mailbox answered ${delta.status}` });
     }
   }
 

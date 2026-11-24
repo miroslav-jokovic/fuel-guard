@@ -11,8 +11,10 @@
 # Needs: AWS_PROFILE=silvicom, `supabase login` done, psql, python3, jq.
 # Inputs (environment): MAILGW_PROJECT_REF — REQUIRED for staging (Supabase dashboard → Project
 # Settings → General → Reference ID); production's is public in the repo already.
-# MAILGW_POOLER_HOST — the "Transaction pooler" host from the dashboard's Connect panel; defaults to
-# production's, aws-1-us-west-2.pooler.supabase.com. A wrong host fails the connection test loudly.
+# MAILGW_POOLER_HOST — the "Transaction pooler" host from the dashboard's Connect panel. Defaults per
+# environment, because the two projects sit on DIFFERENT pooler clusters (measured 2026-11-24: staging
+# answers on aws-0-us-west-2, production on aws-1-us-west-2; the wrong one says "tenant/user … not
+# found" before it asks for a password).
 #
 # Why each choice:
 # - **No password ever reaches the database in clear.** The script makes a SCRAM-SHA-256 verifier
@@ -42,7 +44,8 @@ if [ "$ENV_NAME" = production ]; then REF="${MAILGW_PROJECT_REF:-$PROD_REF}"; el
   REF="${MAILGW_PROJECT_REF:?set MAILGW_PROJECT_REF to the STAGING project ref}"
   [ "$REF" != "$PROD_REF" ] || { echo "MAILGW_PROJECT_REF is production's ref — refusing for staging" >&2; exit 2; }
 fi
-POOLER_HOST="${MAILGW_POOLER_HOST:-aws-1-us-west-2.pooler.supabase.com}"
+if [ "$ENV_NAME" = production ]; then DEFAULT_POOLER=aws-1-us-west-2.pooler.supabase.com; else DEFAULT_POOLER=aws-0-us-west-2.pooler.supabase.com; fi
+POOLER_HOST="${MAILGW_POOLER_HOST:-$DEFAULT_POOLER}"
 PARAMS="/silvicom-mailgw/$ENV_NAME"
 for t in aws supabase psql python3 jq openssl; do command -v "$t" >/dev/null || { echo "missing tool: $t" >&2; exit 2; }; done
 who=$(aws sts get-caller-identity --query Account --output text)
@@ -92,10 +95,18 @@ probe)
   q "drop role if exists mailgw_probe" >/dev/null
   q "create role mailgw_probe login noinherit connection limit 2 password '$v'" >/dev/null
   say "throwaway role mailgw_probe created: $(role_state mailgw_probe)"
-  for port in 6543 5432; do say "pooler port $port, user mailgw_probe.<project>: $(connect_test mailgw_probe "$pw" "$port")"; done
+  ok6543=$(connect_test mailgw_probe "$pw" 6543)
+  say "pooler port 6543, user mailgw_probe.<project>: $ok6543"
+  say "pooler port 5432, user mailgw_probe.<project>: $(connect_test mailgw_probe "$pw" 5432)"
   refused=$(PGPASSWORD="$pw" psql "host=$POOLER_HOST port=6543 dbname=postgres user=mailgw_probe.$REF sslmode=require" \
     -XAtqc "select 1 from public.organizations limit 1" 2>&1 | head -1 || true)
   say "table read as mailgw_probe (must be 'permission denied'): $refused"
+  # Written only when the gateway's own port (the transaction pooler) took the login, so a failed
+  # proof never leaves a parameter behind that looks like a working one (found 2026-11-24).
+  if [ "$ok6543" != "ok mailgw_probe" ]; then
+    echo "port 6543 refused the login — parameter NOT written. Fix the host (MAILGW_POOLER_HOST) and re-run; '$0 $ENV_NAME probe-drop' removes the role" >&2
+    exit 4
+  fi
   put_secret "$PARAMS/DATABASE_URL_PROBE" "postgresql://mailgw_probe.$REF:$pw@$POOLER_HOST:6543/postgres?sslmode=require"
   say "wrote $PARAMS/DATABASE_URL_PROBE (transaction pooler) — now run prove.sh $ENV_NAME, then: $0 $ENV_NAME probe-drop"
   ;;
