@@ -16,7 +16,11 @@
       "Read(.env.*)",
       "Read(!.env.example)",
       "Read(*.env)",
-      "Read(!*.example.env)"
+      "Read(!*.example.env)",
+      "Read(**/pnpm-lock.yaml)",
+      "Read(graphify-out/**)",
+      "Read(apps/web/dist/**)",
+      "Read(apps/admin/dist/**)"
     ]
   },
   "extraKnownMarketplaces": {
@@ -36,7 +40,7 @@
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true,
     "playwright@claude-plugins-official": true,
-    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": false,
     "impeccable@impeccable": true
   },
   "hooks": {
