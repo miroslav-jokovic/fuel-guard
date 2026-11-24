@@ -45,6 +45,8 @@ vi.mock("@/features/reconcile/useReconRuns", () => ({
 }));
 const canManage = vi.hoisted(() => ({ value: true }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => canManage.value }) }));
+// The emailed-bills card has its own test (BillMailCard.test.ts) and its own query; the page only places it.
+vi.mock("@/features/reconcile/BillMailCard.vue", () => ({ default: { name: "BillMailCard", template: "<div>BILL MAIL</div>" } }));
 vi.mock("@/features/reconcile/CheckInvoiceDrawer.vue", () => ({
   default: { name: "CheckInvoiceDrawer", props: ["open"], emits: ["recorded", "close"], template: "<div />" },
 }));
