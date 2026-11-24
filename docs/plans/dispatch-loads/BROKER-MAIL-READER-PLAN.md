@@ -357,6 +357,39 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
 - 2026-11-24 — owner confirmed B-3 (EFS and Pilot stay on the app server). Open-question review:
   B-1 now recommends a third scheduler lane `mail`; B-6 merged with Q-BMR4 and answered from
   Exchange facts in P0 instead of from memory. Plan approved for build; P0 next.
+- 2026-11-24 — **P0 tooling written** (`infra/mail-gateway/`), not yet run: Claude's shell is refused
+  AWS reads, AWS writes and production reads, so every step below is owner-run with `!`.
+  - `setup.sh <env> [--check|--probe-code|--live|--stop]` builds everything in §6 except the deploy
+    jobs (PR-c). Choices it adds to §6: (1) the role's token permission pins audience, RS256, ≤ 300 s
+    **and** `sts:SubjectMode = AWSIdentity`, so the V7 traps are refused by IAM rather than
+    remembered; AWS documents that for a role session `sub` is the **role ARN**, not the session
+    ARN, which is what Simo's credential names. (2) The artifact bucket refuses any `PutObject`
+    without `If-None-Match: *` (`s3:if-none-match`), so "production runs the bytes staging ran" is
+    enforced by S3; PR-c uploads with `--if-none-match '*'`. (3) The Lambda trust uses
+    `aws:SourceAccount` only. (4) Reserved concurrency 1 may be refused on the account's default
+    quota; the script says so, and the database lease stays the overlap guard. (5) `--stop` is the
+    owner's kill switch: it disables the schedule and touches nothing else.
+  - **The P0 proofs run from the Lambda itself** (`probe/index.mjs`, replaced by PR-c's first
+    deploy). From a laptop they would prove a different principal (another `sub`) on another network
+    (A11). The probe returns verdicts, statuses and error codes only: ids are masked, and it never
+    returns a token, a message or an address. `prove.sh` invokes it. Checked locally against fakes:
+    a good run passes every step; ES384, a consented `roles` claim, a returned body or an opened
+    canary each fail their own step.
+  - `db-login.sh <env> check|probe|probe-drop|login`. The password never reaches the database in
+    clear: a SCRAM-SHA-256 verifier is made locally (checked byte-for-byte against Postgres's own),
+    and the password lives only in one SecureString. SQL goes through `supabase db query
+    --project-ref` from an **empty** workdir, so a staging run cannot fall through to the
+    production-linked checkout (checked: a missing ref is refused). V8 is proved with a throwaway
+    role `mailgw_probe` that has no grant. That way PR-a's migration stays the only author of
+    `mail_gateway`.
+  - Simo's one list is written, untracked because it names mailboxes
+    (`MAIL-GATEWAY-P0-FOR-SIMO-2026-11-24.md` in the owner's checkout). It covers both badges, scope
+    groups, test mailboxes, canary, federated credential, RBAC and its test, the B-6 export, a
+    Conditional Access check (badge 1's location rule must name badge 1 only, or it blocks Lambda),
+    and every later role change (day-4 swap, P4). Before it is sent, the owner runs `setup.sh` for
+    the issuer, and runs the D-BMR5 list query for the dispatcher group.
+  - Still to do before P1 (D-BMR13): two staging users whose sign-in emails are the test mailboxes,
+    linked to two staging `tms_dispatchers` rows, with the domain in staging's `allowed_domains`.
 
 ## Sources
 
