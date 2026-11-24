@@ -540,6 +540,15 @@ The owner ruled on the proposals as written. The order below is the build order,
   office sees "Late photo received" on the load. It arrives through a new outbox kind, so it works
   offline. The work splits into two merges per `lint:migration-ordering`: first the migration and API
   route, then the app's "Add" on the *Done today* row.
+  - *Amended at build, 2026-11-24 (migration 0645):* the split is migration-first. Merge 1 is
+    `driver_add_stop_photos`, the widened event CHECK, and the shared `stop_photo_added` kind
+    ("Late photo received") with its DL007 wording. Merge 2 is the API route, the outbox kind and the
+    app, held until 0645 is on staging (`lint:migration-ordering` cannot see a function).
+  - Lateness is DERIVED (`uploaded_at` after the stop's `completed_at`), with no new column.
+  - Only a COMPLETED stop takes one, never a skipped stop, which was never visited.
+  - **A limit the ruling did not set: 14 days after completion** (DL007). It is bounded so an old
+    load cannot be reopened from a phone indefinitely. Change it in one line of 0645's successor if
+    the office chases older photos.
 - **D-DV31 · Q-DV4: "Tight" is computed by the server.** McLeod has no planned drive minutes, only
   loaded miles (`move_distance`, migration 0267), so the candidate rule in Q-DV4 cannot be written.
   Instead, every ~10 minutes, for each driver on duty with an open stop:

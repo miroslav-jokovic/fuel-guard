@@ -154,6 +154,9 @@ export const LOAD_EVENT_KINDS = [
   // D-L8 / D-L2 — see migration 0145. `load_changed` warns that a released load diverged from the
   // copy on a driver's phone; `exception_resolved` is how an append-only log closes an exception.
   "load_changed", "exception_resolved",
+  // D-DV30 — see migration 0645. A late photo for a stop the driver already finished. Named here in
+  // the merge that adds it to the CHECK, ahead of its first writer, so no reader meets an unknown kind.
+  "stop_photo_added",
 ] as const;
 export type LoadEventKind = (typeof LOAD_EVENT_KINDS)[number];
 
@@ -190,4 +193,5 @@ export const LOAD_EVENT_LABELS: Record<LoadEventKind, string> = {
   amended: "Amended by the TMS feed",
   canceled: "Canceled",
   completed: "Delivered",
+  stop_photo_added: "Late photo received",
 };
