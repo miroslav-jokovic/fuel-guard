@@ -202,6 +202,9 @@ export async function ingestFuelStatement(
       sales_tax: l.salesTax,
       invoice_total: l.invoiceTotal,
       retail_total: l.retailAmount,
+      // Pilot's pump-prompt values, as printed — only the 2026-11 invoice layout has them (0642).
+      pilot_vehicle_id: l.vehicleId ?? null,
+      pilot_driver_id: l.driverId ?? null,
     };
   });
   for (let i = 0; i < rows.length; i += 500) {
