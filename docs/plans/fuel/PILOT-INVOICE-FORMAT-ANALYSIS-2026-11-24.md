@@ -127,3 +127,18 @@ attachment read is fine at that size.
   pdfjs decode the browser uses: INV-59656 → 960 lines, $341,127.06 = Amount Purchased, tie-out ok; the 8 old
   statements in Downloads parse exactly as before. Vehicle/Driver ID are parsed but not yet stored — the columns
   need their own migration, merged before their first writer (`lint:migration-ordering`).
+- 2026-11-24 — step 1 merged (#2637 reader, #2636 migration 0642, #2639 the ingest writes Vehicle/Driver ID).
+- 2026-11-24 — **found while building step 2: production has never recorded a statement.** All 9 checks
+  (9/02–11/09) have `statement_id` null, `fuel_statements` and the `fuel-statements` bucket are empty. The
+  browser saves the statement in one request and checks it in a second; the first failed every time and only
+  a toast said so. Ruled out: table grants (service_role has all), the bucket (exists, 25 MB), the matrix,
+  the 25 MB route parser, Caddy (no body limit), and the code path itself — the real F2 statement and
+  INV-59656 both record 200 through `createApp` in a test. No request log exists for those days, so the cause
+  is not known yet. Step 2 now LOGS every refusal (`[fuel-statement] refused …`), and the check page says in
+  words when a check has no recorded statement. The production test is the first upload after the release.
+- 2026-11-24 — step 2 built: `weeklyBillReport.ts` (pure), `weeklyBillRead.ts` + `weeklyBillWorkbook.ts`,
+  `GET /api/fueling/statements/:id/weekly-bill` (+ `.xlsx`), `WeeklyBillCard` on the invoice check page.
+  Quotes come through posted-prices' own reader (`readPilotQuotes`), the same rule as `fuel_spend_lines`
+  (D-FC4). A `Tax` line on the new invoice is now read as sales tax, not merchandise. On INV-59656 with
+  production's quotes: invoice total $341,127.06 (= printed), retail $394,755.16, savings $53,628.10, 349 of
+  499 truck-diesel lines quoted, and the two lines billed over the quote (4599 TN $20.03, 372 CA $9.55).

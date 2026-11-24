@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 import { AppCallout, AppCard as BaseCard, QueryState } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ReconResultView from "@/features/reconcile/ReconResultView.vue";
+import WeeklyBillCard from "@/features/reconcile/WeeklyBillCard.vue";
 import { useReconRunQuery } from "@/features/reconcile/useReconRuns";
 import { formatDate, formatDateTime } from "@/lib/format";
 
@@ -68,6 +69,8 @@ const exportName = computed(() => {
             <li v-for="n in run.tie_out_notes" :key="n">{{ n }}</li>
           </ul>
         </BaseCard>
+
+        <WeeklyBillCard v-if="run.source_kind === 'weekly_statement'" :statement-id="run.statement_id" />
 
         <ReconResultView :summary="run.summary" :rows="data.lines" :export-name="exportName" />
       </template>

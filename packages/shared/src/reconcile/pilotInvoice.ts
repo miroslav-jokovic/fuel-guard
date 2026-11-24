@@ -172,6 +172,7 @@ export function parsePilotInvoice(words: StatementWord[]): (PilotStatementParse 
   const unknownProducts = new Set<string>();
   const unreadable: string[] = [];
   let rowNumber = 0;
+  let columnTaxTotal = 0;
 
   for (const page of [...byPage.keys()].sort((a, b) => a - b)) {
     let last: { y: number; bound: Bound } | null = null;
@@ -199,9 +200,16 @@ export function parsePilotInvoice(words: StatementWord[]): (PilotStatementParse 
       const code = known ? PRODUCT_CODES[name]! : null;
       const cls = classifyStatementProduct(code);
       const isFuel = code != null && cls.product !== "other";
+      // A `Tax` line is the sales tax on the same ticket's in-store items — the old statement printed it
+      // in that ticket's Sales Tax column (measured on INV-59656: all 10 `Tax` lines share a ticket with a
+      // `Miscellaneous` line). So its charge is TAX, not merchandise; the Sales Tax column is kept apart
+      // because the printed `Transaction Tax` totals only that column.
+      const isTaxLine = name === "TAX";
       const qty = money(text(b, "qty"));
-      const tax = money(text(b, "tax")) ?? 0;
+      const columnTax = money(text(b, "tax")) ?? 0;
+      columnTaxTotal += columnTax;
       const invoice = money(text(b, "invoice"));
+      const tax = isTaxLine && invoice != null ? r2(invoice) : columnTax;
       const retail = money(text(b, "retail"));
       if (qty == null || invoice == null || retail == null) unreadable.push(`${text(b, "date")} card ${text(b, "card")}`);
       const loc = splitLocation(text(b, "loc"));
@@ -227,7 +235,7 @@ export function parsePilotInvoice(words: StatementWord[]): (PilotStatementParse 
         // This layout prints no per-gallon price; the rebuilt report derives it, the parse does not invent it.
         unitCost: null,
         netAmount: isFuel && invoice != null ? r2(invoice - tax) : null,
-        miscAmount: !isFuel && invoice != null ? r2(invoice - tax) : null,
+        miscAmount: !isFuel && !isTaxLine && invoice != null ? r2(invoice - tax) : null,
         salesTax: tax,
         invoiceTotal: invoice,
         retailAmount: retail,
@@ -263,7 +271,7 @@ export function parsePilotInvoice(words: StatementWord[]): (PilotStatementParse 
     totalNet: sum(lines, (l) => l.netAmount),
     totalRetail,
     printed,
-    tieOut: tieOutInvoice({ lines: lines.length, totalInvoice, totalTax: sum(lines, (l) => l.salesTax), printedTotals, unknownProducts, unreadable, drift: header.drift }),
+    tieOut: tieOutInvoice({ lines: lines.length, totalInvoice, totalTax: columnTaxTotal, printedTotals, unknownProducts, unreadable, drift: header.drift }),
     pages: byPage.size,
     anchorSets: 1,
   };
@@ -294,7 +302,7 @@ function tieOutInvoice(input: {
     failures.push(`The invoice disagrees with itself: USD Total ${usd(p.usdTotal)} vs Amount Purchased ${usd(p.purchased)}.`);
   }
   if (p.tax != null && Math.abs(p.tax - input.totalTax) > MONEY_EPSILON) {
-    failures.push(`Line sales tax adds up to ${usd(input.totalTax)}, but the invoice prints Transaction Tax ${usd(p.tax)}.`);
+    failures.push(`The Sales Tax column adds up to ${usd(input.totalTax)}, but the invoice prints Transaction Tax ${usd(p.tax)}.`);
   }
   if (p.due != null && p.usdTotal != null && Math.abs(p.due - p.usdTotal - (p.tax ?? 0)) > MONEY_EPSILON) {
     notes.push(`Amount Due ${usd(p.due)} is not USD Total plus Transaction Tax — check the invoice for an adjustment.`);
