@@ -1,0 +1,23 @@
+{
+  "name": "@silvicom/mail-gateway",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "//": "The broker-mail gateway (docs/plans/dispatch-loads/BROKER-MAIL-READER-PLAN.md, D-BMR1-2): a Lambda that reads dispatcher mail envelopes through Microsoft Graph and writes them only through the mailgw_* database functions. Imports @silvicom/shared and nothing else from the workspace; nothing imports it (lint:boundaries). Not installed into the app image (F16).",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aws-sdk/client-ssm": "3.1176.0",
+    "@aws-sdk/client-sts": "3.1176.0",
+    "@silvicom/shared": "workspace:*",
+    "postgres": "4.1.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "26.0.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.9"
+  }
+}
