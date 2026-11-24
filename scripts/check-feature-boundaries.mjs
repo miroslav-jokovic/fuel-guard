@@ -255,6 +255,10 @@ const API_ALLOW = new Set([
   // all 24 existing waivers are an owner acting on its own table, and a foreign shortcut would have
   // been a new kind. This edge IS that ruling: a new arrow instead of a new hole.
   "idle -> posted-prices",
+  // The weekly Pilot bill rebuilt in the old columns checks each diesel line against Pilot's quote for that
+  // store and day (PILOT-INVOICE-FORMAT-ANALYSIS-2026-11-24 §3). Same ruling as the edge above: it asks
+  // through posted-prices' own reader (`readPilotQuotes`), never a waiver on `fuel_prices`.
+  "fuel-spend -> posted-prices",
   // Scoring judges a fill against the truck Samsara actually saw — the tank reconciliation.
   "anomalies -> samsara",
   // GPS co-location pairing: the collector infers which tractor a trailer travels with, but the

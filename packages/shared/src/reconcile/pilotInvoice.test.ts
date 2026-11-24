@@ -139,11 +139,18 @@ describe("parsePilotInvoice — the 2026-11 invoice layout", () => {
     expect(r.defLines).toHaveLength(1);
   });
 
-  it("reads non-fuel lines as merchandise, with the charge in misc and no gallons", () => {
-    expect(r.merchandise.map((l) => [l.gallons, l.netAmount, l.miscAmount, l.invoiceTotal])).toEqual([
-      [0, null, 3.04, 3.04],
-      [0, null, 29.99, 29.99],
+  it("reads non-fuel lines as merchandise with no gallons: a Tax line's charge is sales tax, the rest is misc", () => {
+    expect(r.merchandise.map((l) => [l.productDescription, l.gallons, l.netAmount, l.miscAmount, l.salesTax, l.invoiceTotal])).toEqual([
+      ["Tax", 0, null, null, 3.04, 3.04],
+      ["Miscellaneous", 0, null, 29.99, 0, 29.99],
     ]);
+  });
+
+  it("gates Transaction Tax against the Sales Tax column only, not the Tax lines", () => {
+    // The fixture's Tax line carries $3.04 while Transaction Tax prints $0.00 — exactly the real invoice.
+    expect(r.tieOut.failures).toEqual([]);
+    const bad = parsePilotInvoice([...PAGE1, ...PAGE2, ...totals("$6,473.42", "$3.04")])!;
+    expect(bad.tieOut.failures.join(" ")).toMatch(/Sales Tax column adds up to \$0\.00, but the invoice prints Transaction Tax \$3\.04/);
   });
 
   it("keeps Vehicle ID and Driver ID, and a blank Vehicle ID stays blank", () => {

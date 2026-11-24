@@ -32,3 +32,5 @@ export { registerNetworkRoutes } from "./routes/networks.js";
  * (raw-layer, sealed to this module by check-table-access.mjs).
  */
 export { readRecentDieselMedian, DIESEL_MEDIAN_TTL_MS, __resetDieselMedianCache } from "./dieselMedian.js";
+/** Pilot's quote per station-day, for the weekly bill's rebuilt old columns (fuel-spend). */
+export { readPilotQuotes } from "./pilotQuotes.js";

@@ -11,7 +11,7 @@ import { ref, type Ref } from "vue";
  */
 
 const RUN = {
-  id: "r1", source_kind: "weekly_statement", source_filename: "db139445F.pdf", invoice_no: "799011888",
+  id: "r1", source_kind: "weekly_statement", source_filename: "db139445F.pdf", invoice_no: "799011888", statement_id: "s1",
   period_start: "2026-09-07", period_end: "2026-09-13", tie_out_gated: true, tie_out_notes: [], matcher_version: "f4",
   unmatchable_lines: 306, created_at: "2026-09-14T20:14:18Z", superseded_by: null as string | null, superseded_at: null as string | null,
   summary: {
@@ -33,6 +33,9 @@ vi.mock("@/features/reconcile/useReconRuns", () => ({
 }));
 vi.mock("@/features/reconcile/ReconResultView.vue", () => ({
   default: { name: "ReconResultView", props: ["summary", "rows", "exportName"], template: "<div>RESULT</div>" },
+}));
+vi.mock("@/features/reconcile/WeeklyBillCard.vue", () => ({
+  default: { name: "WeeklyBillCard", props: ["statementId"], template: "<div>WEEKLY BILL</div>" },
 }));
 
 import FuelInvoiceCheckPage from "./FuelInvoiceCheckPage.vue";
@@ -74,6 +77,13 @@ describe("FuelInvoiceCheckPage", () => {
     const view = (await mountAt("/fuel-invoices/r1")).findComponent({ name: "ReconResultView" });
     expect(view.props("rows")).toBeNull();
     expect(view.props("summary")).toEqual(RUN.summary);
+  });
+
+  it("shows the weekly bill in the old columns for a weekly statement, and not for a monthly export", async () => {
+    answer.value = { run: RUN, lines: [], unmatchable: [] };
+    expect((await mountAt("/fuel-invoices/r1")).findComponent({ name: "WeeklyBillCard" }).props("statementId")).toBe("s1");
+    answer.value = { run: { ...RUN, source_kind: "monthly_export", statement_id: null }, lines: [], unmatchable: [] };
+    expect((await mountAt("/fuel-invoices/r1")).findComponent({ name: "WeeklyBillCard" }).exists()).toBe(false);
   });
 
   it("says when a later check of the same invoice replaced this one", async () => {

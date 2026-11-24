@@ -26,6 +26,8 @@ export interface ReconRunSummaryRow {
   source_kind: "weekly_statement" | "monthly_export";
   source_filename: string | null;
   invoice_no: string | null;
+  /** The recorded statement this check was made from — null when the statement was not saved. */
+  statement_id: string | null;
   period_start: string;
   period_end: string;
   tie_out_gated: boolean;
