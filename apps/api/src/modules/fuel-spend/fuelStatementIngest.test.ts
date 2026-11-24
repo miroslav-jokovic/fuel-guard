@@ -74,6 +74,8 @@ describe("ingestFuelStatement", () => {
     const lines = rec.queries.find((q) => q.table === "fuel_statement_lines" && q.write)?.write?.payload as Array<Record<string, unknown>>;
     expect(lines.map((l) => l.brand)).toEqual(["pilot", "flying_j", "one9"]);
     expect(lines.map((l) => l.station_id)).toEqual(["st-41", "st-1057", "st-37"]);
+    // The old statement layout prints no Vehicle or Driver ID; its lines carry null, never a guess.
+    expect(lines.every((l) => l.pilot_vehicle_id === null && l.pilot_driver_id === null)).toBe(true);
     // 033 is REEFER fuel — filing it as tractor fuel is what makes reefer gallons corrupt MPG.
     expect(lines.map((l) => l.tank_type)).toEqual(["tractor", "tractor", "reefer"]);
   });
@@ -162,6 +164,7 @@ describe("ingestFuelStatement", () => {
       ["0883000001", "4569", "SC", null, "reefer"],
       ["0564000003", "612", "AZ", "st-612", "tractor"],
     ]);
+    expect(lines.map((l) => [l.pilot_vehicle_id, l.pilot_driver_id])).toEqual([["530001", "1234"], ["530003", "1234"]]);
   });
 });
 
