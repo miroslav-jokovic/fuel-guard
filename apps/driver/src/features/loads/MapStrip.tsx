@@ -6,7 +6,7 @@ import { Map, Camera, Marker } from '@maplibre/maplibre-react-native';
 import type { LoadStop } from '@silvicom/shared';
 import { AppText, Icon, IconButton } from '@/components';
 import { placeLabel } from './loadViewModel';
-import { mapStyleUrl } from '@/lib/env';
+import { BASEMAP_ATTRIBUTION, basemapFor } from '@/lib/basemap';
 import { useIsOnline } from '@/lib/connectivity';
 import { useTheme } from '@/theme/ThemeProvider';
 
@@ -40,14 +40,17 @@ export function MapStrip({ stop, onBack }: { stop: LoadStop; onBack: () => void 
     <View style={{ height: HEIGHT + insets.top }}>
       {showMap && at ? (
         <View className="flex-1" pointerEvents="none">
-          <Map style={{ flex: 1 }} mapStyle={mapStyleUrl(isDark)} logo={false} compass={false} attribution>
+          <Map style={{ flex: 1 }} mapStyle={basemapFor(isDark)} logo={false} compass={false} attribution={false}>
             <Camera center={at} zoom={13} duration={0} />
-            <Marker lngLat={at}>
-              <View className="h-8 w-8 items-center justify-center rounded-full bg-accent/25">
-                <View className="h-4 w-4 rounded-full border-2 border-canvas bg-accent" />
-              </View>
+            {/* The stop, as a pin in ink (D-DV28). It was a cyan dot, and cyan is "live" (D-DV5): the
+                strip shows where the stop is, not a truck moving towards it. */}
+            <Marker lngLat={at} anchor="bottom">
+              <Icon name="place" size={40} className="text-ink" />
             </Marker>
           </Map>
+          <View className="absolute bottom-1 right-2">
+            <AppText variant="caption" tone="muted">{BASEMAP_ATTRIBUTION}</AppText>
+          </View>
         </View>
       ) : (
         <View className="flex-1 items-center justify-center gap-2 bg-hero px-5" style={{ paddingTop: insets.top }}>
