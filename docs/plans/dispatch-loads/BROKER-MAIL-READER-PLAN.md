@@ -32,6 +32,7 @@ how many texts would the feature have sent".
 | Q-BMR7 | Gateway behind when a text is due: **hold up to 10 minutes**, then send the dispatcher's text; **never** send the backup notice without a fresh check; alarm in both cases. |
 | Q-BMR8 | McLeod's broker reference: **one request to Alex after the week**, with the measured miss count. |
 | Q-BMR9 | Measure week: **3 days with `Mail.ReadBasic`** (no body can be read at all), then `Mail.Read` for the rest. |
+| Q-BMR10 | (2026-11-24, after F12 was found wrong) Our mail domains are **the gateway's own list**, `mail_gateway_config.mail_domains`, set with the org; empty = no mailbox. Not the invite allowlist, and no other setting changes. |
 
 ## 3. Measured facts
 
@@ -51,7 +52,7 @@ Code facts were checked on `origin/main` on the date above; vendor facts are fro
 | F9 | The matrices and the snapshot generator create the Supabase roles themselves before applying migrations; a migration may create one more role. | `gen-schema-snapshot.mjs:47` |
 | F10 | `lint:migration-ordering` sees columns, not functions. A caller of a new function is held behind its migration by hand. | memory note, 2026-09-02 |
 | F11 | Dispatcher → user: `tms_dispatchers.user_id` (`is_system`, `is_active`). Member email: `org_member_directory` reads `auth.users.email` and `suspended_at`. | `mcleod/dispatchLinks.ts`, 0393 |
-| F12 | The company's own mail domains are stored: `organizations.allowed_domains`. | 0003, 0392 |
+| F12 | ~~The company's own mail domains are stored: `organizations.allowed_domains`.~~ **Wrong (measured 2026-11-24):** that column is the *invite* allowlist, empty means "no restriction" (`shared/emailDomain.ts:19`), and production's is empty — the rule as written kept none of the 9 linked dispatchers. No list of our mail domains exists → Q-BMR10. | 0003, 0392, production |
 | F13 | No broker or customer domain list exists. | `schema.generated.sql` |
 | F14 | Load references for matching: `loads.ref`, `loads.po_number`, `loads.consignee_ref`, `load_stops.po_number`, `mcleod_dispatch_movements.consignee_refno`. | `schema.generated.sql` |
 | F15 | Texts: `textOne` always applies the quiet window; `drainAlertTexts` is called only from the home-time run; the door check looks at the phone only; a delivery row has no link to its subject; the catalogue has no `mandatory` flag. | `messaging/alertTexts.ts`, `shared/alertRouting.ts` |
@@ -118,7 +119,7 @@ and a self-test case in the same PR. The file and function budgets apply to it.
   | P4: `mailgw_claim_drafts()`, `mailgw_complete_draft(…)` | the command side |
 
 - **No function takes an org.** The org comes from the one row of `mail_gateway_config`
-  (`org_id`, `enabled`, `body_reading`), written by a migration-free admin act in P2 and by a seed
+  (`org_id`, `enabled`, `body_reading`, `mail_domains text[]` — Q-BMR10), written by a migration-free admin act in P2 and by a seed
   statement in P1. The gateway cannot name a company.
 - The migration carries `-- raw-access-waiver:` and `-- cross-module-waiver:` lines (F6) with the
   reason: the derived list is one SQL statement over `tms_dispatchers`, memberships and
@@ -142,7 +143,10 @@ list, D-BMR14). No send, no move, no mark-read, no attachments.
 
 **D-BMR5 — Mailboxes are derived inside the database, every cycle.** Linked + active + non-system
 `tms_dispatchers` → member not suspended → sign-in email → kept only if its domain is in
-`organizations.allowed_domains`. Two McLeod logins for one person are one mailbox. Nothing is typed.
+`mail_gateway_config.mail_domains` (Q-BMR10; empty = no mailbox, so a missing value fails closed).
+Two McLeod logins for one person are one mailbox. No address is typed. The same list is what
+"internal" means in D-BMR6, D-BMR9 and §7 step 3, and the gateway receives it from
+`mailgw_begin_cycle`. It never reads it from anywhere else.
 
 **D-BMR6 — What is read.** Folder delta gives the mailbox's folders. Message delta runs on Inbox,
 every folder under Inbox, and Sent Items; never on Drafts (until P4), Deleted Items or Junk. Only
@@ -336,6 +340,7 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
 | A8 | The gateway can be trusted to name its org. | ✘ → org comes from the config row; no function takes one |
 | A9 | Dispatchers know 360 reads their mailbox envelopes. | ? owner tells them before P1 |
 | A10 | A dispatcher's 360 sign-in email is their mailbox address. | ? D-BMR5 filters by domain; a refusal is shown, not guessed |
+| A17 | The invite allowlist names our mail domains. | ✘ it is empty in production and means something else (F12) → Q-BMR10 |
 | A11 | The database accepts a Lambda's changing address. | ✔ by inference (migrations run from GitHub's runners); owner confirms no network restriction in the dashboard |
 | A12 | ≤ 16 mailboxes; one short pooled connection a minute is fine on the small database. | ✔ count; ? load watched in P1 |
 | A13 | A subject line may be stored. | ✔ ruled 2026-11-24; it can contain a name — stated so it is a choice |
@@ -389,7 +394,16 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
     and every later role change (day-4 swap, P4). Before it is sent, the owner runs `setup.sh` for
     the issuer, and runs the D-BMR5 list query for the dispatcher group.
   - Still to do before P1 (D-BMR13): two staging users whose sign-in emails are the test mailboxes,
-    linked to two staging `tms_dispatchers` rows, with the domain in staging's `allowed_domains`.
+    linked to two staging `tms_dispatchers` rows, with the domain in staging's `mail_domains`.
+- 2026-11-24 — P0, owner-run: `setup.sh staging` and `setup.sh production` built both AWS sides.
+  Outbound federation is on (one issuer for the account). D-BMR15 was simulated as passing: neither
+  server role can touch the gateway, and the staging deploy role cannot move production's.
+  Reserved concurrency was refused: the account's Lambda quota is **10** (the new-account default).
+  The database lease guards overlap; a free quota raise to 1,000 is asked of the owner. Dispatcher
+  list measured on production: 9 linked dispatchers, 9 McLeod logins not linked to a 360 user, 2
+  system. That measurement found F12 wrong; owner ruled **Q-BMR10** (b), the gateway's own
+  `mail_domains`. Simo's list is waiting on the owner's yes/no for two mailboxes and on which unlinked
+  logins are dispatchers.
 
 ## Sources
 
