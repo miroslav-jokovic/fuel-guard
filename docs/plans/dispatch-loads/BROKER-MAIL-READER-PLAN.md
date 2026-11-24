@@ -33,6 +33,7 @@ how many texts would the feature have sent".
 | Q-BMR8 | McLeod's broker reference: **one request to Alex after the week**, with the measured miss count. |
 | Q-BMR9 | Measure week: **3 days with `Mail.ReadBasic`** (no body can be read at all), then `Mail.Read` for the rest. |
 | Q-BMR10 | (2026-11-24, after F12 was found wrong) Our mail domains are **the gateway's own list**, `mail_gateway_config.mail_domains`, set with the org; empty = no mailbox. Not the invite allowlist, and no other setting changes. |
+| Q-BMR11 | (2026-11-24) A linked dispatcher can be **left out on purpose**: `mail_gateway_config.excluded_user_ids uuid[]`, set by an admin act (audited), skipped by D-BMR5, and shown on the admin's mailbox list as "left out on purpose", never as a refusal. First use: two linked McLeod dispatchers the owner ruled out of the group. Unlinking them instead would move their loads on the Dispatch board. |
 
 ## 3. Measured facts
 
@@ -119,7 +120,8 @@ and a self-test case in the same PR. The file and function budgets apply to it.
   | P4: `mailgw_claim_drafts()`, `mailgw_complete_draft(…)` | the command side |
 
 - **No function takes an org.** The org comes from the one row of `mail_gateway_config`
-  (`org_id`, `enabled`, `body_reading`, `mail_domains text[]` — Q-BMR10), written by a migration-free admin act in P2 and by a seed
+  (`org_id`, `enabled`, `body_reading`, `mail_domains text[]` — Q-BMR10, `excluded_user_ids uuid[]` —
+  Q-BMR11), written by a migration-free admin act in P2 and by a seed
   statement in P1. The gateway cannot name a company.
 - The migration carries `-- raw-access-waiver:` and `-- cross-module-waiver:` lines (F6) with the
   reason: the derived list is one SQL statement over `tms_dispatchers`, memberships and
@@ -143,7 +145,8 @@ list, D-BMR14). No send, no move, no mark-read, no attachments.
 
 **D-BMR5 — Mailboxes are derived inside the database, every cycle.** Linked + active + non-system
 `tms_dispatchers` → member not suspended → sign-in email → kept only if its domain is in
-`mail_gateway_config.mail_domains` (Q-BMR10; empty = no mailbox, so a missing value fails closed).
+`mail_gateway_config.mail_domains` (Q-BMR10; empty = no mailbox, so a missing value fails closed), and not in
+`mail_gateway_config.excluded_user_ids` (Q-BMR11).
 Two McLeod logins for one person are one mailbox. No address is typed. The same list is what
 "internal" means in D-BMR6, D-BMR9 and §7 step 3, and the gateway receives it from
 `mailgw_begin_cycle`. It never reads it from anywhere else.
@@ -338,7 +341,7 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
 | A6 | `conversationId` ties a thread together across our mailboxes. | ✘ → all proof is inside one mailbox, with a recipient check (D-BMR9) |
 | A7 | One registration can keep dispatcher mail away from the app server. | ✘ → two badges (Q-BMR1) |
 | A8 | The gateway can be trusted to name its org. | ✘ → org comes from the config row; no function takes one |
-| A9 | Dispatchers know 360 reads their mailbox envelopes. | ? owner tells them before P1 |
+| A9 | Dispatchers know 360 reads their mailbox envelopes. | ✔ owner, 2026-11-24 |
 | A10 | A dispatcher's 360 sign-in email is their mailbox address. | ? D-BMR5 filters by domain; a refusal is shown, not guessed |
 | A17 | The invite allowlist names our mail domains. | ✘ it is empty in production and means something else (F12) → Q-BMR10 |
 | A11 | The database accepts a Lambda's changing address. | ✔ by inference (migrations run from GitHub's runners); owner confirms no network restriction in the dashboard |
@@ -404,6 +407,10 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
   system. That measurement found F12 wrong; owner ruled **Q-BMR10** (b), the gateway's own
   `mail_domains`. Simo's list is waiting on the owner's yes/no for two mailboxes and on which unlinked
   logins are dispatchers.
+- 2026-11-24 — owner: the two are out (Q-BMR11 (b) ruled, the gateway's own exclusion list); all nine
+  unlinked McLeod logins answer brokers; the dispatchers have been told (A9 ✔). Of the nine, none
+  has a 360 account matching it (member list measured). So D-BMR5 cannot derive their mailboxes
+  until each person is a linked 360 user.
 
 ## Sources
 
