@@ -17,6 +17,7 @@ import {
   ScreenHeader,
   Section,
   Skeleton,
+  SkeletonRows,
 } from '@/components';
 import { useMarkThreadRead, useMessagesRealtime, useStartThread, useThreads } from '@/features/messages/useMessages';
 import { useFeatures } from '@/session/useFeatures';
@@ -115,10 +116,7 @@ export default function MessagesInbox() {
 
       <Section title="Conversations">
         {showSkeletons ? (
-          <>
-            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
-            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
-          </>
+          <SkeletonRows count={2} />
         ) : rows.length === 0 && !(threads.isError && !threads.data) ? (
             <EmptyState
               icon="mail"

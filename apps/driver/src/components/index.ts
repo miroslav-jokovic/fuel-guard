@@ -26,7 +26,7 @@ export { ChoiceSheet, type Choice } from './ChoiceSheet';
 export { SwipeAction, type RowSwipeAction } from './SwipeAction';
 export { SegmentedControl } from './SegmentedControl';
 export { TaskStepper, type TaskStep, type TaskStepState } from './TaskStepper';
-export { Skeleton } from './Skeleton';
+export { Skeleton, SkeletonRows } from './Skeleton';
 export { EmptyState } from './EmptyState';
 export { ListRow } from './ListRow';
 export { Avatar } from './Avatar';

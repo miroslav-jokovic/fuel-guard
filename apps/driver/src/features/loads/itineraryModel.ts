@@ -1,3 +1,4 @@
+import { durationWords } from '@/lib/duration';
 import { missingPhotoSlots, nextStop, type Load, type LoadStop } from '@silvicom/shared';
 
 /**
@@ -107,12 +108,8 @@ function clock(iso: string | null): string {
   return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
-function describe(minutes: number): string {
-  if (minutes < 60) return `${minutes} min`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m === 0 ? `${h} h` : `${h} h ${m} min`;
-}
+/** The phone's own duration words ("2 hr, 55 min"), shared with Today and the Lock Screen. */
+const describe = durationWords;
 
 // ── Visual 2026 V6: the timeline and the stop screen ─────────────────────────────────────────────
 

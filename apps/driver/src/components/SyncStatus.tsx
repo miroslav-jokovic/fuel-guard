@@ -34,12 +34,15 @@ export function SyncStatus() {
       ? `Offline · last synced ${relativeTime(lastSyncAt)}`
       : pending > 0
         ? `${pending} waiting · last synced ${relativeTime(lastSyncAt)}`
-        : `All synced · ${relativeTime(lastSyncAt)}`;
+        : lastSyncAt
+          ? `All synced · ${relativeTime(lastSyncAt)}`
+          : 'Nothing to sync yet';
 
   return (
     <ListRow
       icon={running ? 'sync' : needsAttention > 0 ? 'sync_problem' : online ? 'cloud_done' : 'cloud_off'}
-      title="Sync"
+      // A verb: the row runs a sync, and its section is already labelled "Sync" (V9 critique).
+      title="Sync now"
       subtitle={subtitle}
       disabled={running}
       onPress={() => { void runSync(); }}

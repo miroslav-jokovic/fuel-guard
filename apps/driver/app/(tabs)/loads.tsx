@@ -10,7 +10,7 @@ import {
   Screen,
   ScreenHeader,
   Section,
-  Skeleton,
+  SkeletonRows,
 } from '@/components';
 import { OfferDeck, declineChoices } from '@/features/loads/OfferDeck';
 import { LoadRows } from '@/features/loads/LoadRows';
@@ -71,8 +71,7 @@ export default function Loads() {
 
       {isPending && !data ? (
         <Section>
-          <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
-          <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
+          <SkeletonRows count={2} />
         </Section>
       ) : null}
 

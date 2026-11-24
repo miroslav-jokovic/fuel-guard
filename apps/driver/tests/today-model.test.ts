@@ -160,7 +160,7 @@ describe('countdownLabel', () => {
   const window = { appointment_start: '2026-09-07T14:10:00Z', appointment_end: '2026-09-07T16:00:00Z' };
 
   it('says hours and minutes past an hour out', () => {
-    expect(countdownLabel(window, NOW)).toEqual({ text: 'Window opens in 2 h 10 min', tone: 'neutral' });
+    expect(countdownLabel(window, NOW)).toEqual({ text: 'Window opens in 2 hr, 10 min', tone: 'neutral' });
   });
 
   it('drops to minutes inside the hour', () => {

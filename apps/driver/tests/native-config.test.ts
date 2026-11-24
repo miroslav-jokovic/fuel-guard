@@ -226,6 +226,26 @@ describe('app.config.ts — Android permissions (D-PR7)', () => {
   });
 });
 
+describe('app.config.ts — the glance surfaces (Visual 2026 V9, D-DV25)', () => {
+  it('declares StopWidget on the iOS Lock Screen and the Android home screen, under the names the layouts register', async () => {
+    const options = pluginOptions(await store(), 'expo-widgets');
+    expect(options.enableAndroid).toBe(true);
+    const widgets = options.widgets as { name: string; ios?: { supportedFamilies?: string[] } }[];
+    expect(widgets.map((w) => w.name)).toEqual(['StopWidget']);
+    expect(widgets[0]!.ios?.supportedFamilies).toEqual(['accessoryRectangular']);
+    for (const layout of ['src/features/glance/StopWidget.ios.tsx', 'src/features/glance/StopWidget.tsx']) {
+      expect(readFileSync(join(ROOT, layout), 'utf8')).toContain("createWidget('StopWidget'");
+    }
+  });
+
+  it('keeps the Live Activity out of the widget list (it registers itself at runtime) and asks for no push', async () => {
+    const options = pluginOptions(await store(), 'expo-widgets');
+    expect((options.widgets as { name: string }[]).some((w) => w.name === 'StopActivity')).toBe(false);
+    expect(options.enablePushNotifications ?? false).toBe(false);
+    expect(readFileSync(join(ROOT, 'src/features/glance/StopActivity.ios.tsx'), 'utf8')).toContain("createLiveActivity('StopActivity'");
+  });
+});
+
 describe('app.config.ts — Play’s SDK requirements (§6.0)', () => {
   it('pins target SDK to 36, the level Play requires from 2026-08-31', async () => {
     const properties = pluginOptions(await store(), 'expo-build-properties');

@@ -5,6 +5,9 @@ import { roleColors } from '@/theme/colors';
 import { TABS } from '@/components/nativeTabsModel';
 import { useLoads } from '@/features/loads/useLoads';
 import { documentsView } from '@/features/documents/documentsModel';
+import { useGlanceSync } from '@/features/glance/useGlanceSync';
+import { bucketLoads } from '@/features/loads/loadViewModel';
+import { dutyView, useShift } from '@/features/duty/useDuty';
 
 /**
  * The tab shell is the operating system's own (Visual 2026 D-DV1, step V3).
@@ -36,11 +39,20 @@ export default function TabsLayout() {
   const { themeKey } = useTheme();
   const colors = roleColors[themeKey];
   const visible = TABS.filter((tab) => !tab.feature || enabled(tab.feature));
+
   // The Documents badge is the status block's own count (V7), from the same model and the same cached
   // loads payload, so the tab and the screen can never disagree. Red, as the approved mock draws it:
   // the system writes the count in white, which amber could not carry.
   const loads = useLoads(enabled('tab.loads'));
   const owed = documentsView(loads.data?.loads ?? []).actionable;
+  // The Lock Screen and widgets follow Today's stop from here, whichever tab is open (D-DV25), from
+  // the same cached loads and shift Today reads, picked the way Today picks them.
+  const shift = useShift();
+  useGlanceSync({
+    known: shift.data !== undefined,
+    onDuty: dutyView(shift.data).onDuty,
+    currentLoad: bucketLoads(loads.data?.loads ?? []).current[0] ?? null,
+  });
   const badges: Partial<Record<(typeof TABS)[number]['name'], string>> = owed > 0 ? { documents: owed > 9 ? '9+' : String(owed) } : {};
 
   return (

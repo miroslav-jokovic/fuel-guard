@@ -1,16 +1,16 @@
-import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { AppText, type TextTone } from './AppText';
 import { Icon } from './Icon';
+import { NativeSegmented } from './NativeSegmented';
 import { haptics } from '@/lib/haptics';
-import { useTheme } from '@/theme/ThemeProvider';
 import { layout } from '@/theme/tokens';
 
 /**
- * Two shapes, one control. `thumb` is the sliding-track picker Settings uses for a small closed set
- * of appearance choices. `chips` is the Direction B filter rail: a scrolling row of pills that can
- * carry a count and can sit on the navy hero, where a bordered track disappears.
+ * Two shapes, one control. `thumb` is the system's own segmented control (Visual 2026 V9, D-DV1:
+ * `NativeSegmented`, Liquid Glass on iOS 26, Material 3 on Android) for a small closed set of
+ * appearance choices; at the largest text sizes, where segments would truncate, it becomes a list.
+ * `chips` is the Direction B filter rail: a scrolling row of pills that can carry a count and can sit
+ * on the navy hero, where a bordered track disappears. No system control does that, so it is drawn.
  *
  * Both keep `role="radio"` and `checked`, because a chip rail is still a single choice.
  */
@@ -27,20 +27,7 @@ export function SegmentedControl<T extends string>({
   variant?: 'thumb' | 'chips';
   onHero?: boolean;
 }) {
-  const { reduceMotion } = useTheme();
   const { fontScale } = useWindowDimensions();
-  const [trackWidth, setTrackWidth] = useState(0);
-  const index = Math.max(0, options.findIndex((option) => option.value === value));
-  const segmentWidth = trackWidth > 0 && options.length > 0 ? trackWidth / options.length : 0;
-  const x = useSharedValue(0);
-
-  useEffect(() => {
-    if (segmentWidth <= 0) return;
-    const target = index * segmentWidth;
-    x.value = reduceMotion ? target : withSpring(target, { damping: 28, stiffness: 340 });
-  }, [index, segmentWidth, x, reduceMotion]);
-
-  const thumbStyle = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
 
   if (variant === 'chips') {
     return (
@@ -119,41 +106,5 @@ export function SegmentedControl<T extends string>({
     );
   }
 
-  return (
-    <View className="rounded-full bg-surface-muted p-1">
-      <View className="relative flex-row" onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}>
-        {segmentWidth > 0 ? (
-          <Animated.View
-            className="absolute bottom-0 top-0 rounded-full bg-surface"
-            style={[{ width: segmentWidth }, thumbStyle]}
-          />
-        ) : null}
-        {options.map((option) => {
-          const active = option.value === value;
-          return (
-            <Pressable
-              key={option.value}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: active }}
-              onPress={() => {
-                if (active) return;
-                haptics.select();
-                onChange(option.value);
-              }}
-              className="min-h-11 flex-1 items-center justify-center rounded-full px-2"
-            >
-              <AppText
-                weight={active ? 'semibold' : 'medium'}
-                variant="supporting"
-                tone={active ? 'primary' : 'muted'}
-                numberOfLines={1}
-              >
-                {option.label}
-              </AppText>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
+  return <NativeSegmented options={options} value={value} onChange={onChange} />;
 }

@@ -13,6 +13,7 @@ import {
   ScreenHeader,
   Section,
   Skeleton,
+  SkeletonRows,
   StatusBlock,
 } from '@/components';
 import { useHazmatChecks } from '@/features/hazmat/useHazmatChecks';
@@ -130,7 +131,7 @@ export default function HazmatHub() {
 
       <Section title="Hazmat checks">
         {showSkeletons ? (
-          <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
+          <SkeletonRows count={1} />
         ) : records.length > 0 ? (
           <HazmatRows rows={records} onOpen={(id) => router.push(`/hazmat/${id}` as never)} />
         ) : (
