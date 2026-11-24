@@ -17,8 +17,12 @@ import { federatedTokens } from "./token.js";
  * The invoke payload is ignored: the schedule sends `{}`, and P4's wake-up invoke sends nothing
  * either (D-BMR11). No caller can steer a run.
  *
- * MAILGW_COMMIT is set by the deploy job (PR-c) and lands on the heartbeat row (§6 Verify).
+ * The commit is built into the bundle (build.mjs, `__MAILGW_COMMIT__`) and lands on the heartbeat row
+ * (§6 Verify) — one value, the same in both environments, so no setting has to carry it.
  */
+
+declare const __MAILGW_COMMIT__: string | undefined;
+const COMMIT = typeof __MAILGW_COMMIT__ === "string" ? __MAILGW_COMMIT__ : "";
 
 type Settings = { DATABASE_URL: string; TENANT_ID: string; CLIENT_ID: string; CANARY_MAILBOX: string };
 let ready: Promise<{ settings: Settings; sql: ReturnType<typeof postgres> }> | null = null;
@@ -65,7 +69,7 @@ export async function handler(): Promise<{ outcome: string }> {
       graph: graphGet((url, init) => fetch(url, init), tokens),
       log: consoleLogger,
       now: () => new Date(),
-      commit: process.env.MAILGW_COMMIT ?? "",
+      commit: COMMIT,
       canaryMailbox: settings.CANARY_MAILBOX,
     });
     return { outcome };

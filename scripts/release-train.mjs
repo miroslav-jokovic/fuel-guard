@@ -82,10 +82,9 @@ export const AREAS = [
     packages: ["ads-golden", "hazmat-data", "hazmat-engine", "hazmat-golden", "hazmat-placards", "sms-engine"],
     plans: ["recruitment", "roster", "notes", "safety-dqf", "hazmat-consolidation", "document-reading"] },
   { id: "dispatch", title: "Dispatch and live map",
-    // The mail-gateway app is the broker-mail reader (BROKER-MAIL-READER-PLAN.md), a dispatcher feature
-    // whose plan sits in dispatch-loads. Its api module ("broker-mail") joins this list in P2, when the
-    // directory exists — the self-test refuses a name with no directory.
-    api: ["loads", "livemap", "samsara", "messaging"], web: ["dispatch", "livemap", "lumper", "messages", "chat"],
+    // "broker-mail" + the mail-gateway app: the broker-mail reader (BROKER-MAIL-READER-PLAN.md), a
+    // dispatcher feature whose plan sits in dispatch-loads.
+    api: ["loads", "livemap", "samsara", "messaging", "broker-mail"], web: ["dispatch", "livemap", "lumper", "messages", "chat"],
     apps: ["mail-gateway"],
     // "messaging" is the office chat plan (OFFICE-CHAT-PLAN.md): it extends the `messaging` api module
     // this area already holds, so its plan folder goes with it.

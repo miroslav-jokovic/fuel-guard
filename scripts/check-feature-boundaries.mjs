@@ -656,11 +656,13 @@ const MAIL_GATEWAY_ALLOWED = [/^\.\/(?!.*\.\.\/)/, /^\.\.\/(?!\.\.\/)(?!.*\/\.\.
 function mailGatewayViolations(file, src) {
   const out = [];
   const specs = [...src.matchAll(/(?:from|import)\s+["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']/g)].map((m) => m[1] ?? m[2]);
-  if (file.startsWith("apps/mail-gateway/")) {
+  // The allowlist covers what is BUNDLED into the Lambda — `src/`. A build script beside it
+  // (build.mjs, which loads esbuild) runs on the CI machine and never ships.
+  if (file.startsWith("apps/mail-gateway/src/")) {
     for (const spec of specs) {
       if (!MAIL_GATEWAY_ALLOWED.some((re) => re.test(spec))) out.push(`${file}  imports ${spec}  (the mail gateway imports only its allowlist — D-BMR2)`);
     }
-  } else {
+  } else if (!file.startsWith("apps/mail-gateway/")) {
     for (const spec of specs) {
       if (/^@silvicom\/mail-gateway(\/|$)/.test(spec) || /(^|\/)apps\/mail-gateway\//.test(spec) || /(^|\/)mail-gateway\/src\//.test(spec)) {
         out.push(`${file}  imports ${spec}  (nothing may import the mail gateway — D-BMR2)`);
@@ -801,6 +803,12 @@ if (process.argv.includes("--self-test")) {
   }
   if (!mailGatewayViolations("apps/mail-gateway/src/x.ts", 'import { complete } from "../../api/src/lib/anthropic.js";').length) {
     fails.push("mail-gateway allowlist did not fire on a relative climb into another app");
+  }
+  if (!mailGatewayViolations("apps/mail-gateway/src/x.ts", 'import { build } from "esbuild";').length) {
+    fails.push("mail-gateway allowlist did not fire on a build tool imported from src/");
+  }
+  if (mailGatewayViolations("apps/mail-gateway/build.mjs", 'import { build } from "esbuild";').length) {
+    fails.push("mail-gateway allowlist fired on the build script, which is never bundled");
   }
   if (mailGatewayViolations("apps/mail-gateway/src/x.ts", 'import { z } from "zod";\nimport postgres from "postgres";\nimport { a } from "./a.js";').length) {
     fails.push("mail-gateway allowlist fired on allowed imports");

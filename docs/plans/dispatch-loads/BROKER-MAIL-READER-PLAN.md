@@ -462,6 +462,28 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
     load may store either form, and a miss is only counted.
   - Boundary rule (an import allowlist, and nothing may import the gateway) and the function budget's
     scope added, each with a planted-violation self-test.
+- 2026-11-24 — PR-b merged (#2649). **P1 PR-c built.** Choices made at build:
+  - **Bundle:** `pnpm --filter @silvicom/mail-gateway bundle` (esbuild) makes one zip. The commit is
+    the only value built in, and building the same commit twice gave identical bytes (SHA-1 compared).
+  - **Deploy:** `infra/mail-gateway/deploy.sh`. It stores the zip write-once, deploys from S3,
+    publishes a version whose description is the commit, and moves `live`. `check` skips a commit
+    when nothing the gateway is built from changed since the deployed one. Staging deploys from
+    `image.yml`. Production deploys from `aws-production.yml`, which release.yml runs after
+    migrations; a hotfix path builds when staging never stored the zip, and a rollback to a commit
+    from before the gateway existed leaves the function as it is.
+  - **Both jobs are OFF until the repository variable `MAIL_GATEWAY_DEPLOY` is `on`.** Before that,
+    a deploy would replace the P0 probe that the last P0 proof needs.
+  - **Heartbeat:** `GET /api/version` gains `mailGateway` (`off`, `ok`, `stale`, `stopped` or
+    `unknown`, plus the commit and the last cycle). `off` is healthy; `stale`, `stopped` (canary
+    shut-off) and `unknown` fold into `ok` and page through `platform-health`. The reader lives in the
+    new API module `broker-mail`.
+  - **Switches:** `db-login.sh seed | on | off | body on|off`. `seed` writes the config row switched
+    off, and refuses outright when any excluded address is not a member of the org.
+  - **Owner's order to go live, each step owner-run:**
+    1. Simo's script, then `prove.sh` passes.
+    2. `db-login.sh <env> login` and `seed`.
+    3. Set `MAIL_GATEWAY_DEPLOY=on` and merge anything (or re-run `image.yml`).
+    4. `setup.sh <env> --live`, then `db-login.sh <env> on`.
 
 ## Sources
 
