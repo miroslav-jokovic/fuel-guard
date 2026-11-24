@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { getDriverLoads } from "./driverLoads.js";
+import { addStopPhotos, getDriverLoads } from "./driverLoads.js";
 
 /**
  * The driver's load list reads with the service role, so it must restate every rule RLS would have
@@ -54,5 +54,39 @@ describe("getDriverLoads", () => {
       ["sent_at", { ascending: false }],
       ["id", { ascending: false }],
     ]);
+  });
+});
+
+describe("addStopPhotos (D-DV30, migration 0645)", () => {
+  const STOP = "33333333-2222-4333-8444-000000000001";
+  const USER = "44444444-2222-4333-8444-000000000001";
+  const PHOTO = { id: "55555555-2222-4333-8444-000000000001", slot: "seal", storage_path: `${ORG}/${DRIVER}/${L1}/p.jpg` };
+
+  it("calls the late-photo function with this org, driver, load and stop, and only the photos", async () => {
+    const rec = createSupabaseRecorder({ tables: { loads: [], load_dispatches: [] }, rpc: { driver_add_stop_photos: 1 } });
+    const result = await addStopPhotos(rec.client, ORG, DRIVER, L1, STOP, USER, { photos: [PHOTO] });
+    expect(result.ok).toBe(true);
+    expect(rec.rpcs()).toEqual([
+      {
+        fn: "driver_add_stop_photos",
+        args: { p_org: ORG, p_driver: DRIVER, p_load: L1, p_stop: STOP, p_photos: [PHOTO], p_actor_user: USER, p_occurred_at: null },
+      },
+    ]);
+  });
+
+  it("answers a stop finished too long ago (DL007) in the driver's words, not as a 500", async () => {
+    const rec = createSupabaseRecorder({
+      rpc: { driver_add_stop_photos: { error: { code: "DL007", message: "this stop finished more than 14 days ago" } } },
+    });
+    const result = await addStopPhotos(rec.client, ORG, DRIVER, L1, STOP, USER, { photos: [PHOTO] });
+    expect(result).toMatchObject({ ok: false, status: 422, code: "late_photo_window_closed" });
+    expect(result.ok === false && result.message).not.toMatch(/DL007|14 days ago/);
+  });
+
+  it("answers a stop that is not finished (DL003) as a state conflict", async () => {
+    const rec = createSupabaseRecorder({
+      rpc: { driver_add_stop_photos: { error: { code: "DL003", message: "late photos go on a completed stop (this one is arrived)" } } },
+    });
+    expect(await addStopPhotos(rec.client, ORG, DRIVER, L1, STOP, USER, { photos: [PHOTO] })).toMatchObject({ ok: false, status: 409, code: "wrong_state" });
   });
 });

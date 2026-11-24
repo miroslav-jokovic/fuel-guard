@@ -6,24 +6,26 @@ const VERDICT_DISC = { done: 'success', stop: 'danger', act: 'caution', live: 'i
 
 /**
  * The missing photos (Visual 2026 V7, mock screen 7): what the driver can take now says "Take" in
- * amber (D-DV5: act); a later stop's photo says "Later"; a finished stop's gap is a record in amber
- * with no action (Q-DV7). The words are `documentsModel`.
+ * amber (D-DV5: act); a completed stop that still takes a late photo says "Add" in secondary ink
+ * and opens the stop (D-DV30); a later stop's photo says "Later"; a finished stop past the late-photo
+ * window is a record in amber with no action. The words are `documentsModel`.
  */
+const WORD = { take: { text: 'Take', tone: 'action' }, late: { text: 'Add', tone: 'secondary' }, later: { text: 'Later', tone: 'muted' } } as const;
 export function MissingPhotoRows({ rows, onTake }: { rows: readonly MissingPhotoRow[]; onTake: (row: MissingPhotoRow) => void }) {
   return (
     <GroupedList>
       {rows.map((row) => (
         <ListRow
           key={row.key}
-          icon={row.when === 'record' ? 'warning' : 'photo_camera'}
+          icon={row.when === 'record' || row.when === 'late' ? 'warning' : 'photo_camera'}
           disc={row.when === 'later' ? undefined : 'caution'}
           title={row.title}
           subtitle={row.subtitle}
-          onPress={row.when === 'take' ? () => onTake(row) : undefined}
+          onPress={row.when === 'take' || row.when === 'late' ? () => onTake(row) : undefined}
           right={
             row.when === 'record' ? undefined : (
-              <AppText variant="supporting" weight="semibold" tone={row.when === 'take' ? 'action' : 'muted'}>
-                {row.when === 'take' ? 'Take' : 'Later'}
+              <AppText variant="supporting" weight="semibold" tone={WORD[row.when].tone}>
+                {WORD[row.when].text}
               </AppText>
             )
           }

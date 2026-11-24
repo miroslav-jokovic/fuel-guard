@@ -3,6 +3,7 @@ import {
   DRIVER_VISIBLE_STATUSES,
   resolveDriverType,
   type AcceptLoadRequest,
+  type AddStopPhotosRequest,
   type CompleteStopRequest,
   type DeclineLoadRequest,
   type DriverType,
@@ -296,6 +297,28 @@ export function completeStop(
     p_stop: stopId,
     p_status: input.status,
     p_skip_reason: input.skip_reason ?? null,
+    p_photos: input.photos,
+    p_actor_user: actorUserId,
+    p_occurred_at: input.occurred_at ?? null,
+  });
+}
+
+/**
+ * A late photo for a stop the driver already finished (D-DV30, migration 0645). The function adds
+ * photos and nothing else; the finished stop is not changed. Idempotent on the client photo UUIDs like
+ * `completeStop`, so an outbox replay adds nothing and writes no second "Late photo received" event.
+ */
+export function addStopPhotos(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string,
+  loadId: string,
+  stopId: string,
+  actorUserId: string,
+  input: AddStopPhotosRequest,
+): Promise<LoadResult> {
+  return runRpc(admin, orgId, driverId, loadId, "driver_add_stop_photos", {
+    p_stop: stopId,
     p_photos: input.photos,
     p_actor_user: actorUserId,
     p_occurred_at: input.occurred_at ?? null,

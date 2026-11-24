@@ -22,7 +22,7 @@ import { MapStrip } from '@/features/loads/MapStrip';
 import { PhotoRows } from '@/features/loads/PhotoRows';
 import { mapsUrl, verdictTone, windowText, windowVerdict } from '@/features/loads/itineraryModel';
 import { layout } from '@/theme/tokens';
-import { useCompleteStop, useLoad } from '@/features/loads/useLoads';
+import { useAddStopPhotos, useCompleteStop, useLoad } from '@/features/loads/useLoads';
 import { capturePhotoForSlot } from '@/features/loads/stopCapture';
 import {
   outstandingSlots,
@@ -50,6 +50,7 @@ export default function StopCapture() {
   const load = useLoad(id, loadsEnabled);
   const stop = load?.stops.find((s) => s.id === stopId) ?? null;
   const complete = useCompleteStop();
+  const addLate = useAddStopPhotos();
   // The thread lookup lives HERE rather than inside a `features/loads` component: a route may
   // compose across features, a feature may not reach into a sibling (`lint:boundaries`).
   const threads = useThreads(messagesEnabled);
@@ -154,12 +155,31 @@ export default function StopCapture() {
   // complete. What it says is `stopFooter`, which is tested; completing anyway stays a quiet button.
   const footer = stopFooter(stop, captures);
   const primary = footer.primary;
+  // A late photo for a finished stop (D-DV30): queued like any capture, and the stop is not moved.
+  const sendLate = async () => {
+    setError(null);
+    const queued = captures.length;
+    try {
+      await addLate.mutateAsync({ loadId: load.id, stopId: stop.id, captures });
+      haptics.success();
+      toast.show(`${queued === 1 ? 'Photo' : `${queued} photos`} for ${stop.name} queued · the office sees ${queued === 1 ? 'it' : 'them'} once sent`);
+      router.back();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save. Your photo is on this phone and will retry.');
+    }
+  };
   const onPrimary = () => {
+    if (!primary) return;
     if (primary.kind === 'arrive') void submit('arrived');
     else if (primary.kind === 'take') void takePhoto(primary.slot);
+    else if (primary.kind === 'send') void sendLate();
     else onComplete();
   };
-  const onQuiet = (kind: 'complete' | 'skip') => {
+  const onQuiet = (kind: 'complete' | 'skip' | 'send') => {
+    if (kind === 'send') {
+      void sendLate();
+      return;
+    }
     if (kind === 'complete') {
       onComplete();
       return;
@@ -189,17 +209,19 @@ export default function StopCapture() {
                   />
                 </View>
               ) : null}
-              <View className={fontScale >= layout.largeTextBreakpoint ? '' : 'flex-[1.4]'}>
-                <Button
-                  label={primary.label}
-                  size="lg"
-                  variant="primary"
-                  icon={primary.kind === 'take' ? 'photo_camera' : primary.kind === 'complete' ? 'check_circle' : undefined}
-                  haptic={primary.kind === 'take' ? undefined : 'success'}
-                  loading={primary.kind === 'take' ? busySlot === primary.slot : complete.isPending}
-                  onPress={onPrimary}
-                />
-              </View>
+              {primary ? (
+                <View className={fontScale >= layout.largeTextBreakpoint ? '' : 'flex-[1.4]'}>
+                  <Button
+                    label={primary.label}
+                    size="lg"
+                    variant="primary"
+                    icon={primary.kind === 'take' ? 'photo_camera' : primary.kind === 'complete' ? 'check_circle' : primary.kind === 'send' ? 'cloud_sync' : undefined}
+                    haptic={primary.kind === 'take' ? undefined : 'success'}
+                    loading={primary.kind === 'take' ? busySlot === primary.slot : primary.kind === 'send' ? addLate.isPending : complete.isPending}
+                    onPress={onPrimary}
+                  />
+                </View>
+              ) : null}
             </View>
             <View className={fontScale >= layout.largeTextBreakpoint ? 'gap-1' : 'flex-row gap-2'}>
               {footer.quiet.map((action) => (

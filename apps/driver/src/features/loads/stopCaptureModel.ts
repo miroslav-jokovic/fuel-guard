@@ -1,4 +1,4 @@
-import { isDocumentSlot, stopPhotoPath, type LoadStop } from '@silvicom/shared';
+import { isDocumentSlot, latePhotoOpen, stopPhotoPath, type LoadStop } from '@silvicom/shared';
 
 /**
  * Stop-capture view logic (Phase 3C). Pure and unit-tested — the screen holds captured photos in
@@ -49,13 +49,18 @@ export function reasonRequiredToComplete(
 
 /** What the Stop screen's pinned footer offers (Visual 2026 D-DV27, Q-DV8 a). */
 export interface StopFooter {
-  /** The ONE amber action (D-DV5). `take` opens the capture for `slot`. */
+  /**
+   * The ONE amber action (D-DV5). `take` opens the capture for `slot`; `send` queues this session's
+   * photos as late photos for a finished stop (D-DV30). `null` on a finished stop with nothing to add.
+   */
   primary:
     | { kind: 'arrive'; label: string }
     | { kind: 'take'; label: string; slot: string }
-    | { kind: 'complete'; label: string };
+    | { kind: 'complete'; label: string }
+    | { kind: 'send'; label: string }
+    | null;
   /** Quiet text buttons under it, in order. `complete` goes through D21's reason sheet when a photo is missing. */
-  quiet: { kind: 'complete' | 'skip'; label: string }[];
+  quiet: { kind: 'complete' | 'skip' | 'send'; label: string }[];
 }
 
 function slotNoun(slot: string): string {
@@ -74,21 +79,53 @@ function slotNoun(slot: string): string {
  * Skip is always quiet and always asks a reason.
  */
 export function stopFooter(
-  stop: Pick<LoadStop, 'required_photos' | 'photos' | 'status'>,
+  stop: Pick<LoadStop, 'required_photos' | 'photos' | 'status' | 'completed_at'>,
   captures: readonly SessionCapture[],
+  now: number = Date.now(),
 ): StopFooter {
   const missing = outstandingSlots(stop, captures);
+  if (stop.status === 'completed' || stop.status === 'skipped') return finishedStopFooter(stop, missing, captures, now);
   const skip = { kind: 'skip' as const, label: 'Skip stop' };
   if (stop.status === 'pending') {
     return { primary: { kind: 'arrive', label: 'Mark arrived' }, quiet: [{ kind: 'complete', label: 'Complete stop' }, skip] };
   }
   const next = missing[0];
   if (next !== undefined) {
-    const label = isDocumentSlot(next) ? `Scan ${slotNoun(next)}` : `Take ${slotNoun(next)} photo`;
+    const label = takeLabel(next);
     const anyway = missing.length === 1 ? 'Complete without photo' : `Complete without ${missing.length} photos`;
     return { primary: { kind: 'take', label, slot: next }, quiet: [{ kind: 'complete', label: anyway }, skip] };
   }
   return { primary: { kind: 'complete', label: 'Complete stop' }, quiet: [skip] };
+}
+
+function takeLabel(slot: string): string {
+  return isDocumentSlot(slot) ? `Scan ${slotNoun(slot)}` : `Take ${slotNoun(slot)} photo`;
+}
+
+function photoCount(n: number): string {
+  return n === 1 ? 'photo' : `${n} photos`;
+}
+
+/**
+ * A finished stop (D-DV30, migration 0645). A completed stop missing a photo takes it LATE, inside
+ * the server's window (`latePhotoOpen`): take each missing photo, then "Send photo"; sending part of
+ * them is quiet. A skipped stop, a stop past the window, or one with nothing missing offers nothing,
+ * because the server would refuse it — no button the server breaks.
+ */
+function finishedStopFooter(
+  stop: Pick<LoadStop, 'status' | 'completed_at'>,
+  missing: readonly string[],
+  captures: readonly SessionCapture[],
+  now: number,
+): StopFooter {
+  if (!latePhotoOpen(stop, now)) return { primary: null, quiet: [] };
+  const next = missing[0];
+  if (next !== undefined) {
+    const quiet = captures.length > 0 ? [{ kind: 'send' as const, label: `Send ${photoCount(captures.length)} now` }] : [];
+    return { primary: { kind: 'take', label: takeLabel(next), slot: next }, quiet };
+  }
+  if (captures.length > 0) return { primary: { kind: 'send', label: `Send ${photoCount(captures.length)}` }, quiet: [] };
+  return { primary: null, quiet: [] };
 }
 
 /** One photo as the outbox carries it: the API fields plus the local file the handler uploads. */

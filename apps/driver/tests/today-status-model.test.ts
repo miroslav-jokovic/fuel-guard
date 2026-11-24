@@ -217,16 +217,24 @@ describe('rows', () => {
     expect(row).toMatchObject({ title: 'Chicago → Indianapolis', figure: clock(at(6, 0, 1)), figureNote: 'tomorrow' });
   });
 
-  it('done today: a finished stop with a missing photo is an amber record with no destination', () => {
+  it('done today: a finished stop with a missing photo offers "Add photo" and opens the stop (D-DV30)', () => {
+    const current = load({ stops: [stop({ status: 'completed', completed_at: at(7, 12), required_photos: ['seal'] }), delivery()] });
+    const rows = doneTodayRows({ current, previous: [], now: NOW });
+    expect(rows).toEqual([{
+      key: `done-${stop().id}`, icon: 'warning', tone: 'caution', title: 'Ardent Mills',
+      subtitle: 'Chicago, IL · pickup · Seal photo missing',
+      word: { text: 'Add photo', tone: 'secondary' }, href: `/loads/${current.id}/stop/${stop().id}`,
+    }]);
+  });
+
+  it('done today: a skipped stop stays a record with no destination, whatever it lacks', () => {
     const rows = doneTodayRows({
-      current: load({ stops: [stop({ status: 'completed', completed_at: at(7, 12), required_photos: ['seal'] }), delivery()] }),
+      current: load({ stops: [stop({ status: 'skipped', completed_at: at(7, 12), required_photos: ['seal'] }), delivery()] }),
       previous: [],
       now: NOW,
     });
-    expect(rows).toEqual([{
-      key: `done-${stop().id}`, icon: 'warning', tone: 'caution', title: 'Ardent Mills',
-      subtitle: 'Chicago, IL · pickup · Seal photo missing', figure: clock(at(7, 12)), figureNote: 'completed',
-    }]);
+    expect(rows[0]).toMatchObject({ figure: clock(at(7, 12)), figureNote: 'skipped' });
+    expect(rows[0]?.href).toBeUndefined();
   });
 
   it('done today: only today\'s work, and loads delivered today', () => {
