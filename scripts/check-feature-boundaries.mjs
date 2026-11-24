@@ -644,6 +644,49 @@ for (const [rel, forbiddenSpecs, why] of PURE_PACKAGES) {
   }
 }
 
+// ── the mail gateway (BROKER-MAIL-READER-PLAN D-BMR2): a closed list of imports, and no importers. ──
+// apps/mail-gateway holds a token that opens every dispatcher mailbox in its Exchange scope, so what it
+// may load is an ALLOWLIST, not a deny-list: its own files, @silvicom/shared (the contract), the
+// database and AWS clients it runs on, zod and node builtins. No @supabase client (its database door is
+// six functions over `postgres`, never the service role), no Express, nothing from another app. And no
+// file anywhere else may import it — the API reaches the gateway only through the database.
+const MAIL_GATEWAY_ALLOWED = [/^\.\/(?!.*\.\.\/)/, /^\.\.\/(?!\.\.\/)(?!.*\/\.\.\/)/, /^@silvicom\/shared$/, /^postgres$/, /^@aws-sdk\/client-(sts|ssm)$/, /^zod$/, /^vitest$/, /^node:[a-z_/]+$/];
+
+/** Pure so the self-test can plant source. `file` is repo-relative. */
+function mailGatewayViolations(file, src) {
+  const out = [];
+  const specs = [...src.matchAll(/(?:from|import)\s+["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']/g)].map((m) => m[1] ?? m[2]);
+  if (file.startsWith("apps/mail-gateway/")) {
+    for (const spec of specs) {
+      if (!MAIL_GATEWAY_ALLOWED.some((re) => re.test(spec))) out.push(`${file}  imports ${spec}  (the mail gateway imports only its allowlist — D-BMR2)`);
+    }
+  } else {
+    for (const spec of specs) {
+      if (/^@silvicom\/mail-gateway(\/|$)/.test(spec) || /(^|\/)apps\/mail-gateway\//.test(spec) || /(^|\/)mail-gateway\/src\//.test(spec)) {
+        out.push(`${file}  imports ${spec}  (nothing may import the mail gateway — D-BMR2)`);
+      }
+    }
+  }
+  return out;
+}
+
+// Its own walk: `walk()` above descends into node_modules, which is fine for one feature folder and
+// not for the whole of apps/ and packages/. Source only — build output and installed packages skipped.
+function sourceFiles(dir, out = []) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (e.isDirectory()) {
+      if (["node_modules", "dist", "build", ".expo", "android", "ios", "coverage"].includes(e.name) || e.name.startsWith(".")) continue;
+      sourceFiles(join(dir, e.name), out);
+    } else if (/\.(ts|tsx|vue|mjs|js)$/.test(e.name)) out.push(join(dir, e.name));
+  }
+  return out;
+}
+for (const base of ["apps", "packages"]) {
+  for (const file of sourceFiles(join(ROOT, base))) {
+    violations.push(...mailGatewayViolations(relative(ROOT, file), readFileSync(file, "utf8")));
+  }
+}
+
 // ── determinism: output must be a pure function of input (audit: engine-determinism). ──
 // Two packages are in scope, and they are in scope for the same reason rather than by coincidence:
 // each has TWO callers that must agree to the byte. @hazmat/engine's verdict is rendered on screen
@@ -750,6 +793,20 @@ if (process.argv.includes("--self-test")) {
   }
   if (packageImportViolations("packages/qr/src/clean.ts", 'import { encode } from "uqr";', ["@silvicom/", "@/", "@hazmat/"], "self-test").length) {
     fails.push("package-boundary detector fired on a legitimate third-party import");
+  }
+
+  // The mail gateway's two directions (D-BMR2).
+  if (!mailGatewayViolations("apps/mail-gateway/src/x.ts", 'import { createClient } from "@supabase/supabase-js";').length) {
+    fails.push("mail-gateway allowlist did not fire on a planted @supabase import");
+  }
+  if (!mailGatewayViolations("apps/mail-gateway/src/x.ts", 'import { complete } from "../../api/src/lib/anthropic.js";').length) {
+    fails.push("mail-gateway allowlist did not fire on a relative climb into another app");
+  }
+  if (mailGatewayViolations("apps/mail-gateway/src/x.ts", 'import { z } from "zod";\nimport postgres from "postgres";\nimport { a } from "./a.js";').length) {
+    fails.push("mail-gateway allowlist fired on allowed imports");
+  }
+  if (!mailGatewayViolations("apps/api/src/modules/broker-mail/x.ts", 'import { runCycle } from "@silvicom/mail-gateway";').length) {
+    fails.push("mail-gateway importer rule did not fire on a planted import from apps/api");
   }
 
   if (violations.length) {

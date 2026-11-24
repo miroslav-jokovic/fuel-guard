@@ -444,6 +444,24 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
   helpers, whose ACL already names anon, authenticated and service_role one by one. 0643 revokes
   PUBLIC from those four, but only where all three named grants are present. Result: `mail_gateway`
   can call exactly the six door functions and holds no privilege on any of the 365 tables, views and sequences in `public`.
+- 2026-11-24 — PR-a merged (#2644, migration 0643). **P1 PR-b built**: `apps/mail-gateway`, with
+  `runCycle` + per-mailbox reader, the four-shape Graph allowlist (paging links are accepted back only
+  for the same mailbox and kind), the secretless token, the door client (function-not-ready ends the
+  run quietly), the typed logger, and the Lambda host. 31 tests run against a Graph fake. Choices made
+  at build:
+  - **Sent Items needs no new call shape.** Graph accepts well-known folder names, so `sentitems` and
+    `inbox` are read by name; Inbox subfolders come from folder delta by `parentFolderId`. Shape 4
+    (`inbox?$select=id`) gives the Inbox id they hang from.
+  - **Order, per page:** record → close the threads this page proves → save the cursor; then one
+    more pass over the cycle's answers. A crash re-reads instead of losing an answer, and an answer
+    that came on an earlier page than its message is still applied.
+  - **Sent Items is read only after every Inbox folder reached its end.** Only then does a mailbox
+    earn `thread_checked_at` (D-BMR10).
+  - **The canary is probed first when due.** If it opens, nothing else is read that minute.
+  - **Tokens:** a number after PO, PU, BOL, PRO, REF or ORDER is offered both bare and prefixed. A
+    load may store either form, and a miss is only counted.
+  - Boundary rule (an import allowlist, and nothing may import the gateway) and the function budget's
+    scope added, each with a planted-violation self-test.
 
 ## Sources
 

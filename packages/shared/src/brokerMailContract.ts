@@ -71,6 +71,8 @@ export const mailGatewayCycleStartSchema = z.object({
   probe_unlinked: z.array(address),
   /** Sender domains that matched a load in the last 45 days — half of D-BMR6's "candidate" rule. */
   known_sender_domains: z.array(z.string()),
+  /** The canary was last probed over a day ago (D-BMR14). */
+  canary_due: z.boolean(),
 });
 export type MailGatewayCycleStart = z.infer<typeof mailGatewayCycleStartSchema>;
 
