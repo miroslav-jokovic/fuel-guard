@@ -371,3 +371,4 @@ export * from "./fmcsaDatasets.js";
 export * from "./fileSubjectMatch.js";
 export * from "./jobKindCatalogue.js";
 export * from "./brokerMailContract.js";
+export * from "./trainingContract.js";

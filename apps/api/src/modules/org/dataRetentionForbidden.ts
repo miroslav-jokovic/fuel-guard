@@ -51,6 +51,16 @@ export const RETENTION_FORBIDDEN = [
   "orientation_video_attestations",
   "orientation_video_opens",
   /**
+   * Driver safety training (0646, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8.3): who was sent which films,
+   * every quiz they took (what was served, what they answered, the score), and the published film
+   * versions and questions those quizzes were graded against. Each is frozen by trigger once it counts;
+   * a prune would leave a "passed" with no quiz behind it, or a quiz naming a cut that no longer exists.
+   */
+  "training_assignments",
+  "training_attempts",
+  "training_versions",
+  "training_questions",
+  /**
    * §10 CE1 (0545): each done / undone act on a carrier's own hiring step. Append-only by trigger; a
    * step the carrier switched to hold the hire stands on it, and a prune would turn a done step back
    * into an open one with nothing to say why. Removed only with a never-hired applicant, by the purge.
