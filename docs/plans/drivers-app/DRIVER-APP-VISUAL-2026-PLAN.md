@@ -549,17 +549,40 @@ The owner ruled on the proposals as written. The order below is the build order,
   - **A limit the ruling did not set: 14 days after completion** (DL007). It is bounded so an old
     load cannot be reopened from a phone indefinitely. Change it in one line of 0645's successor if
     the office chases older photos.
-- **D-DV31 · Q-DV4: "Tight" is computed by the server.** McLeod has no planned drive minutes, only
-  loaded miles (`move_distance`, migration 0267), so the candidate rule in Q-DV4 cannot be written.
-  Instead, every ~10 minutes, for each driver on duty with an open stop:
-  - Take the truck's last Samsara position and ask HERE truck routing for the drive time to the stop,
-    through the existing cached `getOrComputeRoute` (`apps/api/src/modules/routing/routeGeometry.ts`).
-  - The stop is "Tight" when now + drive time + 30 min exceeds the appointment window's end.
-  - The phone shows only the word, in amber. No ETA and no miles reach the driver (D-DV13 stands).
-  - When HERE has no answer, the fallback is no word, never a guess. Miles ÷ 50 mph was rejected:
-    it is wrong in traffic and in cities.
-  - Before building, measure the HERE cost: one route per active driver per 10 minutes, less the
-    cache hits.
+- **D-DV31 · Q-DV4: "Tight" is computed by the server** — **WITHDRAWN at build, 2026-11-24, by
+  measurement. Q-DV4 is open again; see Q-DV9.** The proposal asked HERE for a drive time per driver
+  every ~10 minutes. Two facts it had not read:
+  - The office already has an ETA and an on-time verdict per truck: the dispatch board's `boardEta`
+    and `onTimeVerdict` (`packages/shared/src/dispatchBoard.ts`), recorded hourly since 2026-10-10
+    (0453). Its `at_risk` IS "Tight". A second, HERE-based ETA for the phone would let the driver's
+    and the dispatcher's estimates disagree, a second source of truth.
+  - Buying HERE routing is already an open ruling, and it waits on that recorded ETA being measured
+    (Q-DB4, Q-DBV4, DISPATCH-BOARD-PLAN DB7).
+
+- **Q-DV9 · "Tight" has no honest source yet (measured 2026-11-24, production, read-only).** DB7's
+  own query over 119,922 recorded predictions (2,102 loads):
+  - Under 4 hours out, the median error is 7 minutes, but the 90th-percentile error is **689 minutes**.
+  - Within 4 hours of arrival, the verdict against the real arrival:
+
+    | Verdict | Stops | Actually arrived after the window closed |
+    |---|---|---|
+    | on time | 4,421 | 3% |
+    | **at risk** (what "Tight" would show) | 603 | **18%** |
+    | late | 2,063 | 34% |
+
+  A "Tight" from this would be wrong more than four times in five, and a warning that is usually
+  wrong trains drivers to ignore the one that is right.
+  - (a) Do not ship "Tight". Feed these numbers into Q-DB4 / Q-DBV4, which decide the board's ETA
+    (retune the distance model, find why the tail is hours wide, or buy HERE). Then the phone reads
+    the board's verdict, so the office and the driver see one estimate.
+  - (b) Ship it on the board's verdict anyway.
+  - (c) Build the HERE-per-driver estimate for the phone alone.
+
+  **Recommend (a).** (b) is wrong 82% of the time. (c) is the second source of truth D-DV31 would
+  have created, and it buys HERE ahead of the ruling that decides whether to buy it.
+  - Worth checking first: whether the 11-hour tail is the ETA's fault or the arrival's. If
+    `actual_arrival_at` is McLeod's hand-entered time, a late entry reads as a late arrival.
+
 - **Push for the Live Activity → deferred until the device gate shows a stale glance.** The
   countdown already uses the system's relative date, so it stays right while the app sleeps. Push
   matters only when the office moves a stop while the app is asleep.

@@ -592,3 +592,33 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
 - **When (a) comes back:** once drivers check in through the app, End shift goes in the truck drawer,
   shown only when that driver has an open session, calling 0151 by session id as L5 required.
 
+### 2026-11-24 — DB7 run: the board's ETA, measured (from the driver app's Q-DV4)
+
+Run read-only against production with the query above: 119,922 predictions on 2,102 loads, recorded
+since the #1578 fix.
+
+| Hours out | n | Median error (min) | p90 abs error (min) | Rest added |
+|---|---|---|---|---|
+| 0–4 | 7,087 | +7 | 689 | 19% |
+| 4–8 | 7,063 | +8 | 649 | 38% |
+| 8–12 | 6,959 | −56 | 653 | 56% |
+| 12–16 | 6,903 | +84 | 826 | 57% |
+| 16–20 | 6,523 | +212 | 1,012 | 56% |
+| 20–24 | 5,706 | +285 | 1,206 | 58% |
+| >24 | 50,434 | +1,402 | 2,940 | 81% |
+
+The verdict within 4 hours of arrival, against `window_closes_at`:
+
+| Verdict | Stops | Actually late |
+|---|---|---|
+| on time | 4,421 | 3% |
+| at risk | 603 | 18% |
+| late | 2,063 | 34% |
+
+- The middle is good and the tail is not. "On time" is right 97% of the time. "At risk" and "late"
+  are mostly false alarms.
+- Before Q-DB4 is decided, find whether the hours-wide tail is the estimate or the arrival
+  (`actual_arrival_at` from McLeod may be entered late).
+- The driver app's "Tight" (Q-DV9 in DRIVER-APP-VISUAL-2026-PLAN) waits on this. It will read the
+  board's verdict, not make its own estimate.
+
