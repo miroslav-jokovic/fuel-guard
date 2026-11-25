@@ -84,6 +84,12 @@ describe("the page's own content-security-policy", () => {
     expect(csp["default-src"]).toEqual(["'self'"]);
   });
 
+  it("lets a training film and its captions play from storage, and from nowhere else", async () => {
+    const csp = await cspOf();
+    // Without the directive a film falls back to default-src 'self' and never plays (SAFETY-VIDEOS D-TR1).
+    expect(csp["media-src"]).toEqual(["'self'", "https://*.supabase.co"]);
+  });
+
   it("does not let a script come from anywhere but this origin and Cloudflare's robot check", async () => {
     const csp = await cspOf();
     // The directive the two above are most likely to be widened by accident alongside. `'wasm-unsafe-eval'` compiles

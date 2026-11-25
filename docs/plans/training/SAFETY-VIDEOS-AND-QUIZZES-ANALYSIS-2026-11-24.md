@@ -406,3 +406,4 @@ a `language` column, so a Spanish cut is a second version and not a schema chang
 ### 9.1 Progress log
 
 - 2026-11-24 — Rulings recorded. Build starts with this plan PR, then schema + contract, API, office page, portal.
+- 2026-11-25 — Schema, shared rules and API merged (#2659); the migration is **0648**, renumbered from 0646 because the broker-mail and Pilot-recheck PRs open beside it hold 0646 and 0647. The driver's page follows in its own PR: `/t/<token>` serves `t.html` (10.2 KB gzipped, `lint:training-page` holds it under 100 KB, D-TR12). Two defects found before any deploy: the page's CSP had no `media-src`, so every film would have been refused (`'self'` only), and the page's colour names were never defined, because `--color-*` live in the token file's `@theme inline` block, which Tailwind consumes and never emits. Next: the office page (Safety → Training), then the staging check with FILM-01.

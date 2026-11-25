@@ -7,7 +7,7 @@ import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import type { Env } from "./env.js";
 import { permissionsPolicy } from "./permissionsPolicy.js";
-import { APP_NAME } from "@silvicom/shared";
+import { APP_NAME, TRAINING_LINK_ROUTE } from "@silvicom/shared";
 import { apiError, asyncHandler } from "./lib/http.js";
 import { getBuildInfo } from "./lib/buildInfo.js";
 import { getSchemaStatus } from "./lib/schemaVersion.js";
@@ -81,6 +81,12 @@ function securityHeaders(env: Env) {
         workerSrc: ["'self'", "blob:"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "blob:", "https://*.supabase.co"],
+        // The driver's training films (SAFETY-VIDEOS D-TR1) play from signed URLs on the
+        // `training-media` bucket, as do their captions (`<track>` is media too). With no `media-src`
+        // the directive falls back to `default-src 'self'` and the browser refuses every film: the
+        // poster shows (img-src admits Supabase) and the player stays black. Found reading this list
+        // before the page's first deploy, 2026-11-25; only the deployed header could have shown it.
+        mediaSrc: ["'self'", "https://*.supabase.co"],
         connectSrc: [
           "'self'",
           ...apiConnectSrc,
@@ -368,6 +374,18 @@ export function mountWebSpa(app: Express, env: Env): void {
         },
       }),
     );
+    // The driver's training link (`/t/<token>`, D-TR2) is its own small page, not the SPA: `t.html` is
+    // a second Vite entry of a few KB because a driver opens it on weak signal (D-TR4, D-TR12), and
+    // the SPA's bundle is what it exists to avoid. No-cache for the same reason as index.html — its
+    // hashed assets must match the deploy. Only a well-formed token's path gets it; anything else
+    // falls through to the SPA, whose not-found page is the honest answer.
+    const trainingPage = path.join(webDist, "t.html");
+    if (fs.existsSync(trainingPage)) {
+      app.get(TRAINING_LINK_ROUTE, (_req: Request, res: Response) => {
+        res.setHeader("Cache-Control", "no-cache");
+        res.sendFile(trainingPage);
+      });
+    }
     // SPA history fallback: only for navigation paths (no file extension). A request for a missing
     // asset (…/foo.js, …/bar.css) must 404 — never fall back to index.html, or the browser rejects
     // the HTML as the wrong MIME type. Keeps deploy hash-mismatches from silently breaking the app.

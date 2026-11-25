@@ -23,6 +23,14 @@ export const TRAINING_RENDITION_HEIGHTS = [360, 540, 720] as const;
 export const TRAINING_LINK_DAYS = 28;
 /** The link page's path; short, because a text message counts characters. */
 export const trainingLinkPath = (token: string): string => `/t/${token}`;
+/**
+ * A link token as it can appear in a URL: 18 random bytes in base64url, so exactly 24 characters of
+ * that alphabet (the API's `mintLinkToken`). The portal refuses anything else before a lookup, and the
+ * server sends the link page only for a path of this shape — one pattern, read by both.
+ */
+export const TRAINING_LINK_TOKEN = /^[A-Za-z0-9_-]{24}$/;
+/** `trainingLinkPath`'s shape as a route: `/t/<token>`, a trailing slash allowed (a texted link gets one). */
+export const TRAINING_LINK_ROUTE = new RegExp(`^/t/${TRAINING_LINK_TOKEN.source.slice(1, -1)}/?$`);
 
 const title = z.string().trim().min(1, "Give it a title.").max(TRAINING_TITLE_MAX, `At most ${TRAINING_TITLE_MAX} characters.`);
 
@@ -197,7 +205,7 @@ export interface TrainingPortalHome {
   complete: boolean;
 }
 
-/** `GET …/lessons/:versionId` — one film, ready to play. URLs are signed for minutes. */
+/** `GET …/films/:versionId` — one film, ready to play. URLs are signed for minutes. */
 export interface TrainingPortalFilm {
   versionId: string;
   title: string;
