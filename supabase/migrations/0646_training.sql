@@ -378,3 +378,38 @@ revoke all on function public.training_version_guard() from public, anon, authen
 revoke all on function public.training_question_guard() from public, anon, authenticated;
 revoke all on function public.training_assignment_guard() from public, anon, authenticated;
 revoke all on function public.training_attempt_guard() from public, anon, authenticated;
+
+-- ── publishing, in one transaction ─────────────────────────────────────────────────────────────
+-- A remaster replaces the live cut: the old one is withdrawn and the new one published together, or
+-- neither (the unique index allows one published cut per film and language, so two statements from the
+-- API would leave a gap with no live cut, or fail half-way). Called by the API with the service role.
+-- Returns the withdrawn version's id, or null when there was none. Refusals keep the triggers' codes.
+create or replace function public.training_publish_version(p_org uuid, p_version uuid, p_actor uuid)
+returns uuid
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_lesson uuid;
+  v_language text;
+  v_state text;
+  v_old uuid;
+begin
+  select lesson_id, language, state into v_lesson, v_language, v_state
+    from training_versions where id = p_version and org_id = p_org for update;
+  if v_lesson is null then
+    raise exception 'no such training video' using errcode = 'TR040';
+  end if;
+  if v_state <> 'ready' then
+    raise exception 'only a video that finished processing can be published (it is %)', v_state using errcode = 'TR041';
+  end if;
+  select id into v_old from training_versions
+    where org_id = p_org and lesson_id = v_lesson and language = v_language and state = 'published' for update;
+  if v_old is not null then
+    update training_versions set state = 'withdrawn', withdrawn_at = now(), withdrawn_by = p_actor where id = v_old;
+  end if;
+  update training_versions set state = 'published', published_at = now(), published_by = p_actor where id = p_version;
+  return v_old;
+end;
+$$;
+revoke all on function public.training_publish_version(uuid, uuid, uuid) from public, anon, authenticated;

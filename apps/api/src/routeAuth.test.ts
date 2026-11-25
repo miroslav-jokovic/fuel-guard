@@ -37,6 +37,7 @@ const PUBLIC_PREFIXES = new Set([
   // The careers page and its apply form (APPLY-PAGE-PLAN AP2): a stranger looking for a job has no account BY
   // DEFINITION; `/api/public`'s 60-a-minute bucket meters it, and its checks flag rather than refuse (D-AP5).
   "/api/public/careers",
+  "/api/public/training",
   "/api/version",
 ]);
 

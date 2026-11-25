@@ -77,7 +77,7 @@ export const AREAS = [
   { id: "maintenance", title: "Maintenance and inventory",
     api: ["maintenance", "fleetpal"], web: ["maintenance", "inventory", "devices"], packages: ["qr"], plans: ["maintenance"] },
   { id: "drivers", title: "Drivers, hiring and compliance",
-    api: ["recruiting", "ads", "evidence", "psp", "roster", "hazmat", "performance", "document-reading", "inspections", "medstop"],
+    api: ["recruiting", "ads", "evidence", "psp", "roster", "hazmat", "performance", "document-reading", "inspections", "medstop", "training"],
     web: ["apply", "careers", "recruitment", "ads", "compliance", "drivers", "roster", "hazmat", "legal", "drugAlcohol", "roadside"],
     packages: ["ads-golden", "hazmat-data", "hazmat-engine", "hazmat-golden", "hazmat-placards", "sms-engine"],
     // "training" is the driver safety films and their quizzes (SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS); its api

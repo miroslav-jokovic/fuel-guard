@@ -4,6 +4,7 @@
 //    chapters, quiz rule and questions are frozen (TR004, TR010), it is withdrawn and never deleted
 //    (TR001, TR003), and one film has one published cut per language — a remaster swaps them in one
 //    transaction. A draft may be deleted with its questions.
+// 1b. `training_publish_version` swaps the live cut in one transaction, for its own carrier, ready only.
 // 2. An assignment keeps what was sent (TR021), its link is a sha256 hash, unique; a resend replaces it;
 //    a roster merge may move it inside the carrier only (TR022); it is never deleted (TR020).
 // 3. Progress is rewritable; a quiz keeps what it served (TR031), carries its score when submitted and
@@ -144,6 +145,19 @@ ok("a withdrawn version is never changed again", (await refuses(`update training
 ok("withdrawing needs who", (await refuses(`update training_versions set state = 'withdrawn', withdrawn_at = now() where id = $1`, [V2])) === "23514");
 const V3 = await version(3);
 ok("a draft version may be deleted, with its questions", (await question(V3)) === null && (await refuses(`delete from training_versions where id = $1`, [V3])) === null);
+
+// ── 1b: publishing through the function ────────────────────────────────────────────────────────
+const V4 = await version(4);
+for (let i = 0; i < 5; i++) await question(V4);
+ok("a draft cannot be published by the function", (await refuses(`select training_publish_version($1, $2, $3)`, [ORG, V4, USER])) === "TR041");
+await db.query(`update training_versions set ${READY} where id = $1`, [V4]);
+ok("another carrier cannot publish it", (await refuses(`select training_publish_version($1, $2, $3)`, [OTHER, V4, USER])) === "TR040");
+const swapped = await one(`select training_publish_version($1, $2, $3) as old`, [ORG, V4, USER]);
+ok("the function withdraws the live cut and publishes the new one", swapped.old === V2);
+const states = await one(`select (select state from training_versions where id = $1) as a, (select state from training_versions where id = $2) as b`, [V2, V4]);
+ok("…leaving exactly one published", states.a === "withdrawn" && states.b === "published");
+const exec = await one(`select has_function_privilege('authenticated', 'training_publish_version(uuid, uuid, uuid)', 'execute') as a, has_function_privilege('anon', 'training_publish_version(uuid, uuid, uuid)', 'execute') as b`);
+ok("no client may call it", exec.a === false && exec.b === false);
 
 // ── 2: assignments ──────────────────────────────────────────────────────────────────────────
 const assign = (drv, c = C, hash = null) =>
