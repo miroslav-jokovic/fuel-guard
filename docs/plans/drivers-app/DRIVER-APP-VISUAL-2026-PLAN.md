@@ -582,6 +582,11 @@ The owner ruled on the proposals as written. The order below is the build order,
   have created, and it buys HERE ahead of the ruling that decides whether to buy it.
   - Worth checking first: whether the 11-hour tail is the ETA's fault or the arrival's. If
     `actual_arrival_at` is McLeod's hand-entered time, a late entry reads as a late arrival.
+    **Checked 2026-11-25** (DISPATCH-BOARD-PLAN, entry 2026-11-25): both, in different places. The
+    hours-wide error is the estimate: a full 10-hour reset added to drivers already ~7–8 h into one.
+    The "false alarms" are mostly the ground truth: 30% of McLeod arrivals are the appointment time
+    copied, which can never be late. Against real arrivals, at risk is late 33% of the time, not 18%.
+    (a) still stands; its first step is now the reset fix, recorded there as Q-DB4's first option.
 
 - **Push for the Live Activity → deferred until the device gate shows a stale glance.** The
   countdown already uses the system's relative date, so it stays right while the app sleeps. Push
