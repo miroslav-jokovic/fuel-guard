@@ -102,7 +102,7 @@ const MODULE_SECTIONS = {
   // the service role from P2 and gates on dispatch.broker-mail / dispatch.broker-mail.all, so a
   // role-named policy on these tables would be a door around both.
   "broker-mail": null,
-  // training (0646, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS D-TR3): deny-all client. The office reads and writes
+  // training (0648, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS D-TR3): deny-all client. The office reads and writes
   // through the API gated on `safety` and the `training` module; the driver reaches it through a link that
   // is not a login. A role-named policy on these tables would be a door around both.
   training: null,

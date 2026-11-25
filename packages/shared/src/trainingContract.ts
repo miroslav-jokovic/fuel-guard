@@ -9,9 +9,9 @@ export * from "./training/course.js";
 
 /**
  * Driver safety training — the API's contract with the office's Training page and the driver's link
- * page (SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS-2026-11-24.md §8–§9; tables 0646).
+ * page (SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS-2026-11-24.md §8–§9; tables 0648).
  *
- * ⚠ The lengths below are 0646's CHECKs, restated so a form can say so before a round trip; the
+ * ⚠ The lengths below are 0648's CHECKs, restated so a form can say so before a round trip; the
  * database stays the authority (the `orientationVideosContract.ts` rule).
  */
 

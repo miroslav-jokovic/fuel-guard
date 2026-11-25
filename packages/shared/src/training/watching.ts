@@ -1,7 +1,7 @@
 /**
  * What a driver has watched of a training film, and what that unlocks
  * (SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS-2026-11-24.md §9, D-TR7/D-TR8). Pure; the API stores the results
- * in `training_progress` (0646) and the page shows them.
+ * in `training_progress` (0648) and the page shows them.
  *
  * ── RANGES, NOT A HIGH-WATER MARK ──────────────────────────────────────────────────────────────
  * "Watched to 3:20" says nothing about a driver who dragged the bar from 0:10 to 3:20. A film is

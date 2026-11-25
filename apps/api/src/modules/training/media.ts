@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Where a training film's files live and how a page is let at them (0646, D-TR1).
+ * Where a training film's files live and how a page is let at them (0648, D-TR1).
  *
  * Every object is under `<org>/<lesson>/<version>/`, in the private `training-media` bucket — the same
  * Supabase Storage as the driver documents, its own bucket. Nobody reads it directly: the office's page

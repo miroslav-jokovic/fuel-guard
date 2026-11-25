@@ -15,7 +15,7 @@ import { refuse, refusalFromDb, type TrainingRefusal } from "./refusal.js";
  * A film's versions and their quizzes (§8.3). An upload is a new version: the browser sends the bytes
  * straight to Storage on a signed URL (they never pass through this server), then confirms, and the
  * `training_transcode` job makes the phone versions. Chapters, the quiz rule and the questions change
- * only until the version is published; 0646's triggers hold that even if this file forgets.
+ * only until the version is published; 0648's triggers hold that even if this file forgets.
  */
 
 const EDITABLE: ReadonlySet<string> = new Set(["draft", "processing", "failed", "ready"]);
@@ -98,7 +98,7 @@ export async function updateVersion(admin: SupabaseClient, orgId: string, versio
   return refusalFromDb(error) ?? (error ? fail("version not changed", error) : true);
 }
 
-/** Publish; withdraws the film's live cut in the same transaction (`training_publish_version`, 0646). */
+/** Publish; withdraws the film's live cut in the same transaction (`training_publish_version`, 0648). */
 export async function publishVersion(admin: SupabaseClient, orgId: string, versionId: string, userId: string): Promise<{ withdrew: string | null } | TrainingRefusal> {
   const { data, error } = await admin.rpc("training_publish_version", { p_org: orgId, p_version: versionId, p_actor: userId });
   const r = refusalFromDb(error);

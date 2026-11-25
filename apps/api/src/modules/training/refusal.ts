@@ -5,7 +5,7 @@ export const refuse = (status: TrainingRefusal["status"], code: string, message:
 
 export const isRefusal = (x: unknown): x is TrainingRefusal => typeof x === "object" && x != null && (x as TrainingRefusal).refused === true;
 
-/** Postgres' own refusal of a frozen row (0646's TR0xx codes), in words. */
+/** Postgres' own refusal of a frozen row (0648's TR0xx codes), in words. */
 export function refusalFromDb(error: { code?: string; message?: string } | null): TrainingRefusal | null {
   if (!error?.code) return null;
   if (error.code === "TR004" || error.code === "TR010") return refuse(409, "published", "This video is published, so it cannot change. Upload a new version instead.");

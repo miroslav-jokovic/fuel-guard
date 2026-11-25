@@ -95,12 +95,12 @@ async function asAnon(sql, params = []) {
 }
 
 // ── ads seeds (0537): the chain a campaign needs — a settings version, a connection, the campaign ────
-// 0646: a course, a film and a draft version of it — what a training question, progress row or quiz hangs off.
+// 0648: a course, a film and a draft version of it — what a training question, progress row or quiz hangs off.
 const trainingVersionSeed = (org) =>
   `with c as (insert into training_courses (org_id, title, created_by) values ('${org}', 'rls', gen_random_uuid()) returning id), ` +
   `l as (insert into training_lessons (org_id, course_id, title, created_by) select '${org}', id, 'rls', gen_random_uuid() from c returning id) ` +
   `insert into training_versions (org_id, lesson_id, version_no, created_by) select '${org}', id, 1, gen_random_uuid() from l;`;
-// 0646: a driver sent the newest course, under a well-formed (random) sha256 link hash.
+// 0648: a driver sent the newest course, under a well-formed (random) sha256 link hash.
 const trainingAssignmentSeed = (org) =>
   `with d as (insert into drivers (org_id, full_name) values ('${org}', 'rls ' || gen_random_uuid()) returning id), ` +
   `c as (insert into training_courses (org_id, title, created_by) values ('${org}', 'rls', gen_random_uuid()) returning id) ` +
@@ -2444,7 +2444,7 @@ async function main() {
       // 0604 (U2): a remembered device hangs on an invitation the same way; the hash is 64 hex characters.
       // 0643 (broker mail, D-BMR6): a cursor belongs to a mailbox row by the composite (org_id, mailbox)
       // FK, which the column-by-column seeder cannot satisfy. The mailbox row first, then its cursor.
-      // 0646 (driver safety training): the question's choices and an assignment's sha256 link hash are
+      // 0648 (driver safety training): the question's choices and an assignment's sha256 link hash are
       // shape-checked, and progress and attempts hang off an assignment — chains the column-by-column
       // seeder cannot build. Each builds its own course → lesson → version (→ assignment) inline.
       training_questions: (org) => trainingVersionSeed(org) +
