@@ -3917,6 +3917,83 @@
         "budget_rows_per_day": null,
         "why": "new in 0643 (2026-11-24, P1): exactly one row (unique index on a constant): the org the gateway serves and its switches (D-BMR3, D-BMR12)."
       }
+    },
+    "training_courses": {
+      "module": "training",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0648 (2026-11-24, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8-§9): one row per course the office makes (an act of the films); a handful per carrier, never with time."
+      }
+    },
+    "training_lessons": {
+      "module": "training",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0648 (2026-11-24, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8-§9): one row per film in a course; 5 today, 14 planned (SEGMENT-PLAN), never with time."
+      }
+    },
+    "training_versions": {
+      "module": "training",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0648 (2026-11-24, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8-§9): one row per uploaded cut of a film; a published one is frozen and kept, since records name it. Grows with remasters, not time."
+      }
+    },
+    "training_questions": {
+      "module": "training",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0648 (2026-11-24, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8-§9): about 10 per film version, frozen once published; grows with versions, not time."
+      }
+    },
+    "training_assignments": {
+      "module": "training",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "new in 0648 (2026-11-24, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8-§9): one row per driver per course sent; at most ~20 drivers a week, budgeted 50 a day. The record of what was sent: never pruned (RETENTION_FORBIDDEN)."
+      }
+    },
+    "training_progress": {
+      "module": "training",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 250,
+        "why": "new in 0648 (2026-11-24, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8-§9): one row per assignment per film watched (~5 per assignment); heartbeats rewrite it, so it grows with assignments, not plays. Budgeted 250 a day."
+      }
+    },
+    "training_attempts": {
+      "module": "training",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 400,
+        "why": "new in 0648 (2026-11-24, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8-§9): one row per quiz taken (~1.5 per film per driver); the completion record, append-only once submitted, never pruned (RETENTION_FORBIDDEN). Budgeted 400 a day."
+      }
     }
   }
 }

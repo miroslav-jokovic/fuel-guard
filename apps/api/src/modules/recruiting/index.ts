@@ -46,3 +46,5 @@ export { recordOrderedDrugTest, releaseOrderedDrugTest } from "./applicantDrugTe
 export { recordHireFromTms } from "./hireApplicant.js";
 // Ask AI's `recruiting_counts` (F21 R6b): the Applicants board's queues, statuses only (D-AI7).
 export { assistantRecruiting, RECRUITING_WAITING } from "./assistantRecruiting.js";
+// The applicant half of sending the safety-training link (D-TR11): handed to the training router by app.ts.
+export { applicantTrainingTexter, type ApplicantTexter } from "./trainingLinkText.js";

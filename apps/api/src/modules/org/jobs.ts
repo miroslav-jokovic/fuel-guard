@@ -33,8 +33,7 @@ export type JobKind =
   | "sync_documents" // Samsara driver documents — BOL, delivery copies, call forms (0445, DOCUMENT-READER-PLAN 0.1)
   | "sync_odometer" // Samsara cumulative odometer readings, one per truck per day per counter (0311, W3b)
   | "idle_engine" // our own idle engine's hour/stop/day rows, hourly + a nightly 2-day recompute (0404, IE2)
-  | "sync_hos"
-  | "sync_stats"
+  | "sync_hos" | "sync_stats"
   | "sync_drivers"
   | "nightly_reconcile"
   | "efs_ingest"
@@ -50,6 +49,7 @@ export type JobKind =
   | "hazmat_analyze"
   | "document_read" // one document read: pages → model → document_read_transition (DOCUMENT-READER-PLAN Step 1.6)
   | "document_intake" // one uploaded file → canonical pages → document_sources + document_pages (Step 1.6b)
+  | "training_transcode" // an uploaded safety film → phone-sized MP4s + a poster (SAFETY-VIDEOS §8.2)
   | "pattern_sweep" // entity-intelligence Phase 2: read-only retrospective analysis of a flagged case
   | "data_retention" // daily retention-policy enforcement (services/dataRetention.ts)
   | "dq_binder" // assemble an auditor's sample of §391.51 files into one PDF (DQ-BINDER-PLAN)

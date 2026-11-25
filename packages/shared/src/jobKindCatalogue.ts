@@ -62,6 +62,7 @@ export const JOB_KIND_CATALOGUE = {
   hazmat_analyze: { label: "Checking a hazmat load", area: "compliance" },
   document_read: { label: "Reading a document", area: "documents" },
   document_intake: { label: "Filing a scanned document", area: "documents" },
+  training_transcode: { label: "Preparing a safety video for phones", area: "documents" },
   pattern_sweep: { label: "Looking for fuel patterns across cases", area: "fuel" },
   data_retention: { label: "Removing data past its keep date", area: "platform" },
   dq_binder: { label: "Building a driver-file binder", area: "compliance" },

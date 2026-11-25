@@ -64,6 +64,9 @@ export function drainKinds(env: Env, lane: SchedulerLane): JobKind[] {
   // `tenstreet_post_process` (TS3) is born as a row for the same reason: Tenstreet waits on our answer, so the
   // receiver keeps the post, answers, then kicks; this is the net for a kick the process did not finish.
   kinds.push("tenstreet_post_process");
+  // `training_transcode` (SAFETY-VIDEOS §8.2) is born as a row: the office's "uploaded" click kicks
+  // `drainKindNow` and answers at once; this is the net for a kick the process did not live to finish.
+  kinds.push("training_transcode");
   return kinds;
 }
 

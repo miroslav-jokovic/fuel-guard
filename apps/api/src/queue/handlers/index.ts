@@ -25,6 +25,7 @@ import { efsProcessingHandler } from "./efsProcessing.js";
 import { hazmatExtractHandler, hazmatAnalyzeHandler } from "./hazmat.js";
 import { documentReadHandler } from "./documentRead.js";
 import { documentIntakeHandler } from "./documentIntake.js";
+import { trainingTranscodeHandler } from "./trainingTranscode.js";
 import {
   backfillHandler,
   patternSweepHandler,
@@ -72,6 +73,7 @@ export function registerAllHandlers(): void {
   registerHandler("hazmat_analyze", hazmatAnalyzeHandler);
   registerHandler("document_read", documentReadHandler);
   registerHandler("document_intake", documentIntakeHandler);
+  registerHandler("training_transcode", trainingTranscodeHandler);
   registerHandler("rebuild", rebuildHandler);
   registerHandler("backfill", backfillHandler);
   registerHandler("score_import", scoreImportHandler);
