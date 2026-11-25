@@ -525,6 +525,38 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
   - Not in P2: the email panel with the load's facts and the draft (P4), "Not for us" / "Handled by
     phone" (they need a write the gateway's proof would contradict; ruled with the texts in P3), and
     the Dispatch board's envelope badge (P3, when the texts make "waiting" actionable).
+- 2026-11-25 — **P2 merged** (#2662 migration 0649, #2665 page and Settings). **P3 started (owner: "proceed").**
+  - **B-1 confirmed, option (c): a third scheduler lane `mail`.** Measured: `schedulerLanes.ts` is one
+    list; a lane's lease and its `/api/version` health are derived from it. `infra/server` reaches the
+    hosts inside the app image of the same commit (`deploy.sh` copies it out of the image), so the
+    lane and the hosts' lane settings ship together. Staging's api container today runs no lane at all
+    (`RUN_SCHEDULERS=false` → `RUN_SCHEDULERS_IN_PROCESS=false`, worker ×0). So P3-b gives the api
+    container its own `API_LANES` per environment: production `egress,mail`, staging `mail` alone. That
+    is the broker-mail tick and its drain and nothing else, so no feed starts on staging. ⚠ A lane no
+    process holds reads `missing` and turns `/api/version`'s `ok` false, so the lane and the compose
+    change must never be split across merges. `docs/WORKER-DEPLOYMENT.md` is still written in
+    Railway's words. It is updated in P3-b for the lanes only; the Railway leftovers stay for the AWS
+    cleanup.
+  - **Two drains, disjoint by alert.** `drainAlertTexts` drains every queued text of an org and has no
+    claim step; its own comment forbids a second drain without one. So the catalogue marks the two
+    broker-mail alerts as drained by broker mail. Home time's drain skips them, and the `mail` lane's
+    drain takes only them. Each lane runs in one process, so no row can be in two drains.
+  - **The door check reads the email from the item key** (`broker_mail:<message id>:backup`).
+    `notification_deliveries` needs no subject column: before a held backup notice leaves, each line's
+    email must still be `waiting` and freshly checked by the gateway. Answered lines are dropped, and
+    when none is left the row is `skipped`. If the gateway is behind, the row stays queued (Q-BMR7:
+    never a backup notice without a fresh check).
+  - **Mandatory, as Q-BM11 ruled:** `broker_mail_waiting` is a catalogue flag that ignores the quiet
+    window, cannot be muted in My alerts, and whose owner route cannot be switched off. STOP is still
+    honoured at the door (it already is). The admin's mailbox list shows who stopped texts or never
+    confirmed a number.
+  - **P3-a (migration 0651):** the two alert categories in `notification_events`' CHECK;
+    `broker_mail_settings.texts_on_since` (the moment texts were switched on; null = off) and
+    `backup_after_minutes` (default 5); table `broker_mail_backups` (admin's choice, Q-BM10). The switch
+    is a moment so that switching on never texts the week's backlog: only an email received after it
+    can raise a text.
+  - **Which emails text:** the two open queues the page shows, Waiting and Needs a load, so the text and
+    the page cannot disagree about what is unanswered. Never an email older than the switch.
 
 ## Sources
 

@@ -355,6 +355,26 @@ ok("broker_mail_settings is RLS-on and refuses an answer time under five minutes
   (await one(`select relrowsecurity x from pg_class where relname = 'broker_mail_settings'`)).x === true &&
   await db.query(`insert into broker_mail_settings (org_id, answer_within_minutes) values ('${ORG}', 4)`).then(() => false, () => true));
 
+// ── 6. what the texts need (0651, P3-a) ─────────────────────────────────────────────────────────
+console.log("\nthe texts' tables (0651)");
+const bell = async (c) => db.query(`insert into notification_events (org_id, audience_user_id, category, title) values ($1, $2, $3, 'x')`, [ORG, U.ann, c]).then(() => null, (e) => e.code);
+ok("both broker-mail alert categories are accepted by notification_events", (await bell("broker_mail_waiting")) === null && (await bell("broker_mail_backup")) === null);
+ok("…0624's categories still are, and an unknown one is still refused", (await bell("lumper_billing_gap")) === null && (await bell("broker_mail_nonsense")) === "23514");
+const st = await one(`insert into broker_mail_settings (org_id) values ('${ORG}')
+  on conflict (org_id) do update set updated_at = now() returning texts_on_since, backup_after_minutes`);
+ok("texts start OFF (no moment) and the backup notice defaults to +5 minutes", st.texts_on_since === null && st.backup_after_minutes === 5);
+ok("a backup delay outside 1–120 minutes is refused",
+  await db.query(`update broker_mail_settings set backup_after_minutes = 0`).then(() => false, () => true));
+await db.exec(`insert into broker_mail_backups (org_id, dispatcher_user_id, backup_user_id) values ('${ORG}', '${U.ann}', '${U.eve}')`);
+ok("a dispatcher cannot be their own backup",
+  await db.query(`insert into broker_mail_backups (org_id, dispatcher_user_id, backup_user_id) values ('${ORG}', '${U.ann}', '${U.ann}')`).then(() => false, () => true));
+ok("the same backup twice is one row", await db.query(`insert into broker_mail_backups (org_id, dispatcher_user_id, backup_user_id) values ('${ORG}', '${U.ann}', '${U.eve}')`).then(() => false, () => true));
+ok("a recorded envelope starts un-alerted on both stamps", (await all(`select 1 from broker_mail_messages where owner_alerted_at is not null or backup_alerted_at is not null`)).length === 0 &&
+  (await one(`select count(*)::int n from broker_mail_messages`)).n > 0);
+ok("broker_mail_backups is RLS-on, and mail_gateway can neither read nor write it",
+  (await one(`select relrowsecurity x from pg_class where relname = 'broker_mail_backups'`)).x === true &&
+  (await gw(`select * from broker_mail_backups`)).error === "42501");
+
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
