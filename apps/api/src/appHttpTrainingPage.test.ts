@@ -36,7 +36,9 @@ afterAll(async () => {
   fs.rmSync(dist, { recursive: true, force: true });
 });
 
-const TOKEN = "Ab3_-xYz0123456789abcdEF"; // 24 characters of the base64url alphabet, as mintLinkToken makes
+// 24 characters of the base64url alphabet (letters, digits, _ and -), as mintLinkToken makes; a repeated
+// pattern so the secret scan does not take a random-looking string for a leaked key.
+const TOKEN = "aZ9_-".repeat(4) + "aZ9_";
 
 describe("the driver's training link", () => {
   it("opens the small training page, never cached, for a well-formed token", async () => {
