@@ -4,16 +4,7 @@ import { Icon } from './Icon';
 import { ListRow } from './ListRow';
 import { useIsOnline } from '@/lib/connectivity';
 import { runSync, useSyncState } from '@/data/sync';
-
-function relativeTime(ts: number | null): string {
-  if (!ts) return 'not yet';
-  const secs = Math.max(0, Math.round((Date.now() - ts) / 1000));
-  if (secs < 60) return 'just now';
-  const mins = Math.round(secs / 60);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
-}
+import { syncSubtitle } from './syncStatusModel';
 
 export function PendingBadge() {
   const { pending, needsAttention } = useSyncState();
@@ -28,15 +19,7 @@ export function PendingBadge() {
 export function SyncStatus() {
   const online = useIsOnline();
   const { pending, needsAttention, running, lastSyncAt } = useSyncState();
-  const subtitle = running
-    ? 'Syncing now…'
-    : !online
-      ? `Offline · last synced ${relativeTime(lastSyncAt)}`
-      : pending > 0
-        ? `${pending} waiting · last synced ${relativeTime(lastSyncAt)}`
-        : lastSyncAt
-          ? `All synced · ${relativeTime(lastSyncAt)}`
-          : 'Nothing to sync yet';
+  const subtitle = syncSubtitle({ running, online, pending, needsAttention, lastSyncAt, now: Date.now() });
 
   return (
     <ListRow
