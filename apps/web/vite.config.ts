@@ -2,6 +2,8 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
+import { readFileSync } from "node:fs";
+import { rootBlock } from "./src/portal/rootBlock";
 import { Features } from "lightningcss";
 
 // One id per BUILD: the Railway commit SHA when deployed, else the build instant. It is baked into the
@@ -22,6 +24,20 @@ export default defineConfig(({ mode }) => {
     plugins: [
       vue(),
       tailwindcss(),
+      {
+        // The driver's training page takes the design system's COLOUR TOKENS and nothing else: importing
+        // tokens.generated.css whole brings Tailwind and every utility the office app uses (115 KB of CSS,
+        // measured 2026-11-25). This hands the page the token file's own `:root` block, read at build time,
+        // so the colours are derived from the one source and never restated (SAFETY-VIDEOS D-TR12).
+        name: "silvicom-portal-tokens",
+        resolveId: (id) => (id === "virtual:portal-tokens.css" ? "\0portal-tokens.css" : null),
+        load(id) {
+          if (id !== "\0portal-tokens.css") return null;
+          const file = fileURLToPath(new URL("../../packages/ui/src/tokens.generated.css", import.meta.url));
+          this.addWatchFile(file);
+          return rootBlock(readFileSync(file, "utf8"));
+        },
+      },
       {
         name: "fuelguard-emit-version",
         apply: "build",
@@ -56,6 +72,14 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       chunkSizeWarningLimit: 1050,
+      // Two entries: the office app, and the driver's training link (`/t/:token`), which is kept apart so a
+      // weak signal loads a few kilobytes instead of the app (SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS D-TR12).
+      rollupOptions: {
+        input: {
+          main: fileURLToPath(new URL("./index.html", import.meta.url)),
+          t: fileURLToPath(new URL("./t.html", import.meta.url)),
+        },
+      },
     },
     resolve: {
       alias: {
