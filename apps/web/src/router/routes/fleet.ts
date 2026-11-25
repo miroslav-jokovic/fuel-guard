@@ -60,6 +60,15 @@ export const fleetRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Idling" },
   },
   {
+    // Safety › Training (SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8): the films, sending them, and who has
+    // watched. Gated by its surface entry, `section("safety")` behind the `training` module. The
+    // driver's own page is NOT this route: `/t/<token>` is a separate small entry (`t.html`).
+    path: "/training",
+    name: "training",
+    component: () => import("@/pages/TrainingPage.vue"),
+    meta: { requiresAuth: true, title: "Training" },
+  },
+  {
     // Safety › Drug & Alcohol (MEDSTOP-PLAN §6). Gated by its surface entry, `section("safety")`.
     path: "/drug-alcohol",
     name: "drug-alcohol",

@@ -270,5 +270,8 @@ export {
   // Settings › Ads control (ADS-AGENT-PLAN §4b, Track S E1): the recruiting ads agent's caps, rules and kill
   // switch. Its own glyph: no other card or menu item wears a megaphone.
   Megaphone01Icon             as AdsIcon,
+  // Safety › Training (SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8): the drivers' safety films and their
+  // quizzes. A play button in a circle, the glyph a video player wears; no other nav item has one.
+  PlayCircleIcon              as TrainingIcon,
 
 } from "@hugeicons/core-free-icons";

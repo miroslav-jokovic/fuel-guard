@@ -107,3 +107,19 @@ export function checkQuestion(q: { chapter: number; prompt: string; choices: rea
   if (q.chapter < 0 || q.chapter >= Math.max(1, chapterCount)) return "Pick the chapter this question comes from.";
   return null;
 }
+
+/**
+ * What still stands between a film version and publishing, in the office's words; empty when it may
+ * be published. A version needs at least as many questions as each driver is served, or every driver
+ * gets a short quiz — and if passing needs more right answers than are asked, nobody can ever pass.
+ * Read by the API, which refuses the publish, and by the office page, which says it before the click.
+ * (The database's `training_publish_version` checks only that the video is ready; the count of
+ * questions is the API's to check, and the frozen-version triggers hold it once published.)
+ */
+export function publishBlockers(v: { state: string; questionCount: number; serveCount: number; passCount: number }): string[] {
+  const out: string[] = [];
+  if (v.state !== "ready") out.push(v.state === "published" ? "It is already published." : "The video is not ready for phones yet.");
+  if (v.questionCount < v.serveCount) out.push(`Write at least ${v.serveCount} questions: ${v.questionCount} so far. Each driver gets ${v.serveCount} drawn from the list.`);
+  if (v.passCount > v.serveCount) out.push(`Passing needs ${v.passCount} right, but only ${v.serveCount} are asked.`);
+  return out;
+}

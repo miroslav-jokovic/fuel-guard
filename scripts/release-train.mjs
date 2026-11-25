@@ -78,10 +78,9 @@ export const AREAS = [
     api: ["maintenance", "fleetpal"], web: ["maintenance", "inventory", "devices"], packages: ["qr"], plans: ["maintenance"] },
   { id: "drivers", title: "Drivers, hiring and compliance",
     api: ["recruiting", "ads", "evidence", "psp", "roster", "hazmat", "performance", "document-reading", "inspections", "medstop", "training"],
-    web: ["apply", "careers", "recruitment", "ads", "compliance", "drivers", "roster", "hazmat", "legal", "drugAlcohol", "roadside"],
+    web: ["apply", "careers", "recruitment", "ads", "compliance", "drivers", "roster", "hazmat", "legal", "drugAlcohol", "roadside", "training"],
     packages: ["ads-golden", "hazmat-data", "hazmat-engine", "hazmat-golden", "hazmat-placards", "sms-engine"],
-    // "training" is the driver safety films and their quizzes (SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS); its api
-    // module and web feature join these lists in the PRs that create the directories.
+    // "training" is the driver safety films and their quizzes (SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS).
     plans: ["recruitment", "roster", "notes", "safety-dqf", "hazmat-consolidation", "document-reading", "training"] },
   { id: "dispatch", title: "Dispatch and live map",
     // "broker-mail" + the mail-gateway app: the broker-mail reader (BROKER-MAIL-READER-PLAN.md), a

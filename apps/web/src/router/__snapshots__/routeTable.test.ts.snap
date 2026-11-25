@@ -236,6 +236,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/drug-alcohol",
   },
   {
+    "name": "training",
+    "params": {},
+    "url": "/training",
+  },
+  {
     "name": "roadside-inspections",
     "params": {},
     "url": "/roadside-inspections",
@@ -1994,6 +1999,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "trailer-detail",
     "path": "/trailers/:id",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Training",
+    },
+    "name": "training",
+    "path": "/training",
     "redirect": null,
   },
   {
