@@ -44,6 +44,7 @@ import {
   WrenchIcon,
   UsersIcon,
   VehicleIcon,
+  TrainingIcon,
   type Icon,
 } from "@silvicom/ui/icons";
 
@@ -91,6 +92,7 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   // sidebar — the argument "they never sit side by side in one group" did not survive being looked at.
   "safety.drug-alcohol": MicroscopeIcon,
   "safety.roadside-inspections": RoadIcon,
+  "safety.training": TrainingIcon,
   "safety.placard-calculator": HazmatPlacardIcon,
   "safety.hazmat-review": ShieldExclamationIcon,
 

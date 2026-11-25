@@ -116,3 +116,68 @@ describe("sending training", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("watching a film in the office", () => {
+  const READY = "77777777-7777-4777-8777-777777777777";
+  const PROCESSING = "88888888-8888-4888-8888-888888888888";
+  function seedFilms() {
+    rec = createSupabaseRecorder({
+      tables: {
+        training_versions: (q: RecordedQuery) => {
+          const id = q.filters().find((f) => f.col === "id")?.val;
+          if (id === READY) return [{ id, duration_ms: 204_000, renditions: [{ height: 720, path: "o/l/v/720.mp4" }, { height: 360, path: "o/l/v/360.mp4" }] }];
+          if (id === PROCESSING) return [{ id, duration_ms: null, renditions: [] }];
+          return [];
+        },
+      },
+      storage: { createSignedUrls: (paths: string[]) => ({ data: paths.map((p) => ({ path: p, signedUrl: `https://signed.test/${p}` })), error: null }) },
+    });
+  }
+
+  it("hands a viewer a link to the smallest version, so marking chapters loads quickly", async () => {
+    seedFilms();
+    const res = await withServer((b) => fetch(`${b}/versions/${READY}/preview`, { headers: { "x-grants": "safety:view" } }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ url: "https://signed.test/o/l/v/360.mp4", durationMs: 204_000 });
+    expect(rec.storageCalls()).toEqual([{ bucket: "training-media", fn: "createSignedUrls", args: [["o/l/v/360.mp4"], 3600] }]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("says a film still being prepared is not ready, and an unknown one does not exist", async () => {
+    seedFilms();
+    const busy = await withServer((b) => fetch(`${b}/versions/${PROCESSING}/preview`));
+    expect(busy.status).toBe(409);
+    const none = await withServer((b) => fetch(`${b}/versions/99999999-9999-4999-8999-999999999999/preview`));
+    expect(none.status).toBe(404);
+    expect(rec.storageCalls()).toEqual([]);
+  });
+});
+
+describe("publishing a film", () => {
+  const V = "77777777-7777-4777-8777-777777777777";
+  function seedVersion(state: string, questions: number) {
+    rec = createSupabaseRecorder({
+      tables: {
+        training_versions: [{ state, serve_count: 5, pass_count: 4 }],
+        training_questions: { data: [], count: questions },
+      },
+      rpc: { training_publish_version: null },
+    });
+  }
+
+  it("refuses a film with fewer questions than each driver is asked, and says how many are missing", async () => {
+    seedVersion("ready", 3);
+    const res = await withServer((b) => post(`${b}/versions/${V}/publish`, {}));
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { message: string } }).error.message).toContain("Write at least 5 questions: 3 so far.");
+    expect(rec.rpcs()).toEqual([]); // refused before the swap is asked for
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("publishes a ready film with enough questions", async () => {
+    seedVersion("ready", 5);
+    const res = await withServer((b) => post(`${b}/versions/${V}/publish`, {}));
+    expect(res.status).toBe(200);
+    expect(rec.rpcs().map((r) => r.fn)).toEqual(["training_publish_version"]);
+  });
+});

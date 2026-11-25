@@ -159,6 +159,8 @@ export const SURFACES: readonly Surface[] = [
   // first slice; FLEET-MANAGER-HOME-PLAN Q-FM7 (a), 2026-10-13) — and the list the Operations tab's
   // Roadside card opens. `safety` per D-IC12; cases and filings join this page in IC4.
   { key: "safety.roadside-inspections", label: "Roadside inspections", path: "/roadside-inspections", group: "safety", gate: section("safety") },
+  // Drivers' safety films + quizzes (SAFETY-VIDEOS §8, D-TR3): `safety`, behind the off-by-default `training` module.
+  { key: "safety.training", label: "Training", path: "/training", group: "safety", gate: section("safety"), module: "training" },
   // `safety.driver-qualification` (/compliance) folded into Drivers on 2026-11-06 (DQ-INTO-DRIVERS-PLAN
   // DD4); its path is a redirect now, and a stored override naming the key grants and denies nothing (0296).
   { key: "safety.carrier-records", label: "Carrier records", path: "/settings/carrier-records", group: "admin", gate: section("roster"), reachedFrom: "admin.settings", startsOnFor: ["fleet_manager", "safety_manager"] }, // D-DQ20: why roster, why a card, why not Q-SET2 — CarrierRecordsSettingsPage.vue

@@ -23,7 +23,7 @@ import { drainKindNow } from "../../../queue/inprocessDrain.js";
 import { assign, progressRows, reachOf, resend, revoke, type TrainingTexter } from "../assignments.js";
 import { createCourse, createLesson, listCatalogue, updateCourse, updateLesson } from "../catalogue.js";
 import { isRefusal, type TrainingRefusal } from "../refusal.js";
-import { confirmUpload, deleteQuestion, listQuestions, publishVersion, saveQuestion, startUpload, updateVersion, withdrawVersion } from "../versions.js";
+import { confirmUpload, deleteQuestion, listQuestions, previewVersion, publishVersion, saveQuestion, startUpload, updateVersion, withdrawVersion } from "../versions.js";
 
 /**
  * `/api/training` — Safety → Training, the office's side (SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8–§9).
@@ -144,6 +144,14 @@ export function trainingRouter(deps: { texter: TrainingTexter }): Router {
     if (isRefusal(out)) return void send(res, out);
     await audit(req, "video_withdrawn", "training_versions", p[0]!);
     res.json({ ok: true });
+  }));
+
+  router.get("/versions/:id/preview", view, asyncHandler(async (req, res) => {
+    const p = ids(req, res, "id");
+    if (!p) return;
+    const out = await previewVersion(adminOf(req), org(req), p[0]!);
+    if (isRefusal(out)) return void send(res, out);
+    res.json({ ok: true, ...out });
   }));
 
   router.get("/versions/:id/questions", view, asyncHandler(async (req, res) => {

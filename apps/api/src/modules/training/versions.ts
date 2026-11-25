@@ -3,12 +3,13 @@ import {
   checkChapters,
   checkQuestion,
   CHOICE_IDS,
+  publishBlockers,
   type TrainingQuestionInput,
   type TrainingQuestionView,
   type TrainingUploadStart,
   type TrainingVersionUpdate,
 } from "@silvicom/shared";
-import { sourcePath, TRAINING_BUCKET } from "./media.js";
+import { signPaths, sourcePath, TRAINING_BUCKET } from "./media.js";
 import { refuse, refusalFromDb, type TrainingRefusal } from "./refusal.js";
 
 /**
@@ -100,6 +101,18 @@ export async function updateVersion(admin: SupabaseClient, orgId: string, versio
 
 /** Publish; withdraws the film's live cut in the same transaction (`training_publish_version`, 0648). */
 export async function publishVersion(admin: SupabaseClient, orgId: string, versionId: string, userId: string): Promise<{ withdrew: string | null } | TrainingRefusal> {
+  // The quiz must be answerable before drivers see it (`publishBlockers`). The database checks only that
+  // the video is ready, so the question count is checked here; once published, 0648's triggers freeze it.
+  const [v, q] = await Promise.all([
+    admin.from("training_versions").select("state, serve_count, pass_count").eq("org_id", orgId).eq("id", versionId).maybeSingle(),
+    admin.from("training_questions").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("version_id", versionId),
+  ]);
+  if (v.error) fail("version not read", v.error);
+  if (q.error) fail("questions not counted", q.error);
+  if (!v.data) return refuse(404, "not_found", "No such video.");
+  const row = v.data as { state: string; serve_count: number; pass_count: number };
+  const blockers = publishBlockers({ state: row.state, questionCount: q.count ?? 0, serveCount: row.serve_count, passCount: row.pass_count });
+  if (blockers.length) return refuse(409, "not_publishable", blockers.join(" "));
   const { data, error } = await admin.rpc("training_publish_version", { p_org: orgId, p_version: versionId, p_actor: userId });
   const r = refusalFromDb(error);
   if (r) return r;
@@ -117,6 +130,24 @@ export async function withdrawVersion(admin: SupabaseClient, orgId: string, vers
     .select("id");
   if (error) fail("not withdrawn", error);
   return (data ?? []).length ? true : refuse(409, "not_published", "Only a published video can be withdrawn.");
+}
+
+/**
+ * A short-lived link to a version's smallest rendition, for the office to watch while it marks
+ * chapters and writes questions (Safety → Training, §8.3). The smallest because the office only needs
+ * to see where a chapter starts, and it is the quickest to load. Refused until the worker has made the
+ * renditions; a withdrawn version may still be watched, since records name it.
+ */
+export async function previewVersion(admin: SupabaseClient, orgId: string, versionId: string): Promise<{ url: string; durationMs: number } | TrainingRefusal> {
+  const { data, error } = await admin.from("training_versions").select("id, renditions, duration_ms").eq("org_id", orgId).eq("id", versionId).maybeSingle();
+  if (error) fail("version not read", error);
+  if (!data) return refuse(404, "not_found", "No such video.");
+  const v = data as { renditions: Array<{ height: number; path: string }> | null; duration_ms: number | null };
+  const smallest = [...(v.renditions ?? [])].sort((a, b) => a.height - b.height)[0];
+  if (!smallest || !v.duration_ms) return refuse(409, "not_ready", "This video is still being prepared for phones.");
+  const url = (await signPaths(admin, [smallest.path], 3600)).get(smallest.path);
+  if (!url) return refuse(503, "not_signed", "The video could not be opened. Try again.");
+  return { url, durationMs: v.duration_ms };
 }
 
 // ── questions ──────────────────────────────────────────────────────────────────────────────────
