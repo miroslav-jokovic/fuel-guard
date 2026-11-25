@@ -131,6 +131,9 @@ const WAIVERS = new Map([
   // mirror projection. Pinned for the schema-only R1 only.
   // broker_mail_settings (0649, BROKER-MAIL-READER-PLAN P2-a) left on 2026-11-25 in P2-b:
   // broker-mail/brokerMailAdmin.ts writes it from Settings › Broker mail. Pinned for the schema-only P2-a only.
+  // BROKER-MAIL-READER-PLAN P3-a (0651) ships schema-only: a column and its first reader never share a merge,
+  // and the backups' writer reads 0651's new settings columns beside it.
+  ["broker_mail_backups", "BROKER-MAIL-READER-PLAN P3-b — broker-mail/brokerMailBackups.ts writes it from Settings › Broker mail (schema-only, 0651; leaves in P3-b's merge)"],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

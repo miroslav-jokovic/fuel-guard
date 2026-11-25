@@ -186,6 +186,13 @@ export const NOTIFICATION_CATEGORIES = [
   "lumper_rc_waiting",
   "lumper_rc_missing_billed",
   "lumper_billing_gap",
+  /**
+   * Broker mail (BROKER-MAIL-READER-PLAN P3): a broker email unanswered in a dispatcher's own Outlook
+   * past the company's time — the dispatcher's own text and bell — and the short notice to the backups
+   * an admin chose for that dispatcher. Mirrored in the CHECK (0651); nothing writes them until P3-b.
+   */
+  "broker_mail_waiting",
+  "broker_mail_backup",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -248,6 +255,8 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   lumper_rc_waiting: "Revised RC missing",
   lumper_rc_missing_billed: "Invoiced without the revised RC",
   lumper_billing_gap: "Lumper not billed in full",
+  broker_mail_waiting: "Broker email unanswered",
+  broker_mail_backup: "Broker email unanswered (backup)",
 };
 
 /**
@@ -357,6 +366,9 @@ export function deepLinkFor(
     case "lumper_rc_missing_billed":
     case "lumper_billing_gap":
       return "/lumper-fees";
+    case "broker_mail_waiting":
+    case "broker_mail_backup":
+      return "/broker-mail";
     default:
       return null;
   }

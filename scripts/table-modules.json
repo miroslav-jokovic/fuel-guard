@@ -4005,6 +4005,17 @@
         "budget_rows_per_day": null,
         "why": "new in 0649 (2026-11-25, P2): one row per org, the company's broker-mail setting written from Settings › Broker mail; never grows with time."
       }
+    },
+    "broker_mail_backups": {
+      "module": "broker-mail",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0651 (2026-11-25, P3): one row per dispatcher and backup the admin chose (Q-BM10); grows with the dispatch office (14 dispatchers, a few backups each), never with time."
+      }
     }
   }
 }
