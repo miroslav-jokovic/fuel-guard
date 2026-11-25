@@ -1,4 +1,4 @@
-// Silvicom 360 — driver safety training (migration 0648; SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS-2026-11-24.md §8–§9).
+// Silvicom 360 — driver safety training (migrations 0648 and 0650; SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS-2026-11-24.md §8–§9).
 //
 // 1. A film version is published only with its files and enough questions (TR005); once published its
 //    chapters, quiz rule and questions are frozen (TR004, TR010), it is withdrawn and never deleted
@@ -11,6 +11,8 @@
 //    is then frozen (TR032) and never deleted (TR030); one open quiz per film per driver.
 // 4. An organisation going away takes its catalogue, published or not.
 // 5. RLS on with no client policy on every table; the bucket is private.
+// 6. 0650 (SEGMENT-QUIZ D-TR13/14): a question names its point, an attempt keeps when each answer came,
+//    and a new version asks 3 per segment and passes on 3.
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { readFileSync, readdirSync } from "node:fs";
@@ -114,7 +116,7 @@ for (let i = 0; i < 5; i++) await question(V1);
 ok("a version cannot be published without its files", (await refuses(`update training_versions set state = 'published', published_at = now(), published_by = $2 where id = $1`, [V1, USER])) === "23514");
 await db.query(`update training_versions set ${READY} where id = $1`, [V1]);
 const V0 = await version(9);
-for (let i = 0; i < 4; i++) await question(V0);
+for (let i = 0; i < 2; i++) await question(V0); // fewer than the 3 a new version serves (0650's default)
 await db.query(`update training_versions set ${READY}, language = 'es' where id = $1`, [V0]);
 ok(
   "a version with fewer questions than it serves cannot be published",
@@ -190,6 +192,22 @@ ok("a quiz is submitted with its score", (await refuses(`update training_attempt
 ok("a submitted quiz is never changed", (await refuses(`update training_attempts set passed = true where id = $1`, [T1])) === "TR032");
 ok("a quiz is never deleted", (await refuses(`delete from training_attempts where id = $1`, [T1])) === "TR030");
 ok("after a submitted quiz a new one may start", (await refuses(`insert into training_attempts (org_id, assignment_id, version_id, served) values ($1, $2, $3, $4)`, [ORG, A, V2, SERVED])) === null);
+
+// ── 6: segment quizzes (0650) ─────────────────────────────────────────────────────────────────
+const VS = await version(20);
+const sv = await one(`select serve_count, pass_count from training_versions where id = $1`, [VS]);
+ok("a new version asks 3 per segment and needs all 3", sv.serve_count === 3 && sv.pass_count === 3);
+const Q0 = await one(`insert into training_questions (org_id, version_id, prompt, choices, answer, why, created_by, chapter, point)
+  values ($1, $2, 'How far at 55?', '[{"id":"a","text":"200 ft"},{"id":"b","text":"419 ft"}]', 'b', '142 + 61 + 216.', $3, 1, 2) returning point`, [ORG, VS, USER]);
+ok("a question names the point of its segment it tests", Q0.point === 2);
+const QD = await one(`insert into training_questions (org_id, version_id, prompt, choices, answer, why, created_by) values ($1, $2, 'Which one?', '[{"id":"a","text":"x"},{"id":"b","text":"y"}]', 'a', 'why', $3) returning point`, [ORG, VS, USER]);
+ok("a question written before points existed is point 0", QD.point === 0);
+ok("a point outside 0–9 is refused", (await refuses(`insert into training_questions (org_id, version_id, prompt, choices, answer, why, created_by, point) values ($1, $2, 'Which one?', '[{"id":"a","text":"x"},{"id":"b","text":"y"}]', 'a', 'why', $3, 10)`, [ORG, VS, USER])) === "23514");
+const T2 = (await one(`select id from training_attempts where assignment_id = $1 and submitted_at is null`, [A])).id;
+ok("when each answer came is kept while the quiz is open", (await refuses(`update training_attempts set answers = '{"x":"a"}', answered_at = '{"x":"2026-11-25T18:00:00Z"}' where id = $1`, [T2])) === null);
+ok("…only as an object", (await refuses(`update training_attempts set answered_at = '[1]' where id = $1`, [T2])) === "23514");
+await db.query(`update training_attempts set submitted_at = now(), correct = 0, passed = false, missed_chapters = '{0}' where id = $1`, [T2]);
+ok("…and frozen with the quiz", (await refuses(`update training_attempts set answered_at = '{}' where id = $1`, [T2])) === "TR032");
 
 // ── 4: an organisation going away takes its catalogue ─────────────────────────────────────────
 // (Its drivers, and so its assignments and quizzes, go only through account closure: 0235's DR010
