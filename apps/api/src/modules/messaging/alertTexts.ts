@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   ALERT_TEXT_QUIET_DEFAULT,
+  OWN_DRAIN_ALERTS,
+  alertIsMandatory,
   alertTextBody,
   alertTextNotBefore,
   inAlertTextQuiet,
@@ -31,6 +33,10 @@ import { ALERT_TEXT_LINE } from "./alertContacts.js";
  * The drain is called from the home-time job's tick, which the scheduler lease runs in exactly one
  * process (`docs/WORKER-DEPLOYMENT.md`); a row has no "sending" state, so two drains could text twice.
  * It is not a scheduler of its own for that reason, and must not become one without a claim step.
+ * The one exception keeps that promise by splitting the rows instead: an alert the catalogue marks
+ * `ownDrain` (broker mail's two, BROKER-MAIL-READER-PLAN P3) is drained ONLY by its module, in its own
+ * lease-held lane, with `only`. Every other caller's drain leaves those rows alone. Two drains, no row
+ * in both.
  *
  * Every query filters on `org_id`: the service role bypasses RLS. The receipt is the exception — a
  * provider's message id is all it carries — and it can only touch the row that id was written on.
@@ -57,9 +63,25 @@ export async function saveAlertTextQuiet(admin: SupabaseClient, orgId: string, a
 interface QueuedText {
   id: string;
   user_id: string;
+  alert: string;
   destination: string;
   title: string;
-  items: { line: string }[];
+  items: { key?: string; line: string }[];
+  created_at?: string;
+}
+
+/**
+ * The owning module's last word before a held text leaves (D-BMR10's door hook): the items still worth
+ * sending (others dropped from the text), `skip` with a reason, or `hold` to leave the row queued and
+ * ask again on the next drain.
+ */
+export type DoorVerdict = { send: QueuedText["items"] } | { skip: string } | "hold";
+export type DoorCheck = (row: Readonly<QueuedText>) => Promise<DoorVerdict>;
+
+export interface DrainOptions {
+  /** Drain only these alerts (an `ownDrain` module's own); absent = every alert that is not `ownDrain`. */
+  only?: readonly AlertKey[];
+  door?: DoorCheck;
 }
 
 export type TextOutcome = "sent" | "failed" | "skipped";
@@ -113,7 +135,8 @@ export async function textOne(
   quiet: AlertTextQuiet,
   clock: AlertTextClock,
 ): Promise<TextOutcome | "held" | null> {
-  const notBefore = alertTextNotBefore(clock.now, clock.zone, quiet);
+  // A mandatory alert is sent at night too (Q-BM11); STOP is still honoured at the door.
+  const notBefore = alertIsMandatory(alert) ? null : alertTextNotBefore(clock.now, clock.zone, quiet);
   const { data: deliveryId, error } = await admin.rpc("queue_notification_delivery", {
     p_org: orgId,
     p_user: userId,
@@ -128,7 +151,7 @@ export async function textOne(
   if (!deliveryId) return null;
   if (notBefore) return "held";
 
-  const { data: row, error: readError } = await admin.from("notification_deliveries").select("id, user_id, destination, title, items").eq("org_id", orgId).eq("id", deliveryId).maybeSingle();
+  const { data: row, error: readError } = await admin.from("notification_deliveries").select("id, user_id, alert, destination, title, items").eq("org_id", orgId).eq("id", deliveryId).maybeSingle();
   if (readError) throw new Error(`notification_deliveries: ${readError.message}`);
   return row ? sendQueuedText(admin, env, orgId, row as QueuedText, clock.now) : null;
 }
@@ -140,22 +163,41 @@ export interface AlertTextDrain {
 }
 
 /** Send the carrier's texts that are due: held ones whose morning has come, and any a dead run left queued. */
-export async function drainAlertTexts(admin: SupabaseClient, env: Env, orgId: string, now: Date, zoneOf: () => Promise<string>): Promise<AlertTextDrain> {
+export async function drainAlertTexts(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  now: Date,
+  zoneOf: () => Promise<string>,
+  options: DrainOptions = {},
+): Promise<AlertTextDrain> {
   const result: AlertTextDrain = { sent: 0, failed: 0, skipped: 0 };
-  const { data, error } = await admin
+  let q = admin
     .from("notification_deliveries")
-    .select("id, user_id, destination, title, items, not_before")
+    .select("id, user_id, alert, destination, title, items, not_before, created_at")
     .eq("org_id", orgId)
     .eq("channel", "sms")
-    .eq("status", "queued")
-    .order("created_at", { ascending: true })
-    .limit(ALERT_TEXT_DRAIN_BATCH);
+    .eq("status", "queued");
+  q = options.only ? q.in("alert", [...options.only]) : OWN_DRAIN_ALERTS.length ? q.not("alert", "in", `(${OWN_DRAIN_ALERTS.join(",")})`) : q;
+  const { data, error } = await q.order("created_at", { ascending: true }).limit(ALERT_TEXT_DRAIN_BATCH);
   if (error) throw new Error(`notification_deliveries: ${error.message}`);
   const due = ((data ?? []) as (QueuedText & { not_before: string | null })[]).filter((r) => r.not_before === null || Date.parse(r.not_before) <= now.getTime());
   if (due.length === 0) return result;
   // The zone and the window are read only when something is due: a carrier with nothing queued costs the one read above.
-  if (inAlertTextQuiet(now, await zoneOf(), await readAlertTextQuiet(admin, orgId))) return result;
-  for (const row of due) result[await sendQueuedText(admin, env, orgId, row, now)] += 1;
+  // A mandatory alert's row is never held by the window (Q-BM11), so it is sent even while the window holds the rest.
+  const quietNow = due.some((r) => !alertIsMandatory(r.alert as AlertKey)) && inAlertTextQuiet(now, await zoneOf(), await readAlertTextQuiet(admin, orgId));
+  for (const row of due) {
+    if (quietNow && !alertIsMandatory(row.alert as AlertKey)) continue;
+    const verdict = options.door ? await options.door(row) : { send: row.items };
+    if (verdict === "hold") continue;
+    if ("skip" in verdict) {
+      const { error: e } = await admin.from("notification_deliveries").update({ status: "skipped", skip_reason: verdict.skip.slice(0, 80) }).eq("org_id", orgId).eq("id", row.id).eq("status", "queued");
+      if (e) console.error(`[alert-texts] org ${orgId}: could not skip a text: ${e.message}`);
+      result.skipped += 1;
+      continue;
+    }
+    result[await sendQueuedText(admin, env, orgId, { ...row, items: verdict.send }, now)] += 1;
+  }
   return result;
 }
 

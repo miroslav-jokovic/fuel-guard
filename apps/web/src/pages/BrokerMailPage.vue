@@ -68,6 +68,18 @@ const mailboxNotice = computed(() => {
   return { tone: "caution" as const, text: `Your Outlook is not read: ${why.toLowerCase()}. An admin can see why on Settings › Broker mail.` };
 });
 
+/**
+ * P3: texts are on, and THIS person cannot be texted. Analysis §6.3: "a dispatcher with no confirmed
+ * number gets the bell only; the page says so". A STOP is honoured whatever Q-BM11 says.
+ */
+const textNotice = computed(() => {
+  const t = data.value?.texts;
+  if (!t?.on || !data.value?.myMailbox.read || t.me === "ready") return null;
+  if (t.me === "stopped") return "You replied STOP, so you get no broker mail texts. Confirm your mobile again in My alerts to get them back.";
+  return "Confirm your mobile in My alerts to get a text when a broker email waits too long. Until then you get it on the dashboard only.";
+});
+const myBackups = computed(() => data.value?.texts.myBackups ?? []);
+
 const columns = computed<DataTableColumn[]>(() => [
   tab.value === "handled"
     ? { key: "answeredAt", label: "Answered", card: "status" }
@@ -92,6 +104,7 @@ const rowOf = (r: unknown) => r as BrokerMailRow;
     <PageHeader description="Broker emails in your Outlook that nobody has answered yet, oldest first. Reply in Outlook as usual: the row closes by itself within a minute or two." />
 
     <AppCallout v-if="mailboxNotice" :tone="mailboxNotice.tone" data-test="mailbox-notice">{{ mailboxNotice.text }}</AppCallout>
+    <AppCallout v-if="textNotice" tone="caution" data-test="text-notice">{{ textNotice }}</AppCallout>
 
     <AppTabs v-model="tab" :tabs="tabItems" label="Broker mail queue" scrollable />
 
@@ -153,7 +166,11 @@ const rowOf = (r: unknown) => r as BrokerMailRow;
     </DataWorkspace>
 
     <p v-if="data && tab !== 'handled'" class="text-xs text-ink-tertiary" data-test="answer-within">
-      Red after {{ answerWithin }} minutes without an answer, amber in the five minutes before.
+      Red after {{ answerWithin }} minutes without an answer, amber in the five minutes before.<template v-if="data.texts.on"> You get a text at red, day and night.</template>
+    </p>
+    <!-- Q-BM10: the admin chooses a dispatcher's backups; the dispatcher sees them, read-only. -->
+    <p v-if="myBackups.length" class="text-xs text-ink-tertiary" data-test="my-backups">
+      Your backups, told a few minutes later if it is still unanswered: {{ myBackups.join(", ") }}. An admin changes them on Settings › Broker mail.
     </p>
   </div>
 </template>

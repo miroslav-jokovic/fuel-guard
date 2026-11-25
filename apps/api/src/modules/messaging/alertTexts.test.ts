@@ -174,3 +174,50 @@ describe("a delivery receipt", () => {
     expect(rec.writes().filter((q) => (q.filters().find((f) => f.col === "provider_message_id")?.val ?? "") === "tx-9")).toEqual([]);
   });
 });
+
+describe("an alert with its own drain (BROKER-MAIL-READER-PLAN P3)", () => {
+  const broker = (o: Record<string, unknown> = {}) =>
+    delivery({ id: "60000000-0000-4000-8000-0000000000b1", alert: "broker_mail_backup", title: "Broker email unanswered (backup)",
+      items: [{ key: "broker_mail:m1:backup", line: "one" }, { key: "broker_mail:m2:backup", line: "two" }], ...o });
+
+  it("home time's drain asks for every alert BUT broker mail's, and broker mail's drain only for its own", async () => {
+    // Asserted on the QUERY: postgrestFixture deliberately has no `not` (see its header).
+    seed({ deliveries: [delivery()] });
+    await drainAlertTexts(rec.client, env, ORG, DAY, zone);
+    expect(rec.forTable("notification_deliveries")[0]!.ops).toContainEqual({ method: "not", args: ["alert", "in", "(broker_mail_waiting,broker_mail_backup)"] });
+    seed({ deliveries: [delivery(), broker()] });
+    expect((await drainAlertTexts(rec.client, env, ORG, DAY, zone, { only: ["broker_mail_waiting", "broker_mail_backup"] })).sent).toBe(1);
+    expect(rec.forTable("notification_deliveries")[0]!.ops).toContainEqual({ method: "in", args: ["alert", ["broker_mail_waiting", "broker_mail_backup"]] });
+    expect(sms.send.mock.calls.at(-1)![1].body).toContain("one");
+  });
+
+  it("the door hook drops what was answered, holds when it cannot check, and skips with its reason", async () => {
+    seed({ deliveries: [broker()] });
+    await drainAlertTexts(rec.client, env, ORG, DAY, zone, { only: ["broker_mail_backup"], door: async (r) => ({ send: r.items.slice(1) }) });
+    expect(sms.send.mock.calls[0]![1].body).toContain("two");
+    expect(sms.send.mock.calls[0]![1].body).not.toContain("one");
+    seed({ deliveries: [broker()] });
+    sms.send.mockClear();
+    expect(await drainAlertTexts(rec.client, env, ORG, DAY, zone, { only: ["broker_mail_backup"], door: async () => "hold" })).toEqual({ sent: 0, failed: 0, skipped: 0 });
+    expect(outcomes()).toEqual([]);
+    seed({ deliveries: [broker()] });
+    expect((await drainAlertTexts(rec.client, env, ORG, DAY, zone, { only: ["broker_mail_backup"], door: async () => ({ skip: "answered" }) })).skipped).toBe(1);
+    expect(outcome()).toMatchObject({ status: "skipped", skip_reason: "answered" });
+    expect(sms.send).not.toHaveBeenCalled();
+  });
+
+  it("the dispatcher's own text is mandatory: sent at night, queued with no hold (Q-BM11)", async () => {
+    seed();
+    expect(await textOne(rec.client, env, ORG, "broker_mail_waiting", "Broker email unanswered", FRAN, PHONE, [{ key: "broker_mail:m1:owner", line: "x" }], QUIET, { zone: CHI, now: NIGHT })).toBe("sent");
+    expect(queuedArgs[0]).toMatchObject({ p_not_before: null });
+    seed({ deliveries: [delivery({ alert: "broker_mail_waiting" }), delivery({ id: "60000000-0000-4000-8000-0000000000c9" })] });
+    sms.send.mockClear();
+    expect((await drainAlertTexts(rec.client, env, ORG, NIGHT, zone, { only: ["broker_mail_waiting", "home_time_overdue"] })).sent).toBe(1);
+  });
+
+  it("…and still honours a STOP at the door", async () => {
+    seed({ deliveries: [delivery({ alert: "broker_mail_waiting" })], contacts: [contact({ stopped_at: "2026-11-20T00:00:00Z" })] });
+    expect((await drainAlertTexts(rec.client, env, ORG, NIGHT, zone, { only: ["broker_mail_waiting"] })).skipped).toBe(1);
+    expect(outcome()).toMatchObject({ status: "skipped", skip_reason: "stopped" });
+  });
+});

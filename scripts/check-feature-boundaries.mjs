@@ -214,6 +214,9 @@ const API_ALLOW = new Set([
   // every dispatcher's mail (`holdsNamedPermission`, Q-BM9) and what each member is called
   // (`listOfficeMembers`), so the page and the admin's mailbox list name people the way the Users page does.
   "broker-mail -> org",
+  // Broker mail's texts (P3) leave through messaging's one text road — `sendAlerts` and the drain with its door
+  // hook — through its index only; messaging imports nothing of broker-mail's.
+  "broker-mail -> messaging",
   // The driver's own account closure (P4.2) closes their login by calling the roster module's
   // `disableDriverLogin` through its index — the ban, the push-token revoke and the
   // `app_access_enabled` flag. A second ban path in driver-app would be two implementations of

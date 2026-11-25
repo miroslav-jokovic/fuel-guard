@@ -50,6 +50,15 @@ static outbound IPs WEX allowlists, and Railway gives a new service new IPs. It 
 - Production target: `@fleetguard/api` ×2 with `SCHEDULER_LANES=egress`; `@fleetguard/worker`
   (`railway.worker.json`, start `node --import tsx apps/api/src/worker.ts`, restart ALWAYS, no static
   IPs) with `WORKER_ROLE=scheduler`, `SCHEDULER_LANES=general`, `EFS_SOAP_ENABLED=false`.
+- **A third lane, `mail` (2026-11-25, BROKER-MAIL-READER-PLAN P3, B-1 (c)):** broker mail's minute tick
+  and the drain of its own texts, nothing else. On AWS the api containers' lanes are each environment's
+  `API_LANES` (`infra/server/<env>.env`, read by `compose.yml`): production `egress,mail`, staging `mail`
+  alone. Staging therefore proves the broker-mail texts while every feed stays off there (its worker stays
+  at zero through `RUN_SCHEDULERS=false`). ⚠ A lane no process holds reads `missing` and turns
+  `/api/version`'s `ok` false, so `schedulerLanes.ts` and the `API_LANES` lines ship in one commit.
+- Two alert-text drains, disjoint: home time's (`general`) drains every text EXCEPT the alerts the catalogue
+  marks `ownDrain`; broker mail's (`mail`) drains only those. Each lane runs in one process, so no row is
+  in two drains — the rule `messaging/alertTexts.ts` states for a drain with no claim step.
 - Check: `curl -s <api host>/api/version | jq .schedulers` — every lane `held`. Logs:
   `[scheduler-lease] <lane>: acquired by …` on exactly one process per lane.
 

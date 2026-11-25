@@ -38,6 +38,19 @@ export const BROKER_MAIL_PAGE_LIMIT = 500;
 export const BROKER_MAIL_ANSWER_MIN = 5;
 export const BROKER_MAIL_ANSWER_MAX = 240;
 export const BROKER_MAIL_ANSWER_DEFAULT = 20;
+/** `broker_mail_settings.backup_after_minutes`'s CHECK (0651) and default (Q-BM7: "+5"). */
+export const BROKER_MAIL_BACKUP_MIN = 1;
+export const BROKER_MAIL_BACKUP_MAX = 120;
+export const BROKER_MAIL_BACKUP_DEFAULT = 5;
+/** At most this many backups per dispatcher — a notice to the whole office is not a backup. */
+export const BROKER_MAIL_MAX_BACKUPS = 5;
+
+/**
+ * Can a person be texted (P3)? `ready`: a confirmed number, not stopped. `stopped`: they replied STOP —
+ * honoured whatever Q-BM11 says, so the admin sees it in red. `unconfirmed` / `none`: no number to text yet.
+ */
+export const BROKER_MAIL_TEXT_STATES = ["ready", "stopped", "unconfirmed", "none"] as const;
+export type BrokerMailTextState = (typeof BROKER_MAIL_TEXT_STATES)[number];
 
 const id = recordId();
 const instant = z.string();
@@ -81,11 +94,20 @@ export const brokerMailListSchema = z.object({
     read: z.boolean(),
     reason: z.enum([...BROKER_MAIL_ROSTER_REASONS, "not_dispatcher", "off"]).nullable(),
   }),
+  /** P3: whether the company's texts are on, whether the caller can be texted, and who backs them up (read-only, Q-BM10). */
+  texts: z.object({
+    on: z.boolean(),
+    me: z.enum(BROKER_MAIL_TEXT_STATES),
+    myBackups: z.array(z.string()),
+  }),
 });
 export type BrokerMailList = z.infer<typeof brokerMailListSchema>;
 
 export const brokerMailSettingsSchema = z.object({
   answerWithinMinutes: z.number().int().min(BROKER_MAIL_ANSWER_MIN).max(BROKER_MAIL_ANSWER_MAX),
+  /** P3: texts on or off. Switching on stores the moment (texts_on_since), so the backlog is never texted. */
+  textsOn: z.boolean(),
+  backupAfterMinutes: z.number().int().min(BROKER_MAIL_BACKUP_MIN).max(BROKER_MAIL_BACKUP_MAX),
 });
 export type BrokerMailSettings = z.infer<typeof brokerMailSettingsSchema>;
 
@@ -93,6 +115,9 @@ export type BrokerMailSettings = z.infer<typeof brokerMailSettingsSchema>;
 export const brokerMailMailboxSchema = z.object({
   /** null: a McLeod login linked to nobody. */
   userId: id.nullable(),
+  /** P3: can this dispatcher be texted, and who backs them up. */
+  textState: z.enum(BROKER_MAIL_TEXT_STATES).nullable(),
+  backups: z.array(z.object({ userId: id, name: z.string() })),
   name: z.string().nullable(),
   email: z.string().nullable(),
   mcleodLogins: z.array(z.string()),
@@ -119,12 +144,18 @@ export const brokerMailAdminSchema = z.object({
     disabledReason: z.string().nullable(),
   }),
   mailboxes: z.array(brokerMailMailboxSchema),
+  /** P3: the office members an admin may choose as a backup (anyone who can open the page once it is on). */
+  members: z.array(z.object({ userId: id, name: z.string() })),
   /** Mailboxes that left the roster but still open — IT has not taken them out of the mail group. */
   stillConnected: z.array(z.object({ mailbox: z.string(), unlinkedAt: instant.nullable(), lastProbeAt: instant.nullable() })),
 });
 export type BrokerMailAdmin = z.infer<typeof brokerMailAdminSchema>;
 
 export const brokerMailLeftOutSchema = z.object({ leftOut: z.boolean() });
+
+/** `PUT /api/broker-mail/mailboxes/:userId/backups` — the whole list for one dispatcher (Q-BM10: admin only). */
+export const brokerMailBackupsSchema = z.object({ backupUserIds: z.array(id).max(BROKER_MAIL_MAX_BACKUPS) });
+export type BrokerMailBackups = z.infer<typeof brokerMailBackupsSchema>;
 export type BrokerMailLeftOut = z.infer<typeof brokerMailLeftOutSchema>;
 
 /** The words the page and the admin list print for a roster reason. One home, both screens. */

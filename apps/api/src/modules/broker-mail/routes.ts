@@ -3,9 +3,11 @@ import { z } from "zod";
 import {
   BROKER_MAIL_ALL_PERMISSION,
   BROKER_MAIL_TABS,
+  brokerMailBackupsSchema,
   brokerMailLeftOutSchema,
   brokerMailSettingsSchema,
   recordId,
+  type BrokerMailBackups,
   type BrokerMailLeftOut,
   type BrokerMailSettings,
 } from "@silvicom/shared";
@@ -16,8 +18,9 @@ import { apiError, asyncHandler, validateBody } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
-import { holdsNamedPermission } from "../org/index.js";
-import { readAnswerWithin, readBrokerMailList } from "./brokerMailList.js";
+import { holdsNamedPermission, listOfficeMembers } from "../org/index.js";
+import { readBrokerMailList, readSettingsRow } from "./brokerMailList.js";
+import { replaceBackups } from "./brokerMailBackups.js";
 import { readBrokerMailAdmin, saveBrokerMailSettings, setLeftOut } from "./brokerMailAdmin.js";
 
 /**
@@ -26,8 +29,9 @@ import { readBrokerMailAdmin, saveBrokerMailSettings, setLeftOut } from "./broke
  *  · `GET /messages` — the Broker mail page: `dispatch: view` and the `dispatch.broker-mail` screen
  *    (which starts off for every role until the measure week is ruled on). WHOSE rows is asked by name,
  *    `dispatch.broker_mail_all`, and never by `dispatch: manage`, which the dispatcher role holds.
- *  · `GET /admin`, `PUT /settings`, `PUT /mailboxes/:userId/left-out` — Settings › Broker mail, an
- *    ADMIN screen (Q-BM9). Each save is on the Audit page with its old and new value.
+ *  · `GET /admin`, `PUT /settings`, `PUT /mailboxes/:userId/left-out`, `PUT /mailboxes/:userId/backups` —
+ *    Settings › Broker mail, an ADMIN screen (Q-BM9; Q-BM10: only an admin chooses backups). Each save
+ *    is on the Audit page with its old and new value.
  */
 
 const listQuery = z.object({
@@ -83,7 +87,8 @@ export function brokerMailRouter(): Router {
       const orgId = req.auth!.orgId!;
       const next = res.locals.body as BrokerMailSettings;
       const admin = adminOf(req);
-      const before = await readAnswerWithin(admin, orgId);
+      const was = await readSettingsRow(admin, orgId);
+      const before = { answerWithinMinutes: was.answerWithinMinutes, textsOn: was.textsOnSince !== null, backupAfterMinutes: was.backupAfterMinutes };
       await saveBrokerMailSettings(admin, orgId, req.auth!.userId, next);
       await writeAudit(admin, {
         orgId,
@@ -91,7 +96,8 @@ export function brokerMailRouter(): Router {
         action: "settings.broker_mail_saved",
         entity: "broker_mail_settings",
         entityId: orgId,
-        meta: { before: { answerWithinMinutes: before }, after: next },
+        // "When were broker-mail texts switched on, and by whom" is answered here and nowhere else.
+        meta: { before, after: next },
       });
       res.json(next);
     }),
@@ -125,6 +131,39 @@ export function brokerMailRouter(): Router {
         meta: { userId: target.data, leftOut },
       });
       res.json({ userId: target.data, leftOut });
+    }),
+  );
+
+  router.put(
+    "/mailboxes/:userId/backups",
+    ...settingsGate,
+    validateBody(brokerMailBackupsSchema),
+    asyncHandler(async (req, res) => {
+      const target = recordId().safeParse(req.params.userId);
+      if (!target.success) {
+        res.status(400).json(apiError("bad_request", "Unknown user."));
+        return;
+      }
+      const orgId = req.auth!.orgId!;
+      const admin = adminOf(req);
+      const { backupUserIds } = res.locals.body as BrokerMailBackups;
+      const next = [...new Set(backupUserIds)];
+      // Every name must be a current office member of THIS company, and nobody is their own backup.
+      const members = new Set((await listOfficeMembers(admin, orgId)).map((m) => m.userId));
+      if (!members.has(target.data) || next.some((u) => u === target.data || !members.has(u))) {
+        res.status(400).json(apiError("bad_request", "A backup must be another current member of this company."));
+        return;
+      }
+      const before = await replaceBackups(admin, orgId, target.data, next, req.auth!.userId);
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "settings.broker_mail_backups_saved",
+        entity: "broker_mail_backups",
+        entityId: target.data,
+        meta: { dispatcherUserId: target.data, before, after: next },
+      });
+      res.json({ userId: target.data, backupUserIds: next });
     }),
   );
 

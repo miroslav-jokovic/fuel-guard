@@ -3,6 +3,7 @@ import {
   markReadRequestSchema,
   registerPushTokenRequestSchema,
   updatePreferencesRequestSchema,
+  isMutable,
 } from "@silvicom/shared";
 import { requireAuth, requireOrg } from "../../../middleware/auth.js";
 import { requireModule } from "../../../middleware/requireModule.js";
@@ -206,6 +207,8 @@ export function notificationsRouter(): Router {
       for (const k of ["muted_categories", "quiet_hours_start", "quiet_hours_end", "timezone"] as const) {
         if (body[k] !== undefined) patch[k] = body[k];
       }
+      // A category nobody may mute is dropped here, not only hidden by a screen (NON_MUTABLE_CATEGORIES; Q-BM11).
+      if (body.muted_categories) patch.muted_categories = body.muted_categories.filter(isMutable);
       const { error } = await admin.from("notification_preferences").upsert(patch, { onConflict: "user_id" });
       if (error) {
         res.status(500).json(apiError("db_error", "Could not save your notification settings"));

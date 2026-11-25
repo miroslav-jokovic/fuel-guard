@@ -260,10 +260,12 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
 };
 
 /**
- * Categories a driver may NOT mute. A load being canceled while they are driving toward it is not a
- * preference — it is something they have to know. Everything else is theirs to switch off.
+ * Categories nobody may mute. A load being canceled while a driver is driving toward it is not a
+ * preference — it is something they have to know. Nor is a broker email unanswered in a dispatcher's
+ * own Outlook (Q-BM11, owner 2026-11-24: mandatory, day and night). Everything else is theirs to
+ * switch off. The preferences save drops these (`routes/notifications.ts`), so no screen can store one.
  */
-export const NON_MUTABLE_CATEGORIES: readonly NotificationCategory[] = ["load_canceled", "system"];
+export const NON_MUTABLE_CATEGORIES: readonly NotificationCategory[] = ["load_canceled", "system", "broker_mail_waiting"];
 
 export function isMutable(category: NotificationCategory): boolean {
   return !NON_MUTABLE_CATEGORIES.includes(category);

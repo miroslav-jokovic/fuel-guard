@@ -3,16 +3,19 @@ import { computed, ref, watch } from "vue";
 import {
   BROKER_MAIL_ANSWER_MAX,
   BROKER_MAIL_ANSWER_MIN,
+  BROKER_MAIL_BACKUP_MAX,
+  BROKER_MAIL_BACKUP_MIN,
   BROKER_MAIL_REASON_LABELS,
   brokerMailSettingsSchema,
   formatDisplayDateTime,
   type BrokerMailMailbox,
 } from "@silvicom/shared";
-import { AppBadge, AppButton, AppCallout, AppCard, AppFormField, AppInput, DataTable, FactList, QueryState, type DataTableColumn, type Fact } from "@silvicom/ui";
+import { AppBadge, AppButton, AppCallout, AppCard, AppFormField, AppInput, AppSwitch, DataTable, FactList, QueryState, type DataTableColumn, type Fact } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import type { BadgeTone } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useBrokerMailAdminQuery, useSaveBrokerMailSettings, useSetLeftOut } from "@/features/brokerMail/useBrokerMail";
+import BrokerMailBackupsDrawer from "@/features/brokerMail/BrokerMailBackupsDrawer.vue";
 
 /**
  * Settings › Broker mail (BROKER-MAIL-READER-PLAN P2; Q-BM9: the admin's alone).
@@ -30,16 +33,28 @@ const leftOut = useSetLeftOut();
 const toast = useToastStore();
 
 const minutes = ref("");
-watch(data, (d) => { if (d) minutes.value = String(d.settings.answerWithinMinutes); }, { immediate: true });
+const backupMinutes = ref("");
+const textsOn = ref(false);
+watch(data, (d) => {
+  if (!d) return;
+  minutes.value = String(d.settings.answerWithinMinutes);
+  backupMinutes.value = String(d.settings.backupAfterMinutes);
+  textsOn.value = d.settings.textsOn;
+}, { immediate: true });
 const minutesErr = ref<string | undefined>();
+const backupErr = ref<string | undefined>();
 
 async function onSave() {
-  const parsed = brokerMailSettingsSchema.safeParse({ answerWithinMinutes: Number(minutes.value) });
+  const parsed = brokerMailSettingsSchema.safeParse({ answerWithinMinutes: Number(minutes.value), backupAfterMinutes: Number(backupMinutes.value), textsOn: textsOn.value });
+  minutesErr.value = undefined;
+  backupErr.value = undefined;
   if (!parsed.success) {
-    minutesErr.value = `A whole number of minutes from ${BROKER_MAIL_ANSWER_MIN} to ${BROKER_MAIL_ANSWER_MAX}.`;
+    for (const i of parsed.error.issues) {
+      if (i.path[0] === "answerWithinMinutes") minutesErr.value = `A whole number of minutes from ${BROKER_MAIL_ANSWER_MIN} to ${BROKER_MAIL_ANSWER_MAX}.`;
+      if (i.path[0] === "backupAfterMinutes") backupErr.value = `A whole number of minutes from ${BROKER_MAIL_BACKUP_MIN} to ${BROKER_MAIL_BACKUP_MAX}.`;
+    }
     return;
   }
-  minutesErr.value = undefined;
   try {
     await save.mutateAsync(parsed.data);
     toast.success("Broker mail settings saved");
@@ -67,6 +82,16 @@ const GATEWAY_WORDS: Record<string, { tone: BadgeTone; text: string }> = {
   unknown: { tone: "warning", text: "Could not check" },
 };
 const gateway = computed(() => data.value?.gateway ?? null);
+const editing = ref<BrokerMailMailbox | null>(null);
+
+/** Q-BM11's limit that cannot be ruled away: a STOP is honoured, so the admin must see who stopped. */
+const stopped = computed(() => (data.value?.mailboxes ?? []).filter((m) => m.reason === null && m.textState === "stopped"));
+const TEXT_WORDS: Record<string, { tone: BadgeTone; text: string }> = {
+  ready: { tone: "success", text: "Ready" },
+  stopped: { tone: "danger", text: "Stopped (STOP)" },
+  unconfirmed: { tone: "warning", text: "Number not confirmed" },
+  none: { tone: "neutral", text: "No number" },
+};
 const readingFacts = computed<Fact[]>(() => {
   const g = gateway.value;
   if (!g) return [];
@@ -94,6 +119,8 @@ const columns: DataTableColumn[] = [
   { key: "email", label: "Sign-in email", card: "meta" },
   { key: "mcleodLogins", label: "McLeod login", card: "meta" },
   { key: "status", label: "Outlook", card: "status" },
+  { key: "texts", label: "Texts", card: "meta" },
+  { key: "backups", label: "Backups", card: "meta" },
   { key: "act", label: "", align: "right" },
 ];
 const rowOf = (r: unknown) => r as BrokerMailMailbox;
@@ -128,14 +155,31 @@ const rowOf = (r: unknown) => r as BrokerMailMailbox;
         </AppCard>
 
         <AppCard as="section" aria-labelledby="bm-answer">
-          <h3 id="bm-answer" class="text-sm font-semibold text-ink">Answer within</h3>
-          <p class="mt-1 text-sm text-ink-muted">A broker email unanswered this long turns red on the Broker mail page.</p>
-          <form class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="onSave">
-            <AppFormField v-slot="{ id }" label="Minutes" :error="minutesErr">
-              <AppInput :id="id" v-model="minutes" inputmode="numeric" class="w-28" :invalid="Boolean(minutesErr)" />
-            </AppFormField>
+          <h3 id="bm-answer" class="text-sm font-semibold text-ink">Texts</h3>
+          <p class="mt-1 text-sm text-ink-muted">
+            A broker email unanswered this long turns red on the Broker mail page and, with texts on, texts the dispatcher whose Outlook it is — day and
+            night. Their backups get a short text a few minutes later if it is still unanswered; at night that waits for working hours.
+          </p>
+          <form class="mt-4 space-y-4" @submit.prevent="onSave">
+            <AppSwitch v-model="textsOn" label="Send broker mail texts" data-test="texts-on" />
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <AppFormField v-slot="{ id }" label="Text the dispatcher after (minutes)" :error="minutesErr">
+                <AppInput :id="id" v-model="minutes" inputmode="numeric" class="w-28" :invalid="Boolean(minutesErr)" />
+              </AppFormField>
+              <AppFormField v-slot="{ id }" label="Then the backups, minutes later" :error="backupErr">
+                <AppInput :id="id" v-model="backupMinutes" inputmode="numeric" class="w-28" :invalid="Boolean(backupErr)" />
+              </AppFormField>
+            </div>
+            <p class="text-xs text-ink-tertiary">
+              Switching texts on never texts about emails that were already waiting. Only people who can open Broker mail are texted, so turn the page on
+              for the dispatcher role on Settings › Permissions first.
+            </p>
             <AppButton variant="primary" type="submit" :disabled="save.isPending.value">{{ save.isPending.value ? "Saving…" : "Save" }}</AppButton>
           </form>
+          <AppCallout v-if="stopped.length" tone="danger" class="mt-4" data-test="stopped">
+            {{ stopped.map((m) => m.name ?? m.email).join(", ") }} replied STOP, so {{ stopped.length === 1 ? "gets" : "get" }} no broker mail texts — not even at night.
+            Texts start again only when {{ stopped.length === 1 ? "that person confirms their number" : "each confirms their number" }} again in My alerts.
+          </AppCallout>
         </AppCard>
 
         <section aria-labelledby="bm-mailboxes" class="space-y-3">
@@ -157,6 +201,15 @@ const rowOf = (r: unknown) => r as BrokerMailMailbox;
               <AppBadge :tone="status(rowOf(row)).tone">{{ status(rowOf(row)).text }}</AppBadge>
               <span v-if="status(rowOf(row)).hint" class="block text-xs text-ink-tertiary">{{ status(rowOf(row)).hint }}</span>
             </template>
+            <template #cell-texts="{ row }">
+              <AppBadge v-if="rowOf(row).textState" :tone="TEXT_WORDS[rowOf(row).textState!]!.tone">{{ TEXT_WORDS[rowOf(row).textState!]!.text }}</AppBadge>
+            </template>
+            <template #cell-backups="{ row }">
+              <span v-if="rowOf(row).backups.length" class="text-ink-secondary">{{ rowOf(row).backups.map((b) => b.name).join(", ") }}</span>
+              <AppButton v-if="rowOf(row).userId && rowOf(row).reason === null" variant="link" class="block" @click="editing = rowOf(row)">
+                {{ rowOf(row).backups.length ? "Change" : "Choose backups" }}
+              </AppButton>
+            </template>
             <template #cell-act="{ row }">
               <AppButton
                 v-if="rowOf(row).userId && (rowOf(row).reason === null || rowOf(row).reason === 'left_out')"
@@ -173,5 +226,6 @@ const rowOf = (r: unknown) => r as BrokerMailMailbox;
         </section>
       </template>
     </QueryState>
+    <BrokerMailBackupsDrawer :mailbox="editing" :members="data?.members ?? []" @close="editing = null" />
   </div>
 </template>
