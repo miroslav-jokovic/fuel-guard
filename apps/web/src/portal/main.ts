@@ -11,7 +11,7 @@ import { allowedSeek, clock, megabytes, pickHeight, type ConnectionHint, type Da
  * A driver taps a text on a truck-stop's edge of coverage. The office app's first load is the router,
  * the query client, the Supabase client and the design system — far past D-TR12's budget. This page is
  * its own Vite entry (`t.html`): plain TypeScript, the design system's colour tokens, the phone's own
- * fonts, and nothing else. `lint:portal-size` holds it under budget.
+ * fonts, and nothing else. `lint:training-page` holds it under budget.
  *
  * The flow is the mockup's: list → film (chapters, resume, no skipping ahead on a first watch) → quiz
  * (the reason after each answer) → result (a fail names the chapters to watch again; a pass opens the

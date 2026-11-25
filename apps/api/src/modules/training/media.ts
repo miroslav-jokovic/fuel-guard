@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { TRAINING_LINK_TOKEN } from "@silvicom/shared";
 
 /**
  * Where a training film's files live and how a page is let at them (0648, D-TR1).
@@ -46,4 +47,4 @@ export function mintLinkToken(): { token: string; hash: string } {
 export const hashLinkToken = (token: string): string => createHash("sha256").update(token).digest("hex");
 
 /** A token as it can appear in a URL: exactly the alphabet and length `mintLinkToken` produces. */
-export const isLinkToken = (s: string): boolean => /^[A-Za-z0-9_-]{24}$/.test(s);
+export const isLinkToken = (s: string): boolean => TRAINING_LINK_TOKEN.test(s);

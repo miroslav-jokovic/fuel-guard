@@ -26,8 +26,12 @@ export class LinkError extends Error {
   }
 }
 
-/** True for a failure that is the network's, not the server's answer. */
-export const isOffline = (e: unknown): boolean => !(e instanceof LinkError);
+/**
+ * True for a failure worth waiting out: no network, or an answer that is not the training server's
+ * verdict — a 5xx (a proxy or a deploy in its restart minute) or a 429 (the link's limiter). Those keep
+ * the work queued. Only a 4xx refusal is final, and only that drops a queued span.
+ */
+export const isOffline = (e: unknown): boolean => !(e instanceof LinkError) || e.status >= 500 || e.status === 429;
 
 export function createApi(token: string, store: Storage = localStorage) {
   const base = `/api/public/training/${token}`;

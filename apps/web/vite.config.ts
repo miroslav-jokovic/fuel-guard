@@ -3,7 +3,7 @@ import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
 import { readFileSync } from "node:fs";
-import { rootBlock } from "./src/portal/rootBlock";
+import { portalTokens } from "./src/portal/rootBlock";
 import { Features } from "lightningcss";
 
 // One id per BUILD: the Railway commit SHA when deployed, else the build instant. It is baked into the
@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
       {
         // The driver's training page takes the design system's COLOUR TOKENS and nothing else: importing
         // tokens.generated.css whole brings Tailwind and every utility the office app uses (115 KB of CSS,
-        // measured 2026-11-25). This hands the page the token file's own `:root` block, read at build time,
+        // measured 2026-11-25). This hands the page the token file's `:root` block and its `--color-*` names (`portalTokens`), read at build time,
         // so the colours are derived from the one source and never restated (SAFETY-VIDEOS D-TR12).
         name: "silvicom-portal-tokens",
         resolveId: (id) => (id === "virtual:portal-tokens.css" ? "\0portal-tokens.css" : null),
@@ -35,7 +35,7 @@ export default defineConfig(({ mode }) => {
           if (id !== "\0portal-tokens.css") return null;
           const file = fileURLToPath(new URL("../../packages/ui/src/tokens.generated.css", import.meta.url));
           this.addWatchFile(file);
-          return rootBlock(readFileSync(file, "utf8"));
+          return portalTokens(readFileSync(file, "utf8"));
         },
       },
       {
