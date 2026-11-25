@@ -485,6 +485,23 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
     3. Set `MAIL_GATEWAY_DEPLOY=on` and merge anything (or re-run `image.yml`).
     4. `setup.sh <env> --live`, then `db-login.sh <env> on`.
 
+- 2026-11-25 — **P2 started** while P0's mailbox proofs wait on Simo (owner's handoff: P2 is not
+  blocked by the Exchange step). P2's plan row says "needs the P1 ruling"; that holds for *showing the
+  page to dispatchers*, not for building it, so the page ships **switched off for every role but
+  admin** (`startsOnFor: []`) and the admin turns it on for the dispatcher role on Settings ›
+  Permissions after the week's go/change/stop ruling. During the week the admin's own view and the
+  mailbox list are what the §8 hand check needs. **P2-a (migration 0649)**:
+  - `mailgw_mailbox_roster(org)`: every active, non-system McLeod dispatcher with a `reason` its
+    mailbox is not read (`not_linked`, `not_member`, `suspended`, `no_email`, `other_domain`,
+    `left_out`; null = read). `mailgw_derived_mailboxes` now returns the roster's null rows, so D-BMR5
+    is written once and the admin's list cannot disagree with the gateway. Same signature and answer.
+  - `broker_mail_settings` holds only `answer_within_minutes` (default 20): the one value that means
+    something before the texts exist, because the page marks a row past it. The text switches and the
+    backup time arrive with P3 as added columns; settings that changed nothing would mislead.
+    The gateway's own switches stay owner-run (`db-login.sh`), and the page only shows them.
+  - `broker_mail_set_left_out(org, user, bool)`: Q-BMR11's admin act, atomic, refusing a non-member.
+    The API writes the audit row.
+
 ## Sources
 
 - Microsoft, RBAC for Applications in Exchange Online — https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac
