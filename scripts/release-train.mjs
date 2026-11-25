@@ -85,7 +85,7 @@ export const AREAS = [
   { id: "dispatch", title: "Dispatch and live map",
     // "broker-mail" + the mail-gateway app: the broker-mail reader (BROKER-MAIL-READER-PLAN.md), a
     // dispatcher feature whose plan sits in dispatch-loads.
-    api: ["loads", "livemap", "samsara", "messaging", "broker-mail"], web: ["dispatch", "livemap", "lumper", "messages", "chat"],
+    api: ["loads", "livemap", "samsara", "messaging", "broker-mail"], web: ["dispatch", "livemap", "lumper", "messages", "chat", "brokerMail"],
     apps: ["mail-gateway"],
     // "messaging" is the office chat plan (OFFICE-CHAT-PLAN.md): it extends the `messaging` api module
     // this area already holds, so its plan folder goes with it.

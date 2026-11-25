@@ -272,6 +272,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
       "Fuel planning → /fuel-planning",
       "Truck stops → /truck-stops",
       "Lumper fees → /lumper-fees",
+      "Broker mail → /broker-mail",
     ],
   },
   {
@@ -365,6 +366,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
       "Fuel planning → /fuel-planning",
       "Truck stops → /truck-stops",
       "Lumper fees → /lumper-fees",
+      "Broker mail → /broker-mail",
     ],
   },
   {
@@ -784,6 +786,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
       "Fuel planning → /fuel-planning",
       "Truck stops → /truck-stops",
       "Lumper fees → /lumper-fees",
+      "Broker mail → /broker-mail",
     ],
   },
   {

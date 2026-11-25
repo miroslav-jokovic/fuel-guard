@@ -50,7 +50,7 @@ const PROBES = [
   "/hazmat/review", "/hazmat/settings/equipment",
   "/vehicles", "/vehicles/v_1",
   "/odometer", "/coverage", "/recall-audit", "/trailers", "/trailers/tr_1", "/reefer-coverage",
-  "/fuel-planning", "/truck-stops", "/lumper-fees", "/idling", "/drug-alcohol", "/training", "/roadside-inspections", "/roadside-inspections/ri_1",
+  "/fuel-planning", "/truck-stops", "/lumper-fees", "/broker-mail", "/idling", "/drug-alcohol", "/training", "/roadside-inspections", "/roadside-inspections/ri_1",
   "/drivers", "/drivers/dr_1", "/drivers/paper-intake",
   "/compliance", "/compliance/dr_1",
   // R7 added `/recruitment/:id`, which makes these (five since E4b) another specificity pair: the two static
@@ -90,6 +90,7 @@ const PROBES = [
   "/transactions", "/rejections",
   "/fuel-cards", "/fuel-cards/fc_1",
   "/settings/card-control",
+  "/settings/broker-mail",
   "/anomalies", "/fuel-events", "/ask", "/reports",
   "/settings", "/settings/users", "/settings/permissions", "/settings/thresholds", "/settings/driver-performance",
   // Q-APX18 (a): the Ads workspace, and the two addresses the ads left behind as redirects (a notification or a

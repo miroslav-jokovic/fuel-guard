@@ -210,6 +210,10 @@ const API_ALLOW = new Set([
   // `organizations`. One function through org's index — the same arrow evidence, maintenance and
   // inspections draw for it — so the board and the Shop's disagreements list cannot cut different days.
   "livemap -> org",
+  // Broker mail (BROKER-MAIL-READER-PLAN P2) asks org two questions through its index only: who may see
+  // every dispatcher's mail (`holdsNamedPermission`, Q-BM9) and what each member is called
+  // (`listOfficeMembers`), so the page and the admin's mailbox list name people the way the Users page does.
+  "broker-mail -> org",
   // The driver's own account closure (P4.2) closes their login by calling the roster module's
   // `disableDriverLogin` through its index — the ban, the push-token revoke and the
   // `app_access_enabled` flag. A second ban path in driver-app would be two implementations of

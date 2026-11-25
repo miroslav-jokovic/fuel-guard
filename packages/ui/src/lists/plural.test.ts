@@ -125,6 +125,8 @@ const EXPECTED: Record<string, string> = {
   declines: "decline",
   dispatchers: "dispatcher",
   drivers: "driver",
+  // Broker mail: one unanswered broker email per row (BROKER-MAIL-READER-PLAN P2).
+  emails: "email",
   entries: "entry",
   // DB-UX 2026-10-10: the Loads page's Exceptions tab keeps the toolbar, so it counts its rows.
   exceptions: "exception",
