@@ -141,6 +141,10 @@ async function doWithdraw() {
         </div>
         <AppCallout v-if="version?.state === 'failed'" tone="danger">{{ version.processError ?? "The video could not be prepared for phones." }} Upload it again, exported as an MP4.</AppCallout>
         <p v-if="version?.state === 'processing'" class="text-sm text-ink-secondary">Making the small, normal and sharp versions for phones, and the picture for the list. This page updates by itself.</p>
+        <!-- A workaround, labelled: no film has captions yet (plan §8.6 step 6; captions_path is never filled), and
+             this player exists only so the office can find where chapters start. The caption track goes in when the
+             preview API returns a captions URL, and this exception comes out with it. -->
+        <!-- eslint-disable-next-line vuejs-accessibility/media-has-caption -->
         <video v-if="preview.data.value" ref="player" :src="preview.data.value.url" :poster="version?.posterUrl ?? undefined" controls preload="metadata" class="w-full rounded-surface bg-surface-inverse" data-test="film-preview" />
         <FileDropzone
           v-if="canManage"

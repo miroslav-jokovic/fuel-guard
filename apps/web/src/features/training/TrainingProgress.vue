@@ -96,7 +96,7 @@ async function copy(link: string) {
     </BaseCard>
 
     <DataWorkspace>
-      <FilterBar v-model:search="search" embedded search-placeholder="Search driver or course…" :count="rows.length" count-label="sent" :active-count="(search.trim() ? 1 : 0) + (show ? 1 : 0)" @clear-all="qs.set({ search: undefined, status: undefined })">
+      <FilterBar v-model:search="search" embedded search-placeholder="Search driver or course…" :count="rows.length" count-label="drivers" :active-count="(search.trim() ? 1 : 0) + (show ? 1 : 0)" @clear-all="qs.set({ search: undefined, status: undefined })">
         <template #filters>
           <FilterSelect v-model="show" label="Status" :options="showOptions" />
         </template>

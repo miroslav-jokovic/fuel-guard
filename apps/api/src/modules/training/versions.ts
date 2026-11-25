@@ -146,7 +146,7 @@ export async function previewVersion(admin: SupabaseClient, orgId: string, versi
   const smallest = [...(v.renditions ?? [])].sort((a, b) => a.height - b.height)[0];
   if (!smallest || !v.duration_ms) return refuse(409, "not_ready", "This video is still being prepared for phones.");
   const url = (await signPaths(admin, [smallest.path], 3600)).get(smallest.path);
-  if (!url) return refuse(503, "not_signed", "The video could not be opened. Try again.");
+  if (!url) return fail("preview not signed", { message: smallest.path });
   return { url, durationMs: v.duration_ms };
 }
 
