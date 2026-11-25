@@ -9,6 +9,7 @@ import {
   HOME_TIME_PERMISSION,
   IDENTITY_NUMBER_IMAGES_PERMISSION,
   LOAD_RATES_PERMISSION,
+  BROKER_MAIL_ALL_PERMISSION,
   NOTES_MANAGE_ALL_PERMISSION,
   callerPermissions,
   effectivePermission,
@@ -122,6 +123,7 @@ describe("closing an application is a named switch", () => {
       [NOTES_MANAGE_ALL_PERMISSION]: false,
       [HOME_TIME_PERMISSION]: false,
       [LOAD_RATES_PERMISSION]: false,
+      [BROKER_MAIL_ALL_PERMISSION]: false,
     });
     expect(callerPermissions("admin", {})).toEqual({
       [IDENTITY_NUMBER_IMAGES_PERMISSION]: true,
@@ -130,6 +132,7 @@ describe("closing an application is a named switch", () => {
       [NOTES_MANAGE_ALL_PERMISSION]: true,
       [HOME_TIME_PERMISSION]: true,
       [LOAD_RATES_PERMISSION]: true,
+      [BROKER_MAIL_ALL_PERMISSION]: true,
     });
     expect(callerPermissions(null, {})).toEqual({
       [IDENTITY_NUMBER_IMAGES_PERMISSION]: false,
@@ -138,6 +141,7 @@ describe("closing an application is a named switch", () => {
       [NOTES_MANAGE_ALL_PERMISSION]: false,
       [HOME_TIME_PERMISSION]: false,
       [LOAD_RATES_PERMISSION]: false,
+      [BROKER_MAIL_ALL_PERMISSION]: false,
     });
   });
 });

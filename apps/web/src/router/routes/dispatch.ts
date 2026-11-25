@@ -32,6 +32,15 @@ export const dispatchRoutes: RouteRecordRaw[] = [
   },
 
   {
+    // The broker emails in the caller's own Outlook that nobody answered (BROKER-MAIL-READER-PLAN P2).
+    // Who sees it is the `dispatch.broker-mail` screen, off for every role until the admin turns it on.
+    path: "/broker-mail",
+    name: "broker-mail",
+    component: () => import("@/pages/BrokerMailPage.vue"),
+    meta: { requiresAuth: true, title: "Broker mail" },
+  },
+
+  {
     path: "/loads",
     name: "loads",
     component: () => import("@/pages/DispatchLoadsPage.vue"),

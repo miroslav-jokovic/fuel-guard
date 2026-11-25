@@ -129,10 +129,8 @@ const WAIVERS = new Map([
   // lead is stored, and the uncontacted sweep retries the numbers it missed.
   // load_charges (0639, LOAD-RATES-PLAN.md R1) left on 2026-11-20 in R2: loads/mirrorLoads.ts writes it from the
   // mirror projection. Pinned for the schema-only R1 only.
-  // BROKER-MAIL-READER-PLAN P2-a (0649) ships schema-only: its API caller uses 0649's NEW functions
-  // (`mailgw_mailbox_roster`, `broker_mail_set_left_out`), and a function's first caller is held behind
-  // its migration by hand (F10), so the table and its writer cannot share a merge.
-  ["broker_mail_settings", "BROKER-MAIL-READER-PLAN P2-b — broker-mail/brokerMailAdmin.ts writes it from Settings › Broker mail (schema-only, 0649; leaves in P2-b's merge)"],
+  // broker_mail_settings (0649, BROKER-MAIL-READER-PLAN P2-a) left on 2026-11-25 in P2-b:
+  // broker-mail/brokerMailAdmin.ts writes it from Settings › Broker mail. Pinned for the schema-only P2-a only.
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

@@ -27,6 +27,14 @@ export const settingsRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiresAdmin: true, title: "Card control", parent: "/settings" },
   },
   {
+    // Whose Outlook is read and why not, who is left out, the answer-by time (BROKER-MAIL-READER-PLAN
+    // P2). The catalogue's ADMIN gate decides it (Q-BM9); the guard reads it from there.
+    path: "/settings/broker-mail",
+    name: "broker-mail-settings",
+    component: () => import("@/pages/BrokerMailSettingsPage.vue"),
+    meta: { requiresAuth: true, title: "Broker mail", parent: "/settings" },
+  },
+  {
     /**
      * No section meta, and that is not an omission (S2). `admin.settings` in the surface catalogue
      * says `settings: view`, and the guard reads it — one home for the fact instead of two.

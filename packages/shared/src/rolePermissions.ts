@@ -88,6 +88,20 @@ export const HOME_TIME_PERMISSION = "roster.home_time";
  */
 export const LOAD_RATES_PERMISSION = "dispatch.load_rates";
 
+/**
+ * Who sees EVERY dispatcher's broker mail on the Broker mail page, not only the emails in their own
+ * Outlook (BROKER-MAIL-READER-PLAN P2; Q-BM9, owner 2026-11-24: "admins only"). A broker email belongs
+ * to the dispatcher whose mailbox received it, and a dispatcher never sees a colleague's — the API
+ * withholds the rows, the screen does not hide them.
+ *
+ * ⚠ A named switch, not the surface `dispatch.broker-mail.all` the plan drew: a surface is a SCREEN with
+ * its own route, and this is a question about which rows one screen is sent — `dispatch.load_rates`'s
+ * shape. And not `dispatch: manage`, which the dispatcher role already holds (auth.ts), so it would hand
+ * every dispatcher every colleague's mail. Per role, like every named permission; Q-BM9's "per person"
+ * would need per-person named grants, which nothing has yet.
+ */
+export const BROKER_MAIL_ALL_PERMISSION = "dispatch.broker_mail_all";
+
 export const EDITABLE_PERMISSIONS = [
   {
     key: IDENTITY_NUMBER_IMAGES_PERMISSION,
@@ -135,6 +149,14 @@ export const EDITABLE_PERMISSIONS = [
     description:
       "See what each load pays — total, linehaul, other charges and rate per mile — on Loads, the Dispatch board and a load's page. Without it those figures are not sent to this person at all.",
     // Owner, 2026-11-19 (D-RATE6): admin only to start — the admin holds every permission.
+    shippedRoles: [],
+  },
+  {
+    key: BROKER_MAIL_ALL_PERMISSION,
+    label: "See every dispatcher's broker mail",
+    description:
+      "On Broker mail, see the broker emails in every dispatcher's Outlook, not only your own. Without it a person sees only the emails their own mailbox received.",
+    // Owner, Q-BM9 (2026-11-24): admins only — the admin holds every permission.
     shippedRoles: [],
   },
 ] as const satisfies readonly EditablePermission[];
