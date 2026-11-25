@@ -354,7 +354,52 @@ ok("a period that ends before it starts is refused, not silently emptied",
 ok("a half-stated period closes nothing — fail closed, as when no kinds are given",
   Number((await syncPeriod([], { from: "2026-08-01", to: null })).closed) === 0);
 
+// ── 8. 0657: closing NAMED findings, with the reason (the invoice check carries forward) ────────────
+// A fill billed a week late, a bill line whose fill we recorded late, and what a re-check of the same
+// invoice no longer produces outside its new period — none of these is inside the period a run reads, so
+// `sync_fuel_exceptions` cannot close them. The API names them; this closes them, and only them.
+await sync([
+  finding("cf-late", { kind: "recon_missing_on_report", amountKind: "unbilled", occurredOn: "2026-07-01" }),
+  finding("cf-disputed", { kind: "recon_missing_on_report", amountKind: "unbilled", occurredOn: "2026-07-01" }),
+  finding("cf-keep", { kind: "recon_missing_on_report", amountKind: "unbilled", occurredOn: "2026-07-01" }),
+], { from: "2026-07-01", to: "2026-07-01" });
+await db.query(`update fuel_exceptions set status='disputed' where org_id=$1 and fingerprint='cf-disputed'`, [ORG]);
+await db.query(`insert into fuel_exceptions (org_id, kind, amount_kind, fingerprint, status)
+                values ($1,'contract_variance','overbilled','cf-contract','open')`, [ORG]);
+const closeRun = await newRun("2026-07-06", "2026-07-12");
+const closed = await one(`select close_fuel_exceptions($1,$2,$3,$4,$5,$6) n`,
+  [ORG, ["cf-late", "cf-disputed", "cf-contract", "cf-nowhere"], RECON_KINDS, "Billed on invoice INV-59660.", USER, closeRun]);
+ok("0657 closes the named open finding, and reports how many it closed", Number(closed.n) === 1, JSON.stringify(closed));
+ok("and leaves a finding nobody named open",
+  (await one(`select status from fuel_exceptions where org_id=$1 and fingerprint='cf-keep'`, [ORG])).status === "open");
+ok("never moves a person's decision — a disputed finding stays disputed (D-FX10)",
+  (await one(`select status from fuel_exceptions where org_id=$1 and fingerprint='cf-disputed'`, [ORG])).status === "disputed");
+ok("never closes a kind the caller is not authoritative for",
+  (await one(`select status from fuel_exceptions where org_id=$1 and fingerprint='cf-contract'`, [ORG])).status === "open");
+const closeEvent = await one(`select ev.kind, ev.to_status, ev.note, ev.actor_id from fuel_exception_events ev
+  join fuel_exceptions e on e.id = ev.exception_id where e.fingerprint='cf-late' and ev.kind='closed_by_reingest'`);
+ok("the close is an event carrying the reason, so the history says WHY it closed",
+  closeEvent?.note === "Billed on invoice INV-59660." && closeEvent?.to_status === "resolved_by_reingest" && closeEvent?.actor_id === USER, JSON.stringify(closeEvent));
+ok("and is audited, with the run it came from",
+  (await one(`select meta->>'run' r, meta->>'closed' c from audit_logs where action='fuel.exceptions_closed' and org_id=$1`, [ORG]))?.c === "1");
+const reopened = await sync([finding("cf-late", { kind: "recon_missing_on_report", amountKind: "unbilled", occurredOn: "2026-07-01" })],
+  { from: "2026-07-01", to: "2026-07-01" });
+ok("a closed finding reopens on its own if a later run produces it again (0320)",
+  (await one(`select status from fuel_exceptions where org_id=$1 and fingerprint='cf-late'`, [ORG])).status === "open", JSON.stringify(reopened));
+await db.query(`insert into fuel_exceptions (org_id, kind, amount_kind, fingerprint) values ($1,'recon_amount','overbilled','cf-late')`, [OTHER]);
+await one(`select close_fuel_exceptions($1,$2,$3,$4,$5) n`, [ORG, ["cf-late"], RECON_KINDS, "Billed later.", USER]);
+ok("is scoped to the org it is called for — another carrier's same fingerprint is untouched",
+  (await one(`select status from fuel_exceptions where org_id=$1 and fingerprint='cf-late'`, [OTHER])).status === "open");
+ok("refuses a close with no reason", (await sqlstate(`select close_fuel_exceptions($1,$2,$3,'  ')`, [ORG, ["cf-keep"], RECON_KINDS])) === "FE014");
+ok("refuses a close with no kinds", (await sqlstate(`select close_fuel_exceptions($1,$2,null,'x')`, [ORG, ["cf-keep"]])) === "FE013");
+ok("an empty list closes nothing and is not an error",
+  Number((await one(`select close_fuel_exceptions($1,'{}'::text[],$2,'x') n`, [ORG, RECON_KINDS])).n) === 0);
+const fromBrowser = await asClient(ORG, "admin", `select close_fuel_exceptions($1,$2,$3,'x')`, [ORG, ["cf-keep"], RECON_KINDS]);
+ok("and a browser cannot call it — it is the service role's", fromBrowser.error === "42501", JSON.stringify(fromBrowser));
+
+
 await db.close();
+
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
