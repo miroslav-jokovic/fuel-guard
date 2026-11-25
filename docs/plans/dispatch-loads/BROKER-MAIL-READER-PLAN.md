@@ -501,6 +501,30 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
     The gateway's own switches stay owner-run (`db-login.sh`), and the page only shows them.
   - `broker_mail_set_left_out(org, user, bool)`: Q-BMR11's admin act, atomic, refusing a non-member.
     The API writes the audit row.
+- 2026-11-25 — **P2-b built: the Broker mail page and Settings › Broker mail.** Choices made at build:
+  - **"See every dispatcher's" is a named permission, `dispatch.broker_mail_all`, not the surface
+    `dispatch.broker-mail.all` this plan drew.** A surface is a screen with its own route; this is a
+    question about which rows one screen is sent, which is the shape of `dispatch.load_rates`. It ships
+    to nobody but the admin (Q-BM9), and an admin switches it on per role on Settings › Permissions.
+    The limit: named permissions are per role. Q-BM9's "per person override" would need per-person
+    named grants, which nothing in 360 has yet. If the owner wants one person and not their role, that
+    is new work for the permissions page; it is not routed around.
+  - **The page (`/broker-mail`, `dispatch.broker-mail`) starts off for every role** (`startsOnFor: []`).
+    It turns on through the existing screen switch, after the measure week's ruling. The API
+    filters every query on `org_id` and `owner_user_id`, and `routes.test.ts` asserts both. Removing
+    the owner filter turns two tests red (checked). Its queues: **Waiting** (unanswered, one load
+    matched, last 7 days), **Needs a load** (unanswered, a broker candidate, no load or several), and
+    **Answered** (last 24 h). A non-candidate external email is counted by the week and never queued.
+    The wait badge is neutral, then amber in the last 5 minutes, then red at the answer-by time. The
+    list refreshes every minute.
+  - **Settings › Broker mail (`admin.settings.broker-mail`, ADMIN)** shows the gateway's state, never
+    a switch for it. It has the answer-by time, and the mailbox list, which is the roster with Graph's
+    last word on each mailbox ("Read", "Not connected — ask IT", "Not linked — link on McLeod fleets"),
+    plus "Leave out" / "Read again" (Q-BMR11, audited). Mailboxes that left the roster but still open
+    are listed for IT to remove (D-BMR14).
+  - Not in P2: the email panel with the load's facts and the draft (P4), "Not for us" / "Handled by
+    phone" (they need a write the gateway's proof would contradict; ruled with the texts in P3), and
+    the Dispatch board's envelope badge (P3, when the texts make "waiting" actionable).
 
 ## Sources
 

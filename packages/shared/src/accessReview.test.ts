@@ -12,7 +12,8 @@ import {
 import type { AccessReviewMember, AccessReviewState } from "./accessReviewContract.js";
 import { accessReviewStateSchema } from "./accessReviewContract.js";
 import { APP_SECTIONS, EDITABLE_ROLES, EDITABLE_SECTIONS, sectionAccess } from "./auth.js";
-import { GRANTABLE_SURFACES, SURFACES } from "./surfaceCatalogue.js";
+import { SURFACES } from "./surfaceCatalogue.js";
+import { GRANTABLE_SURFACES } from "./surfaceLookups.js";
 import { ADMIN_ONLY_SURFACES } from "./surfaceLookups.js";
 import type { Surface } from "./surfaces.js";
 import { USER_ROLE_LABELS } from "./constants.js";

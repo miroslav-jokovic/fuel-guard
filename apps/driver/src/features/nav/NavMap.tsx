@@ -3,11 +3,11 @@ import { Map, Camera, GeoJSONSource, Layer, Marker } from '@maplibre/maplibre-re
 import type { Feature, LineString } from 'geojson';
 import { useTheme } from '@/theme/ThemeProvider';
 import { roleColors } from '@/theme/colors';
-import { mapStyleUrl } from '@/lib/env';
+import { basemapFor } from '@/lib/basemap';
 
 /**
  * NP0 map spike (NAVIGATION-PROGRAMME-PLAN §NP0). Proves MapLibre renders on this Expo SDK 57 /
- * RN 0.86 / new-arch stack with a free, no-account vector basemap (env.mapStyleUrl — swappable per
+ * RN 0.86 / new-arch stack with a free, no-account vector basemap (our bundled style, `basemapFor`; a hosted one per
  * NAV N4) and draws a hardcoded HERE-style route polyline + origin/destination markers, theme-aware.
  * NP1 replaces the hardcoded route with the live server route for the driver's accepted load.
  * MapLibre needs no access token (open tiles). Fixed height so it sits inside the scrolling Screen;
@@ -42,7 +42,7 @@ export function NavMap() {
     <View className="overflow-hidden rounded-xl border border-edge" style={{ height: 280 }}>
       <Map
         style={{ flex: 1 }}
-        mapStyle={mapStyleUrl(isDark)}
+        mapStyle={basemapFor(isDark)}
         logo={false}
         compass={false}
         attribution

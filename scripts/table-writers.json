@@ -111,6 +111,9 @@
     "apps/admin-api/src/lib/impersonation.ts",
     "apps/api/src/lib/audit.ts"
   ],
+  "broker_mail_settings": [
+    "apps/api/src/modules/broker-mail/brokerMailAdmin.ts"
+  ],
   "card_fraud_incidents": [
     "apps/api/src/modules/anomalies/assignAnomalies.ts",
     "apps/api/src/modules/anomalies/transitionCardFraudIncident.ts"

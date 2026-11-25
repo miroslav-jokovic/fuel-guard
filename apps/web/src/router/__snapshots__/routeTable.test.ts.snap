@@ -226,6 +226,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/lumper-fees",
   },
   {
+    "name": "broker-mail",
+    "params": {},
+    "url": "/broker-mail",
+  },
+  {
     "name": "idling",
     "params": {},
     "url": "/idling",
@@ -557,6 +562,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "name": "card-control-settings",
     "params": {},
     "url": "/settings/card-control",
+  },
+  {
+    "name": "broker-mail-settings",
+    "params": {},
+    "url": "/settings/broker-mail",
   },
   {
     "name": "anomalies",
@@ -911,6 +921,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "billing",
     "path": "/billing",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Broker mail",
+    },
+    "name": "broker-mail",
+    "path": "/broker-mail",
     "redirect": null,
   },
   {
@@ -1550,6 +1569,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "audit",
     "path": "/settings/audit",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "title": "Broker mail",
+    },
+    "name": "broker-mail-settings",
+    "path": "/settings/broker-mail",
     "redirect": null,
   },
   {

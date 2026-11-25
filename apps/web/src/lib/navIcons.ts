@@ -1,6 +1,7 @@
 import {
   AdsIcon,
   ArchiveBoxIcon,
+  AtIcon,
   BeakerIcon,
   MicroscopeIcon,
   CurrencyDollarIcon,
@@ -83,6 +84,7 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   "dispatch.fuel-planning": MapIcon,
   "dispatch.truck-stops": TruckStopIcon,
   "dispatch.lumper-cases": ArchiveBoxIcon, // freight coming off the trailer; no other item uses the box
+  "dispatch.broker-mail": AtIcon, // an email address: the broker mail in a dispatcher's Outlook; no other item uses the @
 
   "safety.alerts": ExclamationTriangleIcon,
   "safety.driver-performance": TrophyIcon,

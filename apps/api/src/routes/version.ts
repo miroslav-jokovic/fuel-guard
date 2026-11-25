@@ -3,6 +3,7 @@ import { APP_NAME } from "@silvicom/shared";
 import { asyncHandler } from "../lib/http.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { getBuildInfo } from "../lib/buildInfo.js";
+import { deployEnvironmentName } from "../lib/deployEnvironment.js";
 import { getSchemaStatus } from "../lib/schemaVersion.js";
 import { getMaintenanceHealth, maintenanceHealthy } from "../lib/maintenanceHealth.js";
 import { getReleaseVersion } from "../lib/releaseVersion.js";
@@ -82,7 +83,12 @@ export function versionRouter(): Router {
       res.setHeader("Cache-Control", "no-store");
       res.json({
         service: `${APP_NAME} API`,
+        // `env` is NODE_ENV and says "production" on staging too (lib/deployEnvironment.ts). Kept,
+        // because verify:live and old driver builds print it; `environment` is the deployment's own
+        // name ("production", "uat", "staging"), or null on a laptop. The driver app's build card
+        // showed "production" against staging on the first device pass, 2026-11-25.
         env: env.NODE_ENV,
+        environment: deployEnvironmentName(),
         // The release tag (D-REL10), or null off production and in the minutes before release.yml
         // tags what it shipped. Callers show `commitShort` when it is null.
         version,

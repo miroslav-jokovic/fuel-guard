@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { USER_ROLES } from "./constants.js";
 import { callerCanView, type SectionClaim } from "./auth.js";
 import { surfaceAllowed, surfaceGateAllows, surfaceStartsOn } from "./surfaces.js";
-import { GRANTABLE_SURFACES, NAV_SURFACES, SURFACES } from "./surfaceCatalogue.js";
+import { SURFACES } from "./surfaceCatalogue.js";
+import { GRANTABLE_SURFACES, NAV_SURFACES } from "./surfaceLookups.js";
 import { ADMIN_ONLY_SURFACES } from "./surfaceLookups.js";
 import { directoryScreens } from "./surfaceLookups.js";
 
@@ -22,8 +23,8 @@ const SETTINGS = surface("admin.settings");
 const OFFICE_ROLES = USER_ROLES.filter((r) => r !== "driver");
 
 describe("by default only the admin sees Settings (Q-SET2 as revised)", () => {
-  it("links the directory to all twenty-five screens, so this block is not vacuous", () => {
-    expect(directoryScreens("admin.settings")).toHaveLength(25);
+  it("links the directory to all twenty-six screens, so this block is not vacuous", () => {
+    expect(directoryScreens("admin.settings")).toHaveLength(26);
   });
 
   /**
@@ -124,10 +125,11 @@ describe("a section can open the door, but only an admin's answer walks a role t
 
 describe("the catalogue says what the rulings said", () => {
   // Q-SET1's four, FleetPal's connection (2026-10-04), and Med-Stop's (2026-10-13) — each vendor key
-  // that speaks for the carrier is `ADMIN`, for its reason in namedGrants.ts.
-  it("keeps exactly Q-SET1's four screens and the two vendor-key screens admin-only", () => {
+  // that speaks for the carrier is `ADMIN`, for its reason in namedGrants.ts. Broker mail (Q-BM9,
+  // 2026-11-24): the admin alone decides whose Outlook is read.
+  it("keeps exactly Q-SET1's four screens, the two vendor-key screens and Broker mail admin-only", () => {
     expect(ADMIN_ONLY_SURFACES.map((s) => s.key).sort()).toEqual(
-      ["admin.settings.card-control", "admin.settings.efs", "admin.settings.fleetpal", "admin.settings.medstop", "admin.settings.permissions", "admin.users"],
+      ["admin.settings.broker-mail", "admin.settings.card-control", "admin.settings.efs", "admin.settings.fleetpal", "admin.settings.medstop", "admin.settings.permissions", "admin.users"],
     );
   });
 

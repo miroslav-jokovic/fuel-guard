@@ -5,6 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * code 26: file is not a database` aborted every sync). Verifies db.ts recovers from a NOTADB file
  * by dropping and recreating it, instead of dying on every open.
  *
+ * Recovery happens at OPEN only. The 2026-07-28 error itself was never a stale file: claimNext() ran
+ * on an unkeyed second connection (CLAIM_NEXT_SQL in src/data/outbox.ts). The second safety net that
+ * deleted an already-open, verified file on a later NOTADB is gone, and
+ * apps/driver/tests/outbox-claim.test.ts pins that nothing but open() can delete the outbox.
+ *
  * The native modules db.ts imports are mocked so this runs in the node test env with no device. The
  * fake SQLite handle lets each test decide whether the verification read (`sqlite_master`) throws.
  */
@@ -31,7 +36,7 @@ vi.mock('expo-crypto', () => ({
   randomUUID: () => '00000000-0000-0000-0000-000000000000',
 }));
 
-import { getDb, isNotADbError, recoverCorruptDb, resetDbHandle } from '@/data/db';
+import { getDb, isNotADbError, resetDbHandle } from '@/data/db';
 
 const NOTADB = () => new Error('Error code 26: file is not a database (at SQLiteModule.swift:382)');
 
@@ -92,23 +97,6 @@ describe('getDb NOTADB recovery', () => {
     expect(h.deleteDatabaseAsync).toHaveBeenCalledTimes(1); // dropped exactly once
     expect(bad.closeAsync).toHaveBeenCalledTimes(1); // the half-open bad handle was closed first
     expect(call).toBe(2); // opened twice: fail, then recreate
-  });
-
-  it('repairs an already-open handle when native validation is deferred until a later statement', async () => {
-    const old = fakeDb();
-    const good = fakeDb();
-    let call = 0;
-    h.openImpl.current = () => {
-      call += 1;
-      return Promise.resolve(call === 1 ? old.handle : good.handle);
-    };
-
-    await getDb();
-    await recoverCorruptDb();
-
-    expect(h.deleteDatabaseAsync).toHaveBeenCalledTimes(1);
-    expect(old.closeAsync).toHaveBeenCalledTimes(1);
-    expect(call).toBe(2);
   });
 
   it('does NOT delete the DB for a non-NOTADB error (a transient lock must not lose the queue)', async () => {

@@ -52,7 +52,7 @@ const PATHS = SETTINGS_CARDS.map((c) => SURFACES.find((s) => s.key === c.key)!.p
 describe("the directory's cards come from the catalogue", () => {
   it("shows the admin every card, in the directory's order", () => {
     expect(cards("admin")).toEqual(PATHS);
-    expect(PATHS).toHaveLength(26);
+    expect(PATHS).toHaveLength(27);
   });
 
   /**
