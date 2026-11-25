@@ -46,7 +46,8 @@ async function assertEncrypted(db: SQLite.SQLiteDatabase): Promise<void> {
   }
 }
 
-const SCHEMA = `
+/** Exported so apps/driver/tests/outbox-claim.test.ts builds the same table in real SQLite. */
+export const SCHEMA = `
   create table if not exists outbox (
     id              text primary key not null,
     kind            text not null,
@@ -75,10 +76,12 @@ export function isNotADbError(e: unknown): boolean {
 
 /**
  * Open the DB with `key`, then FORCE key verification by reading the schema catalog: SQLCipher only
- * decrypts page 1 on the first real read, so a wrong-key or plaintext file throws NOTADB here — inside
- * open(), where we can recover — instead of later inside `claimNext()`'s prepareAsync, where it just
- * aborts every sync drain with no path to recover. On any failure the half-open handle is closed so
- * the file can be deleted and reopened cleanly.
+ * decrypts page 1 on the first real read, so a wrong-key or plaintext file throws NOTADB here, inside
+ * open(), the ONE place where a NOTADB proves the file is stale. After this read succeeds the file is
+ * readable with our key by definition, so a NOTADB from any later statement is a bug in how the
+ * statement reached the file (an unkeyed connection — see CLAIM_NEXT_SQL in outbox.ts), never a
+ * reason to delete it. On any failure here the half-open handle is closed so the file can be deleted
+ * and reopened cleanly.
  */
 async function openOnce(key: string): Promise<SQLite.SQLiteDatabase> {
   const db = await SQLite.openDatabaseAsync(DB_NAME);
@@ -142,22 +145,4 @@ export function getDb(): Promise<SQLite.SQLiteDatabase> {
 /** Test/sign-out helper: drop the handle so the next call re-opens. */
 export function resetDbHandle(): void {
   dbPromise = null;
-}
-
-/**
- * Recover an already-open handle that surfaced SQLITE_NOTADB during a later statement. This is the
- * second safety net for older dev clients: some native SQLite builds defer page/key validation until
- * `prepareAsync`, after the initial catalog read. Recovery is explicit and bounded, never a retry loop.
- */
-export async function recoverCorruptDb(): Promise<void> {
-  const current = dbPromise;
-  dbPromise = null;
-  const handle = await current?.catch(() => null);
-  await handle?.closeAsync().catch(() => {
-    /* best effort; deleteDatabaseAsync remains the source of truth */
-  });
-  await SQLite.deleteDatabaseAsync(DB_NAME).catch(() => {
-    /* the file may already be gone */
-  });
-  await getDb();
 }
