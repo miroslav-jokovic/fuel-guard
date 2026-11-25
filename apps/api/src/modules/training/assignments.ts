@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  segmentsOf,
   coveredMs,
   TRAINING_LINK_DAYS,
   trainingLinkPath,
@@ -13,7 +14,7 @@ import type { Env } from "../../env.js";
 import { sendEmail } from "../../lib/mailer.js";
 import { mintLinkToken } from "./media.js";
 import { refuse, type TrainingRefusal } from "./refusal.js";
-import { ASSIGNMENT_COLS, standings, type AssignmentRow } from "./standing.js";
+import { ASSIGNMENT_COLS, standings, type AssignmentRow, type AttemptRow, type FilmStanding } from "./standing.js";
 
 /**
  * Sending films to drivers, and the office's view of how they are doing (D-TR3, D-TR11).
@@ -217,20 +218,53 @@ export async function progressRows(admin: SupabaseClient, orgId: string): Promis
       revokedAt: a.revoked_at,
       lessons: films.map((f) => {
         const submitted = f.attempts.filter((x) => x.submitted_at);
-        const best = submitted.reduce<{ correct: number; total: number } | null>(
-          (b, x) => (!b || (x.correct ?? 0) > b.correct ? { correct: x.correct ?? 0, total: x.served.length } : b),
-          null,
-        );
         return {
           lessonId: f.lessonId,
           title: f.title,
           status: f.status,
           watchedMs: coveredMs(f.progress?.watched ?? [], 0, f.version.duration_ms),
           durationMs: f.version.duration_ms,
-          best,
+          ...stopScores(f, submitted),
           attempts: submitted.length,
         };
       }),
     };
   });
+}
+
+/** An answer this soon after the one before it (or after the stop opened) is a tap-through (§3.1). */
+export const FAST_ANSWER_MS = 2000;
+
+/**
+ * The office's view of one film's stops (D-TR16): right on the first try out of every stop's questions,
+ * tries per stop in stop order, and answers that came too fast to have been read. A stop's attempts are
+ * told apart by the chapter of the questions they served.
+ */
+export function stopScores(f: FilmStanding, submitted: readonly AttemptRow[]): { firstTry: { correct: number; total: number } | null; tries: number[]; fast: number } {
+  const chapterOf = new Map(f.bank.map((q) => [q.id, q.chapter]));
+  const answerOf = new Map(f.bank.map((q) => [q.id, q.answer]));
+  const stops = segmentsOf(f.version.chapters ?? [], f.version.duration_ms, f.bank).map((s) => s.chapter);
+  const byStop = new Map<number, AttemptRow[]>();
+  for (const x of submitted) {
+    const c = chapterOf.get(x.served[0]?.questionId ?? "");
+    if (c !== undefined) byStop.set(c, [...(byStop.get(c) ?? []), x]);
+  }
+  let correct = 0;
+  let total = 0;
+  for (const c of stops) {
+    const first = byStop.get(c)?.[0];
+    if (!first) continue;
+    total += first.served.length;
+    correct += first.served.filter((s) => first.answers?.[s.questionId] === answerOf.get(s.questionId)).length;
+  }
+  let fast = 0;
+  for (const x of submitted) {
+    const times = x.served.map((s) => x.answered_at?.[s.questionId]).filter((t): t is string => !!t).map((t) => Date.parse(t)).sort((a, b) => a - b);
+    let prev = Date.parse(x.started_at);
+    for (const t of times) {
+      if (t - prev < FAST_ANSWER_MS) fast++;
+      prev = t;
+    }
+  }
+  return { firstTry: total ? { correct, total } : null, tries: stops.map((c) => byStop.get(c)?.length ?? 0), fast };
 }

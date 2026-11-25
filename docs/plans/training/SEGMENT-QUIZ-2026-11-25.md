@@ -88,7 +88,7 @@ take longer than a 37–92 s segment itself.
 2. The segment replays under the same rules. A question screen also has **"Watch this part
    again"**, which a driver may use before answering; it does not count as a miss.
 3. **The retry asks the other version of each missed point.** Each point has two versions
-   (`training_questions.point`, 0650). A third try goes back to the first version, with the answers
+   (`training_questions.point`, 0650). Each try asks the point's version asked least so far (a tie at random), with the answers
    in a new order.
 4. **No lockout.** The office sees "3 tries on stop 2" and can talk to that driver.
 
@@ -130,7 +130,11 @@ tries per stop; fast-answer flags.
 **Merge 1, this one:** migration **0650** and this document.
 - `training_questions.point` (0–9, default 0): which point of its segment a question tests.
 - `training_attempts.answered_at`: when each answer arrived. It is frozen with the quiz at submit.
-- New versions default to `serve_count` 3 / `pass_count` 3, now meaning **per segment**.
+- New versions default to `serve_count` 3 / `pass_count` 3. ⚠ **The code does not read either
+  column.** The rule is fixed in code (`SEGMENT_POINTS`, all right to pass), because the owner ruled
+  one rule for every film. A version made before the ruling stores 5/4, and the office page has no
+  field to change it, so reading the columns would leave that film unpublishable. The defaults only
+  keep a new row accurate.
 
 **Merge 2:** the code.
 
@@ -139,7 +143,7 @@ tries per stop; fast-answer flags.
 | `packages/shared` | `filmState` per segment: the next stop's questions open once that segment is watched and every earlier one is passed. After a miss, the stop reopens once the segment is watched again. A film is passed when every segment with questions is passed. The draw picks one version per point, preferring a version not yet served. `publishBlockers` names the segment that is short: every segment with questions needs `serve_count` points, each point needs two versions, `pass_count` equals `serve_count` (D-TR14), and at least one segment needs questions. |
 | API (portal) | `POST …/quiz` serves the current stop, and nothing else. A wrong answer's feedback carries no answer and no reason. `answered_at` is written with each answer. |
 | Driver's page | It pauses at each stop and shows the questions. It pauses when hidden or muted. "Watch this part again". The rewatch seeks to the segment start. The 100 KB size gate still holds. |
-| Office page | The question form gets **Point 1–3**. Questions are listed by segment and point. The Videos table shows "3 · 3 · 3". Progress shows first-try score, tries and fast flags. |
+| Office page | The question form gets **Point 1–3**. Questions are listed by segment and point. The Videos table shows questions per stop ("6 · 6 · 6"). Progress shows first-try score, tries and fast flags. |
 
 ## 5. The question bank: 84 questions
 
@@ -499,3 +503,7 @@ spoken. ⚠ **A safety person checks every question against the film before rele
 - 2026-11-25: owner, "proceed as suggested and recommended": D-TR13–D-TR17 ruled. Migration 0650
   (`point`, `answered_at`, 3/3 defaults) and the 84-question bank written. The code follows in its
   own merge, because a new column and its first reader may not ship together.
+- 2026-11-25: the code (merge 2). The rule is in code, not in `serve_count`/`pass_count` (§4). The
+  driver's page pauses at each stop, when hidden and when muted, and undoes a skip ahead. A browser
+  spec proves each one against a committed 8-second WebM, because Chromium in CI cannot play the
+  films' H.264.

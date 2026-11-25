@@ -46,12 +46,14 @@ export async function listCatalogue(admin: SupabaseClient, orgId: string): Promi
     admin.from("training_courses").select("id, title, description, position, retired_at").eq("org_id", orgId).order("position").order("created_at"),
     admin.from("training_lessons").select("id, course_id, title, position, retired_at").eq("org_id", orgId).order("position").order("created_at"),
     admin.from("training_versions").select(VERSION_COLS).eq("org_id", orgId).order("version_no", { ascending: false }),
-    admin.from("training_questions").select("version_id").eq("org_id", orgId),
+    admin.from("training_questions").select("version_id, chapter, point").eq("org_id", orgId),
   ]);
   for (const [r, what] of [[c, "courses"], [l, "films"], [v, "versions"], [q, "questions"]] as const) if (r.error) fail(`${what} not read`, r.error);
   const versions = (v.data ?? []) as VersionRow[];
-  const counts = new Map<string, number>();
-  for (const r of (q.data ?? []) as Array<{ version_id: string }>) counts.set(r.version_id, (counts.get(r.version_id) ?? 0) + 1);
+  const placed = new Map<string, Array<{ chapter: number; point: number }>>();
+  for (const r of (q.data ?? []) as Array<{ version_id: string; chapter: number; point: number }>) {
+    placed.set(r.version_id, [...(placed.get(r.version_id) ?? []), { chapter: r.chapter, point: r.point }]);
+  }
   const posters = await signPaths(admin, versions.map((x) => x.poster_path).filter((p): p is string => !!p), 3600);
   const lessons = (l.data ?? []) as LessonRow[];
   return ((c.data ?? []) as CourseRow[]).map((course) => ({
@@ -67,12 +69,12 @@ export async function listCatalogue(admin: SupabaseClient, orgId: string): Promi
         title: lesson.title,
         position: lesson.position,
         retiredAt: lesson.retired_at,
-        versions: versions.filter((x) => x.lesson_id === lesson.id).map((x) => versionSummary(x, counts.get(x.id) ?? 0, posters)),
+        versions: versions.filter((x) => x.lesson_id === lesson.id).map((x) => versionSummary(x, placed.get(x.id) ?? [], posters)),
       })),
   }));
 }
 
-export function versionSummary(v: VersionRow, questionCount: number, posters: Map<string, string>): TrainingVersionSummary {
+export function versionSummary(v: VersionRow, questions: Array<{ chapter: number; point: number }>, posters: Map<string, string>): TrainingVersionSummary {
   return {
     id: v.id,
     versionNo: v.version_no,
@@ -82,7 +84,8 @@ export function versionSummary(v: VersionRow, questionCount: number, posters: Ma
     chapters: v.chapters ?? [],
     serveCount: v.serve_count,
     passCount: v.pass_count,
-    questionCount,
+    questionCount: questions.length,
+    questions,
     processError: v.process_error,
     posterUrl: v.poster_path ? (posters.get(v.poster_path) ?? null) : null,
     publishedAt: v.published_at,

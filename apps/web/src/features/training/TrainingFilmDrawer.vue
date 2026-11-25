@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { publishBlockers, type TrainingChapter, type TrainingLessonSummary, type TrainingQuestionView } from "@silvicom/shared";
+import { POINT_VERSIONS, publishBlockers, SEGMENT_POINTS, type TrainingChapter, type TrainingLessonSummary, type TrainingQuestionView } from "@silvicom/shared";
 import { AppBadge, AppButton, AppCallout, AppInput, useConfirm } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
@@ -95,6 +95,16 @@ async function remove(q: TrainingQuestionView) {
 
 // ── publish ────────────────────────────────────────────────────────────────────────────────────
 const blockers = computed(() => (version.value ? publishBlockers(version.value) : []));
+/** The bank, by segment then point: what the office writes against (SEGMENT-QUIZ §5). */
+const bySegment = computed(() => {
+  const qs = questions.data.value ?? [];
+  const chapters = [...new Set(qs.map((q) => q.chapter))].sort((a, b) => a - b);
+  return chapters.map((c) => ({
+    chapter: c,
+    title: chapterTitle(c),
+    points: [...new Set(qs.filter((q) => q.chapter === c).map((q) => q.point))].sort((a, b) => a - b).map((p) => ({ point: p, questions: qs.filter((q) => q.chapter === c && q.point === p) })),
+  }));
+});
 const live = computed(() => props.film?.versions.find((v) => v.state === "published") ?? null);
 const publish = usePublishVersion();
 const withdraw = useWithdrawVersion();
@@ -181,23 +191,32 @@ async function doWithdraw() {
 
       <section v-if="version" class="space-y-3" aria-labelledby="film-questions">
         <div class="flex items-center justify-between gap-3">
-          <h3 id="film-questions" class="text-sm font-semibold text-ink">3. Quiz questions</h3>
+          <h3 id="film-questions" class="text-sm font-semibold text-ink">3. Questions after each segment</h3>
           <AppButton v-if="editable" size="sm" data-test="question-new" @click="editing = { question: null }">Add a question</AppButton>
         </div>
-        <p class="text-xs text-ink-tertiary">Each driver gets {{ version.serveCount }} drawn from this list and passes with {{ version.passCount }} right. Write more than {{ version.serveCount }}, so a driver who takes it again gets different ones.</p>
-        <ul class="divide-y divide-edge-subtle rounded-surface ring-1 ring-inset ring-edge" data-test="film-question-list">
-          <li v-if="!(questions.data.value ?? []).length" class="px-3 py-2 text-sm text-ink-tertiary">No questions yet.</li>
-          <li v-for="q in questions.data.value ?? []" :key="q.id" class="flex items-start justify-between gap-3 px-3 py-2 text-sm">
-            <span class="min-w-0">
-              <span class="block text-ink">{{ q.prompt }}</span>
-              <span class="block text-xs text-ink-tertiary">Right: {{ q.choices[q.answerIndex] }} · Chapter {{ q.chapter + 1 }}, {{ chapterTitle(q.chapter) }}</span>
-            </span>
-            <span v-if="editable" class="flex shrink-0 gap-1">
-              <AppButton size="sm" variant="ghost" @click="editing = { question: q }">Edit</AppButton>
-              <AppButton size="sm" variant="ghost" @click="remove(q)">Remove</AppButton>
-            </span>
-          </li>
-        </ul>
+        <p class="text-xs text-ink-tertiary">
+          The video stops after each segment that has questions and asks one question for each of its {{ SEGMENT_POINTS }} points. All must be right to
+          go on. Write {{ POINT_VERSIONS }} versions of every point: a driver who misses one watches the segment again and gets the other.
+        </p>
+        <p v-if="!bySegment.length" class="text-sm text-ink-tertiary" data-test="film-question-list">No questions yet.</p>
+        <div v-for="seg in bySegment" :key="seg.chapter" class="space-y-2" data-test="film-question-list">
+          <h4 class="text-sm font-medium text-ink">After “{{ seg.title }}”</h4>
+          <ul class="divide-y divide-edge-subtle rounded-surface ring-1 ring-inset ring-edge">
+            <template v-for="p in seg.points" :key="p.point">
+              <li v-for="(q, k) in p.questions" :key="q.id" class="flex items-start justify-between gap-3 px-3 py-2 text-sm">
+                <span class="min-w-0">
+                  <span class="block text-xs text-ink-tertiary">Point {{ p.point + 1 }} · version {{ k + 1 }}</span>
+                  <span class="block text-ink">{{ q.prompt }}</span>
+                  <span class="block text-xs text-ink-tertiary">Right: {{ q.choices[q.answerIndex] }}</span>
+                </span>
+                <span v-if="editable" class="flex shrink-0 gap-1">
+                  <AppButton size="sm" variant="ghost" @click="editing = { question: q }">Edit</AppButton>
+                  <AppButton size="sm" variant="ghost" @click="remove(q)">Remove</AppButton>
+                </span>
+              </li>
+            </template>
+          </ul>
+        </div>
       </section>
 
       <section v-if="version && canManage" class="space-y-3" aria-labelledby="film-publish">

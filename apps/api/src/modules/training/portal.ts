@@ -5,8 +5,9 @@ import {
   addWatched,
   assignmentComplete,
   chapterSpans,
-  drawQuiz,
+  drawSegment,
   gradeQuiz,
+  segmentsOf,
   type PoolQuestion,
   type TrainingAnswer,
   type TrainingAnswerFeedback,
@@ -26,9 +27,13 @@ import { ASSIGNMENT_COLS, ATTEMPT_COLS, standings, type AssignmentRow, type Atte
  * assignment row; every later query is scoped to that row's org and id.
  *
  * ── GRADING IS HERE, NEVER ON THE PAGE (R6) ────────────────────────────────────────────────────
- * The quiz the page receives has no answers. Each answer is posted and graded here, and the reply carries
- * that question's answer and "why" — the driver learns from each answer as they go (the mockup's flow),
- * and the answer to a question is never on the phone before it has been answered.
+ * The questions the page receives have no answers. Each answer is posted and graded here. A RIGHT answer's
+ * reply carries the reason; a wrong one's carries nothing (D-TR15): the segment is watched again and the
+ * other version of the question asked, and a reveal would make that retry a memory test of the reveal.
+ *
+ * ── ONE STOP AT A TIME (D-TR13) ────────────────────────────────────────────────────────────────
+ * `filmState` (shared) decides which stop is open; `startQuiz` serves that stop's missing points and
+ * nothing else, so the page cannot ask for stop 2 before stop 1 is passed or before its segment is watched.
  */
 
 /** A crypto-backed `Random` for the draw: a driver cannot predict the next quiz from the last one. */
@@ -117,7 +122,17 @@ export async function portalFilm(admin: SupabaseClient, link: Link, versionId: s
     watched: film.progress?.watched ?? [],
     status: film.status,
     rewatch: film.state.kind === "rewatch" ? film.state.chapters : [],
+    stop: stopOf(film),
   };
+}
+
+/** The segment the next stop belongs to — watching toward it, its questions open, or watching it again. */
+function stopOf(film: FilmStanding): TrainingPortalFilm["stop"] {
+  const st = film.state;
+  const chapter = st.kind === "watch" ? st.stop : st.kind === "quiz" ? st.stop : st.kind === "rewatch" ? (st.chapters[0] ?? null) : null;
+  if (chapter === null) return null;
+  const seg = segmentsOf(film.version.chapters ?? [], film.version.duration_ms, film.bank).find((x) => x.chapter === chapter);
+  return seg ? { chapter, title: seg.title, startMs: seg.startMs, endMs: seg.endMs } : null;
 }
 
 /**
@@ -147,28 +162,33 @@ export async function recordProgress(admin: SupabaseClient, link: Link, p: Train
 }
 
 async function poolOf(admin: SupabaseClient, orgId: string, versionId: string): Promise<PoolQuestion[]> {
-  const { data, error } = await admin.from("training_questions").select("id, chapter, prompt, choices, answer, why").eq("org_id", orgId).eq("version_id", versionId);
+  const { data, error } = await admin.from("training_questions").select("id, chapter, point, prompt, choices, answer, why").eq("org_id", orgId).eq("version_id", versionId);
   if (error) fail("questions not read", error);
   return (data ?? []) as PoolQuestion[];
 }
 
-const feedbackOf = (q: PoolQuestion, choice: string): TrainingAnswerFeedback => ({ right: q.answer === choice, answer: q.answer, why: q.why, chapter: q.chapter });
+/** A right answer learns why; a wrong one learns nothing until its retry is right (D-TR15). */
+const feedbackOf = (q: PoolQuestion, choice: string): TrainingAnswerFeedback =>
+  q.answer === choice ? { right: true, answer: q.answer, why: q.why, chapter: q.chapter } : { right: false, answer: null, why: null, chapter: q.chapter };
 
-/** Start the quiz, or return the open one (a driver who lost signal mid-quiz continues where they were). */
+/** Start the open stop's questions, or return the open attempt (a driver who lost signal mid-stop continues). */
 export async function startQuiz(admin: SupabaseClient, link: Link, versionId: string): Promise<TrainingPortalQuiz | TrainingRefusal> {
   const film = await openFilm(admin, link, versionId);
   if ("refused" in film) return film;
   const open = film.attempts.find((x) => !x.submitted_at);
-  if (!open && film.status !== "quiz") {
-    return film.status === "passed"
+  const st = film.state;
+  if (!open && st.kind !== "quiz") {
+    return st.kind === "passed"
       ? refuse(409, "passed", "You already passed this video.")
-      : refuse(409, "watch_first", film.status === "rewatch" ? "Watch the chapters you missed again first." : "Watch the video first.");
+      : refuse(409, "watch_first", st.kind === "rewatch" ? "Watch this part again first." : "Watch this part of the video first.");
   }
   const pool = await poolOf(admin, link.orgId, versionId);
   let attempt: AttemptRow | undefined = open;
-  if (!attempt) {
-    const lastServed = new Set(film.attempts.filter((x) => x.submitted_at).slice(-1).flatMap((x) => x.served.map((s) => s.questionId)));
-    const served = drawQuiz(pool, film.version.serve_count, cryptoRandom, lastServed);
+  if (!attempt && st.kind === "quiz") {
+    const servedCount = new Map<string, number>();
+    for (const x of film.attempts) for (const q of x.served) servedCount.set(q.questionId, (servedCount.get(q.questionId) ?? 0) + 1);
+    const served = drawSegment(pool, st.stop, st.points, servedCount, cryptoRandom);
+    if (!served.length) fail("stop has no questions", { message: `chapter ${st.stop}` });
     const { data, error } = await admin
       .from("training_attempts")
       .insert({ org_id: link.orgId, assignment_id: link.assignment.id, version_id: versionId, served })
@@ -178,7 +198,9 @@ export async function startQuiz(admin: SupabaseClient, link: Link, versionId: st
     if (error || !data) fail("quiz not started", error ?? { message: "no row" });
     attempt = data as AttemptRow;
   }
+  if (!attempt) return refuse(409, "watch_first", "Watch this part of the video first.");
   const byId = new Map(pool.map((q) => [q.id, q]));
+  const chapter = byId.get(attempt.served[0]?.questionId ?? "")?.chapter ?? 0;
   const answered: TrainingPortalQuiz["answered"] = {};
   for (const [qid, choice] of Object.entries(attempt.answers ?? {})) {
     const q = byId.get(qid);
@@ -186,7 +208,8 @@ export async function startQuiz(admin: SupabaseClient, link: Link, versionId: st
   }
   return {
     attemptId: attempt.id,
-    passCount: film.version.pass_count,
+    chapter,
+    chapterTitle: chapterSpans(film.version.chapters ?? [], film.version.duration_ms)[chapter]?.title ?? "Whole video",
     answered,
     questions: attempt.served.flatMap((s) => {
       const q = byId.get(s.questionId);
@@ -218,16 +241,18 @@ export async function answer(admin: SupabaseClient, link: Link, a: TrainingAnswe
   // The first answer counts: answering again after seeing the right one would grade the reveal, not the driver.
   const choice = prior[a.questionId] ?? a.choiceId;
   const answers = { ...prior, [a.questionId]: choice };
+  // When each answer arrived (0650, §3.1): the office's "answered too fast" flag. The first one stands.
+  const answeredAt = { ...(attempt.answered_at ?? {}), [a.questionId]: attempt.answered_at?.[a.questionId] ?? new Date().toISOString() };
   const done = attempt.served.every((s) => answers[s.questionId]);
-  const { data: version } = await admin.from("training_versions").select("pass_count, duration_ms, chapters").eq("org_id", link.orgId).eq("id", attempt.version_id).maybeSingle();
-  const v = version as { pass_count: number; duration_ms: number; chapters: Array<{ title: string; startMs: number }> } | null;
-  const graded = done ? gradeQuiz(attempt.served, pool, answers, v?.pass_count ?? attempt.served.length) : null;
-  const patch: Record<string, unknown> = { answers };
+  const { data: version } = await admin.from("training_versions").select("duration_ms, chapters").eq("org_id", link.orgId).eq("id", attempt.version_id).maybeSingle();
+  const v = version as { duration_ms: number; chapters: Array<{ title: string; startMs: number }> } | null;
+  const graded = done ? gradeQuiz(attempt.served, pool, answers) : null;
+  const patch: Record<string, unknown> = { answers, answered_at: answeredAt };
   if (graded) Object.assign(patch, { submitted_at: new Date().toISOString(), correct: graded.correct, passed: graded.passed, missed_chapters: graded.missedChapters });
   const { error: ue } = await admin.from("training_attempts").update(patch).eq("org_id", link.orgId).eq("id", attempt.id).is("submitted_at", null);
   if (ue) fail("answer not kept", ue);
   if (graded && !graded.passed) {
-    // D-TR8: a failed quiz starts the rewatch window fresh, so only chapters watched AFTER it count.
+    // D-TR15: a missed stop starts the rewatch window fresh, so only the segment watched AFTER it counts.
     const { error: pe } = await admin.from("training_progress").update({ watched_since: [] }).eq("org_id", link.orgId).eq("assignment_id", link.assignment.id).eq("version_id", attempt.version_id);
     if (pe) fail("rewatch not opened", pe);
   }

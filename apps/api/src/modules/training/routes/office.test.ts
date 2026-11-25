@@ -153,29 +153,31 @@ describe("watching a film in the office", () => {
   });
 });
 
-describe("publishing a film", () => {
+describe("publishing a film (D-TR14, D-TR15)", () => {
   const V = "77777777-7777-4777-8777-777777777777";
-  function seedVersion(state: string, questions: number) {
+  const CH = [{ title: "Why space", startMs: 8000 }, { title: "Count it", startMs: 86_000 }];
+  const bank = (skip?: { chapter: number; point: number; v: number }) =>
+    [0, 1].flatMap((chapter) => [0, 1, 2].flatMap((point) => [0, 1].map((v) => ({ chapter, point, v }))))
+      .filter((q) => !(skip && q.chapter === skip.chapter && q.point === skip.point && q.v === skip.v))
+      .map(({ chapter, point }) => ({ chapter, point }));
+  function seedVersion(state: string, questions: Array<{ chapter: number; point: number }>) {
     rec = createSupabaseRecorder({
-      tables: {
-        training_versions: [{ state, serve_count: 5, pass_count: 4 }],
-        training_questions: { data: [], count: questions },
-      },
+      tables: { training_versions: [{ state, chapters: CH }], training_questions: questions },
       rpc: { training_publish_version: null },
     });
   }
 
-  it("refuses a film with fewer questions than each driver is asked, and says how many are missing", async () => {
-    seedVersion("ready", 3);
+  it("refuses a film whose point has one version, naming the segment, before the swap is asked for", async () => {
+    seedVersion("ready", bank({ chapter: 1, point: 2, v: 1 }));
     const res = await withServer((b) => post(`${b}/versions/${V}/publish`, {}));
     expect(res.status).toBe(409);
-    expect(((await res.json()) as { error: { message: string } }).error.message).toContain("Write at least 5 questions: 3 so far.");
-    expect(rec.rpcs()).toEqual([]); // refused before the swap is asked for
+    expect(((await res.json()) as { error: { message: string } }).error.message).toBe('"Count it", point 3 has one version: write a second, so a retry asks something different.');
+    expect(rec.rpcs()).toEqual([]);
     expectOrgScoped(rec, ORG);
   });
 
-  it("publishes a ready film with enough questions", async () => {
-    seedVersion("ready", 5);
+  it("publishes a ready film whose every segment has 3 points in two versions", async () => {
+    seedVersion("ready", bank());
     const res = await withServer((b) => post(`${b}/versions/${V}/publish`, {}));
     expect(res.status).toBe(200);
     expect(rec.rpcs().map((r) => r.fn)).toEqual(["training_publish_version"]);

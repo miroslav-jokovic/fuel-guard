@@ -5,7 +5,7 @@ import { AppBadge, AppButton, AppCard as BaseCard, AppFormField, AppInput, BaseM
 import { useToastStore } from "@/stores/toast";
 import TrainingFilmDrawer from "./TrainingFilmDrawer.vue";
 import { useCreateCourse, useCreateLesson, useTrainingCatalogue } from "./useTraining";
-import { clock, publishedVersion, VERSION_STATE, workingVersion } from "./trainingRows";
+import { clock, publishedVersion, questionsPerSegment, VERSION_STATE, workingVersion } from "./trainingRows";
 
 /**
  * Safety › Training › Videos (§8.3): each course, its films in order, and where each film stands.
@@ -29,7 +29,7 @@ const columns: DataTableColumn[] = [
   { key: "title", label: "Video" },
   { key: "length", label: "Length", numeric: true },
   { key: "chapters", label: "Chapters", numeric: true },
-  { key: "questions", label: "Questions", numeric: true },
+  { key: "questions", label: "Questions per stop", numeric: true },
   { key: "version", label: "Version" },
   { key: "state", label: "State" },
 ];
@@ -39,7 +39,7 @@ const rowsOf = (c: TrainingCourseSummary) =>
     .map((l, i) => {
       const w = workingVersion(l);
       const live = publishedVersion(l);
-      return { id: l.id, n: i + 1, title: l.title, w, live, length: clock(w?.durationMs), chapters: w?.chapters.length ?? 0, questions: w?.questionCount ?? 0 };
+      return { id: l.id, n: i + 1, title: l.title, w, live, length: clock(w?.durationMs), chapters: w?.chapters.length ?? 0, questions: questionsPerSegment(w) };
     });
 const courseLine = (c: TrainingCourseSummary) => {
   const live = c.lessons.filter((l) => !l.retiredAt).map(publishedVersion).filter((v) => v !== null);

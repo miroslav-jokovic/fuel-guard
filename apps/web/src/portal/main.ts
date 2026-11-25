@@ -13,9 +13,9 @@ import { allowedSeek, clock, megabytes, pickHeight, type ConnectionHint, type Da
  * its own Vite entry (`t.html`): plain TypeScript, the design system's colour tokens, the phone's own
  * fonts, and nothing else. `lint:training-page` holds it under budget.
  *
- * The flow is the mockup's: list → film (chapters, resume, no skipping ahead on a first watch) → quiz
- * (the reason after each answer) → result (a fail names the chapters to watch again; a pass opens the
- * next film).
+ * The flow (SEGMENT-QUIZ D-TR13–D-TR15): list → film, which pauses at the end of each segment → that
+ * segment's questions, all right to go on (the reason after a right answer, nothing after a wrong one)
+ * → on with the film, or the segment again and the other version of what was missed.
  */
 
 const app = document.getElementById("app")!;
@@ -58,7 +58,7 @@ function problem(e: unknown): void {
   render(`<p class="lead" data-test="problem">${esc(msg)}</p>`);
 }
 
-const STATUS: Record<string, string> = { locked: "🔒 After the video before", watch: "▶ Start", rewatch: "↺ Watch the missed parts", quiz: "✎ Take the quiz", passed: "✓ Passed" };
+const STATUS: Record<string, string> = { locked: "🔒 After the video before", watch: "▶ Start", rewatch: "↺ Watch a part again", quiz: "✎ Questions waiting", passed: "✓ Passed" };
 
 async function showHome(): Promise<void> {
   try {
@@ -93,47 +93,67 @@ async function showHome(): Promise<void> {
   };
 }
 
-async function showFilm(versionId: string): Promise<void> {
+/**
+ * One film, played toward its next stop (SEGMENT-QUIZ D-TR13): at the end of each segment the film
+ * pauses and that segment's questions are asked. The server decides where the stop is (`f.stop`) and
+ * whether its questions are open (`f.status` "quiz"); the page only plays toward it.
+ *
+ * What counts as watching (§3.1): on screen, sound on, normal speed, nothing skipped. The film pauses
+ * when the page is hidden and while it is muted; the server caps every span to the clock.
+ */
+async function showFilm(versionId: string, replayFrom?: number): Promise<void> {
   let f: TrainingPortalFilm;
   try {
     f = await api.film(versionId);
   } catch (e) {
     return problem(e);
   }
+  // Open questions are asked at once — unless the driver chose to watch the part again first.
+  if (f.status === "quiz" && replayFrom === undefined) return void showQuiz(f);
+  if (f.status === "passed") return void showHome();
   const chosen = pickHeight(f.renditions.map((r) => r.height), dataMode(), conn());
   const r = f.renditions.find((x) => x.height === chosen) ?? f.renditions[0];
   if (!r) return problem(new LinkError("This video is not ready yet. Try again later.", "not_ready", 409));
-  const starts = f.chapters.length ? f.chapters : [{ title: "Whole video", startMs: 0 }];
-  const ends = starts.map((_c, i) => starts[i + 1]?.startMs ?? f.durationMs);
-  const rewatch = new Set(f.rewatch);
+  const stop = f.stop;
+  const again = f.status === "rewatch" && stop !== null;
   render(`
     <h1>${esc(f.title)}</h1>
-    ${rewatch.size ? `<p class="note">Watch the chapters marked ↺ again, then take the quiz again. You'll get new questions.</p>` : ""}
+    ${again ? `<p class="note" data-test="rewatch-note">Watch “${esc(stop.title)}” again. Then you get new questions on what you missed.</p>` : ""}
+    ${stop && !again ? `<p class="small" data-test="next-stop">The video stops after “${esc(stop.title)}” for 3 short questions.</p>` : ""}
     <video id="vid" src="${esc(r.url)}" poster="${esc(f.posterUrl)}" controls playsinline preload="metadata" controlslist="nodownload noplaybackrate" disablepictureinpicture>
       ${f.captionsUrl ? `<track kind="captions" src="${esc(f.captionsUrl)}" srclang="en" label="English" default>` : ""}
     </video>
+    <p class="note" id="snd" data-test="sound-note" hidden>Turn the sound on: this video is spoken.</p>
     <p class="small">${r.height}p · ${megabytes(r.bytes)} for the whole video</p>
-    <div class="chips">${starts
-      .map((c, i) => `<button class="chip${rewatch.has(i) ? " again" : ""}" data-at="${c.startMs}"><b>${rewatch.has(i) ? "↺" : i + 1}</b> ${esc(c.title)}<br><span class="m">${clock(c.startMs)}–${clock(ends[i]!)}</span></button>`)
-      .join("")}</div>
-    <button class="big" id="go" ${f.status === "quiz" ? "" : "hidden"}>Take the quiz</button>
+    <div id="stopnote" aria-live="polite"></div>
     <button class="big ghost" id="back">Back to my videos</button>`);
 
   const v = document.getElementById("vid") as HTMLVideoElement;
-  const go = document.getElementById("go") as HTMLButtonElement;
+  const snd = document.getElementById("snd") as HTMLElement;
   const watched = f.watched.map(([a, b]) => [a, b] as [number, number]);
+  const startAt = replayFrom ?? (again ? stop.startMs : f.positionMs);
   let playedTo = f.positionMs;
   let spanStart: number | null = null;
-  let lastOk = f.positionMs;
-  const rewatchStarts = [...rewatch].map((i) => starts[i]?.startMs ?? 0);
+  let lastOk = startAt;
+  let atStop = false;
+  const rewatchStarts = again || replayFrom !== undefined ? [startAt] : [];
 
   v.addEventListener("loadedmetadata", () => {
-    if (f.positionMs > 0 && f.positionMs < f.durationMs - 3000) v.currentTime = f.positionMs / 1000;
+    if (startAt > 0 && startAt < f.durationMs - 1000) v.currentTime = startAt / 1000;
   });
   v.addEventListener("ratechange", () => (v.playbackRate = 1)); // a span reported is a span watched at 1×
+  // Sound on (§3.1): a muted film does not count, so it does not play. (An iPhone's hardware volume
+  // cannot be read by a page; the questions catch a phone turned all the way down.)
+  const soundOff = () => v.muted || v.volume === 0;
+  const checkSound = () => {
+    snd.hidden = !soundOff();
+    if (soundOff() && !v.paused) v.pause();
+  };
+  v.addEventListener("volumechange", checkSound);
+  v.addEventListener("play", checkSound);
   v.addEventListener("seeking", () => {
     const to = v.currentTime * 1000;
-    if (!allowedSeek(to, watched, playedTo, rewatchStarts)) v.currentTime = lastOk / 1000;
+    if (!allowedSeek(to, watched, playedTo, rewatchStarts) || (stop && !atStop && to > stop.endMs)) v.currentTime = lastOk / 1000;
     else flush();
   });
   v.addEventListener("timeupdate", () => {
@@ -143,48 +163,59 @@ async function showFilm(versionId: string): Promise<void> {
       playedTo = Math.max(playedTo, now);
       if (spanStart === null && !v.paused) spanStart = now;
     }
-    app.querySelectorAll<HTMLButtonElement>(".chip").forEach((c, i) => c.classList.toggle("on", now >= starts[i]!.startMs && now < ends[i]!));
+    if (stop && !atStop && now >= stop.endMs - 250) {
+      atStop = true;
+      v.pause();
+      void reachStop();
+    }
   });
   /** Send what played since the last report (every 10 s, on pause, seek, end and leaving). */
-  const flush = () => {
-    if (spanStart === null) return;
+  const flush = (): Promise<string | null> | null => {
+    if (spanStart === null) return null;
     const span = { versionId: f.versionId, fromMs: Math.round(spanStart), toMs: Math.round(lastOk), positionMs: Math.round(lastOk) };
     spanStart = v.paused ? null : lastOk;
-    if (span.toMs - span.fromMs < 500) return;
+    if (span.toMs - span.fromMs < 500) return null;
     watched.push([span.fromMs, span.toMs]);
-    void api.progress(span).then(async (sent) => {
-      showSignal();
-      if (sent && go.hidden) {
-        // The server decides when the quiz opens; ask it rather than guessing on the phone.
-        const again = await api.film(f.versionId).catch(() => null);
-        if (again?.status === "quiz") go.hidden = false;
-      }
-    });
+    return api.progress(span).then((sent) => (showSignal(), sent));
+  };
+  /** The segment's end: the server decides whether its questions open (they need signal: it grades). */
+  const reachStop = async () => {
+    await flush();
+    const box = document.getElementById("stopnote")!;
+    const now = await api.film(f.versionId).catch(() => null);
+    if (now?.status === "quiz") return void showQuiz(now);
+    if (!now) {
+      box.innerHTML = `<p class="note">The questions need signal. What you watched is saved.</p><button class="big" id="retry">Try again</button>`;
+    } else {
+      // The server did not count enough of this part (reports lost on weak signal): play it again.
+      box.innerHTML = `<p class="note">Part of “${esc(stop!.title)}” didn't count. Play it again from its start.</p><button class="big" id="retry">Play it again</button>`;
+    }
+    (document.getElementById("retry") as HTMLButtonElement).onclick = () => void showFilm(f.versionId);
   };
   const timer = window.setInterval(flush, 10_000);
   v.addEventListener("pause", flush);
   v.addEventListener("ended", flush);
-  const onHide = () => document.visibilityState === "hidden" && flush();
+  // On screen (§3.1): a hidden page does not count, so the film pauses with it.
+  const onHide = () => {
+    if (document.visibilityState === "hidden") {
+      v.pause();
+      void flush();
+    }
+  };
   document.addEventListener("visibilitychange", onHide);
   stopFilm = () => {
-    flush();
+    void flush();
     window.clearInterval(timer);
     document.removeEventListener("visibilitychange", onHide);
   };
-
-  app.querySelectorAll<HTMLButtonElement>(".chip").forEach((c) => {
-    c.onclick = () => {
-      const at = Number(c.dataset.at);
-      if (allowedSeek(at, watched, playedTo, rewatchStarts)) {
-        v.currentTime = at / 1000;
-        void v.play();
-      }
-    };
-  });
-  go.onclick = () => void showQuiz(f);
   (document.getElementById("back") as HTMLButtonElement).onclick = () => void showHome();
 }
 
+/**
+ * One stop's questions (D-TR14, D-TR15). All must be right to go on. A right answer shows why; a wrong
+ * one shows nothing more, because the segment is watched again and the OTHER version of the question
+ * asked. "Watch this part again" goes back to the segment before answering, and is not a miss.
+ */
 async function showQuiz(f: TrainingPortalFilm): Promise<void> {
   let q: TrainingPortalQuiz;
   try {
@@ -193,24 +224,31 @@ async function showQuiz(f: TrainingPortalFilm): Promise<void> {
     return problem(e);
   }
   const fb: Record<string, TrainingAnswerFeedback | "saved"> = { ...q.answered };
-  const chapterTitle = (i: number) => (f.chapters[i] ?? { title: "Whole video" }).title;
   let i = q.questions.findIndex((x) => !fb[x.id]);
   if (i < 0) i = q.questions.length - 1;
+  const total = q.questions.length;
 
   const ask = () => {
     const x = q.questions[i]!;
     render(`
+      <p class="small" data-test="stop-title">Questions about “${esc(q.chapterTitle)}” · ${total === 1 ? "get it right to go on" : `all ${total} right to go on`}</p>
       <div class="dots" aria-hidden="true">${q.questions.map((_, k) => `<i class="${k <= i ? "on" : ""}"></i>`).join("")}</div>
-      <p class="small">Question ${i + 1} of ${q.questions.length}</p>
+      <p class="small">Question ${i + 1} of ${total}</p>
       <h2 class="q">${esc(x.prompt)}</h2>
       ${x.choices.map((c) => `<button class="ans" data-c="${esc(c.id)}">${esc(c.text)}</button>`).join("")}
-      <div id="fb" aria-live="polite"></div>`);
+      <div id="fb" aria-live="polite"></div>
+      <button class="big ghost" id="again" data-test="watch-again">Watch this part again</button>`);
     app.querySelectorAll<HTMLButtonElement>(".ans").forEach((b) => (b.onclick = () => void choose(b.dataset.c!)));
+    (document.getElementById("again") as HTMLButtonElement).onclick = () => void replay();
   };
+
+  /** Back to the start of this segment; the open questions wait for when it ends again. */
+  const replay = () => void showFilm(f.versionId, f.stop?.startMs ?? 0);
 
   const choose = async (choiceId: string) => {
     const x = q.questions[i]!;
     app.querySelectorAll<HTMLButtonElement>(".ans").forEach((b) => (b.disabled = true));
+    (document.getElementById("again") as HTMLButtonElement).hidden = true;
     let out;
     try {
       out = await api.answer(q.attemptId, x.id, choiceId);
@@ -223,15 +261,15 @@ async function showQuiz(f: TrainingPortalFilm): Promise<void> {
       box.innerHTML = `<p class="note">No signal. Your answer is saved on this phone and will be checked when signal is back.</p>`;
     } else {
       fb[x.id] = out.feedback;
-      app.querySelectorAll<HTMLButtonElement>(".ans").forEach((b) => {
-        if (b.dataset.c === out.feedback.answer) b.classList.add("right");
-        else if (b.dataset.c === choiceId) b.classList.add("wrong");
-      });
-      box.innerHTML = `<div class="why"><b>${out.feedback.right ? "✓ Right." : "✗ Not quite."}</b> ${esc(out.feedback.why)}<br><span class="small">From chapter ${out.feedback.chapter + 1}, "${esc(chapterTitle(out.feedback.chapter))}"</span></div>`;
-      if (out.result) return void box.insertAdjacentHTML("beforeend", `<button class="big" id="next">See my result</button>`), next(() => result(out.result!));
+      const mine = app.querySelector<HTMLButtonElement>(`.ans[data-c="${CSS.escape(choiceId)}"]`);
+      mine?.classList.add(out.feedback.right ? "right" : "wrong");
+      box.innerHTML = out.feedback.right
+        ? `<div class="why" data-test="why"><b>✓ Right.</b> ${esc(out.feedback.why ?? "")}</div>`
+        : `<div class="why" data-test="why"><b>✗ Not quite.</b> This is in the part you're about to watch again.</div>`;
+      if (out.result) return void box.insertAdjacentHTML("beforeend", `<button class="big" id="next">See how you did</button>`), next(() => result(out.result!));
     }
     showSignal();
-    const last = i === q.questions.length - 1;
+    const last = i === total - 1;
     box.insertAdjacentHTML("beforeend", `<button class="big" id="next">${last ? "Send my answers" : "Next question"}</button>`);
     next(() => (last ? void finish() : (i++, ask())));
   };
@@ -246,14 +284,18 @@ async function showQuiz(f: TrainingPortalFilm): Promise<void> {
     (document.getElementById("back") as HTMLButtonElement).onclick = () => void showHome();
   };
 
-  const result = (r: { correct: number; total: number; passed: boolean; missedChapters: number[] }) => {
+  const result = (r: { correct: number; total: number; passed: boolean }) => {
+    const missed = r.total - r.correct;
     render(`
-      <p class="score ${r.passed ? "pass" : "fail"}">${r.correct} / ${r.total}</p>
-      <p class="verdict">${r.passed ? "Passed." : `Not yet. You need ${q.passCount} of ${r.total}.`}</p>
-      ${r.passed ? "" : `<p class="note">Watch ${r.missedChapters.length > 1 ? "these chapters" : "this chapter"} again, then take the quiz again. You'll get new questions.</p>
-        <ul class="miss">${r.missedChapters.map((c) => `<li>${esc(chapterTitle(c))}</li>`).join("")}</ul>`}
-      <button class="big" id="cont">${r.passed ? "Back to my videos" : "Watch again"}</button>`);
-    (document.getElementById("cont") as HTMLButtonElement).onclick = () => void (r.passed ? showHome() : showFilm(f.versionId));
+      <p class="score ${r.passed ? "pass" : "fail"}" data-test="score">${r.correct} / ${r.total}</p>
+      <p class="verdict">${r.passed ? "All right." : "Not yet."}</p>
+      ${
+        r.passed
+          ? `<p class="lead" style="text-align:center">On with the video.</p>`
+          : `<p class="note" data-test="rewatch-plan">Watch “${esc(q.chapterTitle)}” again. Then you get ${missed === 1 ? "a new question" : `${missed} new questions`} on what you missed.</p>`
+      }
+      <button class="big" id="cont" data-test="continue">${r.passed ? "Go on" : "Watch it again"}</button>`);
+    (document.getElementById("cont") as HTMLButtonElement).onclick = () => void showFilm(f.versionId);
   };
 
   ask();

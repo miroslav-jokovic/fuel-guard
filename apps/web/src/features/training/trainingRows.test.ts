@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { publishBlockers, type TrainingAssignmentRow, type TrainingLessonSummary, type TrainingVersionSummary } from "@silvicom/shared";
-import { chapterAt, clock, lessonCell, parseClock, reachLabel, standing, withChapter, workingVersion } from "./trainingRows";
+import { chapterAt, clock, lessonCell, parseClock, questionsPerSegment, reachLabel, standing, withChapter, workingVersion } from "./trainingRows";
 
+const FULL = [0, 1].flatMap((chapter) => [0, 1, 2].flatMap((point) => [{ chapter, point }, { chapter, point }]));
 const version = (over: Partial<TrainingVersionSummary>): TrainingVersionSummary => ({
-  id: "v", versionNo: 1, language: "en", state: "ready", durationMs: 204_000, chapters: [], serveCount: 5, passCount: 4,
-  questionCount: 5, processError: null, posterUrl: null, publishedAt: null, ...over,
+  id: "v", versionNo: 1, language: "en", state: "ready", durationMs: 204_000, chapters: [{ title: "The rule", startMs: 8000 }, { title: "Turns", startMs: 69_000 }], serveCount: 3, passCount: 3,
+  questionCount: 12, questions: FULL, processError: null, posterUrl: null, publishedAt: null, ...over,
 });
 
 describe("times on the page", () => {
@@ -29,11 +30,10 @@ describe("which version the office works on", () => {
 });
 
 describe("what stops a publish (the shared rule the API also refuses with)", () => {
-  it("names a film not ready, too few questions, and a pass mark above what is asked", () => {
+  it("names a film not ready, and the segment short of its 3 points", () => {
     expect(publishBlockers(version({}))).toEqual([]);
     expect(publishBlockers(version({ state: "processing" }))).toEqual(["The video is not ready for phones yet."]);
-    expect(publishBlockers(version({ questionCount: 3 }))[0]).toContain("Write at least 5 questions: 3 so far.");
-    expect(publishBlockers(version({ passCount: 6 }))).toEqual(["Passing needs 6 right, but only 5 are asked."]);
+    expect(publishBlockers(version({ questions: FULL.filter((q) => q.chapter === 0 || q.point < 2) }))).toEqual(['"Turns" tests 2 points: each stop asks exactly 3.']);
   });
 });
 
@@ -71,7 +71,13 @@ describe("where a sent training stands", () => {
     expect(standing(row({ firstOpenedAt: "x" }), "2026-11-25")).toBe("in_progress");
   });
   it("shows a film's best score beside its status", () => {
-    expect(lessonCell({ lessonId: "l", title: "t", status: "rewatch", watchedMs: 0, durationMs: 1, best: { correct: 3, total: 5 }, attempts: 1 })).toBe("Watching again · 3/5");
-    expect(lessonCell({ lessonId: "l", title: "t", status: "locked", watchedMs: 0, durationMs: 1, best: null, attempts: 0 })).toBe("Not started");
+    expect(lessonCell({ lessonId: "l", title: "t", status: "rewatch", watchedMs: 0, durationMs: 1, firstTry: { correct: 8, total: 9 }, tries: [1, 3, 0], fast: 2, attempts: 4 })).toBe(
+      "Watching again · 8/9 first try · stop 2: 3 tries · 2 too fast",
+    );
+    expect(lessonCell({ lessonId: "l", title: "t", status: "locked", watchedMs: 0, durationMs: 1, firstTry: null, tries: [0, 0, 0], fast: 0, attempts: 0 })).toBe("Not started");
+  });
+  it("counts questions per stop for the Videos table", () => {
+    expect(questionsPerSegment(version({}))).toBe("6 · 6");
+    expect(questionsPerSegment(version({ questions: [] }))).toBe("—");
   });
 });
