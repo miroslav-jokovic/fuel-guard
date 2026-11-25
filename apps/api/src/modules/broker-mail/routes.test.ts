@@ -82,6 +82,7 @@ beforeEach(() => {
   });
 });
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- a test reads the JSON answer by field; the schemas are asserted separately
 async function call(role: UserRole, method: string, path: string, body?: unknown): Promise<{ status: number; json: any }> {
   const app = express();
   app.use(express.json());
