@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { checkQuestion, type TrainingChapter, type TrainingQuestionView } from "@silvicom/shared";
+import { checkQuestion, SEGMENT_POINTS, type TrainingChapter, type TrainingQuestionView } from "@silvicom/shared";
 import { AppButton, AppFormField, AppInput, AppRadioGroup, AppSelect, AppTextarea, BaseModal, DIALOG_FOOTER_CLASS } from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
 import { useSaveQuestion } from "./useTraining";
 
 /**
- * One quiz question (§3, D-TR7): the question, 2 to 5 answers with one right, a one-line "why" the
- * driver reads after answering, and the chapter it comes from, which a fail sends them back to (D-TR8).
+ * One question (SEGMENT-QUIZ §3.5): the question, 4 answers with one right, a one-line "why" the driver
+ * reads after a RIGHT answer, the segment it is asked after (D-TR13), and the point of that segment it
+ * tests. Each point is written twice — two versions — so a driver who misses it is asked the other one
+ * after watching the segment again (D-TR15).
  * `checkQuestion` is the same rule the API applies, so a refusal is said here before the round trip.
  *
  * ⚠ Write each question from a line actually spoken in the locked cut (plan §3): a question the film
@@ -19,19 +21,21 @@ const toast = useToastStore();
 const save = useSaveQuestion();
 
 const prompt = ref("");
-const choices = ref<string[]>(["", "", ""]);
+const choices = ref<string[]>(["", "", "", ""]);
 const answerIndex = ref(0);
 const why = ref("");
 const chapter = ref(0);
+const point = ref(0);
 watch(
   () => [props.open, props.question] as const,
   ([open, q]) => {
     if (!open) return;
     prompt.value = q?.prompt ?? "";
-    choices.value = q ? [...q.choices] : ["", "", ""];
+    choices.value = q ? [...q.choices] : ["", "", "", ""];
     answerIndex.value = q?.answerIndex ?? 0;
     why.value = q?.why ?? "";
     chapter.value = q?.chapter ?? 0;
+    point.value = q?.point ?? 0;
   },
   { immediate: true },
 );
@@ -39,8 +43,9 @@ watch(
 const chapterOptions = computed(() =>
   (props.chapters.length ? props.chapters : [{ title: "Whole video", startMs: 0 }]).map((c, i) => ({ value: i, label: `${i + 1}. ${c.title}` })),
 );
+const pointOptions = Array.from({ length: SEGMENT_POINTS }, (_, i) => ({ value: i, label: `Point ${i + 1}` }));
 const answerOptions = computed(() => choices.value.map((c, i) => ({ value: i, label: c.trim() || `Answer ${i + 1}` })));
-const input = computed(() => ({ chapter: chapter.value, prompt: prompt.value, choices: choices.value.map((c) => c.trim()), answerIndex: answerIndex.value, why: why.value }));
+const input = computed(() => ({ chapter: chapter.value, point: point.value, prompt: prompt.value, choices: choices.value.map((c) => c.trim()), answerIndex: answerIndex.value, why: why.value }));
 const problem = computed(() => checkQuestion(input.value, props.chapters.length));
 
 function removeChoice(i: number) {
@@ -61,7 +66,7 @@ async function submit() {
 </script>
 
 <template>
-  <BaseModal :open="open" size="lg" :title="question ? 'Edit question' : 'Add a question'" description="Write it from a line the film actually says. Each driver gets a few questions drawn from this list, answers in a new order." @close="emit('close')">
+  <BaseModal :open="open" size="lg" :title="question ? 'Edit question' : 'Add a question'" description="Write it from a line the film actually says in this segment. Each segment tests 3 points, and each point is written twice, so a retry asks the other version." @close="emit('close')">
     <form class="space-y-4" @submit.prevent="submit">
       <AppFormField v-slot="{ id }" label="Question" required>
         <AppTextarea :id="id" v-model="prompt" rows="2" maxlength="400" data-test="question-prompt" />
@@ -75,11 +80,14 @@ async function submit() {
         <AppButton v-if="choices.length < 5" size="sm" data-test="question-add-choice" @click="choices.push('')">Add an answer</AppButton>
       </fieldset>
       <AppRadioGroup v-model="answerIndex" :options="answerOptions" legend="The right answer" data-test="question-answer" />
-      <AppFormField v-slot="{ id }" label="Why it is right" hint="One line. The driver reads it after answering, right or wrong." required>
+      <AppFormField v-slot="{ id }" label="Why it is right" hint="One line, shown after a right answer. A wrong answer is not told the answer." required>
         <AppInput :id="id" v-model="why" maxlength="400" data-test="question-why" />
       </AppFormField>
-      <AppFormField v-slot="{ id }" label="From chapter" hint="A driver who gets this wrong watches this chapter again." required>
+      <AppFormField v-slot="{ id }" label="Asked after" hint="The segment this question is about. A driver who gets it wrong watches this segment again." required>
         <AppSelect :id="id" v-model="chapter" :options="chapterOptions" data-test="question-chapter" />
+      </AppFormField>
+      <AppFormField v-slot="{ id }" label="Point" hint="Which of the segment's 3 points it tests. Write two questions for each point." required>
+        <AppSelect :id="id" v-model="point" :options="pointOptions" data-test="question-point" />
       </AppFormField>
       <p v-if="problem" class="text-xs text-ink-secondary" data-test="question-problem">{{ problem }}</p>
       <div :class="DIALOG_FOOTER_CLASS">

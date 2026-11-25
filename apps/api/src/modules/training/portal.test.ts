@@ -4,9 +4,10 @@ import { hashLinkToken, mintLinkToken } from "./media.js";
 import { answer, recordProgress, resolveLink, startQuiz, type Link } from "./portal.js";
 
 /**
- * The driver's link page (D-TR2, D-TR7, D-TR8): what the token opens, that the quiz reaches the phone
- * without its answers, that grading is the server's and the first answer counts, that a fail reopens
- * only the rewatch, and that a dragged bar is not watching. Every query names the link's own org.
+ * The driver's link page (D-TR2; SEGMENT-QUIZ D-TR13–D-TR15): what the token opens; that a stop's
+ * questions reach the phone without their answers and only once its segment is watched; that a miss
+ * reveals nothing, reopens the segment and then asks the OTHER version; that grading is the server's
+ * and the first answer counts; and that a dragged bar is not watching. Every query names the link's org.
  */
 
 const ORG = "33333333-3333-4333-8333-333333333333";
@@ -35,19 +36,27 @@ const assignment = (over: Record<string, unknown> = {}) => ({
 });
 const link: Link = { orgId: ORG, assignment: assignment() as unknown as Link["assignment"] };
 
-const questions = Array.from({ length: 6 }, (_, i) => ({
-  id: `9999999${i}-9999-4999-8999-999999999999`,
-  chapter: i % 2,
-  prompt: `Question ${i}?`,
-  choices: [{ id: "a", text: "Wrong" }, { id: "b", text: "Right" }],
-  answer: "b",
-  why: "Because the film says so.",
-}));
-const version = { id: VERSION, lesson_id: LESSON, version_no: 1, duration_ms: DUR, chapters: [{ title: "One", startMs: 0 }, { title: "Two", startMs: 100_000 }], renditions: [{ height: 360, path: "p/360.mp4", bytes: 1 }], poster_path: "p/poster.jpg", captions_path: null, serve_count: 5, pass_count: 4 };
+// Two segments ("One" 0:00–1:40, "Two" 1:40–3:24), 3 points each, 2 versions per point: 12 questions.
+const qid = (chapter: number, point: number, v: number) => `9999999${chapter}-99${point}${v}-4999-8999-999999999999`;
+const questions = [0, 1].flatMap((chapter) =>
+  [0, 1, 2].flatMap((point) =>
+    [0, 1].map((v) => ({
+      id: qid(chapter, point, v),
+      version_id: VERSION,
+      chapter,
+      point,
+      prompt: `Stop ${chapter + 1}, point ${point + 1}, version ${v + 1}?`,
+      choices: [{ id: "a", text: "Wrong" }, { id: "b", text: "Right" }, { id: "c", text: "Also wrong" }, { id: "d", text: "Not this" }],
+      answer: "b",
+      why: "Because the film says so.",
+    })),
+  ),
+);
+const version = { id: VERSION, lesson_id: LESSON, version_no: 1, duration_ms: DUR, chapters: [{ title: "One", startMs: 0 }, { title: "Two", startMs: 100_000 }], renditions: [{ height: 360, path: "p/360.mp4", bytes: 1 }], poster_path: "p/poster.jpg", captions_path: null, serve_count: 3, pass_count: 3 };
 
-function world(opts: { watched?: Array<[number, number]>; attempts?: unknown[]; progressAt?: string } = {}) {
+function world(opts: { watched?: Array<[number, number]>; since?: Array<[number, number]>; attempts?: unknown[] | ((q: RecordedQuery) => unknown[]); progressAt?: string } = {}) {
   const progress = opts.watched
-    ? [{ assignment_id: A_ID, version_id: VERSION, watched: opts.watched, watched_since: [], position_ms: 0, updated_at: opts.progressAt ?? new Date(Date.now() - 10_000).toISOString() }]
+    ? [{ assignment_id: A_ID, version_id: VERSION, watched: opts.watched, watched_since: opts.since ?? [], position_ms: 0, updated_at: opts.progressAt ?? new Date(Date.now() - 10_000).toISOString() }]
     : [];
   return createSupabaseRecorder({
     tables: {
@@ -93,39 +102,82 @@ describe("watching", () => {
     expectOrgScoped(rec, ORG);
   });
 
-  it("refuses the quiz until the film is watched", async () => {
-    const rec = world({ watched: [[0, 60_000]] });
+  it("refuses a stop's questions until its segment is watched", async () => {
+    const rec = world({ watched: [[0, 60_000]] }); // 60 % of 0:00–1:40
     expect(await startQuiz(rec.client, link, VERSION)).toMatchObject({ status: 409, code: "watch_first" });
   });
 });
 
-describe("the quiz", () => {
-  it("reaches the phone with every choice and no answer, and is kept as served", async () => {
-    const rec = createSupabaseRecorder({
-      tables: {
-        training_lessons: [{ id: LESSON, course_id: COURSE, title: "Film", position: 0, retired_at: null }],
-        training_versions: [version],
-        training_progress: [{ assignment_id: A_ID, version_id: VERSION, watched: [[0, DUR]], watched_since: [], position_ms: DUR, updated_at: new Date().toISOString() }],
-        training_attempts: (q: RecordedQuery) =>
-          q.write ? [{ id: ATTEMPT, assignment_id: A_ID, version_id: VERSION, served: (q.write.payload as { served: unknown }).served, answers: null, submitted_at: null }] : [],
-        training_questions: questions,
-      },
-    });
+/** A submitted attempt on stop 1 that served version 1 of each point and got `wrong` points wrong. */
+const takenStop1 = (wrong: number[]) => ({
+  id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+  assignment_id: A_ID,
+  version_id: VERSION,
+  served: [0, 1, 2].map((p) => ({ questionId: qid(0, p, 0), order: ["a", "b", "c", "d"] })),
+  answers: Object.fromEntries([0, 1, 2].map((p) => [qid(0, p, 0), wrong.includes(p) ? "a" : "b"])),
+  answered_at: null,
+  correct: 3 - wrong.length,
+  passed: wrong.length === 0,
+  missed_chapters: wrong.length ? [0] : [],
+  started_at: "2026-11-24T10:00:00Z",
+  submitted_at: "2026-11-24T10:01:00Z",
+});
+/** Attempts: the given ones, plus whatever startQuiz inserts (returned as written). */
+const attemptsWith = (taken: unknown[]) => (q: RecordedQuery) =>
+  q.write ? [{ id: ATTEMPT, assignment_id: A_ID, version_id: VERSION, served: (q.write.payload as { served: unknown }).served, answers: null, answered_at: null, started_at: new Date().toISOString(), submitted_at: null }] : taken;
+
+describe("a stop's questions (D-TR13, D-TR14)", () => {
+  it("reach the phone once the segment is watched: one per point, every choice, no answer and no reason", async () => {
+    const rec = world({ watched: [[0, 100_000]], attempts: attemptsWith([]) });
     const quiz = await startQuiz(rec.client, link, VERSION);
     if ("refused" in quiz) throw new Error(quiz.message);
-    expect(quiz.questions).toHaveLength(5);
+    expect(quiz).toMatchObject({ chapter: 0, chapterTitle: "One" });
+    expect(quiz.questions).toHaveLength(3);
+    expect(new Set(quiz.questions.map((q) => questions.find((x) => x.id === q.id)!.point))).toEqual(new Set([0, 1, 2]));
+    expect(quiz.questions.every((q) => questions.find((x) => x.id === q.id)!.chapter === 0)).toBe(true);
     expect(JSON.stringify(quiz)).not.toMatch(/"answer"|Because the film/);
-    for (const q of quiz.questions) expect(q.choices.map((c) => c.text).sort()).toEqual(["Right", "Wrong"]);
+    for (const q of quiz.questions) expect(q.choices.map((c) => c.text).sort()).toEqual(["Also wrong", "Not this", "Right", "Wrong"]);
     expect(rec.writtenRows("training_attempts")[0]).toMatchObject({ org_id: ORG, assignment_id: A_ID, version_id: VERSION });
-    expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
+    expectOrgScoped(rec, ORG);
   });
 
-  const open = (answers: Record<string, string> | null) => ({
+  it("never opens stop 2 before stop 1 is passed, even with the whole film watched", async () => {
+    const rec = world({ watched: [[0, DUR]], attempts: attemptsWith([]) });
+    const quiz = await startQuiz(rec.client, link, VERSION);
+    if ("refused" in quiz) throw new Error(quiz.message);
+    expect(quiz.chapter).toBe(0);
+  });
+
+  it("opens stop 2 once stop 1 is passed and segment 2 is watched", async () => {
+    const rec = world({ watched: [[0, DUR]], attempts: attemptsWith([takenStop1([])]) });
+    const quiz = await startQuiz(rec.client, link, VERSION);
+    if ("refused" in quiz) throw new Error(quiz.message);
+    expect(quiz).toMatchObject({ chapter: 1, chapterTitle: "Two" });
+  });
+});
+
+describe("after a miss (D-TR15)", () => {
+  it("asks nothing until the segment is watched again since the miss", async () => {
+    const rec = world({ watched: [[0, 100_000]], attempts: attemptsWith([takenStop1([1])]) });
+    expect(await startQuiz(rec.client, link, VERSION)).toMatchObject({ status: 409, code: "watch_first", message: "Watch this part again first." });
+  });
+
+  it("then asks only the missed point, as its OTHER version", async () => {
+    const rec = world({ watched: [[0, 100_000]], since: [[0, 100_000]], attempts: attemptsWith([takenStop1([1])]) });
+    const quiz = await startQuiz(rec.client, link, VERSION);
+    if ("refused" in quiz) throw new Error(quiz.message);
+    expect(quiz.questions.map((q) => q.id)).toEqual([qid(0, 1, 1)]);
+  });
+});
+
+describe("answering", () => {
+  const open = (answers: Record<string, string> | null, served = [0, 1, 2].map((p) => qid(0, p, 0))) => ({
     id: ATTEMPT,
     assignment_id: A_ID,
     version_id: VERSION,
-    served: questions.slice(0, 5).map((q) => ({ questionId: q.id, order: ["a", "b"] })),
+    served: served.map((questionId) => ({ questionId, order: ["a", "b", "c", "d"] })),
     answers,
+    answered_at: null,
     correct: null,
     passed: null,
     missed_chapters: null,
@@ -135,26 +187,37 @@ describe("the quiz", () => {
   const quizWorld = (answers: Record<string, string> | null) =>
     createSupabaseRecorder({ tables: { training_attempts: [open(answers)], training_questions: questions, training_versions: [version], training_progress: [], training_lessons: [] } });
 
-  it("grades one answer on the server and keeps the FIRST answer to a question", async () => {
-    const rec = quizWorld({ [questions[0]!.id]: "a" });
-    const out = await answer(rec.client, link, { attemptId: ATTEMPT, questionId: questions[0]!.id, choiceId: "b" });
-    expect(out).toMatchObject({ feedback: { right: false, answer: "b" }, result: null });
-    expect(rec.writtenRows("training_attempts")[0]).toMatchObject({ answers: { [questions[0]!.id]: "a" } });
+  it("a wrong answer learns nothing: no right answer, no reason", async () => {
+    const out = await answer(quizWorld(null).client, link, { attemptId: ATTEMPT, questionId: qid(0, 0, 0), choiceId: "a" });
+    expect(out).toEqual({ feedback: { right: false, answer: null, why: null, chapter: 0 }, result: null });
   });
 
-  it("submits on the last answer; a fail names the missed chapters and opens the rewatch fresh", async () => {
-    const four = Object.fromEntries(questions.slice(0, 4).map((q, i) => [q.id, i < 2 ? "a" : "b"]));
-    const rec = quizWorld(four);
-    const out = await answer(rec.client, link, { attemptId: ATTEMPT, questionId: questions[4]!.id, choiceId: "b" });
-    expect(out).toMatchObject({ result: { correct: 3, total: 5, passed: false, missedChapters: [0, 1] } });
-    expect(rec.writtenRows("training_attempts")[0]).toMatchObject({ passed: false, correct: 3, missed_chapters: [0, 1] });
+  it("a right answer gets its reason", async () => {
+    const out = await answer(quizWorld(null).client, link, { attemptId: ATTEMPT, questionId: qid(0, 0, 0), choiceId: "b" });
+    expect(out).toMatchObject({ feedback: { right: true, answer: "b", why: "Because the film says so." } });
+  });
+
+  it("keeps the FIRST answer to a question, and when it came", async () => {
+    const rec = quizWorld({ [qid(0, 0, 0)]: "a" });
+    const out = await answer(rec.client, link, { attemptId: ATTEMPT, questionId: qid(0, 0, 0), choiceId: "b" });
+    expect(out).toMatchObject({ feedback: { right: false }, result: null });
+    const w = rec.writtenRows("training_attempts")[0]!;
+    expect(w).toMatchObject({ answers: { [qid(0, 0, 0)]: "a" } });
+    expect(Date.parse((w.answered_at as Record<string, string>)[qid(0, 0, 0)]!)).toBeGreaterThan(0);
+  });
+
+  it("submits on the last answer: one wrong of three is a miss, and opens the rewatch fresh", async () => {
+    const rec = quizWorld({ [qid(0, 0, 0)]: "b", [qid(0, 1, 0)]: "a" });
+    const out = await answer(rec.client, link, { attemptId: ATTEMPT, questionId: qid(0, 2, 0), choiceId: "b" });
+    expect(out).toMatchObject({ result: { correct: 2, total: 3, passed: false, missedChapters: [0] } });
+    expect(rec.writtenRows("training_attempts")[0]).toMatchObject({ passed: false, correct: 2, missed_chapters: [0] });
     expect(rec.writtenRows("training_progress")[0]).toEqual({ watched_since: [] });
     expectOrgScoped(rec, ORG);
   });
 
-  it("refuses an answer to a question the quiz did not serve, or to a finished quiz", async () => {
-    expect(await answer(quizWorld(null).client, link, { attemptId: ATTEMPT, questionId: questions[5]!.id, choiceId: "b" })).toMatchObject({ status: 422 });
+  it("refuses an answer to a question the stop did not serve, or to a finished one", async () => {
+    expect(await answer(quizWorld(null).client, link, { attemptId: ATTEMPT, questionId: qid(1, 0, 0), choiceId: "b" })).toMatchObject({ status: 422 });
     const done = createSupabaseRecorder({ tables: { training_attempts: [{ ...open({}), submitted_at: "2026-11-24T10:05:00Z" }] } });
-    expect(await answer(done.client, link, { attemptId: ATTEMPT, questionId: questions[0]!.id, choiceId: "b" })).toMatchObject({ status: 409 });
+    expect(await answer(done.client, link, { attemptId: ATTEMPT, questionId: qid(0, 0, 0), choiceId: "b" })).toMatchObject({ status: 409 });
   });
 });

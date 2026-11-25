@@ -103,8 +103,22 @@ export function standing(a: TrainingAssignmentRow, today: string): AssignmentSta
   return a.firstOpenedAt ? "in_progress" : "not_opened";
 }
 
-/** One film's cell on the Progress tab: its status, and the best quiz score when there is one. */
+/**
+ * One film's cell on the Progress tab (SEGMENT-QUIZ D-TR16): its status, right on the first try, and
+ * what needs a word with the driver — a stop that took more than one try, answers too fast to be read.
+ */
 export function lessonCell(l: TrainingAssignmentRow["lessons"][number]): string {
-  const base = LESSON_STATUS[l.status].label;
-  return l.best ? `${base} · ${l.best.correct}/${l.best.total}` : base;
+  const parts = [LESSON_STATUS[l.status].label];
+  if (l.firstTry) parts.push(`${l.firstTry.correct}/${l.firstTry.total} first try`);
+  const retried = l.tries.map((n, i) => (n > 1 ? `stop ${i + 1}: ${n} tries` : null)).filter((x) => x !== null);
+  parts.push(...retried);
+  if (l.fast) parts.push(`${l.fast} too fast`);
+  return parts.join(" · ");
+}
+
+/** Questions per segment that has any, in film order — "6 · 6 · 6" — for the Videos table; "—" before any. */
+export function questionsPerSegment(v: { questions: ReadonlyArray<{ chapter: number }> } | null): string {
+  if (!v || !v.questions.length) return "—";
+  const chapters = [...new Set(v.questions.map((q) => q.chapter))].sort((a, b) => a - b);
+  return chapters.map((c) => v.questions.filter((q) => q.chapter === c).length).join(" · ");
 }

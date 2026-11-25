@@ -19,15 +19,16 @@ vi.mock("@vueuse/core", async (orig) => {
   return { ...actual, useMediaQuery: () => ref(true) };
 });
 
+const FULL = [0, 1].flatMap((chapter) => [0, 1, 2].flatMap((point) => [{ chapter, point }, { chapter, point }]));
 const v = (o: Partial<TrainingVersionSummary>): TrainingVersionSummary => ({
   id: "v1", versionNo: 1, language: "en", state: "ready", durationMs: 204_000, chapters: [{ title: "The rule", startMs: 0 }, { title: "Turns", startMs: 69_000 }],
-  serveCount: 5, passCount: 4, questionCount: 5, processError: null, posterUrl: null, publishedAt: null, ...o,
+  serveCount: 3, passCount: 3, questionCount: 12, questions: FULL, processError: null, posterUrl: null, publishedAt: null, ...o,
 });
 const COURSES: TrainingCourseSummary[] = [{
   id: "c1", title: "Defensive driving, Act I", description: null, position: 0, retiredAt: null,
   lessons: [
     { id: "l1", title: "Following distance", position: 0, retiredAt: null, versions: [v({ id: "v1", state: "published" })] },
-    { id: "l2", title: "Eyes up", position: 1, retiredAt: null, versions: [v({ id: "v2", state: "ready", questionCount: 3 })] },
+    { id: "l2", title: "Eyes up", position: 1, retiredAt: null, versions: [v({ id: "v2", state: "ready", questions: FULL.slice(1) })] },
   ],
 }];
 
@@ -109,11 +110,11 @@ describe("TrainingPage › Videos", () => {
   it("names what blocks publishing a film, and keeps the button off until nothing does", async () => {
     const { w } = await mountPage("/training?film=l2");
     const blockers = body().querySelector('[data-test="publish-blockers"]');
-    expect(blockers?.textContent).toContain("Write at least 5 questions: 3 so far.");
+    expect(blockers?.textContent).toContain('"The rule", point 1 has one version: write a second, so a retry asks something different.');
     expect((body().querySelector('[data-test="film-publish"]') as HTMLButtonElement).disabled).toBe(true);
     w.unmount();
 
-    state.courses = [{ ...COURSES[0]!, lessons: [{ ...COURSES[0]!.lessons[1]!, versions: [v({ id: "v2", state: "ready", questionCount: 6 })] }] }];
+    state.courses = [{ ...COURSES[0]!, lessons: [{ ...COURSES[0]!.lessons[1]!, versions: [v({ id: "v2", state: "ready" })] }] }];
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/training", component: TrainingPage }] });
     await router.push("/training?film=l2");
     const w2 = mount(TrainingPage, { global: { plugins: [router] }, attachTo: document.body });
@@ -156,7 +157,7 @@ describe("TrainingPage › Progress", () => {
   const a = (o: Partial<TrainingAssignmentRow>): TrainingAssignmentRow => ({
     id: "a1", driverId: "d1", driverName: "Marko Petrovic", courseId: "c1", courseTitle: "Act I", sentAt: "2026-11-20T15:00:00Z", lastSentVia: "copy",
     dueOn: null, firstOpenedAt: null, completedAt: null, revokedAt: null,
-    lessons: [{ lessonId: "l1", title: "Following distance", status: "rewatch", watchedMs: 0, durationMs: 1, best: { correct: 3, total: 5 }, attempts: 1 }], ...o,
+    lessons: [{ lessonId: "l1", title: "Following distance", status: "rewatch", watchedMs: 0, durationMs: 1, firstTry: { correct: 2, total: 3 }, tries: [2, 0, 0], fast: 0, attempts: 2 }], ...o,
   });
 
   it("marks a past due date late, shows each film's best score, and gives a viewer no acts", async () => {
@@ -165,7 +166,7 @@ describe("TrainingPage › Progress", () => {
     const { w } = await mountPage("/training?view=progress");
     const row = w.find("tbody tr").text();
     expect(row).toContain("Overdue");
-    expect(row).toContain("Watching again · 3/5");
+    expect(row).toContain("Watching again · 2/3 first try · stop 1: 2 tries");
     expect(w.findComponent({ name: "KebabMenu" }).exists()).toBe(false);
     state.manage = true;
     w.unmount();

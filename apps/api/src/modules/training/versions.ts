@@ -101,17 +101,18 @@ export async function updateVersion(admin: SupabaseClient, orgId: string, versio
 
 /** Publish; withdraws the film's live cut in the same transaction (`training_publish_version`, 0648). */
 export async function publishVersion(admin: SupabaseClient, orgId: string, versionId: string, userId: string): Promise<{ withdrew: string | null } | TrainingRefusal> {
-  // The quiz must be answerable before drivers see it (`publishBlockers`). The database checks only that
-  // the video is ready, so the question count is checked here; once published, 0648's triggers freeze it.
+  // Every stop must be answerable before drivers see it (`publishBlockers`, D-TR14/D-TR15): 3 points per
+  // segment, two versions of each. The database checks only that the video is ready, so the bank is
+  // checked here; once published, 0648's triggers freeze it.
   const [v, q] = await Promise.all([
-    admin.from("training_versions").select("state, serve_count, pass_count").eq("org_id", orgId).eq("id", versionId).maybeSingle(),
-    admin.from("training_questions").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("version_id", versionId),
+    admin.from("training_versions").select("state, chapters").eq("org_id", orgId).eq("id", versionId).maybeSingle(),
+    admin.from("training_questions").select("chapter, point").eq("org_id", orgId).eq("version_id", versionId),
   ]);
   if (v.error) fail("version not read", v.error);
-  if (q.error) fail("questions not counted", q.error);
+  if (q.error) fail("questions not read", q.error);
   if (!v.data) return refuse(404, "not_found", "No such video.");
-  const row = v.data as { state: string; serve_count: number; pass_count: number };
-  const blockers = publishBlockers({ state: row.state, questionCount: q.count ?? 0, serveCount: row.serve_count, passCount: row.pass_count });
+  const row = v.data as { state: string; chapters: Array<{ title: string; startMs: number }> | null };
+  const blockers = publishBlockers({ state: row.state, chapters: row.chapters ?? [], questions: (q.data ?? []) as Array<{ chapter: number; point: number }> });
   if (blockers.length) return refuse(409, "not_publishable", blockers.join(" "));
   const { data, error } = await admin.rpc("training_publish_version", { p_org: orgId, p_version: versionId, p_actor: userId });
   const r = refusalFromDb(error);
@@ -152,12 +153,12 @@ export async function previewVersion(admin: SupabaseClient, orgId: string, versi
 
 // ── questions ──────────────────────────────────────────────────────────────────────────────────
 
-interface QuestionRow { id: string; chapter: number; prompt: string; choices: Array<{ id: string; text: string }>; answer: string; why: string; position: number }
+interface QuestionRow { id: string; chapter: number; point: number; prompt: string; choices: Array<{ id: string; text: string }>; answer: string; why: string; position: number }
 
 export async function listQuestions(admin: SupabaseClient, orgId: string, versionId: string): Promise<TrainingQuestionView[]> {
   const { data, error } = await admin
     .from("training_questions")
-    .select("id, chapter, prompt, choices, answer, why, position")
+    .select("id, chapter, point, prompt, choices, answer, why, position")
     .eq("org_id", orgId)
     .eq("version_id", versionId)
     .order("position")
@@ -166,6 +167,7 @@ export async function listQuestions(admin: SupabaseClient, orgId: string, versio
   return ((data ?? []) as QuestionRow[]).map((q) => ({
     id: q.id,
     chapter: q.chapter,
+    point: q.point,
     prompt: q.prompt,
     choices: q.choices.map((c) => c.text),
     answerIndex: Math.max(0, q.choices.findIndex((c) => c.id === q.answer)),
@@ -177,6 +179,7 @@ export async function listQuestions(admin: SupabaseClient, orgId: string, versio
 /** The stored shape: choices get ids a–e in the order written; the answer is the id at answerIndex. */
 const stored = (q: TrainingQuestionInput) => ({
   chapter: q.chapter,
+  point: q.point,
   prompt: q.prompt,
   choices: q.choices.map((text, i) => ({ id: CHOICE_IDS[i], text })),
   answer: CHOICE_IDS[q.answerIndex],

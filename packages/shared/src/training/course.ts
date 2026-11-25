@@ -1,4 +1,4 @@
-import type { FilmState } from "./watching.js";
+import type { FilmState } from "./segments.js";
 
 /**
  * A driver's way through a course (D-TR7): films in order, each opening when the one before it in

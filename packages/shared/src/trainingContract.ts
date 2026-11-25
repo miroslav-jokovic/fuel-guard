@@ -6,6 +6,7 @@ import type { TrainingChapter, WatchedRanges } from "./training/watching.js";
 export * from "./training/watching.js";
 export * from "./training/quiz.js";
 export * from "./training/course.js";
+export * from "./training/segments.js";
 
 /**
  * Driver safety training — the API's contract with the office's Training page and the driver's link
@@ -77,6 +78,8 @@ export type TrainingVersionUpdate = z.infer<typeof trainingVersionUpdateSchema>;
 
 export const trainingQuestionSchema = z.object({
   chapter: z.number().int().min(0).max(50),
+  /** Which of its segment's points it tests (0650): two questions with one point are two versions (D-TR15). */
+  point: z.number().int().min(0).max(9),
   prompt: z.string().trim().min(3, "Write the question.").max(400),
   choices: z.array(z.string().trim().min(1).max(200)).min(2, "A question has at least 2 answers.").max(5, "A question has at most 5 answers."),
   answerIndex: z.number().int().min(0).max(4),
@@ -134,6 +137,8 @@ export interface TrainingVersionSummary {
   serveCount: number;
   passCount: number;
   questionCount: number;
+  /** Where each question belongs, so the office page can say per segment what still blocks a publish. */
+  questions: Array<{ chapter: number; point: number }>;
   processError: string | null;
   posterUrl: string | null;
   publishedAt: string | null;
@@ -161,6 +166,7 @@ export interface TrainingCourseSummary {
 export interface TrainingQuestionView {
   id: string;
   chapter: number;
+  point: number;
   prompt: string;
   choices: string[];
   answerIndex: number;
@@ -181,7 +187,20 @@ export interface TrainingAssignmentRow {
   firstOpenedAt: string | null;
   completedAt: string | null;
   revokedAt: string | null;
-  lessons: Array<{ lessonId: string; title: string; status: LessonStatus; watchedMs: number; durationMs: number; best: { correct: number; total: number } | null; attempts: number }>;
+  lessons: Array<{
+    lessonId: string;
+    title: string;
+    status: LessonStatus;
+    watchedMs: number;
+    durationMs: number;
+    /** Right on the first try, out of every stop's questions (D-TR16); null before the first stop is answered. */
+    firstTry: { correct: number; total: number } | null;
+    /** Tries per stop, in stop order: [1, 3, 1] = stop 2 needed two retries. */
+    tries: number[];
+    /** Answers that came under 2 s after the one before: a tap-through rather than a read (§3.1). */
+    fast: number;
+    attempts: number;
+  }>;
 }
 
 // ── the driver's link page ─────────────────────────────────────────────────────────────────────
@@ -217,8 +236,13 @@ export interface TrainingPortalFilm {
   positionMs: number;
   watched: WatchedRanges;
   status: LessonStatus;
-  /** The chapters to watch again after a failed quiz. */
+  /** The chapters to watch again after a missed stop. */
   rewatch: number[];
+  /**
+   * Where the next stop is (D-TR13): the segment whose end pauses the film, or — `status` "quiz" — the
+   * segment whose questions are open now, or — "rewatch" — the one to watch again. Null once passed.
+   */
+  stop: { chapter: number; title: string; startMs: number; endMs: number } | null;
 }
 
 /** `POST …/progress` — one span the page played. */
@@ -233,7 +257,9 @@ export type TrainingProgress = z.infer<typeof trainingProgressSchema>;
 /** `POST …/quiz` — start (or resume) the quiz. No answers in it. */
 export interface TrainingPortalQuiz {
   attemptId: string;
-  passCount: number;
+  /** The stop these questions are about (D-TR13). */
+  chapter: number;
+  chapterTitle: string;
   questions: Array<{ id: string; prompt: string; choices: Array<{ id: string; text: string }> }>;
   /** Already answered on this attempt (a resumed quiz), with their feedback. */
   answered: Record<string, TrainingAnswerFeedback>;
@@ -249,8 +275,9 @@ export type TrainingAnswer = z.infer<typeof trainingAnswerSchema>;
 /** The answer to one question, after it is given. */
 export interface TrainingAnswerFeedback {
   right: boolean;
-  answer: string;
-  why: string;
+  /** The right answer and why — sent ONLY after a right answer. After a miss both are null (D-TR15). */
+  answer: string | null;
+  why: string | null;
   chapter: number;
 }
 

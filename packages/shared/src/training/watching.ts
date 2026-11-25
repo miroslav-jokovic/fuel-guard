@@ -9,11 +9,7 @@
  * the film or chapter (the July plan's R7, kept). The page reports each span it actually played; the
  * API refuses a span longer than the wall-clock time since the last report (`acceptableSpanMs`).
  *
- * ── WHAT UNLOCKS THE QUIZ (D-TR8) ──────────────────────────────────────────────────────────────
- *   · No quiz taken yet → the film watched to WATCH_SHARE.
- *   · Last quiz failed → every chapter it missed watched to WATCH_SHARE SINCE that quiz. Only those
- *     chapters; the rest of the film is not asked again (owner, 2026-11-24, loosening July R2/R3).
- *   · Last quiz passed → the film is done.
+ * What these ranges unlock — the questions after each segment (D-TR13) — is `segments.ts`.
  */
 
 /** A merged, sorted list of [startMs, endMs] spans, each end > start. */
@@ -93,45 +89,6 @@ export function checkChapters(chapters: readonly TrainingChapter[], durationMs: 
     prev = c;
   }
   return null;
-}
-
-/** The last quiz on a film, as the unlock rule needs it. */
-export interface LastQuiz {
-  passed: boolean;
-  missedChapters: readonly number[];
-}
-
-export type FilmState =
-  /** Nothing watched enough yet. */
-  | { kind: "watch" }
-  /** Failed: these chapters must be watched again. */
-  | { kind: "rewatch"; chapters: number[] }
-  /** The quiz may be taken. */
-  | { kind: "quiz" }
-  | { kind: "passed" };
-
-export interface FilmProgress {
-  durationMs: number;
-  chapters: readonly TrainingChapter[];
-  watched: WatchedRanges;
-  /** Watched since the last FAILED quiz; empty after a pass or before any quiz. */
-  watchedSince: WatchedRanges;
-  lastQuiz: LastQuiz | null;
-}
-
-/** Where a driver stands on one film (D-TR8). */
-export function filmState(p: FilmProgress): FilmState {
-  if (p.lastQuiz?.passed) return { kind: "passed" };
-  if (p.lastQuiz) {
-    const spans = chapterSpans(p.chapters, p.durationMs);
-    const left = p.lastQuiz.missedChapters.filter((i) => {
-      // A chapter index the version no longer has (it cannot: a published version is frozen) reads as the last.
-      const s = spans[i] ?? spans[spans.length - 1];
-      return s ? !isWatched(p.watchedSince, s.startMs, s.endMs) : false;
-    });
-    return left.length ? { kind: "rewatch", chapters: left } : { kind: "quiz" };
-  }
-  return isWatched(p.watched, 0, p.durationMs) ? { kind: "quiz" } : { kind: "watch" };
 }
 
 /**

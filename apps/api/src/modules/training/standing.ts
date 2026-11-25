@@ -5,14 +5,29 @@ import {
   lessonStatuses,
   type FilmState,
   type LessonStatus,
+  type PointResult,
   type TrainingChapter,
   type WatchedRanges,
 } from "@silvicom/shared";
 
+/** Every answer of a cut's submitted attempts, as the segment rules read them. */
+export function pointResults(attempts: readonly AttemptRow[], bank: readonly BankRow[]): PointResult[] {
+  const byId = new Map(bank.map((q) => [q.id, q]));
+  return attempts
+    .filter((x) => x.submitted_at)
+    .flatMap((x) =>
+      x.served.flatMap((s) => {
+        const q = byId.get(s.questionId);
+        return q ? [{ chapter: q.chapter, point: q.point, right: x.answers?.[s.questionId] === q.answer }] : [];
+      }),
+    );
+}
+
 /**
- * Where one driver stands on one assignment: each film's published cut, what they watched of it, their
- * quizzes, and so each film's status (D-TR7, D-TR8). One read path for the driver's page and the
- * office's Progress tab, so the two can never disagree about whether a driver passed.
+ * Where one driver stands on one assignment: each film's published cut, what they watched of it, the
+ * questions they answered at each stop, and so each film's status (SEGMENT-QUIZ D-TR13–D-TR15). One read
+ * path for the driver's page and the office's Progress tab, so the two can never disagree about whether
+ * a driver passed.
  *
  * The cut a driver is measured against is the film's CURRENT published version in English (v1, Q-TR6):
  * a remaster published after a driver passed does not un-pass them — their pass on the cut they watched
@@ -55,13 +70,18 @@ export interface AttemptRow {
   version_id: string;
   served: Array<{ questionId: string; order: string[] }>;
   answers: Record<string, string> | null;
+  /** When each answer reached the server (0650); null on a quiz from before it. */
+  answered_at: Record<string, string> | null;
   correct: number | null;
   passed: boolean | null;
   missed_chapters: number[] | null;
   started_at: string;
   submitted_at: string | null;
 }
-export const ATTEMPT_COLS = "id, assignment_id, version_id, served, answers, correct, passed, missed_chapters, started_at, submitted_at";
+export const ATTEMPT_COLS = "id, assignment_id, version_id, served, answers, answered_at, correct, passed, missed_chapters, started_at, submitted_at";
+
+/** A question as the standing needs it: where it belongs and its answer (server-side only). */
+export interface BankRow { id: string; version_id: string; chapter: number; point: number; answer: string }
 
 export interface ProgressRow { assignment_id: string; version_id: string; watched: WatchedRanges; watched_since: WatchedRanges; position_ms: number; updated_at: string }
 
@@ -71,6 +91,8 @@ export interface FilmStanding {
   version: FilmVersion;
   progress: ProgressRow | null;
   attempts: AttemptRow[];
+  /** The current cut's questions, with their answers — never sent to the page as such. */
+  bank: BankRow[];
   state: FilmState;
   status: LessonStatus;
 }
@@ -103,14 +125,36 @@ export async function standings(admin: SupabaseClient, orgId: string, assignment
   const versions = new Map(((v.data ?? []) as FilmVersion[]).map((x) => [x.lesson_id, x]));
   const progress = (p.data ?? []) as ProgressRow[];
   const attempts = (t.data ?? []) as AttemptRow[];
-  // Which film each attempted cut belongs to — a pass on an older cut (before a remaster) still counts.
+  // Every cut a quiz was taken on, and its questions: a film passed on an older cut (before a remaster)
+  // stays passed, so each cut's standing is worked out from its own chapters and questions.
   const attemptedIds = [...new Set(attempts.map((x) => x.version_id))];
-  const cutLesson = new Map<string, string>();
-  if (attemptedIds.length) {
-    const { data, error } = await admin.from("training_versions").select("id, lesson_id").eq("org_id", orgId).in("id", attemptedIds);
+  const cuts = new Map(((v.data ?? []) as FilmVersion[]).map((x) => [x.id, x]));
+  const older = attemptedIds.filter((id) => !cuts.has(id));
+  if (older.length) {
+    const { data, error } = await admin.from("training_versions").select(FILM_COLS).eq("org_id", orgId).in("id", older);
     if (error) fail("quizzed films not read", error);
-    for (const r of (data ?? []) as Array<{ id: string; lesson_id: string }>) cutLesson.set(r.id, r.lesson_id);
+    for (const x of (data ?? []) as FilmVersion[]) cuts.set(x.id, x);
   }
+  const bankIds = [...cuts.keys()];
+  const bank: BankRow[] = [];
+  if (bankIds.length) {
+    const { data, error } = await admin.from("training_questions").select("id, version_id, chapter, point, answer").eq("org_id", orgId).in("version_id", bankIds);
+    if (error) fail("questions not read", error);
+    bank.push(...((data ?? []) as BankRow[]));
+  }
+  const stateOn = (cut: FilmVersion, a: string): FilmState => {
+    const prog = progress.find((x) => x.assignment_id === a && x.version_id === cut.id);
+    const onCut = attempts.filter((x) => x.assignment_id === a && x.version_id === cut.id);
+    const qs = bank.filter((q) => q.version_id === cut.id);
+    return filmState({
+      durationMs: cut.duration_ms,
+      chapters: cut.chapters ?? [],
+      questions: qs,
+      watched: prog?.watched ?? [],
+      watchedSince: prog?.watched_since ?? [],
+      results: pointResults(onCut, qs),
+    });
+  };
 
   for (const a of assignments) {
     // A retired film stays in an assignment that named it, and leaves a whole-course one.
@@ -120,21 +164,21 @@ export async function standings(admin: SupabaseClient, orgId: string, assignment
       const version = versions.get(lesson.id);
       if (!version) continue;
       const mine = attempts.filter((x) => x.assignment_id === a.id);
-      // A pass on ANY cut of this film stands; otherwise the current cut's quizzes decide.
-      const passedOn = mine.find((x) => x.passed && cutLesson.get(x.version_id) === lesson.id);
-      const onThis = mine.filter((x) => x.version_id === version.id && x.submitted_at);
-      const last = onThis[onThis.length - 1];
+      const olderPass = [...new Set(mine.map((x) => x.version_id))]
+        .map((id) => cuts.get(id))
+        .some((cut) => !!cut && cut.id !== version.id && cut.lesson_id === lesson.id && stateOn(cut, a.id).kind === "passed");
       const prog = progress.find((x) => x.assignment_id === a.id && x.version_id === version.id) ?? null;
-      const state: FilmState = passedOn
-        ? { kind: "passed" }
-        : filmState({
-            durationMs: version.duration_ms,
-            chapters: version.chapters ?? [],
-            watched: prog?.watched ?? [],
-            watchedSince: prog?.watched_since ?? [],
-            lastQuiz: last ? { passed: !!last.passed, missedChapters: last.missed_chapters ?? [] } : null,
-          });
-      films.push({ lessonId: lesson.id, title: lesson.title, version, progress: prog, attempts: mine.filter((x) => x.version_id === version.id), state, status: "locked" });
+      const state: FilmState = olderPass ? { kind: "passed" } : stateOn(version, a.id);
+      films.push({
+        lessonId: lesson.id,
+        title: lesson.title,
+        version,
+        progress: prog,
+        attempts: mine.filter((x) => x.version_id === version.id),
+        bank: bank.filter((q) => q.version_id === version.id),
+        state,
+        status: "locked",
+      });
     }
     const statuses = lessonStatuses(films.map((f) => ({ lessonId: f.lessonId, film: f.state })));
     films.forEach((f, i) => (f.status = statuses[i]?.status ?? "locked"));

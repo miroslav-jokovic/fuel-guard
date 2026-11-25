@@ -1,7 +1,8 @@
 /**
- * Drawing a quiz from a film's question pool and grading it (D-TR7, D-TR8; the July plan's R5/R6).
- * Pure; the API persists what was served (`training_attempts.served`) so a record can be rebuilt, and
- * grades on the server — the answer never reaches the driver's page before they have answered.
+ * Drawing one stop's questions from a film's bank and grading them (SEGMENT-QUIZ D-TR14/D-TR15; the
+ * July plan's R5/R6). Pure; the API persists what was served (`training_attempts.served`) so a record
+ * can be rebuilt, and grades on the server — the answer never reaches the driver's page before they
+ * have answered, and after a miss it does not reach it at all (D-TR15).
  */
 
 export const CHOICE_IDS = ["a", "b", "c", "d", "e"] as const;
@@ -11,6 +12,8 @@ export type ChoiceId = (typeof CHOICE_IDS)[number];
 export interface PoolQuestion {
   id: string;
   chapter: number;
+  /** Which of its segment's points it tests; two questions with one point are two versions of it (0650). */
+  point: number;
   prompt: string;
   choices: ReadonlyArray<{ id: string; text: string }>;
   answer: string;
@@ -38,32 +41,26 @@ function shuffled<T>(xs: readonly T[], rnd: Random): T[] {
 }
 
 /**
- * Draw `count` questions, spread across chapters: one from each chapter in turn (chapters and the
- * questions inside each in random order) until enough are drawn. A pool of ten that is mostly about
- * chapter 1 still asks about chapter 3. Choice order is shuffled per question.
- *
- * `avoid` is the questions the driver saw on their last attempt: they are drawn last, so a retake gets
- * new questions while the pool allows ("You get new questions", the result screen).
+ * One stop's questions: one per point asked, each the version of that point served LEAST so far to
+ * this driver (`served`: question id → times served), a tie broken at random. So a retry after a miss
+ * asks the other version (D-TR15), and the first try on a film is a random version. Choice order is
+ * shuffled each time. A point with no question in the bank is skipped — `publishBlockers` keeps that
+ * from being published.
  */
-export function drawQuiz(pool: readonly PoolQuestion[], count: number, rnd: Random, avoid: ReadonlySet<string> = new Set()): ServedQuestion[] {
-  const fresh = pool.filter((q) => !avoid.has(q.id));
-  const seen = pool.filter((q) => avoid.has(q.id));
-  const pick = (from: readonly PoolQuestion[], n: number): PoolQuestion[] => {
-    const byChapter = new Map<number, PoolQuestion[]>();
-    for (const q of shuffled(from, rnd)) byChapter.set(q.chapter, [...(byChapter.get(q.chapter) ?? []), q]);
-    const queues = shuffled([...byChapter.values()], rnd);
-    const out: PoolQuestion[] = [];
-    while (out.length < n && queues.some((q) => q.length)) {
-      for (const q of queues) {
-        const next = q.shift();
-        if (next && out.length < n) out.push(next);
-      }
-    }
-    return out;
-  };
-  const first = pick(fresh, count);
-  const chosen = first.length < count ? [...first, ...pick(seen, count - first.length)] : first;
-  return chosen.map((q) => ({ questionId: q.id, order: shuffled(q.choices.map((c) => c.id), rnd) }));
+export function drawSegment(
+  pool: readonly PoolQuestion[],
+  chapter: number,
+  points: readonly number[],
+  served: ReadonlyMap<string, number>,
+  rnd: Random,
+): ServedQuestion[] {
+  return points.flatMap((point) => {
+    const versions = pool.filter((q) => q.chapter === chapter && q.point === point);
+    if (!versions.length) return [];
+    const least = Math.min(...versions.map((v) => served.get(v.id) ?? 0));
+    const pick = shuffled(versions.filter((v) => (served.get(v.id) ?? 0) === least), rnd)[0]!;
+    return [{ questionId: pick.id, order: shuffled(pick.choices.map((c) => c.id), rnd) }];
+  });
 }
 
 export interface GradedQuiz {
@@ -74,12 +71,11 @@ export interface GradedQuiz {
   missedChapters: number[];
 }
 
-/** Grade a whole attempt. An unanswered question is wrong. */
+/** Grade one stop's attempt. An unanswered question is wrong. A stop passes only with every answer right (D-TR14). */
 export function gradeQuiz(
   served: readonly ServedQuestion[],
   pool: readonly PoolQuestion[],
   answers: Readonly<Record<string, string>>,
-  passCount: number,
 ): GradedQuiz {
   const byId = new Map(pool.map((q) => [q.id, q]));
   let correct = 0;
@@ -90,7 +86,7 @@ export function gradeQuiz(
     if (answers[s.questionId] === q.answer) correct++;
     else missed.add(q.chapter);
   }
-  return { correct, total: served.length, passed: correct >= passCount, missedChapters: [...missed].sort((a, b) => a - b) };
+  return { correct, total: served.length, passed: correct === served.length, missedChapters: [...missed].sort((a, b) => a - b) };
 }
 
 /**
@@ -106,20 +102,4 @@ export function checkQuestion(q: { chapter: number; prompt: string; choices: rea
   if (q.why.trim().length < 3) return "Say in one line why it is right — the driver reads it after answering.";
   if (q.chapter < 0 || q.chapter >= Math.max(1, chapterCount)) return "Pick the chapter this question comes from.";
   return null;
-}
-
-/**
- * What still stands between a film version and publishing, in the office's words; empty when it may
- * be published. A version needs at least as many questions as each driver is served, or every driver
- * gets a short quiz — and if passing needs more right answers than are asked, nobody can ever pass.
- * Read by the API, which refuses the publish, and by the office page, which says it before the click.
- * (The database's `training_publish_version` checks only that the video is ready; the count of
- * questions is the API's to check, and the frozen-version triggers hold it once published.)
- */
-export function publishBlockers(v: { state: string; questionCount: number; serveCount: number; passCount: number }): string[] {
-  const out: string[] = [];
-  if (v.state !== "ready") out.push(v.state === "published" ? "It is already published." : "The video is not ready for phones yet.");
-  if (v.questionCount < v.serveCount) out.push(`Write at least ${v.serveCount} questions: ${v.questionCount} so far. Each driver gets ${v.serveCount} drawn from the list.`);
-  if (v.passCount > v.serveCount) out.push(`Passing needs ${v.passCount} right, but only ${v.serveCount} are asked.`);
-  return out;
 }
