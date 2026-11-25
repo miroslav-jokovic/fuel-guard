@@ -816,6 +816,29 @@
     "apps/api/src/modules/samsara/samsaraTrailerSync.ts",
     "apps/web/src/composables/useTrailers.ts"
   ],
+  "training_assignments": [
+    "apps/api/src/modules/training/assignments.ts",
+    "apps/api/src/modules/training/portal.ts"
+  ],
+  "training_attempts": [
+    "apps/api/src/modules/training/portal.ts"
+  ],
+  "training_courses": [
+    "apps/api/src/modules/training/catalogue.ts"
+  ],
+  "training_lessons": [
+    "apps/api/src/modules/training/catalogue.ts"
+  ],
+  "training_progress": [
+    "apps/api/src/modules/training/portal.ts"
+  ],
+  "training_questions": [
+    "apps/api/src/modules/training/versions.ts"
+  ],
+  "training_versions": [
+    "apps/api/src/modules/training/transcode.ts",
+    "apps/api/src/modules/training/versions.ts"
+  ],
   "unit_notes": [
     "apps/api/src/modules/roster/notes/unitNotes.ts"
   ],
