@@ -124,7 +124,7 @@ const commitOk = want.commit && live.commit ? want.commit === live.commit : null
 const schemaOk = want.schema && live.schema?.applied ? want.schema === live.schema.applied : null;
 const isProduction = target?.branch === "production";
 
-console.log(`\nSilvicom 360 — live deployment check\n  target ${base}   env ${live.env}   compared with ${want.label}\n`);
+console.log(`\nSilvicom 360 — live deployment check\n  target ${base}   env ${live.environment ?? live.env}   compared with ${want.label}\n`);
 console.log(row("commit", want.commit?.slice(0, 7), live.commitShort, commitOk));
 console.log(row("branch", want.branch, live.branch, want.branch && live.branch ? want.branch === live.branch : null));
 // R6 (D-REL10): only production is tagged. A live version still missing right after a release is the
