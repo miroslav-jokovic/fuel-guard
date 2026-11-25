@@ -3,7 +3,6 @@ import {
   ALWAYS,
   STAFF,
   directory,
-  isEditableSurface,
   manage,
   section,
   type Surface,
@@ -472,10 +471,6 @@ export const SURFACES: readonly Surface[] = [
   { key: "safety.hazmat-load.detail", label: "Hazmat Load", path: "/hazmat/loads/:id", group: "safety", gate: section("hazmat"), module: "hazmatguard", parent: "safety.hazmat-review" },
 ];
 
-/**
- * The surfaces that render in the sidebar — everything except the detail routes (D-SURF8) and the
- * screens a directory links to instead (`reachedFrom`, SP1).
- */
 // A directory's screens are the ones that name it — filled from `reachedFrom`, the one place it is
 // written, so the Settings entry cannot drift from the cards behind it.
 for (const s of SURFACES) {
@@ -490,12 +485,4 @@ for (const s of SURFACES) {
   const parent = s.parent ? SURFACES.find((p) => p.key === s.parent) : undefined;
   if (parent?.startsOnFor) s.startsOnFor = parent.startsOnFor;
 }
-
-export const NAV_SURFACES: readonly Surface[] = SURFACES.filter((s) => s.parent === undefined && s.reachedFrom === undefined);
-
-/**
- * The screens an organisation may answer for, per role and per person: a section gate (Q-SURF3 —
- * `isEditableSurface`) and a grant of its own (not a `parent`, D-SURF8). The Permissions page's
- * rows, the API's accepted keys and the stored-row filter all read this one list.
- */
-export const GRANTABLE_SURFACES: readonly Surface[] = SURFACES.filter((s) => isEditableSurface(s) && s.parent === undefined);
+// The sidebar list and the grantable set are derived from this one in `surfaceLookups.ts` (BROKER-MAIL-READER-PLAN P2 moved them).

@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { USER_ROLES } from "./constants.js";
 import { callerCanView, type SectionClaim } from "./auth.js";
 import { surfaceAllowed, surfaceGateAllows, surfaceStartsOn } from "./surfaces.js";
-import { GRANTABLE_SURFACES, NAV_SURFACES, SURFACES } from "./surfaceCatalogue.js";
+import { SURFACES } from "./surfaceCatalogue.js";
+import { GRANTABLE_SURFACES, NAV_SURFACES } from "./surfaceLookups.js";
 import { ADMIN_ONLY_SURFACES } from "./surfaceLookups.js";
 import { directoryScreens } from "./surfaceLookups.js";
 
