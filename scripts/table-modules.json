@@ -3994,6 +3994,17 @@
         "budget_rows_per_day": 400,
         "why": "new in 0648 (2026-11-24, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8-§9): one row per quiz taken (~1.5 per film per driver); the completion record, append-only once submitted, never pruned (RETENTION_FORBIDDEN). Budgeted 400 a day."
       }
+    },
+    "broker_mail_settings": {
+      "module": "broker-mail",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "static",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0649 (2026-11-25, P2): one row per org, the company's broker-mail setting written from Settings › Broker mail; never grows with time."
+      }
     }
   }
 }

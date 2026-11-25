@@ -48,6 +48,21 @@ export type MailGatewayProbeResult = (typeof MAIL_GATEWAY_PROBE_RESULTS)[number]
 export const MAIL_GATEWAY_FOLDER_ROLES = ["inbox", "inbox_child", "sent"] as const;
 export type MailGatewayFolderRole = (typeof MAIL_GATEWAY_FOLDER_ROLES)[number];
 
+/**
+ * Why a McLeod dispatcher's mailbox is NOT read — `mailgw_mailbox_roster`'s `reason` (0649, P2), in the
+ * order an admin fixes them. null = read. The roster is the one home of D-BMR5's rule: the gateway's
+ * derived list is its null rows, so the admin's list and the gateway cannot disagree.
+ *  · not_linked   — a McLeod login linked to no 360 user (fixed on Settings › McLeod fleets)
+ *  · not_member   — linked to a user who is not a member of this company
+ *  · suspended    — the member is suspended
+ *  · no_email     — the user has no sign-in email
+ *  · other_domain — the sign-in email is outside `mail_gateway_config.mail_domains` (Q-BMR10)
+ *  · left_out     — an admin left them out on purpose (Q-BMR11); a choice, never a refusal
+ * Compared with the SQL by `mail-gateway-door.test.mjs` ("every roster reason is a word of …").
+ */
+export const BROKER_MAIL_ROSTER_REASONS = ["not_linked", "not_member", "suspended", "no_email", "other_domain", "left_out"] as const;
+export type BrokerMailRosterReason = (typeof BROKER_MAIL_ROSTER_REASONS)[number];
+
 /** `broker_mail_messages.subject`'s CHECK. Longer subjects are cut, not refused: a cut subject still dates the row. */
 export const BROKER_MAIL_SUBJECT_MAX = 255;
 /** At most this many tokens per `mailgw_match_refs` call and per message — more is noise, not a reference. */

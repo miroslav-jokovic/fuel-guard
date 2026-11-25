@@ -25,7 +25,7 @@ import { dirname, join } from "node:path";
 import {
   BROKER_MAIL_MATCH_STATES, BROKER_MAIL_THREAD_STATES, MAIL_GATEWAY_MAILBOX_STATES,
   MAIL_GATEWAY_PROBE_RESULTS, MAIL_GATEWAY_FOLDER_ROLES, BROKER_MAIL_SUBJECT_MAX, normaliseBrokerMailToken,
-  mailGatewayCycleStartSchema,
+  mailGatewayCycleStartSchema, BROKER_MAIL_ROSTER_REASONS,
 } from "../../packages/shared/dist/index.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -307,6 +307,53 @@ await db.exec(`update mail_gateway_config set enabled = true, mail_domains = '{}
 s = await begin();
 ok("empty mail_domains: no mailbox at all", s.cycle_id !== null && s.mailboxes.length === 0);
 await release(s.cycle_id);
+
+// ── 5. the admin's roster and "left out on purpose" (0649, P2) ──────────────────────────────────
+// The derived list reads the roster since 0649, so every case above already ran against the new body.
+console.log("\nthe roster (0649), as the API's service role");
+await db.exec(`
+  update mail_gateway_config set mail_domains = '{carrier.com}';
+  insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000a7', 'gus@carrier.com'), ('00000000-0000-0000-0000-0000000000a8', null);
+  insert into memberships (org_id, user_id, role) values ('${ORG}', '00000000-0000-0000-0000-0000000000a8', 'dispatcher');
+  insert into tms_dispatchers (org_id, provider, external_id, user_id, is_system, is_active) values
+    ('${ORG}', 'mcleod', 'aneta', null, false, true), ('${ORG}', 'mcleod', 'gus', '00000000-0000-0000-0000-0000000000a7', false, true),
+    ('${ORG}', 'mcleod', 'hal', '00000000-0000-0000-0000-0000000000a8', false, true);
+`);
+const sr = async (sql, params = []) => {
+  await db.exec("set role service_role");
+  try { return { rows: (await db.query(sql, params)).rows }; }
+  catch (e) { return { error: e.code ?? e.message }; }
+  finally { await db.exec("reset role"); }
+};
+const roster = Object.fromEntries(((await sr(`select * from mailgw_mailbox_roster('${ORG}')`)).rows ?? [])
+  .map((x) => [x.user_id ?? `login:${x.mcleod_logins[0]}`, x]));
+const reason = (k) => roster[k]?.reason ?? (roster[k] ? null : "absent");
+ok("roster: Ann is read, one row for her two McLeod logins", reason(U.ann) === null && JSON.stringify(roster[U.ann].mcleod_logins) === '["ann1","ann2"]');
+ok("roster says WHY each other dispatcher is not read",
+  reason(U.bob) === "other_domain" && reason(U.cat) === "suspended" && reason(U.eve) === "left_out" &&
+  reason("00000000-0000-0000-0000-0000000000a7") === "not_member" && reason("00000000-0000-0000-0000-0000000000a8") === "no_email" &&
+  reason("login:aneta") === "not_linked", JSON.stringify(Object.values(roster).map((x) => [x.mcleod_logins, x.reason])));
+ok("roster leaves out the McLeod-inactive, the system login and the other org", reason(U.dan) === "absent" && !roster["login:loadmaster"] && reason(U.fay) === "absent");
+ok("every roster reason is a word of BROKER_MAIL_ROSTER_REASONS",
+  Object.values(roster).every((x) => x.reason === null || BROKER_MAIL_ROSTER_REASONS.includes(x.reason)));
+ok("the derived list is exactly the roster's unreasoned rows",
+  JSON.stringify((await sr(`select * from mailgw_derived_mailboxes('${ORG}')`)).rows) === JSON.stringify([{ mailbox: "ann@carrier.com", owner_user_id: U.ann }]));
+ok("mail_gateway cannot call the roster or the left-out act",
+  (await gw(`select * from mailgw_mailbox_roster('${ORG}')`)).error === "42501" &&
+  (await gw(`select broker_mail_set_left_out('${ORG}', '${U.ann}', true)`)).error === "42501");
+r = await sr(`select broker_mail_set_left_out('${ORG}', '${U.ann}', true) v`);
+ok("leaving Ann out takes her mailbox off the derived list", !r.error && (await sr(`select * from mailgw_derived_mailboxes('${ORG}')`)).rows.length === 0 &&
+  (await sr(`select reason from mailgw_mailbox_roster('${ORG}') where user_id = '${U.ann}'`)).rows[0].reason === "left_out");
+await sr(`select broker_mail_set_left_out('${ORG}', '${U.ann}', true)`);
+ok("leaving her out twice keeps one entry", (await one(`select cardinality(excluded_user_ids) n from mail_gateway_config`)).n === 2);
+await sr(`select broker_mail_set_left_out('${ORG}', '${U.ann}', false)`);
+ok("taking her back restores the derived list; Eve stays out", (await sr(`select * from mailgw_derived_mailboxes('${ORG}')`)).rows.length === 1 &&
+  JSON.stringify((await one(`select excluded_user_ids x from mail_gateway_config`)).x) === JSON.stringify([U.eve]));
+ok("a user who is not a member is refused (22023)", (await sr(`select broker_mail_set_left_out('${ORG}', '${U.fay}', true)`)).error === "22023");
+ok("another org has no config row: refused (P0002)", (await sr(`select broker_mail_set_left_out('${OTHER}', '${U.fay}', true)`)).error === "P0002");
+ok("broker_mail_settings is RLS-on and refuses an answer time under five minutes",
+  (await one(`select relrowsecurity x from pg_class where relname = 'broker_mail_settings'`)).x === true &&
+  await db.query(`insert into broker_mail_settings (org_id, answer_within_minutes) values ('${ORG}', 4)`).then(() => false, () => true));
 
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
