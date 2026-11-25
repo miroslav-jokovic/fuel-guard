@@ -23,6 +23,11 @@ interface ApiVersion {
   commitShort: string | null;
   branch: string | null;
   env: string;
+  /**
+   * The deployment's own name ("production", "uat", "staging"); absent from servers older than
+   * 2026-11-25. Preferred over `env`, which is NODE_ENV and says "production" on staging too.
+   */
+  environment?: string | null;
   schema: { expected: string | null; applied: string | null; state: string };
   ok: boolean;
 }
@@ -78,7 +83,7 @@ export function BuildInfoCard() {
         <Row label="Runtime" value={String(Updates.runtimeVersion ?? 'unknown')} />
         <Row label="JavaScript" value={bundle} />
         <Row label="Update channel" value={String(Updates.channel ?? 'none')} />
-        <Row label="Server" value={api ? `${api.version ?? api.commitShort ?? 'unknown'} · ${api.env}` : (apiError ?? 'checking…')} />
+        <Row label="Server" value={api ? `${api.version ?? api.commitShort ?? 'unknown'} · ${api.environment ?? api.env}` : (apiError ?? 'checking…')} />
         <Row label="Database" value={api ? `${api.schema.applied ?? 'unknown'} (${api.schema.state})` : '—'} />
       </View>
       <AppText variant="caption" tone="muted">
