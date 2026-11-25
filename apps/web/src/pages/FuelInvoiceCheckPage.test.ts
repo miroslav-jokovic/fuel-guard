@@ -34,6 +34,9 @@ vi.mock("@/features/reconcile/useReconRuns", () => ({
 vi.mock("@/features/reconcile/ReconResultView.vue", () => ({
   default: { name: "ReconResultView", props: ["summary", "rows", "exportName"], template: "<div>RESULT</div>" },
 }));
+vi.mock("@/features/reconcile/RecheckInvoiceButton.vue", () => ({
+  default: { name: "RecheckInvoiceButton", props: ["statementId"], template: "<button>CHECK AGAIN</button>" },
+}));
 vi.mock("@/features/reconcile/WeeklyBillCard.vue", () => ({
   default: { name: "WeeklyBillCard", props: ["statementId"], template: "<div>WEEKLY BILL</div>" },
 }));
@@ -84,6 +87,16 @@ describe("FuelInvoiceCheckPage", () => {
     expect((await mountAt("/fuel-invoices/r1")).findComponent({ name: "WeeklyBillCard" }).props("statementId")).toBe("s1");
     answer.value = { run: { ...RUN, source_kind: "monthly_export", statement_id: null }, lines: [], unmatchable: [] };
     expect((await mountAt("/fuel-invoices/r1")).findComponent({ name: "WeeklyBillCard" }).exists()).toBe(false);
+  });
+
+  it("offers Check again only on the live check of a kept weekly bill", async () => {
+    answer.value = { run: RUN, lines: [], unmatchable: [] };
+    expect((await mountAt("/fuel-invoices/r1")).findComponent({ name: "RecheckInvoiceButton" }).props("statementId")).toBe("s1");
+    // Re-checking a replaced check would replace the newer one; a check with no kept statement has no PDF to read.
+    answer.value = { run: { ...RUN, superseded_by: "r2", superseded_at: "2026-10-02T17:00:00Z" }, lines: [], unmatchable: [] };
+    expect((await mountAt("/fuel-invoices/r1")).findComponent({ name: "RecheckInvoiceButton" }).exists()).toBe(false);
+    answer.value = { run: { ...RUN, statement_id: null }, lines: [], unmatchable: [] };
+    expect((await mountAt("/fuel-invoices/r1")).findComponent({ name: "RecheckInvoiceButton" }).exists()).toBe(false);
   });
 
   it("says when a later check of the same invoice replaced this one", async () => {

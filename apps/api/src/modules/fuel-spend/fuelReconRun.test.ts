@@ -275,4 +275,33 @@ describe("runFuelReconciliation", () => {
     const r = await runFuelReconciliation(rec.client, ORG, "user-1", { grid: grid([line(100, 500)]), pivotGrid: pivot(100) });
     expect(r.supersededRunId).toBe("run-old-export");
   });
+
+  // ── a fill billed on another week's invoice (PILOT-INVOICE-FORMAT-ANALYSIS §5) ────────────────
+  it("does not match or flag a fill another live weekly invoice already matched", async () => {
+    const weekly = (billedElsewhere: boolean) =>
+      createSupabaseRecorder({
+        tables: {
+          fuel_transactions: [fill()],
+          vehicles: [{ id: "v1", unit_number: "701" }],
+          fuel_recon_runs: (q) => {
+            if (q.write) return { data: { id: "run-new" } };
+            return billedElsewhere ? [{ id: "run-other-week", invoice_no: "797857123", source_kind: "weekly_statement" }] : [];
+          },
+          fuel_recon_run_rows: (q) =>
+            q.write || !billedElsewhere ? [] : [{ run_id: "run-other-week", rows: [{ report: { rowNumber: 1 }, system: { id: "s1" } }] }],
+        },
+      });
+    const before = await runFuelReconciliation(weekly(false).client, ORG, "user-1", { words: statementWords() });
+    // Without the other invoice, the statement's line matches our fill s1.
+    expect(before.result!.rows.some((row) => row.system?.id === "s1" && row.report)).toBe(true);
+
+    const rec = weekly(true);
+    const r = await runFuelReconciliation(rec.client, ORG, "user-1", { words: statementWords() });
+    expect(r.ok, r.error).toBe(true);
+    // Billed on 797857123 already: a second bill for it is "on Pilot's bill, not in our records" here — the
+    // double bill a person must see — and it is never "in our records, not on Pilot's bill".
+    expect(r.result!.rows.some((row) => row.system?.id === "s1")).toBe(false);
+    expect(r.result!.summary.missingInSystem).toBe(before.result!.summary.missingInSystem + 1);
+    expectOrgScoped(rec, ORG);
+  });
 });

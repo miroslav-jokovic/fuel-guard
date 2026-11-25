@@ -87,6 +87,36 @@ export function useRunReconciliation() {
   });
 }
 
+/** What a check closed that an EARLIER check left open (the API's `CarryOutcome`). */
+export interface ReconCarried {
+  recheckDropped: number;
+  billedLate: number;
+  recordedLate: number;
+  error: string | null;
+}
+
+/**
+ * "Check again": re-run a recorded weekly bill's check from the PDF the server kept
+ * (`POST /api/fueling/statements/:id/recheck`). Answers the new run, which supersedes the one it re-checks.
+ */
+export function useRecheckStatement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (statementId: string): Promise<ReconRunResponse & { carried?: ReconCarried }> => {
+      const res = await apiFetch<ReconRunResponse & { carried?: ReconCarried }>(
+        `/api/fueling/statements/${encodeURIComponent(statementId)}/recheck`,
+        { method: "POST" },
+      );
+      if (!res.ok || !res.data?.ok) {
+        const reasons = Array.isArray(res.detail?.tieOutFailures) ? (res.detail.tieOutFailures as string[]) : [];
+        throw new ReconRejected(res.error?.message ?? "Could not check that invoice again", reasons);
+      }
+      return res.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fuel_recon_runs"] }),
+  });
+}
+
 export interface ReconRunPage {
   runs: ReconRunSummaryRow[];
   /** Every live check the org holds, so the list can page past what one answer carries. */

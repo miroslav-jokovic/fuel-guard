@@ -18,6 +18,12 @@ export type ReportProduct = "diesel" | "def" | "other";
 
 export interface PilotReportFill {
   authNo: string | null; // Authorization_No — the vendor transaction id
+  /**
+   * Pilot's ticket (Transaction #) where the document prints one — the weekly statement and the 2026-11
+   * invoice do, the monthly export does not. The invoice prints no Authorization_No, so this is what keeps
+   * two of its lines apart in a finding's fingerprint (`reconFindings`).
+   */
+  ticket?: string | null;
   unit: string | null; // UnitNo — maps to a vehicle unit number
   cardRef: string | null; // Card_No
   site: string | null; // Pilot site number

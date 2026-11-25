@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parsePilotInvoice, parsePilotWeeklyBill } from "./pilotInvoice.js";
+import { invoiceBillingWeek, parsePilotInvoice, parsePilotWeeklyBill } from "./pilotInvoice.js";
 import { splitTextRun, type StatementWord } from "./pilotStatement.js";
 
 /**
@@ -104,9 +104,28 @@ describe("parsePilotInvoice — the 2026-11 invoice layout", () => {
     expect(r.billingDate).toBe("2026-11-23");
   });
 
-  it("takes the period from the span of its line dates, since none is printed", () => {
+  it("takes the period from the billing week — the seven days before the billing date — since none is printed", () => {
     expect(r.startDate).toBe("2026-11-16");
     expect(r.endDate).toBe("2026-11-22");
+  });
+
+  it("keeps the billing week when a line is dated after it, and says so (INV-59656's 11/23 lines)", () => {
+    // The 11/22 Winslow line re-dated 11/23: the line date moves, the billed week does not.
+    const late = DOC.map((w) => (w.page === 2 && w.y === 152.7 && w.text === "11/22/2026" ? { ...w, text: "11/23/2026" } : w));
+    const p = parsePilotInvoice(late)!;
+    expect(p.startDate).toBe("2026-11-16");
+    expect(p.endDate).toBe("2026-11-22");
+    expect(p.fills.some((l) => l.tranDate === "2026-11-23")).toBe(true);
+    expect(p.tieOut.ok).toBe(true);
+    expect(p.tieOut.notes.some((n) => n.startsWith("1 line(s) are dated outside that week"))).toBe(true);
+  });
+
+  it("falls back to the span of its line dates when the cycle is not weekly", () => {
+    const monthly = DOC.map((w) => (w.text === "Weekly" ? { ...w, text: "Monthly" } : w));
+    const p = parsePilotInvoice(monthly)!;
+    expect(p.startDate).toBe("2026-11-16");
+    expect(p.endDate).toBe("2026-11-22");
+    expect(p.tieOut.notes.some((n) => n.includes("span of its line dates"))).toBe(true);
   });
 
   it("reads rows on pages that carry no column header", () => {
@@ -212,5 +231,17 @@ describe("parsePilotWeeklyBill", () => {
     const r = parsePilotWeeklyBill(run("Some other document", 10, 10, 1));
     expect(r.headerFound).toBe(false);
     expect(r.layout).toBe("statement");
+  });
+});
+
+describe("invoiceBillingWeek", () => {
+  it("is Monday to Sunday before a Monday billing date", () => {
+    expect(invoiceBillingWeek("Weekly", "2026-11-23")).toEqual({ from: "2026-11-16", to: "2026-11-22" });
+    expect(invoiceBillingWeek("weekly", "2026-12-07")).toEqual({ from: "2026-11-30", to: "2026-12-06" });
+  });
+  it("is null without a weekly cycle or a billing date", () => {
+    expect(invoiceBillingWeek("Monthly", "2026-11-23")).toBeNull();
+    expect(invoiceBillingWeek(null, "2026-11-23")).toBeNull();
+    expect(invoiceBillingWeek("Weekly", null)).toBeNull();
   });
 });

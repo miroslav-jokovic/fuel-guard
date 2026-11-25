@@ -12,6 +12,33 @@ import { listReconRuns, readReconRun } from "../reconRunRead.js";
 import { readWeeklyBill } from "../weeklyBillRead.js";
 import { weeklyBillWorkbook } from "../weeklyBillWorkbook.js";
 import { readPilotBillMails } from "../pilotBillMail.js";
+import { recheckFuelStatement } from "../fuelStatementRecheck.js";
+import type { ReconRunResult } from "../fuelReconRun.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+/** One audit row per recorded check, from either door (an upload or "Check again"). */
+async function auditReconRun(req: Request, admin: SupabaseClient, result: ReconRunResult, extra: Record<string, unknown> = {}): Promise<void> {
+  const s = result.result!.summary;
+  await writeAudit(admin, {
+    orgId: req.auth!.orgId!,
+    actorId: req.auth!.userId,
+    action: "fuel.recon_run",
+    entity: "fuel_recon_runs",
+    entityId: result.runId,
+    // The data-quality counts ride along: they are what somebody will want to explain a moved
+    // figure with, and the run row itself is append-only so this is the only place they can grow.
+    meta: {
+      kind: result.invoiceNo ? "weekly_statement" : "monthly_export",
+      invoice: result.invoiceNo, from: result.periodStart, to: result.periodEnd,
+      gated: result.tieOutGated,
+      clean: s.clean, dateDrift: s.dateDrift,
+      missingInSystem: s.missingInSystem, missingOnReport: s.missingOnReport,
+      exposure: s.exposure,
+      carried: result.carried ?? null,
+      ...extra,
+    },
+  });
+}
 
 
 /** Statement + reconciliation routes — moved here from routes/fueling/networks.ts at the P1.6
@@ -92,25 +119,34 @@ export function registerStatementRoutes(router: Router): void {
         });
         return;
       }
-      const s = result.result!.summary;
-      await writeAudit(admin, {
-        orgId: req.auth!.orgId!,
-        actorId: req.auth!.userId,
-        action: "fuel.recon_run",
-        entity: "fuel_recon_runs",
-        entityId: result.runId,
-        // The data-quality counts ride along: they are what somebody will want to explain a moved
-        // figure with, and the run row itself is append-only so this is the only place they can grow.
-        meta: {
-          kind: result.invoiceNo ? "weekly_statement" : "monthly_export",
-          invoice: result.invoiceNo, from: result.periodStart, to: result.periodEnd,
-          gated: result.tieOutGated,
-          clean: s.clean, dateDrift: s.dateDrift,
-          missingInSystem: s.missingInSystem, missingOnReport: s.missingOnReport,
-          exposure: s.exposure,
-        },
-      });
+      await auditReconRun(req, admin, result);
       res.json(result);
+    }),
+  );
+
+  /**
+   * "Check again" (PILOT-INVOICE-FORMAT-ANALYSIS §5): re-run a recorded weekly bill's check from the PDF we
+   * kept, with today's reader (`fuelStatementRecheck.ts`). The manage set, like recording a check — it
+   * writes a run and closes findings.
+   */
+  router.post(
+    "/statements/:id/recheck",
+    requireOrg,
+    requireSection("fuel"),
+    asyncHandler(async (req, res) => {
+      const id = String(req.params.id);
+      if (!isRecordId(id)) {
+        res.status(404).json(apiError("not_found", "No statement with that id."));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const r = await recheckFuelStatement(admin, req.auth!.orgId!, req.auth!.userId, id);
+      if (!r.ok) {
+        res.status(r.status).json({ ...apiError(r.code, r.message), tieOutFailures: r.tieOutFailures ?? [] });
+        return;
+      }
+      await auditReconRun(req, admin, r.run, { recheckOf: id });
+      res.json(r.run);
     }),
   );
 

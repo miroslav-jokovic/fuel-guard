@@ -227,13 +227,16 @@ function toFinding(row: ReconRow): FuelExceptionFinding | null {
     return {
       ...base,
       kind: "recon_missing_in_system",
+      // `authNo ?? ticket`: the 2026-11 invoice prints no authorization number, so without the ticket two
+      // same-day, same-card, same-gallon lines on it would fold into one finding. A line that has an
+      // authorization number (every old statement and export line) keys exactly as it always has.
       fingerprint: fuelExceptionFingerprint("recon_missing_in_system", [
-        rep.tranDate, rep.authNo, rep.productCode, last6(rep.cardRef), rep.gallons,
+        rep.tranDate, rep.authNo ?? rep.ticket ?? null, rep.productCode, last6(rep.cardRef), rep.gallons,
       ]),
       amount: r2(rep.netAmount ?? 0),
       amountKind: "unrecorded",
       evidence: {
-        billedGallons: rep.gallons, billedAmount: rep.netAmount, authNo: rep.authNo,
+        billedGallons: rep.gallons, billedAmount: rep.netAmount, authNo: rep.authNo, ticket: rep.ticket ?? null,
         productCode: rep.productCode, card: last6(rep.cardRef), tank: row.tank,
       },
     };

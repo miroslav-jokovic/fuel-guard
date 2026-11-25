@@ -124,6 +124,23 @@ describe("reconFindings", () => {
     expect(missing.occurredOn).toBe("2026-08-17");
   });
 
+  it("keys an unrecorded line on its ticket when the bill prints no authorization number (the 2026-11 invoice)", () => {
+    const twins = reconcileFuelReport(
+      [
+        { ...rf({ rowNumber: 1, authNo: null, cardRef: "999999" }), ticket: "0929000002" },
+        { ...rf({ rowNumber: 2, authNo: null, cardRef: "999999" }), ticket: "0929000003" },
+      ],
+      [],
+      { window: WINDOW },
+    );
+    const fps = reconFindings(twins).map((x) => x.fingerprint);
+    expect(new Set(fps).size).toBe(2);
+    expect(fps[0]).toContain("|0929000002|");
+    // A line WITH an authorization number keys exactly as it always has, so no old finding changes identity.
+    const old = reconFindings(result()).find((x) => x.kind === "recon_missing_in_system")!;
+    expect(old.fingerprint).toBe(fuelExceptionFingerprint("recon_missing_in_system", ["2026-08-17", "999", "020", "999999", 70]));
+  });
+
   // ── D-FX10 ───────────────────────────────────────────────────────────────────────────────────
   it("produces the same fingerprints when the same period is reconciled again", () => {
     const a = reconFindings(result()).map((x) => x.fingerprint).sort();

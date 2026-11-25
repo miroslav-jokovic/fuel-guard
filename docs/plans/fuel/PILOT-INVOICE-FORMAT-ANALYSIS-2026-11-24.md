@@ -152,3 +152,16 @@ attachment read is fine at that size.
   on Pilot invoices. The ledger and its writer ship in one merge (`lint:table-producers`: a new table needs its
   producer in the same PR; new tables are exempt from the ordering rule). Done = a `pilot_bill_mails` row with
   state `recorded` landing in production by itself after the release.
+- 2026-11-25 — **the invoice check carries forward** (owner: "fix properly, best practice"). Measured on production first:
+  the check is not incremental. `sync_fuel_exceptions` (0320) closes only inside the period a run read, and INV-59656's
+  first run (period read as the line-date span 11/16–11/23) filed 66 "in our records, not on Pilot's bill", 62 of them
+  fills dated 11/23. 89 such findings were open in total. Two merges:
+  (1) migration **0647 `close_fuel_exceptions`** alone (#2661; renumbered from 0646, which #2659's training schema holds).
+  (2) the code: the invoice period is the **billing week** (billing date −7 … −1, `invoiceBillingWeek`), and lines
+  dated outside it are still matched; fills read over every line's date (`reconReadRange`); fills another live
+  weekly invoice already matched are left out (`readBilledElsewhere`, weekly runs only); the run then closes, with a
+  note, (a) an earlier check of the same invoice's leftovers, (b) earlier weeks' unbilled fills this invoice billed
+  late, and (c) earlier unrecorded lines whose fill has since been recorded (card must agree, gallons and amount within
+  tolerance). Unrecorded-line fingerprints use `authNo ?? ticket`. New **"Check again"** button
+  (`POST /api/fueling/statements/:id/recheck`) re-reads the kept PDF on the server. After release, the owner clicks
+  it on INV-59656 to close the 62.

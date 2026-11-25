@@ -5,6 +5,7 @@ import { AppCallout, AppCard as BaseCard, QueryState } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ReconResultView from "@/features/reconcile/ReconResultView.vue";
 import WeeklyBillCard from "@/features/reconcile/WeeklyBillCard.vue";
+import RecheckInvoiceButton from "@/features/reconcile/RecheckInvoiceButton.vue";
 import { useReconRunQuery } from "@/features/reconcile/useReconRuns";
 import { formatDate, formatDateTime } from "@/lib/format";
 
@@ -64,6 +65,12 @@ const exportName = computed(() => {
               {{ run.tie_out_gated ? "Matches the totals Pilot printed" : "No printed totals to compare with" }}
             </span>
             <span class="text-ink-tertiary">Checked {{ formatDateTime(run.created_at) }}</span>
+            <!-- Only on the live check of a kept bill: re-checking a replaced one would replace the newer check. -->
+            <RecheckInvoiceButton
+              v-if="run.source_kind === 'weekly_statement' && run.statement_id && !run.superseded_by"
+              class="ml-auto"
+              :statement-id="run.statement_id"
+            />
           </div>
           <ul v-if="run.tie_out_notes.length" class="mt-2 space-y-0.5 text-xs text-ink-tertiary">
             <li v-for="n in run.tie_out_notes" :key="n">{{ n }}</li>

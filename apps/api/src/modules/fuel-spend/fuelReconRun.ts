@@ -31,16 +31,16 @@ import {
   readPivotGrandTotalGallons,
   reconcileFuelReport,
   reconFindings,
+  reconReadRange,
   RECON_EXCEPTION_KINDS,
-  stateTimeZone,
   type PilotReportFill,
   type ReconResult,
   type ReconRow,
   type StatementWord,
-  type SystemFill,
 } from "@silvicom/shared";
 import { createHash } from "node:crypto";
-import { eachPage } from "../../lib/paging.js";
+import { carryForward, readBilledElsewhere, type CarryOutcome } from "./fuelReconCarry.js";
+import { readSystemFills } from "./reconSystemFills.js";
 
 /**
  * Bumped whenever the matcher's behaviour changes, so two runs are only comparable when it matches.
@@ -77,6 +77,8 @@ export interface ReconRunResult {
   tieOutNotes?: string[];
   /** The earlier run of the same invoice (or the same export file) this one replaced, if any. */
   supersededRunId?: string;
+  /** What this check closed that an EARLIER one left open (`fuelReconCarry.ts`); `error` when a step failed. */
+  carried?: CarryOutcome;
   /** Set when the run was recorded but its lines were not — the saved check then shows totals only. */
   linesError?: string | null;
   /** How many findings were filed to the ledger. Zero when the sync failed — see `exceptionError`. */
@@ -85,27 +87,6 @@ export interface ReconRunResult {
   /** The full result, so the tab can render what was just recorded without a second round trip. */
   result?: ReconResult;
 }
-
-/** Station-local business date — the vendor bills on it, and `fueled_at` is an instant. */
-function localBusinessDate(iso: string | null, state: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  try {
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: stateTimeZone(state) ?? "UTC",
-      year: "numeric", month: "2-digit", day: "2-digit",
-    }).format(d);
-  } catch {
-    return d.toISOString().slice(0, 10);
-  }
-}
-
-const addDays = (ymd: string, n: number): string => {
-  const d = new Date(`${ymd}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
 
 interface ParsedReport {
   kind: "weekly_statement" | "monthly_export";
@@ -160,59 +141,6 @@ function parseAndGate(input: ReconRunInput): ParsedReport | { error: string; fai
   return { error: "Expected either { words } from a decoded PDF or { grid } from a decoded export.", failures: [] };
 }
 
-/**
- * The org's recorded fills over the report's window, BOTH tanks.
- *
- * Widened a day each side on the instant, because a station-local business date can sit either side of
- * its UTC instant; the matcher filters on the business date afterwards.
- */
-async function readSystemFills(
-  admin: SupabaseClient,
-  orgId: string,
-  from: string,
-  to: string,
-): Promise<SystemFill[]> {
-  // Unit numbers first, so a rendered row can name a truck rather than a uuid. `vehicle_id` is the
-  // link; `control_id` is the DRIVER's card control and would resolve nothing.
-  const { data: vehicles } = await admin.from("vehicles").select("id, unit_number").eq("org_id", orgId);
-  const unitOf = new Map(
-    (vehicles ?? []).map((v) => [String((v as { id: string }).id), (v as { unit_number: string | null }).unit_number]),
-  );
-
-  const out: SystemFill[] = [];
-  await eachPage<Record<string, unknown>>(
-    (lo, hi) =>
-      admin
-        .from("fuel_transactions")
-        .select("id, card_ref, control_id, vehicle_id, fueled_at, gallons, total_cost, state, tank_type")
-        .eq("org_id", orgId)
-        .gte("fueled_at", `${addDays(from, -1)}T00:00:00.000Z`)
-        .lte("fueled_at", `${addDays(to, 1)}T23:59:59.999Z`)
-        .order("fueled_at", { ascending: true })
-        .range(lo, hi),
-    (rows) => {
-      for (const raw of rows) {
-        const vehicleId = raw.vehicle_id == null ? null : String(raw.vehicle_id);
-        out.push({
-          id: String(raw.id),
-          cardRef: raw.card_ref == null ? null : String(raw.card_ref),
-          controlId: raw.control_id == null ? null : String(raw.control_id),
-          unit: vehicleId ? (unitOf.get(vehicleId) ?? null) : null,
-          fueledAt: raw.fueled_at == null ? null : String(raw.fueled_at),
-          tranDate: localBusinessDate(
-            raw.fueled_at == null ? null : String(raw.fueled_at),
-            raw.state == null ? null : String(raw.state),
-          ),
-          tank: raw.tank_type === "reefer" ? "reefer" : "tractor",
-          gallons: raw.gallons == null ? 0 : Number(raw.gallons),
-          totalCost: raw.total_cost == null ? null : Number(raw.total_cost),
-        });
-      }
-    },
-  );
-  return out;
-}
-
 const last6 = (card: string | null | undefined): string | null =>
   card == null ? null : String(card).replace(/\D/g, "").slice(-6) || null;
 
@@ -245,7 +173,7 @@ async function supersedeEarlierRun(
   kind: ParsedReport["kind"],
   invoiceNo: string | null,
   sha: string,
-): Promise<string | undefined> {
+): Promise<string[]> {
   let q = admin
     .from("fuel_recon_runs")
     .select("id")
@@ -257,13 +185,13 @@ async function supersedeEarlierRun(
   else q = q.eq("source_sha256", sha);
   const { data } = await q;
   const prior = ((data ?? []) as Array<{ id: string }>).map((r) => r.id);
-  if (prior.length === 0) return undefined;
+  if (prior.length === 0) return [];
   await admin
     .from("fuel_recon_runs")
     .update({ superseded_by: runId, superseded_at: new Date().toISOString() })
     .eq("org_id", orgId)
     .in("id", prior);
-  return prior[0];
+  return prior;
 }
 
 export async function runFuelReconciliation(
@@ -278,11 +206,22 @@ export async function runFuelReconciliation(
     return { ok: false, error: "The report does not state the period it covers, so there is nothing to reconcile it against." };
   }
 
-  const system = await readSystemFills(admin, orgId, parsed.startDate, parsed.endDate);
+  const window = { from: parsed.startDate, to: parsed.endDate };
+  // Read our fills over every line's own date as well as the week, so a line billed late or early can find
+  // its fill; only a fill dated inside `window` can be called unbilled (`reconReadRange`).
+  const read = reconReadRange(window, parsed.lines.map((l) => l.tranDate));
+  // A fill another live weekly invoice already matched was billed THERE, so it is not "unbilled" here. It is
+  // left out of the match entirely rather than only out of the unbilled list: if this invoice bills it a
+  // second time, that line then shows as "on Pilot's bill, not in our records", which is the double bill
+  // somebody needs to see. Weekly bills only — see `readBilledElsewhere`.
+  const billedElsewhere = parsed.kind === "weekly_statement"
+    ? await readBilledElsewhere(admin, orgId, read, parsed.invoiceNo)
+    : new Set<string>();
+  const system = (await readSystemFills(admin, orgId, read.from, read.to)).filter((f) => !billedElsewhere.has(f.id));
 
   const result = reconcileFuelReport(parsed.lines, system, {
     tolerances: DEFAULT_TOLERANCES,
-    window: { from: parsed.startDate, to: parsed.endDate },
+    window,
     maxDayDrift: MAX_DAY_DRIFT,
   });
 
@@ -329,7 +268,7 @@ export async function runFuelReconciliation(
     rows: result.rows.map(cutCards),
     unmatchable: result.unmatchable.map((l) => ({ ...l, cardRef: last6(l.cardRef) })),
   });
-  const supersededRunId = await supersedeEarlierRun(admin, orgId, runId, parsed.kind, parsed.invoiceNo, sha);
+  const supersededRunIds = await supersedeEarlierRun(admin, orgId, runId, parsed.kind, parsed.invoiceNo, sha);
 
   /*
    * File the findings (F6a). Set-based, through `sync_fuel_exceptions`, which refreshes evidence and
@@ -356,10 +295,21 @@ export async function runFuelReconciliation(
     p_kinds: RECON_EXCEPTION_KINDS,
   });
 
+  // Only after a sync that worked: a leftover is "a finding still naming a superseded run", which is true of
+  // every finding when the sync did not re-point the ones this run found again.
+  const carried = syncErr
+    ? undefined
+    : await carryForward(admin, orgId, {
+        runId, actorId, invoiceNo: parsed.invoiceNo, window, supersededRunIds, result,
+        tolerances: DEFAULT_TOLERANCES, maxDayDrift: MAX_DAY_DRIFT,
+      });
+  if (carried?.error) console.warn(`[fuel-recon] carry-forward incomplete for org ${orgId}, run ${runId}: ${carried.error}`);
+
   return {
     ok: true,
     runId,
-    supersededRunId,
+    supersededRunId: supersededRunIds[0],
+    carried,
     linesError: linesErr?.message ?? null,
     filedExceptions: syncErr ? 0 : findings.length,
     exceptionError: syncErr?.message ?? null,

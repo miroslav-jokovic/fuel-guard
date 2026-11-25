@@ -103,6 +103,30 @@ const isoDate = (s: string | undefined): string | null => {
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
+const shiftDays = (ymd: string, n: number): string => {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+/**
+ * The week a weekly invoice BILLS: the seven days before its billing date.
+ *
+ * This layout prints no period, and the first reader (#2637) took the span of the line dates instead. That is
+ * wrong the moment Pilot bills one fill late or early: INV-59656 (billed Monday 11/23, "Cycle: Weekly - Mon")
+ * carries lines dated 11/23, so its period read 11/16–11/23, and the check filed 62 of our 11/23 fills as "in
+ * our records, not on Pilot's bill" — fills that belong to the NEXT week's invoice (measured on production
+ * 2026-11-25, PILOT-INVOICE-FORMAT-ANALYSIS-2026-11-24 §5). The old statement printed its period and it was
+ * always the Monday–Sunday before the billing Monday, which is what this reproduces.
+ *
+ * Lines dated outside the week are still read and still matched; they only stop deciding which of OUR fills
+ * should have been on the bill. Any cycle other than weekly returns null and the caller keeps the span.
+ */
+export function invoiceBillingWeek(cycle: string | null, billingDate: string | null): { from: string; to: string } | null {
+  if (!billingDate || !cycle || !/^weekly\b/i.test(cycle.trim())) return null;
+  return { from: shiftDays(billingDate, -7), to: shiftDays(billingDate, -1) };
+}
+
 type Bound = Partial<Record<Field, string[]>>;
 
 function bind(cells: StatementWord[], bounds: readonly number[], into: Bound = {}): Bound {
@@ -246,6 +270,8 @@ export function parsePilotInvoice(words: StatementWord[]): (PilotStatementParse 
   const printedTotals = readPrinted(flat);
   const printed: StatementPrintedTotals = { byProduct: {}, units: null, amount: printedTotals.purchased, retail: null, savings: null };
   const dates = lines.map((l) => l.tranDate).filter((d): d is string => d != null).sort();
+  const billingDate = isoDate(/Billing Date:\s*(\S+)/.exec(flat)?.[1]);
+  const week = invoiceBillingWeek(/Cycle:\s*([A-Za-z]+)/.exec(flat)?.[1] ?? null, billingDate);
   const isFuelLine = (l: StatementLine) => l.productCode != null && l.gallons > 0;
   const fills = lines.filter((l) => isFuelLine(l) && l.tank === "tractor");
   const reeferLines = lines.filter((l) => isFuelLine(l) && l.tank === "reefer");
@@ -258,10 +284,10 @@ export function parsePilotInvoice(words: StatementWord[]): (PilotStatementParse 
     headerFound: true,
     account: /Acct No:\s*(\d+)/.exec(flat)?.[1] ?? null,
     invoiceNumber: /Invoice No:\s*(\S+)/.exec(flat)?.[1] ?? null,
-    // No period is printed: the window is the span of the lines' own dates.
-    startDate: dates[0] ?? null,
-    endDate: dates[dates.length - 1] ?? null,
-    billingDate: isoDate(/Billing Date:\s*(\S+)/.exec(flat)?.[1]),
+    // No period is printed: the billing week when the cycle is weekly, else the span of the lines' own dates.
+    startDate: week?.from ?? dates[0] ?? null,
+    endDate: week?.to ?? dates[dates.length - 1] ?? null,
+    billingDate,
     lines,
     fills,
     reeferLines,
@@ -271,7 +297,11 @@ export function parsePilotInvoice(words: StatementWord[]): (PilotStatementParse 
     totalNet: sum(lines, (l) => l.netAmount),
     totalRetail,
     printed,
-    tieOut: tieOutInvoice({ lines: lines.length, totalInvoice, totalTax: columnTaxTotal, printedTotals, unknownProducts, unreadable, drift: header.drift }),
+    tieOut: tieOutInvoice({
+      lines: lines.length, totalInvoice, totalTax: columnTaxTotal, printedTotals, unknownProducts, unreadable, drift: header.drift,
+      billingWeek: week != null,
+      outsideWeek: week ? lines.filter((l) => l.tranDate != null && (l.tranDate < week.from || l.tranDate > week.to)).length : 0,
+    }),
     pages: byPage.size,
     anchorSets: 1,
   };
@@ -286,6 +316,8 @@ function tieOutInvoice(input: {
   unknownProducts: Set<string>;
   unreadable: string[];
   drift: number;
+  billingWeek: boolean;
+  outsideWeek: number;
 }): TieOutResult {
   const { printedTotals: p } = input;
   const failures: string[] = [];
@@ -316,7 +348,14 @@ function tieOutInvoice(input: {
   if (input.drift > HEADER_DRIFT_TOLERANCE) {
     notes.push("The invoice's column header moved from where it was on 2026-11-23 — the total still ties, but Pilot may have changed the template.");
   }
-  notes.push("This invoice layout prints no billing period, retail total or savings total; the period is the span of its line dates.");
+  notes.push(
+    input.billingWeek
+      ? "This invoice layout prints no billing period, retail total or savings total; the period is the week before its billing date."
+      : "This invoice layout prints no billing period, retail total or savings total; the period is the span of its line dates.",
+  );
+  if (input.outsideWeek > 0) {
+    notes.push(`${input.outsideWeek} line(s) are dated outside that week — billed late or early; they are still matched.`);
+  }
   return { ok: failures.length === 0, failures, notes, amountDelta, retailDelta: null, unitsDelta: null, savingsDelta: null };
 }
 
