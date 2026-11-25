@@ -3,6 +3,7 @@ import { EDITABLE_ROLES, effectiveSectionAccess, isEditableRole, resolveSectionA
 import type { UserRole } from "./constants.js";
 import type { NotificationCategory } from "./notificationsContract.js";
 import { alertTextQuietSchema } from "./alertTexts.js";
+import { BROKER_MAIL_ALERTS } from "./brokerMailAlerts.js";
 import { SURFACES } from "./surfaceCatalogue.js";
 import { surfaceAllowed, type SurfaceClaim, type SurfaceOverrides } from "./surfaces.js";
 
@@ -41,7 +42,7 @@ export const ALERT_CHANNELS = ["bell", "email", "sms"] as const;
 export type AlertChannel = (typeof ALERT_CHANNELS)[number];
 export const ALERT_CHANNEL_LABELS: Record<AlertChannel, string> = { bell: "Dashboard", email: "Email", sms: "Text" };
 
-export const ALERT_RELATIONS = ["marked_by", "truck_dispatcher", "order_dispatcher"] as const;
+export const ALERT_RELATIONS = ["marked_by", "truck_dispatcher", "order_dispatcher", "mailbox_owner", "dispatcher_backup"] as const;
 export type AlertRelation = (typeof ALERT_RELATIONS)[number];
 export const ALERT_RELATION_LABELS: Record<AlertRelation, string> = {
   marked_by: "Whoever marked the home time",
@@ -49,7 +50,12 @@ export const ALERT_RELATION_LABELS: Record<AlertRelation, string> = {
   // LUMPER-REVISED-RC-PLAN Q-LRC5 (ruled 2026-11-13): the McLeod order's `operations_user`, through the
   // office's link from that McLeod login to a 360 account (`tms_dispatchers.user_id`).
   order_dispatcher: "The order's dispatcher",
+  // BROKER-MAIL-READER-PLAN P3: the dispatcher whose Outlook received the email, and the backups an admin chose for them.
+  mailbox_owner: "The dispatcher whose Outlook it is",
+  dispatcher_backup: "That dispatcher's backups",
 };
+/** Who a relation names for one event: one person, several (a dispatcher's backups), or nobody. */
+export type AlertRelationTargets = Partial<Record<AlertRelation, string | readonly string[] | null>>;
 
 /** The three ways `notification_routes.recipient_kind` names a recipient (0598's CHECK). */
 export const ALERT_RECIPIENT_KINDS = ["role", "user", "relation"] as const;
@@ -90,6 +96,14 @@ export interface AlertDefinition {
   /** The relations this alert can resolve; a route naming another relation reaches nobody. */
   relations: readonly AlertRelation[];
   defaults: readonly AlertRoute[];
+  /**
+   * Q-BM11 (owner 2026-11-24): the DEFAULT routes are always in force, on top of whatever the carrier
+   * saved, and cannot be saved off. The text ignores the quiet window. A STOP reply is still honoured
+   * at the door (alertTexts.ts): carriers block a number that ignores STOP.
+   */
+  mandatory?: true;
+  /** Texts drained by the alert's own module in its own lane, never by home time's drain (two drains, disjoint). */
+  ownDrain?: true;
 }
 
 const on = (recipientKind: AlertRecipientKind, recipientKey: string, channel: AlertChannel): AlertRoute => ({ recipientKind, recipientKey, channel, enabled: true });
@@ -204,6 +218,8 @@ export const ALERT_CATALOGUE = [
     relations: [],
     defaults: ROADSIDE_REPAIR_DEFAULTS,
   },
+  // BROKER-MAIL-READER-PLAN P3: broker mail's two, written beside the module (brokerMailAlerts.ts).
+  ...BROKER_MAIL_ALERTS,
 ] as const satisfies readonly AlertDefinition[];
 
 export type AlertKey = (typeof ALERT_CATALOGUE)[number]["key"];
@@ -215,6 +231,9 @@ export const alertDefinition = (key: AlertKey): AlertDefinition => ALERT_CATALOG
 export function routesInForce(key: AlertKey, saved: readonly AlertRoute[]): readonly AlertRoute[] {
   return saved.length > 0 ? saved : alertDefinition(key).defaults;
 }
+/** The alerts whose texts their own module drains (`ownDrain`) — derived, so home time's drain can skip them. */
+export const OWN_DRAIN_ALERTS = ALERT_CATALOGUE.filter((a) => "ownDrain" in a && a.ownDrain).map((a) => a.key) as AlertKey[];
+export const alertIsMandatory = (key: AlertKey): boolean => alertDefinition(key).mandatory === true;
 
 export interface AlertMember {
   userId: string;
@@ -304,7 +323,7 @@ export function resolveAlertRecipients(
   key: AlertKey,
   saved: readonly AlertRoute[],
   members: readonly AlertMember[],
-  relations: Partial<Record<AlertRelation, string | null>>,
+  relations: AlertRelationTargets,
 ): Map<string, Set<AlertChannel>> {
   const def = alertDefinition(key);
   const eligible = new Map(members.filter((m) => alertMemberCanReceive(m, def)).map((m) => [m.userId, m.role]));
@@ -319,7 +338,9 @@ export function resolveAlertRecipients(
     if (r.recipientKind === "role") {
       for (const [userId, role] of eligible) if (role === r.recipientKey) add(userId, r.channel);
     } else if (r.recipientKind === "relation") {
-      if ((def.relations as readonly string[]).includes(r.recipientKey)) add(relations[r.recipientKey as AlertRelation], r.channel);
+      if (!(def.relations as readonly string[]).includes(r.recipientKey)) continue;
+      const who = relations[r.recipientKey as AlertRelation];
+      for (const id of typeof who === "string" || who == null ? [who] : who) add(id, r.channel);
     }
   }
   // The person's own rows last, so they win in both directions.
@@ -328,6 +349,8 @@ export function resolveAlertRecipients(
     if (r.enabled) add(r.recipientKey, r.channel);
     else out.get(r.recipientKey)?.delete(r.channel);
   }
+  // A mandatory alert's defaults apply after everything, so no saved row — role, person or off — removes them (Q-BM11).
+  if (def.mandatory) for (const r of def.defaults) if (r.recipientKind === "relation") for (const id of [relations[r.recipientKey as AlertRelation]].flat()) add(id as string | null, r.channel);
   for (const [userId, channels] of out) if (channels.size === 0) out.delete(userId);
   return out;
 }
@@ -364,6 +387,7 @@ export function alertRoutesProblem(key: AlertKey, routes: readonly AlertRoute[],
     if (r.recipientKind === "user" && !memberIds.has(r.recipientKey)) return "One of the people listed is not an active member who can open the page this alert is about.";
   }
   if (!routes.some((r) => r.enabled)) return "An alert cannot be sent to nobody. Leave at least one recipient switched on.";
+  if (def.mandatory && def.defaults.some((d) => routes.some((r) => alertRouteId(r) === alertRouteId(d) && !r.enabled))) return "This alert's own recipients cannot be switched off.";
   return null;
 }
 

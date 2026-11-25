@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   BROKER_MAIL_ANSWER_DEFAULT,
+  BROKER_MAIL_BACKUP_DEFAULT,
   BROKER_MAIL_ANSWERED_HOURS,
   BROKER_MAIL_OPEN_DAYS,
   BROKER_MAIL_PAGE_LIMIT,
@@ -10,6 +11,7 @@ import {
   type BrokerMailTab,
 } from "@silvicom/shared";
 import { listOfficeMembers } from "../org/index.js";
+import { readBackups, readTextStates } from "./brokerMailBackups.js";
 
 /**
  * The Broker mail page's read (BROKER-MAIL-READER-PLAN P2). Every query here is filtered by org AND —
@@ -64,10 +66,18 @@ export async function readRoster(admin: SupabaseClient, orgId: string): Promise<
   return (data ?? []) as RosterRow[];
 }
 
-export async function readAnswerWithin(admin: SupabaseClient, orgId: string): Promise<number> {
-  const { data, error } = await admin.from("broker_mail_settings").select("answer_within_minutes").eq("org_id", orgId).limit(1);
+export interface SettingsRow { answerWithinMinutes: number; backupAfterMinutes: number; textsOnSince: string | null }
+
+/** The company row (0649, 0651); the defaults when it has saved none. */
+export async function readSettingsRow(admin: SupabaseClient, orgId: string): Promise<SettingsRow> {
+  const { data, error } = await admin.from("broker_mail_settings").select("answer_within_minutes, backup_after_minutes, texts_on_since").eq("org_id", orgId).limit(1);
   if (error) throw new Error(error.message);
-  return ((data ?? []) as { answer_within_minutes: number }[])[0]?.answer_within_minutes ?? BROKER_MAIL_ANSWER_DEFAULT;
+  const r = ((data ?? []) as { answer_within_minutes: number; backup_after_minutes: number; texts_on_since: string | null }[])[0];
+  return {
+    answerWithinMinutes: r?.answer_within_minutes ?? BROKER_MAIL_ANSWER_DEFAULT,
+    backupAfterMinutes: r?.backup_after_minutes ?? BROKER_MAIL_BACKUP_DEFAULT,
+    textsOnSince: r?.texts_on_since ?? null,
+  };
 }
 
 /** Is mail reading switched on for THIS org (the one config row names it, D-BMR12)? */
@@ -102,7 +112,7 @@ export async function readBrokerMailList(admin: SupabaseClient, input: ListInput
     return q.neq("thread_state", "waiting").gte("answered_at", answeredSince);
   };
 
-  const [rowsRes, waiting, needsLoad, handled, answerWithin, roster, enabled] = await Promise.all([
+  const [rowsRes, waiting, needsLoad, handled, settings, roster, enabled, backups, myText] = await Promise.all([
     (input.tab === "handled"
       ? queue("handled", COLUMNS).order("answered_at", { ascending: false })
       : queue(input.tab, COLUMNS).order("received_at", { ascending: true })
@@ -110,9 +120,11 @@ export async function readBrokerMailList(admin: SupabaseClient, input: ListInput
     queue("waiting", "id", true),
     queue("needs_load", "id", true),
     queue("handled", "id", true),
-    readAnswerWithin(admin, input.orgId),
+    readSettingsRow(admin, input.orgId),
     readRoster(admin, input.orgId),
     readGatewayEnabled(admin, input.orgId),
+    readBackups(admin, input.orgId),
+    readTextStates(admin, input.orgId, [input.callerId]),
   ]);
   for (const r of [rowsRes, waiting, needsLoad, handled]) if (r.error) throw new Error(r.error.message);
   const rows = (rowsRes.data ?? []) as unknown as MessageRow[];
@@ -126,7 +138,8 @@ export async function readBrokerMailList(admin: SupabaseClient, input: ListInput
   }
 
   const names = new Map<string, string>();
-  if (input.seesAll) {
+  const myBackupIds = backups.get(input.callerId) ?? [];
+  if (input.seesAll || myBackupIds.length) {
     for (const m of await listOfficeMembers(admin, input.orgId)) names.set(m.userId, m.fullName ?? m.email ?? "Unnamed");
     // A suspended or departed owner is not an office member any more; their sign-in email still names them.
     for (const r of roster) if (r.user_id && !names.has(r.user_id) && r.email) names.set(r.user_id, r.email);
@@ -150,7 +163,7 @@ export async function readBrokerMailList(admin: SupabaseClient, input: ListInput
       ownerName: input.seesAll ? names.get(r.owner_user_id) ?? null : null,
     })),
     counts: { waiting: waiting.count ?? 0, needs_load: needsLoad.count ?? 0, handled: handled.count ?? 0 },
-    answerWithinMinutes: answerWithin,
+    answerWithinMinutes: settings.answerWithinMinutes,
     seesAll: input.seesAll,
     // The dispatchers whose mailboxes are read — the filter's choices — only for a caller who sees all.
     dispatchers: input.seesAll
@@ -159,5 +172,10 @@ export async function readBrokerMailList(admin: SupabaseClient, input: ListInput
           .sort((a, b) => a.name.localeCompare(b.name))
       : [],
     myMailbox: myMailbox(enabled, roster, input.callerId),
+    texts: {
+      on: settings.textsOnSince !== null,
+      me: myText.get(input.callerId) ?? "none",
+      myBackups: myBackupIds.map((u) => names.get(u) ?? "A colleague"),
+    },
   };
 }

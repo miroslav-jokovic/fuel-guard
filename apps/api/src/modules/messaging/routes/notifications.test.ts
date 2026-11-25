@@ -161,3 +161,12 @@ describe("POST /api/me/notifications/dismiss", () => {
     expect(holder.rec!.rpcs().map((r) => r.fn)).not.toContain("dismiss_notifications");
   });
 });
+
+describe("PATCH /api/me/notifications/preferences", () => {
+  it("stores the caller's mutes, less a category nobody may mute (Q-BM11: broker mail is mandatory)", async () => {
+    const res = await call("/preferences", { method: "PATCH", body: JSON.stringify({ muted_categories: ["fuel_alert", "broker_mail_waiting", "load_canceled"] }) });
+    expect(res.status).toBe(200);
+    const write = holder.rec!.writes().find((q) => q.table === "notification_preferences")!;
+    expect((write.write!.payload as { muted_categories: string[] }).muted_categories).toEqual(["fuel_alert"]);
+  });
+});

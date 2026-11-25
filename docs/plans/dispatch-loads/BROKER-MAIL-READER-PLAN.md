@@ -557,6 +557,38 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
     can raise a text.
   - **Which emails text:** the two open queues the page shows, Waiting and Needs a load, so the text and
     the page cannot disagree about what is unanswered. Never an email older than the switch.
+- 2026-11-25 — **P3-b built: the texts.** Choices made at build:
+  - **The lane:** `mail` in `schedulerLanes.ts`; `infra/server` gives the api containers `API_LANES`
+    (production `egress,mail`, staging `mail`), and `RUN_SCHEDULERS_IN_PROCESS` is now always true for
+    the api containers. Only the lane list decides what they run. `docs/WORKER-DEPLOYMENT.md` is updated.
+  - **The catalogue:** two relations, `mailbox_owner` and `dispatcher_backup`. A relation may now name
+    several people, because a dispatcher has several backups. Broker mail's two alerts live in
+    `packages/shared/src/brokerMailAlerts.ts`, spread into the one catalogue (alertRouting.ts is at its
+    line budget). `mandatory` means: the defaults are always in force, cannot be saved off, the text
+    ignores the quiet window, and `broker_mail_waiting` cannot be muted. That is enforced where mutes are
+    saved, not only hidden by a screen. Until now the preferences save accepted any category, so the
+    driver app's "may not mute" rule was a screen rule only; the save now drops every non-mutable category.
+  - **No fallback:** `sendAlerts` gains `noFallback`. An unanswered email whose dispatcher cannot open
+    the page yet is dropped, never turned into every admin's bell.
+  - **The tick** (`broker-mail/brokerMailTexts.ts`), once a minute:
+    - the dispatcher's alert at the answer-by time, on a check under 3 minutes old; otherwise held up to
+      10 minutes, then sent anyway with an alarm line in the log (Q-BMR7);
+    - the backups' notice `backup_after` minutes later, only on a fresh check. At night it is held by the
+      quiet window. The door then re-reads each line's email, drops answered ones, holds while the
+      gateway is behind, and drops a notice held over 16 hours;
+    - a dispatcher with no backups is stamped and never asked again;
+    - nothing runs while texts are off or the gateway is switched off.
+  - **Settings › Broker mail:**
+    - a Texts card: the switch, both times, and a red list of dispatchers who replied STOP (Q-BM11's
+      unrulable limit);
+    - a Texts and a Backups column on the mailbox list, with a drawer to choose up to 5 backups (Q-BM10;
+      office members only, nobody their own; audited).
+  - **The page:** a dispatcher with texts on and no confirmed number is told to confirm it in My
+    alerts, and sees their backups read-only.
+  - **Not done, on purpose:** the Dispatch board's envelope badge waits for the drafts (P4), when a
+    click has something to open. "Not for us" / "Handled by phone" closes are not built. Today a row
+    closes only on proof from Outlook. A person's close would contradict the gateway's next read unless
+    the gateway learns it, and that belongs with P4's command side.
 
 ## Sources
 

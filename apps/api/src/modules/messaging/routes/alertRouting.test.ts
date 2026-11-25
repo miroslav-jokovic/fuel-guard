@@ -126,7 +126,10 @@ describe("GET /api/alert-routing", () => {
       expect(a.routes, a.key).toEqual(alertDefinition(a.key as "home_time_overdue").defaults);
       // Dispatch's and the Lumper fees screen's alerts are offered to dispatchers; the repair alert is not —
       // a dispatcher cannot open Maintenance, so offering it would route an alert to a page they cannot see.
-      if (a.key !== "roadside_repair_due") expect(a.roles.map((x) => x.key)).toContain("dispatcher");
+      // Broker mail's two are about a screen that starts OFF for every role (BROKER-MAIL-READER-PLAN P2), so
+      // until an admin turns it on only the admin can be offered them.
+      if (a.key.startsWith("broker_mail_")) expect(a.roles.map((x) => x.key)).toEqual(["admin"]);
+      else if (a.key !== "roadside_repair_due") expect(a.roles.map((x) => x.key)).toContain("dispatcher");
       expect(a.roles.map((x) => x.key)).not.toContain("recruiter");
     }
     // RR5: the repair alert is offered to who can view Maintenance, defaulting to who manages it (the old audience).

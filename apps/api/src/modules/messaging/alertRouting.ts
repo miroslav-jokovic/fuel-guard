@@ -11,7 +11,7 @@ import {
   type AlertChannel,
   type AlertKey,
   type AlertMember,
-  type AlertRelation,
+  type AlertRelationTargets,
   type AlertRoute,
   type NotificationSeverity,
   type SectionAccess,
@@ -61,8 +61,8 @@ export interface AlertEvent {
   severity: NotificationSeverity;
   entityType: string;
   entityId: string;
-  /** Who each relation resolves to for THIS event; absent or null when nobody. */
-  relations: Partial<Record<AlertRelation, string | null>>;
+  /** Who each relation resolves to for THIS event: one person, several, or absent/null when nobody. */
+  relations: AlertRelationTargets;
 }
 
 export interface AlertSendResult {
@@ -251,7 +251,12 @@ export async function sendAlerts(
   alert: AlertKey,
   events: readonly AlertEvent[],
   clock: AlertTextClock,
-  options: { bellDigest?: BellDigest } = {},
+  /**
+   * `noFallback`: an event whose routes reach nobody is dropped, not sent to the section's managers.
+   * Broker mail (P3) needs it: a dispatcher who cannot open the page yet must not turn every
+   * unanswered email into an admin's bell.
+   */
+  options: { bellDigest?: BellDigest; noFallback?: true } = {},
 ): Promise<AlertSendResult> {
   const result: AlertSendResult = { bells: 0, emails: 0, texts: 0, textsHeld: 0, fellBack: 0 };
   if (events.length === 0) return result;
@@ -265,6 +270,7 @@ export async function sendAlerts(
   const bellFor = new Map<string, AlertEvent[]>();
   for (const event of events) {
     let recipients = recipientsFor(alert, audience, event.relations);
+    if (recipients.size === 0 && options.noFallback) continue;
     if (recipients.size === 0) {
       result.fellBack += 1;
       recipients = new Map(fallback.map((userId) => [userId, new Set<AlertChannel>(["bell"])]));

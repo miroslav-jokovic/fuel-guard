@@ -111,6 +111,12 @@
     "apps/admin-api/src/lib/impersonation.ts",
     "apps/api/src/lib/audit.ts"
   ],
+  "broker_mail_backups": [
+    "apps/api/src/modules/broker-mail/brokerMailBackups.ts"
+  ],
+  "broker_mail_messages": [
+    "apps/api/src/modules/broker-mail/brokerMailTexts.ts"
+  ],
   "broker_mail_settings": [
     "apps/api/src/modules/broker-mail/brokerMailAdmin.ts"
   ],

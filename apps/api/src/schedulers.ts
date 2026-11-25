@@ -27,6 +27,7 @@ import { startFmcsaFeedScheduler } from "./modules/inspections/index.js";
 import { startTollGpsScheduler } from "./modules/tolls/index.js";
 import { startLumperReminderScheduler, startMcleodRelinkScheduler } from "./modules/mcleod/index.js";
 import { startAdsDailyBrief, startAdsInsights, startAdsLeadsBackfill, startAdsOrchestrator, startAdsOutcomeFeed, startAdsReconcile } from "./modules/ads/index.js";
+import { startBrokerMailTextScheduler } from "./modules/broker-mail/index.js";
 import { startInprocessJobDrain } from "./queue/inprocessDrain.js";
 import type { SchedulerLane } from "./schedulerLanes.js";
 import {
@@ -82,6 +83,7 @@ export const SCHEDULERS: readonly ScheduledTask[] = [
   { name: "financial-projection", lane: "general", start: startFinancialProjectionScheduler }, // P3.4: nightly projection of staging into financial_entries
   { name: "fleetpal", lane: "general", start: startFleetpalScheduler }, // hourly per-org FleetPal sweep (F8); OFF unless FLEETPAL_SYNC_ENABLED
   { name: "medstop", lane: "general", start: startMedstopScheduler }, // hourly Med-Stop roster/pool/selection mirror (MEDSTOP MS1); OFF unless MEDSTOP_SYNC_ENABLED
+  { name: "broker-mail-texts", lane: "mail", start: startBrokerMailTextScheduler }, // BROKER-MAIL-READER-PLAN P3: minute tick + its own text drain; texts OFF until an admin switches them on
   { name: "sms-outbox", lane: "general", start: startSmsOutboxScheduler }, // A-11/C2d: five-minutely drain of texts queued for their recipient's civil hours
   { name: "board-eta-recorder", lane: "general", start: startBoardEtaRecorder }, // DB7: hourly sample of the dispatch board's ETAs, scored later against arrivals
   { name: "home-time", lane: "general", start: startHomeTimeScheduler }, // HOME-TIME D-HT13: every 15 min, ends finished home time and sends its three alerts

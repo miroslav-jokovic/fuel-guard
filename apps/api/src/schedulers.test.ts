@@ -68,19 +68,22 @@ describe("a lane's health, from its lease row (D-RLY3)", () => {
       [
         { lane: "egress", renewed_at: iso(-10), expires_at: iso(50) },
         { lane: "general", renewed_at: iso(-80), expires_at: iso(-20) },
+        { lane: "mail", renewed_at: iso(-5), expires_at: iso(55) },
       ],
       NOW,
     );
     expect(health).toEqual([
       { lane: "egress", state: "held", secondsSinceRenewal: 10 },
       { lane: "general", state: "handover", secondsSinceRenewal: 80 },
+      { lane: "mail", state: "held", secondsSinceRenewal: 5 },
     ]);
     const later = toLaneHealth([{ lane: "general", renewed_at: iso(-200), expires_at: iso(-HANDOVER_GRACE_S - 1) }], NOW);
     expect(later.find((l) => l.lane === "general")!.state).toBe("stale");
   });
 
   it("names a lane no process has ever held as missing, and a failed read as unknown", () => {
-    expect(toLaneHealth([], NOW).map((l) => l.state)).toEqual(["missing", "missing"]);
-    expect(toLaneHealth(null, NOW).map((l) => l.state)).toEqual(["unknown", "unknown"]);
+    // Every lane in SCHEDULER_LANES, `mail` (BROKER-MAIL-READER-PLAN P3) included: a lane nobody runs is reported, not ignored.
+    expect(toLaneHealth([], NOW).map((l) => [l.lane, l.state])).toEqual([["egress", "missing"], ["general", "missing"], ["mail", "missing"]]);
+    expect(toLaneHealth(null, NOW).map((l) => l.state)).toEqual(["unknown", "unknown", "unknown"]);
   });
 });

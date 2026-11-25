@@ -62,3 +62,16 @@ export function useSetLeftOut() {
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });
 }
+
+/** Q-BM10: an admin replaces one dispatcher's backups. */
+export function useSaveBackups() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { userId: string; backupUserIds: string[] }) => {
+      const r = await apiFetch(`/api/broker-mail/mailboxes/${v.userId}/backups`, { method: "PUT", body: { backupUserIds: v.backupUserIds } });
+      if (!r.ok) throw new Error(r.error?.message ?? "Could not save the backups");
+      return v;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
