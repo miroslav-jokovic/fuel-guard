@@ -80,7 +80,9 @@ export const AREAS = [
     api: ["recruiting", "ads", "evidence", "psp", "roster", "hazmat", "performance", "document-reading", "inspections", "medstop"],
     web: ["apply", "careers", "recruitment", "ads", "compliance", "drivers", "roster", "hazmat", "legal", "drugAlcohol", "roadside"],
     packages: ["ads-golden", "hazmat-data", "hazmat-engine", "hazmat-golden", "hazmat-placards", "sms-engine"],
-    plans: ["recruitment", "roster", "notes", "safety-dqf", "hazmat-consolidation", "document-reading"] },
+    // "training" is the driver safety films and their quizzes (SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS); its api
+    // module and web feature join these lists in the PRs that create the directories.
+    plans: ["recruitment", "roster", "notes", "safety-dqf", "hazmat-consolidation", "document-reading", "training"] },
   { id: "dispatch", title: "Dispatch and live map",
     // "broker-mail" + the mail-gateway app: the broker-mail reader (BROKER-MAIL-READER-PLAN.md), a
     // dispatcher feature whose plan sits in dispatch-loads.
