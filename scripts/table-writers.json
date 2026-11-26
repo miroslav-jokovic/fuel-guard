@@ -304,6 +304,12 @@
   "fmcsa_fetch_runs": [
     "apps/api/src/modules/inspections/feed/store.ts"
   ],
+  "follow_up_rules": [
+    "apps/api/src/modules/followups/rules.ts"
+  ],
+  "follow_ups": [
+    "apps/api/src/modules/followups/evaluate.ts"
+  ],
   "fuel_cards": [
     "apps/api/src/modules/fuel/cardAssignments.ts"
   ],
@@ -748,6 +754,9 @@
   ],
   "samsara_odometer_readings": [
     "apps/api/src/modules/samsara/samsaraOdometerSync.ts"
+  ],
+  "samsara_warnings": [
+    "apps/api/src/modules/samsara/warnings/syncWarnings.ts"
   ],
   "saved_views": [
     "apps/api/src/modules/org/routes/savedViews.ts"

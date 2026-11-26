@@ -42,6 +42,7 @@ export const JOB_KIND_CATALOGUE = {
   sync_idle: { label: "Syncing idling from Samsara", area: "telematics" },
   idle_event_twins: { label: "Cleaning up doubled idle events", area: "telematics" },
   sync_ifta: { label: "Syncing IFTA miles from Samsara", area: "telematics" },
+  warning_desk: { label: "Collecting Samsara warnings for follow-up", area: "telematics" },
   sync_documents: { label: "Syncing driver documents from Samsara", area: "documents" },
   sync_odometer: { label: "Syncing odometer readings from Samsara", area: "telematics" },
   idle_engine: { label: "Working out idle hours and stops", area: "telematics" },

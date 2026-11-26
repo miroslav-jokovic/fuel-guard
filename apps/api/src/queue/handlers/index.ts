@@ -51,6 +51,7 @@ import {
   syncDriverScoresHandler,
 } from "./performance.js";
 import { nightlyReconcileHandler } from "./nightlyReconcile.js";
+import { warningDeskHandler } from "./warningDesk.js";
 import { financialProjectionHandler } from "./financial.js";
 
 /**
@@ -94,6 +95,7 @@ export function registerAllHandlers(): void {
   registerHandler("sync_driver_scores", syncDriverScoresHandler);
   registerHandler("snapshot_driver_week", snapshotDriverWeekHandler);
   registerHandler("nightly_reconcile", nightlyReconcileHandler);
+  registerHandler("warning_desk", warningDeskHandler);
   registerHandler("data_retention", dataRetentionHandler);
   registerHandler("idle_engine", idleEngineHandler);
   registerHandler("financial_projection", financialProjectionHandler);
