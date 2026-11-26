@@ -124,6 +124,10 @@ export interface Vehicle {
    *  `tractor_status = 'I'`, 0462, D-DB11). A fact, never membership: `status` stays `active` until
    *  McLeod deactivates it. Null = not reported yet. Optional for the same reason as `identity_source`. */
   winding_down?: boolean | null;
+  /** The truck's McLeod home fleet code (`tractor.fleet_id`, 0450), verbatim; null until the roster
+   *  sweep writes it. Fleet '1' is the Unassigned pool the dispatch board leaves out (Q-DB2,
+   *  `isUnassignedPool`). Optional for the same reason as `winding_down`. */
+  mcleod_fleet_code?: string | null;
   /** The second driver of a team truck, placed by the Samsara seat sync (0475); null = solo. Optional
    *  because not every read selects it — and a read that does not, counts no teammate. */
   co_driver_id?: string | null;

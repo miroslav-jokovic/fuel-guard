@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { FileItemState } from "./fileEngine.js";
-import { isRunningTruck, matchesVehicleCheck, paperStanding, seatedDriverIds, VEHICLE_CHECKS, VEHICLE_CHECK_LABELS } from "./fleetChecks.js";
+import { boardCarriesTruck, isOnDispatchBoard, isUnassignedPool, matchesVehicleCheck, paperStanding, seatedDriverIds, VEHICLE_CHECKS, VEHICLE_CHECK_LABELS } from "./fleetChecks.js";
 import type { UnitFileCell } from "./unitFileContract.js";
 
-const truck = (over: Partial<{ assigned_driver_id: string | null; winding_down: boolean | null }> = {}) => ({
-  assigned_driver_id: "d1",
-  ...over,
-});
+type T = { assigned_driver_id: string | null; status: string; winding_down?: boolean | null; mcleod_fleet_code?: string | null };
+const truck = (over: Partial<T> = {}) => ({ assigned_driver_id: "d1", status: "active", mcleod_fleet_code: "VINNIEV", ...over }) as T & { status: "active" };
 /** One item of a truck's file, as `/api/compliance/unit-files` serves it. */
 const cell = (key: string, state: FileItemState, goodUntil: string | null, dateOnly: UnitFileCell["dateOnly"] = null): UnitFileCell => ({
   key, group: key === "registration" ? "registration" : "inspections", state, goodUntil, evidenceDate: null, expiryUnknown: false, dateOnly, paperOnFile: null, fleetWide: false, documentId: state === "missing" ? null : "doc-1",
@@ -14,18 +12,43 @@ const cell = (key: string, state: FileItemState, goodUntil: string | null, dateO
 const file = (...items: UnitFileCell[]) => ({ items });
 const NOTHING = file(cell("registration", "missing", null), cell("annual_inspection", "missing", null));
 
-describe("isRunningTruck", () => {
-  it("is an active truck McLeod is not winding down — silence counts as running", () => {
-    expect(isRunningTruck({ status: "active", winding_down: null })).toBe(true);
-    expect(isRunningTruck({ status: "active" })).toBe(true);
-    expect(isRunningTruck({ status: "active", winding_down: false })).toBe(true);
-    expect(isRunningTruck({ status: "active", winding_down: true })).toBe(false);
-    expect(isRunningTruck({ status: "maintenance", winding_down: false })).toBe(false);
-    expect(isRunningTruck({ status: "ordered" })).toBe(false);
+describe("the dispatch board's trucks (D-FM10)", () => {
+  it("carries a truck in service, and a wound-down one only while it holds a load", () => {
+    expect(boardCarriesTruck({ status: "active" }, false)).toBe(true);
+    expect(boardCarriesTruck({ status: "maintenance", winding_down: null }, false)).toBe(true);
+    expect(boardCarriesTruck({ status: "active", winding_down: true }, false)).toBe(false);
+    expect(boardCarriesTruck({ status: "active", winding_down: true }, true)).toBe(true);
+    expect(boardCarriesTruck({ status: "ordered" }, true)).toBe(false);
+    expect(boardCarriesTruck({ status: "retired" }, true)).toBe(false);
+    expect(boardCarriesTruck({ status: null }, false)).toBe(false);
+  });
+
+  it("leaves the Unassigned pool — McLeod fleet '1', compared trimmed — off the board it shows", () => {
+    expect(isUnassignedPool("1")).toBe(true);
+    expect(isUnassignedPool(" 1 ")).toBe(true);
+    expect(isUnassignedPool("10")).toBe(false);
+    expect(isUnassignedPool(null)).toBe(false);
+    expect(isOnDispatchBoard({ status: "active", mcleod_fleet_code: "1" }, true)).toBe(false);
+    expect(isOnDispatchBoard({ status: "active", mcleod_fleet_code: null }, false)).toBe(true);
+    expect(isOnDispatchBoard({ status: "maintenance", mcleod_fleet_code: "VINNIEV" }, false)).toBe(true);
   });
 });
 
 describe("matchesVehicleCheck", () => {
+  it("asks no_driver only of the board's trucks; everything else in service is off_board", () => {
+    // 14 of the 17 "trucks without a driver" on 2026-11-26 were parked in fleet '1'.
+    const parked = truck({ assigned_driver_id: null, mcleod_fleet_code: "1" });
+    expect(matchesVehicleCheck(parked, "no_driver", undefined)).toBe(false);
+    expect(matchesVehicleCheck(parked, "off_board", undefined)).toBe(true);
+    const shop = truck({ assigned_driver_id: null, status: "maintenance" });
+    expect(matchesVehicleCheck(shop, "no_driver", undefined)).toBe(true);
+    expect(matchesVehicleCheck(shop, "off_board", undefined)).toBe(false);
+    for (const status of ["ordered", "retired"]) {
+      expect(matchesVehicleCheck(truck({ assigned_driver_id: null, status }), "no_driver", undefined)).toBe(false);
+      expect(matchesVehicleCheck(truck({ status }), "off_board", undefined)).toBe(false);
+    }
+  });
+
   it("does not call a truck being wound down a truck without a driver; it has its own check", () => {
     const sold = truck({ assigned_driver_id: null, winding_down: true });
     expect(matchesVehicleCheck(sold, "no_driver", undefined)).toBe(false);

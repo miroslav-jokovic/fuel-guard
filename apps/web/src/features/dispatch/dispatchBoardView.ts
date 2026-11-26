@@ -1,6 +1,7 @@
 import {
   availableNear,
   homeTimeChipUrgent,
+  isUnassignedPool,
   legalDriveMs,
   needsAttention,
   warningIsUrgent,
@@ -11,7 +12,7 @@ import {
 } from "@silvicom/shared";
 import { type DataTableColumn } from "@silvicom/ui";
 import { formatDate } from "@/lib/format";
-import { POOL_FLEET, POOL_OPTION, admitsScope, type ScopeFilter } from "./dispatchScope";
+import { POOL_OPTION, admitsScope, type ScopeFilter } from "./dispatchScope";
 
 export { NO_FLEET_OPTION, POOL_FLEET, POOL_OPTION, dispatcherLabel } from "./dispatchScope";
 
@@ -78,7 +79,7 @@ export function filterBoard(
     if (!admitsScope(r, scope, f)) return false;
     // "All" still leaves the parked pool out unless it is asked for by name. A board rule, not a scope
     // rule: a truck parked in the shop is not work, but a load on the Loads page is a record and stays.
-    if (!f.mine && !f.fleet && r.fleetCode === POOL_FLEET) return false;
+    if (!f.mine && !f.fleet && isUnassignedPool(r.fleetCode)) return false;
     if (!queue.test(r)) return false;
     // A truck in the shop is not available anywhere, whatever its last position says.
     if ((a.states.length || a.near || by) && (r.inShop || !availableNear(r.available, { states: a.states, near: a.near, by }))) return false;
