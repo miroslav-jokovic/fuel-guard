@@ -383,6 +383,17 @@ export const RETENTION_RULES: RetentionRule[] = [
     why: "AW14 (APPLICATION-FLOW-V2-PLAN §6.8): screen visits on the applicant's link, names and times only, read by the completion-time query; 180 days as 0376's table comment promised",
   },
   {
+    // 0652 (WARNING-DESK-PLAN D-WD4, Q-WD11). The collector's staging of Samsara warnings. A follow-up
+    // keeps its own count, first and last time; the raw warning is needed only inside the longest rule
+    // window (30 days) and for a person reading a follow-up's history, so a quarter is ample.
+    table: "samsara_warnings",
+    timeColumn: "happened_at",
+    keepDays: 90,
+    strategy: "id",
+    orgScoped: true,
+    why: "WARNING-DESK-PLAN Q-WD11: raw Samsara warnings (alerts, safety events, defects, lamp episodes, HOS); follow-ups and their actions are kept, the warnings behind them only for a quarter",
+  },
+  {
     // DATA-LIFECYCLE-PLAN Q11 (ruled (b), 2026-10-05). Prunable ONLY because 0432 moved the dedupe
     // keys to `notification_dedupe_keys` (pinned in RETENTION_FORBIDDEN) — this rule ships in the
     // same merge as the schedulers' move to that ledger, so a revert takes both. 90 days against the

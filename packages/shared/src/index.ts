@@ -374,3 +374,4 @@ export * from "./jobKindCatalogue.js";
 export * from "./brokerMailContract.js";
 export * from "./trainingContract.js";
 export * from "./brokerMailPageContract.js";
+export * from "./followUpRules.js";

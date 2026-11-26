@@ -318,3 +318,23 @@ screens; trailer TPMS and wheel-end temperature rules (catalogue entries, enable
 
 - 2026-11-26 — Plan written from live measurements; owner asked for all recommendations to stand and
   all questions to be answered (§6).
+- 2026-11-26 — **WD1–WD3 built** (migration 0652; `modules/samsara/warnings/`, `modules/followups/`,
+  `orchestration/warningDesk.ts`, job kind `warning_desk`, scheduler `warning-desk` on the `general`
+  lane). Four refinements of §3, each simpler than what it replaces:
+  - **No `samsara_lamp_states` table (D-WD4).** A lamp that is on IS a warning row with `still_active`;
+    an "off" ends it and an "on" within 30 minutes re-opens the same row. The episode is the state.
+  - **Samsara ids, not roster foreign keys, on warnings and follow-ups (D-WD4/D-WD15).** A
+    `drivers(id)` FK would oblige every driver merge to move the row (`check-driver-references`), and a
+    unit Samsara lists but the roster does not ("783 - OLD") would have nowhere to go. The API joins the
+    Samsara id to the roster when it draws a line (WD4); who holds a trailer NOW is read then, which is
+    the person to call.
+  - **"Looks fixed" and "warned again after the call" are derived, not stored (D-WD6).** The follow-up
+    keeps `active_count` and `contacted_at`; both states are computed when the line is drawn
+    (`looksFixed`, `warnedAfterContact` in `followUpRules.ts`), so neither can go stale.
+  - **The tick lives in `orchestration/`, not in the Samsara scheduler.** The desk's rules decide what
+    the collector reads (idling incidents are never fetched), which is a cross-module chain — the
+    orchestration layer is its sanctioned home. Five-minute cadence, no new env variable; the Samsara
+    kill switch (`SAMSARA_SYNC_HOURS=0`) stops it too.
+  - Defects read 180 days back on the first run (a defect is not "updated" until it is fixed, and 44 of
+    46 open ones were older than three days). HOS is re-read over the last two days at most hourly.
+

@@ -6,6 +6,7 @@ import { startRebuildOnBoot } from "./modules/anomalies/index.js";
 import { startDigestScheduler } from "./modules/org/index.js";
 import { startDqAlertScheduler } from "./modules/evidence/index.js";
 import { startNightlyReconcileScheduler } from "./orchestration/nightlyReconcile.js";
+import { startWarningDeskScheduler } from "./orchestration/warningDesk.js";
 import { startEfsIngestScheduler } from "./modules/efs/services/efsIngestScheduler.js";
 import { startEfsCardSyncScheduler } from "./modules/efs/services/efsCardSyncScheduler.js";
 import { startEfsSoapPoller } from "./modules/efs/services/efsSoapPoller.js";
@@ -55,6 +56,7 @@ export interface ScheduledTask {
 
 export const SCHEDULERS: readonly ScheduledTask[] = [
   { name: "samsara", lane: "general", start: startSamsaraScheduler }, // background auto-refresh of Samsara data
+  { name: "warning-desk", lane: "general", start: startWarningDeskScheduler }, // WARNING-DESK-PLAN WD2/WD3: Samsara warnings → follow-ups every 5m
   { name: "rebuild-on-boot", lane: "general", start: startRebuildOnBoot }, // one-time anomaly rebuild with current rules (rules-only, idempotent)
   { name: "digest", lane: "general", start: startDigestScheduler }, // weekly AI theft digest email
   { name: "dq-alerts", lane: "general", start: startDqAlertScheduler }, // DQ expiry threshold alerts: ledger rows + one office email per run (C3)

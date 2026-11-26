@@ -91,3 +91,13 @@ export {
   ODOMETER_LOOKBACK_DAYS,
   type FleetDistanceResult,
 } from "./samsaraOdometerReads.js";
+// The warning desk's collector and its reads (WARNING-DESK-PLAN WD2). The desk reads samsara_warnings
+// only through these.
+export { syncSamsaraWarnings, readAlertConfigurations, type WarningsSyncResult } from "./warnings/syncWarnings.js";
+export {
+  listWarningsUpdatedSince,
+  listActiveWarnings,
+  listSubjectWarnings,
+  type StoredWarning,
+  type SubjectWarningQuery,
+} from "./warnings/warningReads.js";
