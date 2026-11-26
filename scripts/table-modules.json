@@ -1179,6 +1179,17 @@
         "why": "raw posted-price feed. Measured 888/day. Retention unruled \u2014 L9."
       }
     },
+    "pilot_sftp_files": {
+      "module": "posted-prices",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "new in 0652 (2026-11-26, PILOT-SFTP-FEED-PLAN): one row per file taken from Pilot's SFTP drop, updated in place on a retry or a re-read; Pilot sends a daily Price Quote and a daily Transaction file, so about 700 rows a year. A work record, not evidence \u2014 a quote's prices are in fuel_prices, the bytes in the pilot-sftp bucket."
+      }
+    },
     "pilot_bill_mails": {
       "module": "fuel-spend",
       "layer": "infra",

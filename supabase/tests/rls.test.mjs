@@ -2370,6 +2370,10 @@ async function main() {
         `select '${org}', ${adsLatest("ads_campaigns", org)}, 1, '{}', '[]', 'agent', ` +
         // ad_generations has no created_at (its clock is started_at), so `adsLatest` cannot order it.
         `(select id from ad_generations where org_id = '${org}' order by started_at desc limit 1);`,
+      // 0652: a file past `failed` must carry its kept copy (hash + storage path) — a two-column CHECK.
+      pilot_sftp_files: (org) =>
+        `insert into pilot_sftp_files (org_id, remote_path, remote_size, remote_mtime, kind, state, file_sha256, storage_path)
+         values ('${org}', '/pq-139445-11272026.xlsx', 100, now(), 'price_quote', 'held', '${"a".repeat(64)}', '${org}/kept.xlsx')`,
       // 0539 (HW8a): a video's link is https-checked, and an attestation or an open must name this
       // driver's own invitation and a live video of this carrier (OV023/OV024) — a chain the seeder,
       // which makes every parent independently, cannot build.

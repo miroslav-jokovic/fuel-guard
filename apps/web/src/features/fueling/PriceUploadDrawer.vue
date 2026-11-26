@@ -10,6 +10,7 @@
  *
  * PILOT-PRICE-MAIL-PLAN §6 (2026-11-18) puts `PriceMailCard` first: the daily quote now loads itself from
  * Pilot's email, and the first thing a reader here needs is whether it did — the upload is the fallback.
+ * PILOT-SFTP-FEED-PLAN §6 (2026-11-26) puts `PilotSftpCard` beside it: the same question for Pilot's SFTP drop.
  *
  * Both cards are UNCHANGED — `PriceUploadCard` keeps its sequential multi-file loop and its
  * per-file outcome list, `StationDataCard` keeps the locations export, the posted-price upload and
@@ -25,6 +26,7 @@
  */
 import SlideOver from "@/components/SlideOver.vue";
 import PriceMailCard from "./PriceMailCard.vue";
+import PilotSftpCard from "./PilotSftpCard.vue";
 import PriceUploadCard from "./PriceUploadCard.vue";
 import StationDataCard from "./StationDataCard.vue";
 
@@ -42,6 +44,7 @@ const emit = defineEmits<{ close: [] }>();
   >
     <div class="space-y-4">
       <PriceMailCard />
+      <PilotSftpCard />
       <PriceUploadCard />
       <StationDataCard />
     </div>

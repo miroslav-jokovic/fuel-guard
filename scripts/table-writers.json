@@ -655,6 +655,9 @@
   "phone_lookups": [
     "apps/api/src/modules/recruiting/leads/phoneLookup.ts"
   ],
+  "pilot_sftp_files": [
+    "apps/api/src/modules/posted-prices/pilotSftpFeed.ts"
+  ],
   "pilot_bill_mails": [
     "apps/api/src/modules/fuel-spend/pilotBillMail.ts"
   ],
