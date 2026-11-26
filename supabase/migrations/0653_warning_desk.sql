@@ -54,6 +54,9 @@
 -- finds both. No table of either module is written by the other: the collector writes only its staging,
 -- and the desk reads it through modules/samsara's exported reads (orchestration/warningDesk.ts).
 --
+-- raw-access-waiver: `samsara_warnings` is named here only by its own CREATE, indexes and comment —
+-- no function or view in this migration reads it. The samsara collector consents as its owner.
+--
 -- Rollback: `drop function transition_follow_up; drop table follow_up_actions, follow_ups,
 -- follow_up_rules, samsara_warnings; drop function guard_follow_up_actions_append_only;`
 

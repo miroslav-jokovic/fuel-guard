@@ -41,7 +41,7 @@ export async function runWarningDesk(admin: SupabaseClient, env: Env, orgId: str
   const sources = new Set<WarningSource>(enabled.map((r) => r.source));
   const alertConfigs = configs.filter((c) => enabled.some((r) => r.key === alertRuleKey(c.id)));
 
-  let sync: WarningsSyncResult = {};
+  let sync: WarningsSyncResult;
   let syncError: Error | null = null;
   try {
     sync = await syncSamsaraWarnings(admin, env, orgId, { now, sources, alertConfigs });
