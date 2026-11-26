@@ -53,7 +53,7 @@ export function isRetiredUnitName(name: string | null): boolean {
   return name !== null && /\s-\s*(OLD|SOLD)\b/i.test(name);
 }
 
-/** The detail column holds ≤ 2 KB (0652's CHECK); trim long strings rather than fail the row. */
+/** The detail column holds ≤ 2 KB (0653's CHECK); trim long strings rather than fail the row. */
 function smallDetail(d: Obj): Obj {
   const out: Obj = {};
   for (const [k, v] of Object.entries(d)) {

@@ -4,7 +4,7 @@
  * ── THE ONE PLACE A DEFAULT IS DECIDED ───────────────────────────────────────────────────────────
  * A rule says which Samsara warnings count, how many times a problem must repeat before a person
  * follows it up (the "Nth time"), over how many days, and where the line sorts. The database stores
- * only an admin's override (`follow_up_rules`, 0652); every default is computed here — the fixed
+ * only an admin's override (`follow_up_rules`, 0653); every default is computed here — the fixed
  * kinds below, and one kind per Samsara alert configuration whose default is DERIVED from its trigger
  * type ids. A configuration added in Samsara tomorrow therefore arrives with a sensible default and
  * nothing to code; a copied list of configuration ids would be a second source of truth.

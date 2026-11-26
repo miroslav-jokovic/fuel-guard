@@ -1,6 +1,6 @@
 /**
  * The warning collector (WARNING-DESK-PLAN WD2, D-WD2/D-WD4/D-WD5). Reads the six Samsara sources the
- * desk counts and writes them, in one shape, to `samsara_warnings` (0652). Read-only against Samsara;
+ * desk counts and writes them, in one shape, to `samsara_warnings` (0653). Read-only against Samsara;
  * writes nothing but its own staging table and its own cursors.
  *
  * ── POLLING, NOT WEBHOOKS ────────────────────────────────────────────────────────────────────────

@@ -85,7 +85,7 @@ const MODULE_SECTIONS = {
   accounting: "accounting", // P5.1 harness — no tables yet; the first one lands checked
   billing: "billing",       // P5.2 harness — same
   maintenance: "maintenance", // P5.3 harness — same
-  // WARNING-DESK-PLAN (0652): the desk sits in Maintenance (D-WD1). Its tables carry no client policy.
+  // WARNING-DESK-PLAN (0653): the desk sits in Maintenance (D-WD1). Its tables carry no client policy.
   followups: "maintenance",
   messaging: null,
   "driver-app": null,

@@ -7,12 +7,12 @@
  *    enough, and growing old changes no row).
  * 2. If that problem already has an open follow-up, refreshes its count, last time, how many warnings
  *    are still active, and its severity — and never its status or version, so a person's click is not
- *    refused because a warning arrived meanwhile (0652 §4).
+ *    refused because a warning arrived meanwhile (0653 §4).
  * 3. Otherwise asks `decideOpen` — the Nth time inside the rule's window, counting again from the last
  *    closed follow-up — and opens one.
  *
  * Idempotent: running the same pass twice changes nothing the second time. The one-open-per-problem
- * promise is the partial unique index (0652), so two passes racing cannot open the same problem twice;
+ * promise is the partial unique index (0653), so two passes racing cannot open the same problem twice;
  * the loser's insert is a 23505 and is dropped.
  *
  * Reads warnings only through the collector's exported reads, which the orchestrator passes in

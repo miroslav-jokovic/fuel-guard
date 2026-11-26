@@ -4036,7 +4036,7 @@
         "retention_days": 90,
         "partition": null,
         "budget_rows_per_day": 400,
-        "why": "new in 0652 (WARNING-DESK-PLAN D-WD4): one row per Samsara warning the desk counts \u2014 measured 2026-11-26 at ~150/day after idling is excluded (alerts ~95, safety ~44, ATIS episodes before merging ~150, HOS ~25, defects ~1.5); refreshed in place; RETENTION_RULES 90 days."
+        "why": "new in 0653 (WARNING-DESK-PLAN D-WD4): one row per Samsara warning the desk counts \u2014 measured 2026-11-26 at ~150/day after idling is excluded (alerts ~95, safety ~44, ATIS episodes before merging ~150, HOS ~25, defects ~1.5); refreshed in place; RETENTION_RULES 90 days."
       }
     },
     "follow_up_rules": {
@@ -4047,7 +4047,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "new in 0652 (D-WD10): one row per rule an admin changed from its default; bounded by the number of rules (about 25), never grows with time."
+        "why": "new in 0653 (D-WD10): one row per rule an admin changed from its default; bounded by the number of rules (about 25), never grows with time."
       }
     },
     "follow_ups": {
@@ -4058,7 +4058,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 30,
-        "why": "new in 0652 (D-WD6): one row per problem a person follows up \u2014 about 22 per working day at the measured defaults (plan \u00a71.6). Kept: the record of what the desk handled."
+        "why": "new in 0653 (D-WD6): one row per problem a person follows up \u2014 about 22 per working day at the measured defaults (plan \u00a71.6). Kept: the record of what the desk handled."
       }
     },
     "follow_up_actions": {
@@ -4069,7 +4069,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 100,
-        "why": "new in 0652 (D-WD9): append-only, one row per action on a follow-up (call, no answer, shop, close); a few per follow-up. Kept: who told which driver what."
+        "why": "new in 0653 (D-WD9): append-only, one row per action on a follow-up (call, no answer, shop, close); a few per follow-up. Kept: who told which driver what."
       }
     }
   }

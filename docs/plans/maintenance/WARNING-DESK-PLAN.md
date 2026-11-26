@@ -318,7 +318,7 @@ screens; trailer TPMS and wheel-end temperature rules (catalogue entries, enable
 
 - 2026-11-26 — Plan written from live measurements; owner asked for all recommendations to stand and
   all questions to be answered (§6).
-- 2026-11-26 — **WD1–WD3 built** (migration 0652; `modules/samsara/warnings/`, `modules/followups/`,
+- 2026-11-26 — **WD1–WD3 built** (migration 0653; `modules/samsara/warnings/`, `modules/followups/`,
   `orchestration/warningDesk.ts`, job kind `warning_desk`, scheduler `warning-desk` on the `general`
   lane). Four refinements of §3, each simpler than what it replaces:
   - **No `samsara_lamp_states` table (D-WD4).** A lamp that is on IS a warning row with `still_active`;

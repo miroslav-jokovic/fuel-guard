@@ -1,4 +1,4 @@
--- Silvicom 360 — 0652 warning desk: Samsara warnings and the follow-ups one person works
+-- Silvicom 360 — 0653 warning desk: Samsara warnings and the follow-ups one person works
 -- (docs/plans/maintenance/WARNING-DESK-PLAN.md WD1, D-WD4/D-WD6/D-WD9/D-WD10)
 --
 -- Samsara already warns the driver — a trailer losing air, a dying battery, a defect nobody fixed. What
@@ -87,7 +87,7 @@ create table if not exists public.samsara_warnings (
   constraint samsara_warnings_org_source_key unique (org_id, source, source_key)
 );
 comment on table public.samsara_warnings is
-  '0652 (WARNING-DESK-PLAN D-WD4): every Samsara warning the desk counts — alert incidents, safety events, DVIR defects, ATIS and engine lamp episodes, HOS violations — in one shape, keyed by Samsara ids. Written by modules/samsara/warnings only; kept 90 days.';
+  '0653 (WARNING-DESK-PLAN D-WD4): every Samsara warning the desk counts — alert incidents, safety events, DVIR defects, ATIS and engine lamp episodes, HOS violations — in one shape, keyed by Samsara ids. Written by modules/samsara/warnings only; kept 90 days.';
 create index if not exists idx_samsara_warnings_org_updated on public.samsara_warnings (org_id, updated_at desc);
 create index if not exists idx_samsara_warnings_org_kind_time on public.samsara_warnings (org_id, kind, happened_at desc);
 create index if not exists idx_samsara_warnings_org_active on public.samsara_warnings (org_id, source) where still_active;
@@ -111,7 +111,7 @@ create table if not exists public.follow_up_rules (
   primary key (org_id, rule_key)
 );
 comment on table public.follow_up_rules is
-  '0652 (D-WD10): an admin''s override of one follow-up rule (which warnings count, the Nth time, the window). Absent row = the catalogue default in followUpRules.ts.';
+  '0653 (D-WD10): an admin''s override of one follow-up rule (which warnings count, the Nth time, the window). Absent row = the catalogue default in followUpRules.ts.';
 alter table public.follow_up_rules enable row level security;
 
 -- ── 3. the follow-ups ───────────────────────────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ create table if not exists public.follow_ups (
   constraint follow_ups_closed_has_time check ((status = 'closed') = (closed_at is not null))
 );
 comment on table public.follow_ups is
-  '0652 (D-WD6): one problem a person should follow up — every repeat of the same rule on the same truck, trailer or driver. Opened by the followups evaluator at the Nth warning; status moves only through transition_follow_up.';
+  '0653 (D-WD6): one problem a person should follow up — every repeat of the same rule on the same truck, trailer or driver. Opened by the followups evaluator at the Nth warning; status moves only through transition_follow_up.';
 create unique index if not exists uq_follow_ups_open_problem
   on public.follow_ups (org_id, rule_key, subject_kind, subject_samsara_id) where status <> 'closed';
 create index if not exists idx_follow_ups_org_status on public.follow_ups (org_id, status, last_at desc);
@@ -170,7 +170,7 @@ create table if not exists public.follow_up_actions (
   created_at    timestamptz not null default now()
 );
 comment on table public.follow_up_actions is
-  '0652 (D-WD9): append-only record of every action on a follow-up — who called which driver, sent which unit to the shop, closed it and why. Written only by transition_follow_up.';
+  '0653 (D-WD9): append-only record of every action on a follow-up — who called which driver, sent which unit to the shop, closed it and why. Written only by transition_follow_up.';
 create index if not exists idx_follow_up_actions_follow_up on public.follow_up_actions (follow_up_id, created_at);
 alter table public.follow_up_actions enable row level security;
 
@@ -269,4 +269,4 @@ $$;
 revoke all on function public.transition_follow_up(uuid, uuid, uuid, text, text, int) from public, anon, authenticated;
 grant execute on function public.transition_follow_up(uuid, uuid, uuid, text, text, int) to service_role;
 comment on function public.transition_follow_up(uuid, uuid, uuid, text, text, int) is
-  '0652 (D-WD9): validates and applies one action on a follow-up — status, outcome, contact time, assignee and version — and writes its append-only action row, in one transaction.';
+  '0653 (D-WD9): validates and applies one action on a follow-up — status, outcome, contact time, assignee and version — and writes its append-only action row, in one transaction.';

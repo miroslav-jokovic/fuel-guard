@@ -1,4 +1,4 @@
-// Silvicom 360 — the warning desk's tables (migration 0652, WARNING-DESK-PLAN WD1).
+// Silvicom 360 — the warning desk's tables (migration 0653, WARNING-DESK-PLAN WD1).
 //
 // What the database itself promises: one open follow-up per problem, a status that moves only through
 // transition_follow_up (validated, versioned, logged), an action record nobody can edit — the service
