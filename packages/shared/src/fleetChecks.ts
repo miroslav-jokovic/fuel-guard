@@ -22,21 +22,25 @@
  * 51 of 244 trucks had no date on 2026-10-12. Counting them as current would make the card read
  * better the less we know, so they keep their own check and their own line.
  *
- * ── A TRUCK BEING WOUND DOWN IS NOT A TRUCK WITHOUT A DRIVER ─────────────────────────────────────
+ * ── A TRUCK OFF THE DISPATCH BOARD IS NOT A TRUCK WITHOUT A DRIVER ───────────────────────────────
  * The Seats card read "159 of 198" on 2026-10-14 when the true answer was 159 of 171: 27 of the 198
  * were trucks McLeod marks `tractor_status = 'I'` — sold and awaiting pickup, or retiring — which stay
- * `active` by design (D-FC0, D-DB11) and which nobody will ever seat. Counted as "no driver", they made
- * the empty-truck line 39 when 12 trucks were actually waiting for a driver. So `isRunningTruck` is the
- * Seats population, `no_driver` asks only of running trucks, and the wound-down trucks get their own
- * check, so they are counted on a line of their own rather than vanishing.
+ * `active` by design (D-FC0, D-DB11) and which nobody will ever seat. That fix left a second population
+ * behind it: on 2026-11-26 the card read "179 of 196" beside a board of 181, and 14 of its 17 "trucks
+ * without a driver" were parked in McLeod's fleet '1', the Unassigned pool the board leaves out by
+ * the owner's ruling (Q-DB2). Two cards, two truck totals, one tab (D-FM10). So the Seats population
+ * IS the board's — `isOnDispatchBoard` — `no_driver` asks only of it, and every truck the board leaves
+ * out is counted once, on its own line, by `off_board`.
  */
 import { INSPECTION_EXPIRY_WARNING_DAYS } from "./annualInspectionContract.js";
+import { isInServiceVehicleStatus } from "./constants.js";
 import type { FileItemState } from "./fileEngine.js";
 import type { Vehicle } from "./fleet.js";
 import type { UnitFileCell, UnitFileRow } from "./unitFileContract.js";
 
 export const VEHICLE_CHECKS = [
   "no_driver",
+  "off_board",
   "winding_down",
   "inspection_overdue",
   "inspection_due",
@@ -50,7 +54,8 @@ export const VEHICLE_CHECKS = [
 export type VehicleCheck = (typeof VEHICLE_CHECKS)[number];
 
 export const VEHICLE_CHECK_LABELS: Record<VehicleCheck, string> = {
-  no_driver: "No driver assigned",
+  no_driver: "On the dispatch board, no driver",
+  off_board: "Off the dispatch board (Unassigned pool, sold, retiring)",
   winding_down: "Being wound down (sold or retiring)",
   inspection_overdue: "Annual inspection overdue",
   inspection_due: `Annual inspection due in ${INSPECTION_EXPIRY_WARNING_DAYS} days`,
@@ -62,17 +67,50 @@ export const VEHICLE_CHECK_LABELS: Record<VehicleCheck, string> = {
   registration_date_only: "Registration: date only, no paper",
 };
 
-type Checked = Pick<Vehicle, "assigned_driver_id" | "winding_down">;
+type Checked = Pick<Vehicle, "assigned_driver_id" | "status" | "winding_down" | "mcleod_fleet_code">;
 /** The truck's file as the checks read it — a row of `/api/compliance/unit-files`. */
 type CheckedFile = Pick<UnitFileRow, "items">;
 
 /**
- * A truck the carrier is running: in service, and not one the TMS reports as being wound down. `null`
- * (not reported — every org without McLeod, and any truck before its first sweep) counts as running:
- * the fact is McLeod saying "this one is leaving", and silence is not that.
+ * McLeod's fleet '1': the parked and shop pool (DISPATCH-BOARD-PLAN Q-DB2, ruled 2026-10-09). The
+ * board shows it only when it is asked for by name, as "Unassigned pool". One spelling, here, because
+ * the board's filter and the Seats card must leave out the same trucks (D-FM10).
  */
-export function isRunningTruck(v: Pick<Vehicle, "status" | "winding_down">): boolean {
-  return v.status === "active" && v.winding_down !== true;
+export const UNASSIGNED_POOL_FLEET = "1";
+
+/** True for a truck whose McLeod home fleet is the Unassigned pool. The code is compared trimmed. */
+export const isUnassignedPool = (fleetCode: string | null | undefined): boolean =>
+  fleetCode?.trim() === UNASSIGNED_POOL_FLEET;
+
+/** What the board's rule reads of a truck. `status` is a plain string so the API's identity read fits. */
+type CarriedTruck = { status: string | null | undefined; winding_down?: boolean | null };
+type BoardTruck = CarriedTruck & Pick<Vehicle, "mcleod_fleet_code">;
+
+/**
+ * Does the dispatch board CARRY this truck at all — a row in its response? In service (retired and
+ * ordered are not, `IN_SERVICE_VEHICLE_STATUSES`), and not being wound down unless it still holds a
+ * load: a load is work, and hiding work is worse than showing a sold truck (D-DB11). The Unassigned
+ * pool is carried, because the board offers it as a filter; `isOnDispatchBoard` is what it SHOWS.
+ * `winding_down` null — not reported yet — counts as not wound down: silence is not McLeod saying
+ * "this one is leaving".
+ */
+export function boardCarriesTruck(v: CarriedTruck, holdsLoad: boolean): boolean {
+  return isInServiceVehicleStatus(v.status) && (v.winding_down !== true || holdsLoad);
+}
+
+/**
+ * Is this truck one of "Trucks on the board" — the rows the board shows with nothing chosen, which
+ * the Operations tab's Fleet right now strip totals? Carried, and not in the Unassigned pool.
+ *
+ * ⚠ The Seats card answers this from the vehicle row alone, with `holdsLoad` false, because it reads
+ * `equipment` and loads are `dispatch`'s. A truck being wound down that still holds a load and is NOT
+ * in the pool is therefore on the board but off the card's population. On 2026-11-26 there were none —
+ * every one of the 8 wound-down trucks was in fleet '1' and none of the pool held an open load — but
+ * nothing stops one tomorrow. What removes it: a per-truck "holds an open load" fact the equipment
+ * reader may see (FLEET-MANAGER-HOME-PLAN Q-FM10).
+ */
+export function isOnDispatchBoard(v: BoardTruck, holdsLoad: boolean): boolean {
+  return boardCarriesTruck(v, holdsLoad) && !isUnassignedPool(v.mcleod_fleet_code);
 }
 
 /**
@@ -104,7 +142,9 @@ const PAPER_ASKS = ["overdue", "due", "missing", "date_only"] as const;
  * them) it answers no, so a reader that has no file yet must say "loading", never count a zero.
  */
 export function matchesVehicleCheck(v: Checked, check: string, file: CheckedFile | undefined): boolean {
-  if (check === "no_driver") return v.assigned_driver_id == null && v.winding_down !== true;
+  // The seat checks are the Seats card's, asked as it asks them: of the vehicle row, holding no load.
+  if (check === "no_driver") return isOnDispatchBoard(v, false) && v.assigned_driver_id == null;
+  if (check === "off_board") return isInServiceVehicleStatus(v.status) && !isOnDispatchBoard(v, false);
   if (check === "winding_down") return v.winding_down === true;
   const cut = check.indexOf("_");
   const item = PAPER_CHECK_ITEMS[check.slice(0, cut) as keyof typeof PAPER_CHECK_ITEMS];

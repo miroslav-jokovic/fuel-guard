@@ -16,6 +16,12 @@
  * have no queue of their own and stay figures. A tile is a link only when the page opens for the
  * reader (`useOpens`, SP5) — the figure stays either way, as `DoorLink` does it on the cards.
  *
+ * ── THE TOTAL SAYS WHAT IT LEAVES OUT (D-FM10, 2026-11-26) ────────────────────────────────────────
+ * "Trucks on the board" is every truck the board shows with nothing chosen, so McLeod's fleet '1', the
+ * Unassigned pool (Q-DB2), is not in it. The caption said "live from dispatch" until the owner read 181
+ * here against 196 on the Seats card; it now names the one group left out, and the Seats card counts
+ * these same trucks and puts the pool on its "Off the board" line.
+ *
  * Shares the board's query key, so this tab costs no request `/assignments` does not already make.
  */
 import { computed } from "vue";
@@ -36,7 +42,7 @@ const tiles = computed<Tile[]>(() => {
     to && words ? [caption, words].filter(Boolean).join(" · ") : caption;
   const board = door(boardDoor());
   return [
-    { key: "total", label: "Trucks on the board", value: now.value?.total ?? null, sub: withDoor("live from dispatch", board, "Dispatch board"), to: board },
+    { key: "total", label: "Trucks on the board", value: now.value?.total ?? null, sub: withDoor("Unassigned pool not counted", board, "Dispatch board"), to: board },
     ...rows.value.map((r) => {
       const to = door(r.to);
       return { key: r.key, label: r.label, value: r.value, sub: withDoor(r.caption, to, r.door), to };

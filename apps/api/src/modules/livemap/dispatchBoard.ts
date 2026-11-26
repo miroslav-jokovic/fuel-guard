@@ -77,7 +77,7 @@ import {
   type DispatchBoardRow,
   type DispatchScope,
   type HomeTimeSettings,
-  IN_SERVICE_VEHICLE_STATUSES,
+  boardCarriesTruck,
 } from "@silvicom/shared";
 import { readHosClocks, readVehiclePositions } from "../samsara/index.js";
 import {
@@ -97,8 +97,6 @@ import { orgToday } from "../org/index.js";
 import { readDriversDueForRandomTest } from "../medstop/index.js";
 import { createCoalescingCache } from "../../lib/coalescingCache.js";
 
-/** A truck not in service — retired, or ordered and not yet delivered — is no work anybody can dispatch. */
-const inService = (status: string | null): boolean => status != null && (IN_SERVICE_VEHICLE_STATUSES as readonly string[]).includes(status);
 const IN_SHOP_VEHICLE_STATUS = "maintenance";
 
 /**
@@ -219,10 +217,11 @@ export async function readBoardRows(
   const positionOf = new Map(positions.rows.map((p) => [p.vehicle_id, p]));
   const rows: DispatchBoardRow[] = [];
   for (const id of identities.byVehicleId.values()) {
-    if (!inService(id.status)) continue;
-    const p = positionOf.get(id.vehicleId);
     const plan = plans.byVehicleId.get(id.vehicleId) ?? { current: null, next: null, currentAhead: [], currentTrailerId: null };
-    if (id.windingDown && !plan.current && !plan.next) continue;
+    // Which trucks the board carries is `@silvicom/shared`'s rule, the one the Seats card counts with
+    // (FLEET-MANAGER-HOME-PLAN D-FM10): not in service, or wound down with no load, is no row.
+    if (!boardCarriesTruck({ status: id.status, winding_down: id.windingDown }, !!(plan.current || plan.next))) continue;
+    const p = positionOf.get(id.vehicleId);
     // The roster's assigned driver — the map's pairing (Q-DB6), so the board and the map name one person.
     const driver = id.driver;
     const hos = freshHos(driver ? (clocks.byDriverId.get(driver.id) ?? null) : null, now);

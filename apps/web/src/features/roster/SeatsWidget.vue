@@ -12,22 +12,24 @@
  * view `roster` — `moneyGate`'s per-element pattern, for a section rather than for money. Asked through
  * `session.canView`, never a role.
  *
- * Population: RUNNING trucks (`isRunningTruck` — `active` and not being wound down) and drivers at
- * `active` and not archived. The door keeps working without a status parameter because `active` is
- * the Vehicles page's default and `no_driver` itself leaves wound-down trucks out.
+ * Population: the trucks on the dispatch board (`isOnDispatchBoard`) — the same trucks, and so the same
+ * total, as Fleet right now's "Trucks on the board" — and drivers at `active` and not archived.
  *
- * ── WHY RUNNING, NOT ACTIVE ──────────────────────────────────────────────────────────────────────
- * Until 2026-10-14 this read "159 of 198": 27 of the 198 were trucks McLeod is winding down (sold or
- * retiring, `winding_down`, D-DB11), all without a driver and none ever to get one. The truth was 159
- * of 171, and "Trucks without a driver" said 39 when 12 were waiting. They are counted on their own
- * line so the 27 stay visible and the readout's denominator stays the trucks somebody can drive.
+ * ── WHY THE BOARD'S TRUCKS (D-FM10, 2026-11-26) ──────────────────────────────────────────────────
+ * Until 2026-10-14 this read "159 of 198": 27 of the 198 were trucks McLeod is winding down. The fix
+ * counted RUNNING trucks, and on 2026-11-26 the card read "179 of 196" beside a board of 181 — two
+ * truck totals a strip apart, and 14 of its 17 "trucks without a driver" were parked in the Unassigned
+ * pool (McLeod fleet '1'), which the board leaves out by the owner's ruling (Q-DB2) and nobody is
+ * meant to seat. The owner read it as contradicting numbers, which it was. The card now counts the
+ * board's 181 (177 with a driver, 4 without), and every other truck in service is one "Off the
+ * board" line (29), its caption saying why — so the two cards share one total and nothing vanishes.
  */
 import { UserGroupIcon } from "@silvicom/ui/icons";
 import ChartCard from "@/components/ui/ChartCard.vue";
 import CountList from "@/components/ui/CountList.vue";
 import { useSeatsRows } from "./useSeatsRows";
 
-const { running, seatedCount, rows } = useSeatsRows();
+const { onBoard, seatedCount, rows } = useSeatsRows();
 </script>
 
 <template>
@@ -36,8 +38,8 @@ const { running, seatedCount, rows } = useSeatsRows();
     subtitle="Trucks and the drivers in them"
     :icon="UserGroupIcon"
     tone="info"
-    :readout="seatedCount == null || !running ? '—' : `${seatedCount} of ${running.length}`"
-    caption="running trucks have a driver"
+    :readout="seatedCount == null || !onBoard ? '—' : `${seatedCount} of ${onBoard.length}`"
+    caption="trucks on the board have a driver"
     class="h-full"
   >
     <CountList :rows="rows" />

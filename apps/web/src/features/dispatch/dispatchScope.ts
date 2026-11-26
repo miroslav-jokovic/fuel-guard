@@ -1,5 +1,5 @@
 import { computed, type Ref } from "vue";
-import { dispatcherLabel, inMyScope, LOADS_QUERY_KEYS, type DispatchBoardResponse, type DispatchScope } from "@silvicom/shared";
+import { dispatcherLabel, inMyScope, LOADS_QUERY_KEYS, UNASSIGNED_POOL_FLEET, type DispatchBoardResponse, type DispatchScope } from "@silvicom/shared";
 import type { UrlQueryState } from "@silvicom/ui";
 
 /**
@@ -14,8 +14,12 @@ import type { UrlQueryState } from "@silvicom/ui";
  * rather than a second copy of the links.
  */
 
-/** Fleet code '1' is the parked and shop pool (Q-DB2): off the default board, one choice away. */
-export const POOL_FLEET = "1";
+/**
+ * Fleet code '1' is the parked and shop pool (Q-DB2): off the default board, one choice away. The code
+ * is `@silvicom/shared`'s, because the Seats card leaves out the same trucks (FLEET-MANAGER-HOME-PLAN
+ * D-FM10) — the API trims the code, so a board row compares equal.
+ */
+export const POOL_FLEET = UNASSIGNED_POOL_FLEET;
 export const POOL_OPTION = "__pool__";
 export const NO_FLEET_OPTION = "__none__";
 /**

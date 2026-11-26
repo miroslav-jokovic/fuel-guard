@@ -76,7 +76,7 @@ async function mountAt(at: string) {
   return { w, router };
 }
 const units = (w: Awaited<ReturnType<typeof mountAt>>["w"]) =>
-  ["T-101", "T-202", "T-303", "T-404"].filter((u) => w.text().includes(u));
+  ["T-101", "T-202", "T-303", "T-404", "T-505", "T-606", "T-707"].filter((u) => w.text().includes(u));
 
 beforeEach(() => {
   // The product's confirm (D-US7) is a Pinia store, so the page needs one to ask through.
@@ -101,6 +101,25 @@ describe("the Vehicles page behind the Operations tab's doors", () => {
   it("keeps a truck being wound down out of 'no driver' and lists it behind its own door", async () => {
     expect(units((await mountAt("/vehicles?check=no_driver")).w)).not.toContain("T-404");
     expect(units((await mountAt("/vehicles?check=winding_down")).w)).toEqual(["T-404"]);
+  });
+
+  it("opens the Seats card's two truck doors on exactly the trucks it counted — the pool off the board, the shop on it", async () => {
+    // FLEET-MANAGER-HOME-PLAN D-FM10: the card counts the board's trucks, the shop's (`maintenance`)
+    // included, so its doors say `status=any`; fleet '1' is the Unassigned pool the board leaves out.
+    const before = vehicles.value;
+    vehicles.value = [
+      ...before,
+      { id: "t5", unit_number: "T-505", status: "active", mcleod_fleet_code: "1", assigned_driver_id: null, dot_annual_inspection_expires_at: null, registration_expires_at: null },
+      { id: "t6", unit_number: "T-606", status: "maintenance", mcleod_fleet_code: "VINNIEV", assigned_driver_id: null, dot_annual_inspection_expires_at: null, registration_expires_at: null },
+      { id: "t7", unit_number: "T-707", status: "maintenance", mcleod_fleet_code: "1", assigned_driver_id: "b", dot_annual_inspection_expires_at: null, registration_expires_at: null },
+    ] as typeof before;
+    try {
+      expect(units((await mountAt("/vehicles?status=any&check=no_driver")).w)).toEqual(["T-202", "T-606"]);
+      // Wound down T-404 and the pool's T-505 and T-707; ordered T-303 is not in service.
+      expect(units((await mountAt("/vehicles?status=any&check=off_board")).w)).toEqual(["T-404", "T-505", "T-707"]);
+    } finally {
+      vehicles.value = before;
+    }
   });
 
   it("opens on a status the link names, and reads `any` as every status", async () => {

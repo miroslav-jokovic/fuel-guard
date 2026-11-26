@@ -99,6 +99,10 @@ const VEHICLES = [
   { id: "t5", status: "retired", assigned_driver_id: "b", dot_annual_inspection_expires_at: "2020-01-01", registration_expires_at: null },
   // Sold and awaiting pickup (McLeod `tractor_status = 'I'`, D-DB11): still `active`, never to be seated.
   { id: "t6", status: "active", winding_down: true, assigned_driver_id: null, dot_annual_inspection_expires_at: "2027-06-01", registration_expires_at: "2027-06-01" },
+  // Parked in McLeod's fleet '1', the Unassigned pool the board leaves out (Q-DB2, D-FM10): no empty seat.
+  { id: "t7", status: "active", mcleod_fleet_code: "1", assigned_driver_id: null, dot_annual_inspection_expires_at: null, registration_expires_at: null },
+  // In the shop and on the board: the board's "In the shop", and an empty seat when nobody holds it.
+  { id: "t8", status: "maintenance", mcleod_fleet_code: "VINNIEV", assigned_driver_id: null, dot_annual_inspection_expires_at: null, registration_expires_at: null },
 ];
 const DRIVERS = [
   { id: "a", status: "active", archived_at: null },
@@ -254,7 +258,7 @@ describe("Needs action (D-SM12)", () => {
     expect(needs(await settled())).toEqual([
       ["ops.shop.defects", "52"],
       ["ops.roadside.needs", "9"],
-      ["ops.seats.no-driver", "2"],
+      ["ops.seats.no-driver", "3"],
       ["ops.hazmat.needs-review", "2"],
       ["ops.road-attention.late", "1"],
       ["ops.road-attention.hos-low", "1"],
@@ -287,7 +291,7 @@ describe("Needs action (D-SM12)", () => {
     const w = await settled();
     expect(needs(w)).toEqual([
       ["ops.shop.defects", "52"],
-      ["ops.seats.no-driver", "2"],
+      ["ops.seats.no-driver", "3"],
       ["ops.truck-papers.inspection_overdue", "1"],
     ]);
     // …and the refused cards' reads were never started for them: Roadside's is asked only by a mounted source.
@@ -343,17 +347,20 @@ describe("every count is the row count behind its door (D-FM7)", () => {
     expect(w.get("[data-test='dq-next']").text()).toBe("Next: Driver a — Medical card, 4 days overdue");
   });
 
-  it("seats: active trucks, active drivers, a retired truck's driver holds nothing", () => {
+  it("seats: active drivers, and a retired truck's driver holds nothing", () => {
     const w = render();
-    expect([n(w, "no-driver"), n(w, "no-truck"), n(w, "ordered")]).toEqual(["2", "2", "1"]);
+    expect(n(w, "no-truck")).toBe("2"); // b (only on retired t5) and c
   });
 
-  it("seats: a truck being wound down is on its own line, not an empty seat, and not in the readout", () => {
-    // 2026-10-14: the card read "159 of 198" when 27 of the 198 were sold or retiring — 159 of 171.
+  it("seats: counts the board's trucks — the shop's in, the pool and the wound-down on one line of their own", () => {
+    // 2026-11-26: "179 of 196" beside a board of 181, 14 of 17 empty seats parked in fleet '1' (D-FM10).
     const w = render();
-    expect(n(w, "winding-down")).toBe("1");
-    expect(n(w, "no-driver")).toBe("2"); // t2, t3 — not t6
-    expect(w.get("[data-test='widget-ops.seats']").text()).toContain("1 of 3");
+    expect(n(w, "no-driver")).toBe("3"); // t2, t3, t8 — not t6 (wound down), not t7 (pool)
+    expect(n(w, "off-board")).toBe("2"); // t6, t7 — ordered t4 and retired t5 are not in service
+    const card = w.get("[data-test='widget-ops.seats']").text();
+    expect(card).toContain("1 of 4"); // t1 of t1, t2, t3, t8
+    expect(card).toContain("1 parked in the Unassigned pool · 1 sold or retiring");
+    expect(card).not.toContain("on order");
   });
 
   it("paperwork: active trucks only, read from each truck's file, with date-only and nothing-on-file on lines of their own", () => {
@@ -423,7 +430,7 @@ describe("every count is the row count behind its door (D-FM7)", () => {
       "/assignments?scope=all", "/assignments?scope=all&queue=empty", "/assignments?scope=all&queue=late",
       "/assignments?scope=all&queue=hos-low", "/loads?queue=uncovered&scope=all",
       "/drivers?file=expired", "/drivers?file=not_started",
-      "/vehicles?check=no_driver", "/drivers?status=active&seat=none", "/vehicles?status=ordered", "/vehicles?check=winding_down",
+      "/vehicles?status=any&check=no_driver", "/drivers?status=active&seat=none", "/vehicles?status=any&check=off_board",
       "/vehicles?check=inspection_overdue", "/vehicles?check=registration_missing",
       "/?tab=fleet", "/anomalies", "/idling", "/hazmat/review", "/recruitment", "/recruitment?waiting=them",
       "/shop/work-orders", "/shop/defects",
