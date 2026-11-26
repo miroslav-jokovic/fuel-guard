@@ -135,6 +135,7 @@ export * from "./idleConfidence.js";
 export * from "./weather.js";
 export * from "./smartFueling/index.js";
 export * from "./pilotPriceMailContract.js";
+export * from "./pilotSftpFileContract.js";
 export * from "./idleBurn.js";
 export * from "./hos.js";
 export * from "./hosVehicleTimeline.js";

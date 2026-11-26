@@ -11,7 +11,7 @@ import { startEfsCardSyncScheduler } from "./modules/efs/services/efsCardSyncSch
 import { startEfsSoapPoller } from "./modules/efs/services/efsSoapPoller.js";
 import { startEfsProcessingScheduler } from "./modules/efs/services/efsProcessingScheduler.js";
 import { startEfsSoapCertExpiryWatcher } from "./modules/efs/services/efsSoapCertExpiry.js";
-import { startPostedPriceScheduler, startPilotPriceMailScheduler } from "./modules/posted-prices/index.js";
+import { startPostedPriceScheduler, startPilotPriceMailScheduler, startPilotSftpScheduler } from "./modules/posted-prices/index.js";
 import { startDutySessionSweeper } from "./modules/driver-app/index.js";
 import { startStorageReconcileScheduler, startStorageBackupScheduler, storageBackupTarget, surfaceHolders } from "./modules/org/index.js";
 import { startNotificationPushScheduler, startChatLedgerVerifyScheduler, startRealtimeProbeScheduler, startChatExportSweeper } from "./modules/messaging/index.js";
@@ -73,6 +73,7 @@ export const SCHEDULERS: readonly ScheduledTask[] = [
   { name: "posted-prices", lane: "general", start: startPostedPriceScheduler }, // global posted-price refresh from Pilot's public table
   { name: "pilot-price-mail", lane: "general", start: startPilotPriceMailScheduler }, // PILOT-PRICE-MAIL-PLAN: every 20 min, load the emailed Pilot "Better Of" quote (48 h link) into fuel_prices; OFF without EFS_GRAPH_* + EFS_INGEST_ORG_ID
   { name: "pilot-bill-mail", lane: "general", start: startPilotBillMailScheduler }, // PILOT-INVOICE-FORMAT-ANALYSIS §4: hourly, record each weekly Pilot bill PDF from the Pilot-Bills folder and check it; OFF without EFS_GRAPH_* + EFS_INGEST_ORG_ID
+  { name: "pilot-sftp", lane: "general", start: startPilotSftpScheduler }, // PILOT-SFTP-FEED-PLAN: every 30 min, keep each new file from Pilot's SFTP drop and load Price Quotes into fuel_prices (Transaction files held until their reader); OFF without PILOT_SFTP_* + EFS_INGEST_ORG_ID
   { name: "duty-session-sweeper", lane: "general", start: startDutySessionSweeper }, // close abandoned driver shifts so their truck is released (D44.5)
   { name: "storage-reconcile", lane: "general", start: startStorageReconcileScheduler }, // §13.5/M11 + DQF B7: nightly orphan sweep of every evidence bucket
   { name: "storage-backup", lane: "general", start: startStorageBackupScheduler }, // D13: nightly copy of every evidence bucket to the off-provider S3 bucket; OFF unless STORAGE_BACKUP_* set

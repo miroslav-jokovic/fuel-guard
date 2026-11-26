@@ -61,6 +61,15 @@ export const fuelEnvFields = {
   // docs/plans/FUEL-PRICE-DATA-PLAN.md). 0 disables. The page updates intra-day; 6h is a respectful cadence.
   PILOT_POSTED_FETCH_HOURS: z.coerce.number().min(0).default(6),
   PILOT_POSTED_URL: z.string().default("https://pilotcompany.com/fuel-prices"),
+  // Pilot's SFTP drop for account 139445 — daily Price Quote + Transaction files (PILOT-SFTP-FEED-PLAN). Saved by
+  // the owner in Parameter Store for staging and production on 2026-11-25; never in the repo (it is public).
+  // Without HOST, USER, PASSWORD and HOST_KEY the feed is off and says so once at boot. HOST_KEY is the pinned
+  // `SHA256:…` fingerprint: a server showing any other key never receives the password (lib/sftpClient.ts).
+  PILOT_SFTP_HOST: z.string().optional(),
+  PILOT_SFTP_PORT: z.coerce.number().int().min(1).max(65535).default(22),
+  PILOT_SFTP_USER: z.string().optional(),
+  PILOT_SFTP_PASSWORD: z.string().optional(),
+  PILOT_SFTP_HOST_KEY: z.string().optional(),
   // Love's "Store & Fuel Prices" Experience API (live prices) — unset until Love's grants access.
   LOVES_API_BASE_URL: z.string().url().optional(),
   LOVES_TOKEN_URL: z.string().url().optional(),
