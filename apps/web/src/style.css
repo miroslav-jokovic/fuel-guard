@@ -12,6 +12,9 @@ html {
 
 body {
   font-family: theme(--font-sans);
+  /* Sideways phone: keep the page out of the notch now that index.html asks for viewport-fit=cover. 0 elsewhere. */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 :root {

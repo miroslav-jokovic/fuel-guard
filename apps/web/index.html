@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="/SilvicomLogoS.svg" type="image/svg+xml" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- `viewport-fit=cover` makes `env(safe-area-inset-*)` real: without it every inset reads 0 and, in the installed app on an iPhone, the shop's tab row and a walk's verb bar sat on the home bar (INSTALLED-APP-PLAN Q-IA6, owner's screenshot 2026-11-27). The body pads its sides by the inset so a phone held sideways keeps the page clear of the notch. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!-- Installable, so a phone can add it to the Home Screen: on an iPhone that is the only way a browser
          login gets chat notifications (docs/plans/messaging/CHAT-WEB-PUSH-PLAN.md, D-WP5). -->
     <link rel="manifest" href="/manifest.webmanifest" />
