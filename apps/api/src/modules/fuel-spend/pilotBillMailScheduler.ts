@@ -3,9 +3,9 @@ import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { graphConfigFromEnv, graphRequester } from "../../lib/graphMail.js";
 import { graphFolderReader } from "../../lib/graphFolder.js";
 import { readPdfWords } from "../../lib/pdfWords.js";
-import { ingestFuelStatement } from "./fuelStatementIngest.js";
+import { ingestFuelStatement, STATEMENT_BUCKET } from "./fuelStatementIngest.js";
 import { runFuelReconciliation } from "./fuelReconRun.js";
-import { PILOT_BILL_FOLDER, runPilotBillMail } from "./pilotBillMail.js";
+import { PILOT_BILL_FOLDER, refusedPdfPath, runPilotBillMail } from "./pilotBillMail.js";
 
 /**
  * Every hour, read the `Pilot-Bills` folder and record any new weekly bill (PILOT-INVOICE-FORMAT-ANALYSIS §4).
@@ -48,6 +48,12 @@ export function startPilotBillMailScheduler(env: Env): () => void {
         check: async (words, filename, statementId) => {
           const c = await runFuelReconciliation(admin, orgId, null, { words, grid: null, pivotGrid: null, filename, statementId });
           return c.ok ? { runId: c.runId } : { error: [c.error, ...(c.tieOutFailures ?? [])].filter(Boolean).join(" ") };
+        },
+        keepRefused: async (sha, bytes) => {
+          const { error } = await admin.storage
+            .from(STATEMENT_BUCKET)
+            .upload(refusedPdfPath(orgId, sha), bytes, { contentType: "application/pdf", upsert: true });
+          if (error) throw new Error(error.message);
         },
         now: () => new Date(),
       });
