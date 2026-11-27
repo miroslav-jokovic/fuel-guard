@@ -527,3 +527,10 @@ spoken. ⚠ **A safety person checks every question against the film before rele
   other work redeployed staging every 5–15 minutes and interrupted film 02 twice. Left on staging: two
   unused copies of film 01 (v1 ready, v2 queued). Next: the phone walk (§6 step 3), then the safety
   review of all 84 (§6 step 4) before production.
+- 2026-11-27: **D-TR18 (owner): "we will review it in production."** The five films go to production as
+  a pilot with real drivers, and the safety review of all 84 questions (§5 ⚠, §6 step 4) happens there,
+  on the published films, rather than before. A correction is a new cut of that film (0648 freezes a
+  published one), and a driver who already passed keeps the record of the cut they took. The loader takes
+  `--target production --yes-production`; in production it asks for the password and the authenticator
+  code with typing hidden, so it is run by the member who signs in, never with a stored password. The
+  `training` module is granted to the carrier in the console first (step-up works in production).
