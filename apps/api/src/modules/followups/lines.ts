@@ -94,6 +94,14 @@ export async function readFollowUpRow(admin: SupabaseClient, orgId: string, id: 
   return (data as unknown as FollowUpRow | null) ?? null;
 }
 
+/** The rows the urgent bell names (WD6). Org-scoped; ids the org does not own come back as nothing. */
+export async function readFollowUpsByIds(admin: SupabaseClient, orgId: string, ids: readonly string[]): Promise<FollowUpRow[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await admin.from("follow_ups").select(FOLLOW_UP_COLUMNS).eq("org_id", orgId).in("id", [...ids]);
+  if (error) throw new Error(`follow_ups bell: ${error.message}`);
+  return (data ?? []) as unknown as FollowUpRow[];
+}
+
 /** The Samsara ids a set of lines needs the roster to resolve. */
 export function subjectIdsOf(rows: readonly FollowUpRow[]): { vehicleSamsaraIds: string[]; trailerSamsaraIds: string[]; driverSamsaraIds: string[] } {
   const vehicles = new Set<string>();

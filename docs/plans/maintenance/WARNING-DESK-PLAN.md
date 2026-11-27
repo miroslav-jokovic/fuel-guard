@@ -359,3 +359,7 @@ screens; trailer TPMS and wheel-end temperature rules (catalogue entries, enable
     are on the Audit page (`settings.follow_up_rule_saved` / `_reset`).
   - **Video**: the event must be one of the follow-up's own warnings before Samsara is asked; a crash is
     never fetched (Sensitive Assets) and opens in Samsara. CSP `media-src` gains `https://*.samsara.com`.
+- 2026-11-27 — **WD6-b built**: the urgent bell. `orchestration/warningDeskBell.ts` rings, after each
+  evaluation, every holder of `maintenance.follow-ups` (`surfaceHolders`, the Permissions page's own
+  resolver — no role list) once per urgent follow-up (`follow_up:<id>`), category `follow_up_urgent`,
+  severity critical; the web bell opens `/shop/follow-ups?open=<id>`. A bell failure never fails the tick.
