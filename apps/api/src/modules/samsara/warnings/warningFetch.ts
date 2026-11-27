@@ -57,6 +57,9 @@ export async function fetchAlertConfigurations(ctx: WarningFetchContext): Promis
     const c = raw as { id?: unknown; name?: unknown; isEnabled?: unknown; triggers?: unknown };
     if (typeof c.id !== "string") continue;
     const triggers = Array.isArray(c.triggers) ? c.triggers : [];
+    const meters = triggers
+      .map((t) => (t as { triggerParams?: { outOfRoute?: { maxOffRouteMeters?: unknown } } }).triggerParams?.outOfRoute?.maxOffRouteMeters)
+      .find((m): m is number => typeof m === "number" && Number.isFinite(m) && m > 0);
     out.push({
       id: c.id,
       name: typeof c.name === "string" ? c.name : "Samsara alert",
@@ -64,6 +67,7 @@ export async function fetchAlertConfigurations(ctx: WarningFetchContext): Promis
       triggerTypeIds: triggers
         .map((t) => (t as { triggerTypeId?: unknown }).triggerTypeId)
         .filter((n): n is number => typeof n === "number"),
+      ...(meters !== undefined ? { outOfRouteMeters: meters } : {}),
     });
   }
   return out;

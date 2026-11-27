@@ -132,6 +132,8 @@ export const followUpWarningSchema = z.object({
   videoEventId: z.string().nullable(),
   /** Samsara's coaching state for a safety event, read back as Samsara holds it (D-WD8). */
   coachingState: z.string().nullable(),
+  /** An Out of route alert on a truck: the drawer can draw it on our map (OUT-OF-ROUTE-MAP-ANALYSIS D-ORM1). */
+  routeMap: z.boolean(),
 });
 export type FollowUpWarning = z.infer<typeof followUpWarningSchema>;
 

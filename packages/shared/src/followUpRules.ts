@@ -99,7 +99,16 @@ export interface AlertConfigurationSummary {
   name: string;
   isEnabled: boolean;
   triggerTypeIds: number[];
+  /**
+   * An Out of route trigger's own distance (`triggerParams.outOfRoute.maxOffRouteMeters`; ours is
+   * 9,656 m = 6 mi, measured 2026-11-27). The off-route map judges against this, so a change made in
+   * Samsara moves our verdict with it (OUT-OF-ROUTE-MAP-ANALYSIS D-ORM4). Absent on any other alert.
+   */
+  outOfRouteMeters?: number;
 }
+
+/** Samsara's Out of route trigger type. */
+export const OUT_OF_ROUTE_TRIGGER = 1027;
 
 /**
  * Trigger ids whose alerts are OFF by default, each with the reason (plan §1.6):
@@ -112,7 +121,7 @@ const OFF_BY_DEFAULT = new Set([1019, 1003, 5016, 5017, 5033, 5039, 1023, 5005, 
 /** Trigger ids that are about the driver rather than the truck: speed (1000, 5022), low fuel (1005). */
 const DRIVER_TRIGGERS = new Set([1000, 5022, 1005]);
 /** Out of route (1027) is the dispatch-shared category (D-WD13). */
-const ROUTE_TRIGGERS = new Set([1027]);
+const ROUTE_TRIGGERS = new Set([OUT_OF_ROUTE_TRIGGER]);
 const SAFETY_TRIGGERS = new Set([1000, 5022]);
 /** Panic button (1034) is urgent the first time; a disconnected dashcam (1012/1046/1045) once. */
 const URGENT_ONCE = new Set([1034]);

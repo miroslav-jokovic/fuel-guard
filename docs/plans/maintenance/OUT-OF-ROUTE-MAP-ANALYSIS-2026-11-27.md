@@ -143,12 +143,14 @@ the 90-day `samsara_warnings` row, so there is nothing to snapshot.
    warning row lives 90 days. A geometry cache would be ~10 KB × 563 = ~6 MB a month, ~17 MB at 90
    days, on a database that is already micro and swapping — for no read that needs it.
 
-## 3. Decisions (proposed — they stand once Q-ORM1 picks A or C)
+## 3. Decisions (Q-ORM1 ruled (a) 2026-11-27; as built, amendments marked)
 
 - **D-ORM1. One endpoint, keyed by the warning.** `GET /api/follow-ups/:id/route/:warningId` in
   `followups` (authorisation as for video: the warning must belong to the follow-up, the surface must
   match the category). It calls one composed read in `livemap`, exported from its index:
-  `readOffRouteView(admin, env, orgId, { vehicleSamsaraId, happenedAt, endedAt })`. New boundary edge
+  `readOffRouteView(admin, env, orgId, { vehicleSamsaraId, happenedAt, endedAt })`. *(As built: our
+  `vehicleId` — the follow-up resolves it through roster's `readSamsaraSubjects` — plus `stillActive` and
+  the configuration's distance; `readOffRouteViewCached` is the export.)* New boundary edge
   `followups -> livemap`, recorded with its reason. livemap owns no table and gains none.
 - **D-ORM2. The planned line.** The load on that truck whose window covers the incident (§1.3 rule,
   shared pure function, tested on the 5 two-load cases: pick the one whose window started last). Its
@@ -156,13 +158,23 @@ the 90-day `samsara_warnings` row, so there is nothing to snapshot.
   map has already paid for it. Before the pickup: HERE from the trail's first fix (45 min before the
   alert, when Samsara still judged the truck on route) to the pickup, drawn as a separate faint leg
   and labelled "the way to the pickup, planned from where the truck was at 14:05". No load: path only,
-  and the sentence says there is no load to compare against.
+  and the sentence says there is no load to compare against. *(As built: loads' `readTruckLoadSpans` +
+  shared `loadSpanOf`/`loadAtInstant`; canceled loads (122 of 12,570) and McLeod-removed stops left out;
+  "before the pickup" = no departure yet, or departed after the alert; the request is the live map's own
+  through the extracted `loadRouteRequest`, so the cache rows are shared.)*
 - **D-ORM3. The verdict, in a sentence above the map.** "Left the planned route at 14:05, at most 38 mi
   off, back on it at 15:42." / "Still 12 mi off the planned route (last fix 16:10)." / "Samsara closed
   this at 09:30 while the truck was 311 mi from the planned route — the route was probably finished or
   changed in McLeod." / "On our planned route the whole time — Samsara's route went another way." The
   map is optional on a phone; the sentence is not. Pure shared function `offRouteVerdict(trail, line,
   thresholdMiles)`, unit-tested on recorded fixtures from §1.4 (not synthetic scatter).
+  - *Amended when built (2026-11-27):* **the tests are synthetic after all, on purpose** — the repository
+    is public, and a real truck's GPS trace is a driver's movements. The real-data check ran against
+    production instead and is in the log (§9): our "left" within 15 min of Samsara's alert on 20 of 28.
+    **And the sentences guess at no cause.** "the route was probably finished or changed in McLeod" and
+    "Samsara's route went another way" were inferences, not measurements; as built the drawer says only
+    what was measured — Samsara closed it at a time, the truck was N mi off at the last fix drawn, and
+    Samsara judges against its own route, which it does not share with us.
 - **D-ORM4. The threshold is the configuration's.** `AlertConfigurationSummary` gains the trigger's
   `maxOffRouteMeters` (read by `fetchAlertConfigurations`, already exported as `readAlertConfigurations`).
   A change in Samsara moves our verdict with it.
@@ -291,3 +303,9 @@ configuration's 6 mi / 10 min · storing GPS, routes or video · webhooks (alert
   Measured before building: fault-code history is one reading per change (0 in 30 days on a truck whose
   14 codes never moved), ≤ 2 pages and ≤ 483 ms for 30 days on the four busiest trucks; lamp-row jsonb
   size checked in production's Postgres (above).
+- 2026-11-27 — Option A API built (D-ORM1–6). Before it was trusted, the real verdict function ran on the
+  28 sampled incidents against production (read-only; trails and lines not committed — public repo):
+  "left" within 15 min of Samsara's alert on 20 of 28, most within a minute; 15 judged back, 14 of them
+  within a minute of Samsara's close; 9 closed while off; 4 never off our line. p50 36 ms, max 149 ms on
+  windows of up to 8,922 fixes. Mutation-checked: moving the "back" rule fails 3 tests, dropping the
+  start slack fails 1 (added after the first mutation showed nothing caught it).

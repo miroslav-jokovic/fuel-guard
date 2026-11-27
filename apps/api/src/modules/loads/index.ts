@@ -26,6 +26,9 @@ export {
 // What each load pays (`load_charges`, LOAD-RATES-PLAN D-RATE7), for a reader the CALLER has already
 // asked `dispatch.load_rates` of — the board adds it per reader after its org-wide row cache.
 export { readLoadCharges } from "./loadCharges.js";
+// Every load one truck ran, as a time span: which load it was on when Samsara said it left its route
+// (OUT-OF-ROUTE-MAP-ANALYSIS D-ORM2).
+export { readTruckLoadSpans } from "./truckLoadSpans.js";
 // Each truck's current and next load, for the dispatch board (DISPATCH-BOARD-PLAN DB4).
 export { readTruckLoadPlans, type TruckLoadPlan } from "./truckLoadPlanReads.js";
 // Pickups that actually happened since an instant, with who was on the load: the evidence that a
