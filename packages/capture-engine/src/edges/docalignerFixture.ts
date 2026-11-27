@@ -83,3 +83,22 @@ export function inputDigest(img: RgbImage): { sum: number; head: number[] } {
   }
   return { sum, head };
 }
+
+/**
+ * IEEE 754 binary16 values (little-endian bytes) → numbers, exactly — every half is a float32. Written out
+ * rather than `new Float16Array(...)` because `Float16Array` exists only from Node 24 and the repo's floor
+ * is Node 22 (CI runs 22: the fixture test failed there with "Float16Array is not defined", 2026-11-27).
+ * The same arithmetic as `halfToFloat` in `DocAlignerDecodeParityTest.kt`.
+ */
+export function halfFloats(bytes: Uint8Array): Float32Array {
+  const out = new Float32Array(bytes.length >> 1);
+  for (let i = 0; i < out.length; i++) {
+    const h = bytes[2 * i]! | (bytes[2 * i + 1]! << 8);
+    const exp = (h >> 10) & 0x1f;
+    const mant = h & 0x3ff;
+    const magnitude =
+      exp === 0 ? (mant / 1024) * 2 ** -14 : exp === 0x1f ? (mant === 0 ? Infinity : NaN) : (1 + mant / 1024) * 2 ** (exp - 15);
+    out[i] = h & 0x8000 ? -magnitude : magnitude;
+  }
+  return out;
+}

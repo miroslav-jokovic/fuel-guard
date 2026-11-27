@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { docalignerQuad, type HeatmapPlane } from "../../../src/edges/docalignerDecode";
-import { decodeFixtureInput, inputDigest, syntheticHeatmap, SYNTHETIC_CASES } from "../../../src/edges/docalignerFixture";
+import { decodeFixtureInput, halfFloats, inputDigest, syntheticHeatmap, SYNTHETIC_CASES } from "../../../src/edges/docalignerFixture";
 
 /**
  * Writes `fixtures/edges/docaligner-decode.json`: the cases the Android decoder (`DocAlignerDecode.kt`)
@@ -26,7 +26,7 @@ const PLANE = 128 * 128;
 const SIZES: [number, number][] = [[480, 640], [640, 360]];
 
 const real = index.map(({ name, offset }) => {
-  const half = new Float16Array(bin.buffer.slice(bin.byteOffset + offset, bin.byteOffset + offset + 4 * PLANE * 2));
+  const half = halfFloats(new Uint8Array(bin.buffer.slice(bin.byteOffset + offset, bin.byteOffset + offset + 4 * PLANE * 2)));
   const planes: HeatmapPlane[] = [0, 1, 2, 3].map((c) => (x, y) => half[c * PLANE + y * 128 + x]!);
   return {
     name,

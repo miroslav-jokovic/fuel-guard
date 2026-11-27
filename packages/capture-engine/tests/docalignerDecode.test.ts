@@ -3,7 +3,7 @@ import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import type { Quad } from "../src/enhance/homography";
 import { docalignerQuad, type HeatmapPlane } from "../src/edges/docalignerDecode";
-import { decodeFixtureInput, inputDigest, syntheticHeatmap, SYNTHETIC_CASES } from "../src/edges/docalignerFixture";
+import { decodeFixtureInput, inputDigest, syntheticHeatmap, SYNTHETIC_CASES, halfFloats } from "../src/edges/docalignerFixture";
 
 /**
  * The decode-parity fixture is the CONTRACT the Android scanner is held to (`DocAlignerDecode.kt`), so
@@ -28,7 +28,7 @@ describe("docaligner decode fixture", () => {
     expect(fixture.real.length).toBeGreaterThanOrEqual(5);
     for (const r of fixture.real) {
       const bytes = gunzipSync(Buffer.from(r.heatmapF16, "base64"));
-      const half = new Float16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2);
+      const half = halfFloats(bytes);
       const planes: HeatmapPlane[] = [0, 1, 2, 3].map((c) => (x, y) => half[c * 128 * 128 + y * 128 + x]!);
       for (const e of r.expected) expect(docalignerQuad(planes, 128, 128, e.W, e.H), r.name).toEqual(e.quad);
       expect(r.expected.every((e) => e.quad !== null), `${r.name}: a real SmartDoc page must be found`).toBe(true);
