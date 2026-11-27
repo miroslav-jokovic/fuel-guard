@@ -94,6 +94,12 @@ async function playVideo(w: FollowUpWarning) {
   }
 }
 
+/** The clips of a fetched, unrestricted video — none for a crash (restricted) or one not fetched yet. */
+function clipsOf(warningId: string): { url: string; input: string | null }[] {
+  const v = videos.value[warningId];
+  return v && !v.restricted ? v.urls : [];
+}
+
 const CAMERA: Record<string, string> = { dashcamForwardFacing: "Road", dashcamDriverFacing: "Driver" };
 </script>
 
@@ -117,7 +123,7 @@ const CAMERA: Record<string, string> = { dashcamForwardFacing: "Road", dashcamDr
           <h3 id="fu-who" class="text-sm font-semibold text-ink">{{ unitLabel(line) || line.subjectName }}</h3>
           <p v-if="line.driver" class="text-sm text-ink-secondary">{{ driverLabel(line) }}</p>
           <div v-if="line.driver?.phone" class="flex flex-wrap items-center gap-3">
-            <a v-if="dial" :href="`tel:${dial}`" class="inline-flex min-h-11 items-center text-sm font-medium text-link hover:text-link-hover" data-test="tel">{{ formatPhone(line.driver.phone) }}</a>
+            <a v-if="dial" :href="`tel:${dial}`" class="inline-flex min-h-12 items-center text-sm font-medium text-link hover:text-link-hover" data-test="tel">{{ formatPhone(line.driver.phone) }}</a>
             <span v-else class="text-sm text-ink-secondary">{{ line.driver.phone }}</span>
             <AppButton size="sm" variant="secondary" @click="copyPhone">Copy</AppButton>
           </div>
@@ -165,17 +171,20 @@ const CAMERA: Record<string, string> = { dashcamForwardFacing: "Road", dashcamDr
                 <template v-if="w.coachingState"> · Samsara: {{ coachingLabel(w.coachingState) }}</template>
               </p>
               <div class="flex flex-wrap items-center gap-3">
-                <a v-if="w.samsaraUrl" :href="w.samsaraUrl" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center gap-1 text-sm text-link hover:text-link-hover">Open in Samsara <AppLinkArrow external /></a>
+                <a v-if="w.samsaraUrl" :href="w.samsaraUrl" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-12 items-center gap-1 text-sm text-link hover:text-link-hover">Open in Samsara <AppLinkArrow external /></a>
                 <AppButton v-if="w.videoEventId && !videos[w.id]" variant="secondary" size="sm" :disabled="video.isPending.value" @click="playVideo(w)">Play video</AppButton>
               </div>
               <template v-if="videos[w.id]">
                 <AppCallout v-if="videos[w.id]!.restricted" tone="info">
                   Samsara keeps crash video restricted. Open it in Samsara to watch it.
                 </AppCallout>
-                <template v-else-if="!videos[w.id]!.restricted">
-                  <p v-if="(videos[w.id] as Extract<FollowUpVideo, { restricted: false }>).urls.length === 0" class="text-xs text-ink-tertiary">Samsara has no video for this event.</p>
-                  <figure v-for="m in (videos[w.id] as Extract<FollowUpVideo, { restricted: false }>).urls" :key="m.url" class="space-y-1">
+                <template v-else>
+                  <p v-if="clipsOf(w.id).length === 0" class="text-xs text-ink-tertiary">Samsara has no video for this event.</p>
+                  <figure v-for="m in clipsOf(w.id)" :key="m.url" class="space-y-1">
                     <!-- Signed link, ~8 h life, never stored (D-WD7); `media-src` admits *.samsara.com. -->
+                    <!-- A workaround, labelled: Samsara's dashcam clips carry no sound and no caption track, and the API offers
+                         none to attach; this exception comes out the day Samsara serves one (D-WD7). -->
+                    <!-- eslint-disable-next-line vuejs-accessibility/media-has-caption -->
                     <video :src="m.url" controls playsinline preload="metadata" class="w-full rounded-detail bg-surface-subtle" />
                     <figcaption v-if="m.input" class="text-2xs text-ink-tertiary">{{ CAMERA[m.input] ?? m.input }} camera</figcaption>
                   </figure>

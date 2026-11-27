@@ -141,7 +141,7 @@ function openLine(r: unknown) {
           <a
             v-if="phoneDialString(lineOf(row).driver?.phone)"
             :href="`tel:${phoneDialString(lineOf(row).driver?.phone)}`"
-            class="inline-flex min-h-11 items-center text-sm font-medium text-link hover:text-link-hover"
+            class="inline-flex min-h-12 items-center text-sm font-medium text-link hover:text-link-hover"
             @click.stop
           >
             {{ formatPhone(lineOf(row).driver?.phone) }}
