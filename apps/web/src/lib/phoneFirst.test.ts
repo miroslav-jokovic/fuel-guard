@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NAV_SURFACES } from "@silvicom/shared";
 import { buildNavGroups } from "./nav";
-import { isPhoneFirst, phoneTabFor, phoneTabs } from "./phoneFirst";
+import { TAB_ROW_MAX, isPhoneFirst, phoneTabFor, phoneTabs, tabRowDoors } from "./phoneFirst";
 
 /**
  * The shop's phone-first answers (DESIGN-SYSTEM-CONTRACT.md §9 rules 1 and 7). Every one is read from
@@ -49,5 +49,13 @@ describe("the shop's tab row", () => {
     expect(phoneTabFor("/shop/assets/:id")).toBe("/shop/assets");
     expect(phoneTabFor("/shop/scan")).toBe("/shop");
     expect(phoneTabFor("/shop/inspections/:id")).toBe("/shop/inspections");
+  });
+});
+
+describe("how many doors stand in the row", () => {
+  it("keeps up to five as they are, and past five stands four and folds the rest into More", () => {
+    expect(TAB_ROW_MAX).toBe(5);
+    expect(tabRowDoors([1, 2, 3, 4, 5])).toEqual({ doors: [1, 2, 3, 4, 5], more: [] });
+    expect(tabRowDoors([1, 2, 3, 4, 5, 6])).toEqual({ doors: [1, 2, 3, 4], more: [5, 6] });
   });
 });

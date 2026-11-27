@@ -54,6 +54,7 @@ export {
   Tick02Icon                  as CheckIcon,
   SquareLock02Icon            as LockIcon,                        // card lock / card-control settings
   MoreVerticalIcon            as EllipsisVerticalIcon,
+  MoreHorizontalCircle01Icon  as EllipsisHorizontalCircleIcon,    // a phone tab row's More door (contract §9 rule 7)
   Copy01Icon                  as CopyIcon,
   Sent02Icon                  as PaperAirplaneIcon,
   MessageMultiple01Icon       as ChatIcon,                        // office chat (OFFICE-CHAT-PLAN CH2): several people talking
