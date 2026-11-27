@@ -187,20 +187,24 @@ async function ensureUpload(lessonId, f) {
 }
 
 /**
- * Wait until every film has a prepared version (the 360/540/720p copies and the poster, `trainingTranscode`).
+ * Wait until every film has a prepared version (the 360/540/720p copies and the poster, `trainingTranscode`),
+ * starting the queue ONE film at a time.
  *
- * ⚠ Staging only: `/uploaded` queues the film's job and kicks ONE drain in the API process, which claims
+ * ⚠ Staging only. `/uploaded` queues the film's job and kicks ONE drain in the API process, which claims
  * the OLDEST queued `training_transcode` row (`claim_next_job` orders by `created_at`). A row a deploy
- * interrupted is put back in the queue, and only the `general` lane's drain takes it from there, which
+ * interrupted goes back to the queue, and only the `general` lane's drain takes it from there, which
  * staging does not run (`infra/server/staging.env` RUN_SCHEDULERS=false; until 2026-11-27 Railway's
- * retired `uat` held it at a commit that predates training). A later upload's kick then takes that row
- * first. So this only WAITS and says what is stuck; re-uploading on a timer was tried on 2026-11-27 and
- * mistook slow for stuck — five films converting at once on staging's t4g.medium take well over 4
- * minutes each, and every extra upload added a sixth. Production is unaffected (its worker holds `general`).
+ * retired `uat` held it at a commit that predates training). Since #2691 a second `/uploaded` on a film
+ * already queued kicks the drain again instead of answering 500, so this asks it for one waiting film,
+ * waits for one more film to be prepared, and asks again: one conversion at a time, about 2–3 minutes on
+ * staging's t4g.medium, fits between merges; five at once did not (2026-11-27: all six running were
+ * interrupted by one deploy). A kick that a deploy interrupts shows as no progress for 6 minutes, and is
+ * asked again. Production is unaffected (its worker holds `general`).
  */
 async function waitAllReady(lessons) {
-  let lastReady = -1;
   const started = Date.now();
+  let lastReady = -1;
+  let kickedAt = 0;
   for (;;) {
     const states = await Promise.all(lessons.map(async ({ f, lessonId }) => ({ f, v: await versionOf(lessonId) })));
     const failed = states.filter((s) => !s.v);
@@ -208,13 +212,15 @@ async function waitAllReady(lessons) {
     const waiting = states.filter((s) => !["ready", "published"].includes(s.v.state));
     if (!waiting.length) return;
     const ready = states.length - waiting.length;
-    if (ready !== lastReady) {
-      console.log(`  prepared ${ready} of ${states.length}`);
+    const moved = ready !== lastReady;
+    if (moved) console.log(`  prepared ${ready} of ${states.length}`);
+    if (moved || Date.now() - kickedAt > 6 * 60_000) {
+      await api(`/versions/${waiting[0].v.id}/uploaded`, { method: "POST" });
+      if (!moved) console.log("  nothing prepared for 6 min (a deploy?); started the queue again");
+      kickedAt = Date.now();
       lastReady = ready;
     }
-    if (Date.now() - started > 45 * 60_000) {
-      throw new Error(`still preparing ${waiting.map((s) => filmTitle(s.f)).join(", ")} after 45 min — check its training_transcode row in \`jobs\`: \`queued\` means no drain will take it on staging; upload that film once more on the page and its kick takes the oldest row`);
-    }
+    if (Date.now() - started > 60 * 60_000) throw new Error(`still preparing ${waiting.map((s) => filmTitle(s.f)).join(", ")} after an hour — see the training_transcode rows in \`jobs\``);
     await sleep(15_000);
   }
 }
