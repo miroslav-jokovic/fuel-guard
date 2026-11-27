@@ -10,7 +10,7 @@ insert into mcleod_write_requests (id,org_id,operation,company_id,target_type,ta
 const one = async (sql) => (await db.query(sql)).rows;
 const claim = () => one(`select * from mcleod_write_claim('${O}','vm','1',array['stop_clear'],array['TMS'],5)`);
 const st = async () => (await one(`select state, lease_live, sends, applied_reports from mcleod_write_state where request_id='${R}'`))[0];
-let ok=0, bad=0; const t=(n,c)=>{ c?ok++:bad++; console.log((c?'PASS ':'FAIL ')+n); };
+let ok=0, bad=0; const t=(n,c)=>{ if (c) ok++; else bad++; console.log((c?'PASS ':'FAIL ')+n); };
 t("no switch → nothing leased", (await claim()).length===0);
 await db.exec(`insert into mcleod_write_switches (org_id,operation,company_id,mode,changed_by,reason) values ('${O}','stop_clear','TMS','test','${U}','first test')`);
 t("test mode does not lease a driver_app request", (await claim()).length===0);

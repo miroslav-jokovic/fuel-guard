@@ -1,6 +1,6 @@
 import { PGlite } from "/Users/miroslavjokovic/Projects/FuelGuard/node_modules/@electric-sql/pglite/dist/index.js";
 const db = new PGlite();
-const q = async (s) => { try { const r = await db.exec(s); return "ok"; } catch (e) { return "ERR " + e.message; } };
+const q = async (s) => { try { await db.exec(s); return "ok"; } catch (e) { return "ERR " + e.message; } };
 console.log(await q(`
 create table organizations(id int primary key);
 create table loads(id int primary key, org_id int not null references organizations(id) on delete cascade);
