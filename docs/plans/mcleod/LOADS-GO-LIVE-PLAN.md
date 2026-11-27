@@ -33,7 +33,7 @@ choose and nothing else** — a claim the sandbox could never support.
 ⚠ **The refresh Alex announced did not land.** His mail says the analytics database was updated
 "with the latest snapshot… all the data up to 11PM today". `msdb.dbo.restorehistory` records the
 newest restore of `lme_analytics` as **2026-09-10 11:36:54**, and the newest restore of *any*
-database on APPNEW as that same event. Three independent readings agree: the restore history, the
+database on <LME SQL host> as that same event. Three independent readings agree: the restore history, the
 frozen CT version, and 733 missing movements. This is the second time an announced refresh has not
 arrived (`docs/plans/mcleod/` and the change-tracking memo record the first), and it is the whole
 argument for reading `lme` directly: **a snapshot is a promise, a connection is a fact.**
@@ -45,7 +45,7 @@ the sandbox (MC5a) and is therefore quoting figures from 2026-09-10 today.
 
 ## 2. What the login gives us
 
-`silvicom_dispatch_ro` on `APPNEW` (SQL Server 2019, 15.0.2120.1), server clock **UTC−5, Central**,
+`<read-only SQL login>` on `<LME SQL host>` (SQL Server 2019, 15.0.2120.1), server clock **UTC−5, Central**,
 confirming the plan's local-time trap. It holds **no server role and no database role** — every
 grant is explicit, which is exactly the posture asked for:
 
@@ -260,7 +260,7 @@ node agent.mjs --loads --dry-run     # prints the payload, posts nothing — rea
 node agent.mjs --loads               # posts to /api/tms/loads
 ```
 
-with `MCLEOD_SQL_DATABASE=lme`, the `silvicom_dispatch_ro` credentials, `MCLEOD_COMPANY_ID=TMS`,
+with `MCLEOD_SQL_DATABASE=lme`, the `<read-only SQL login>` credentials, `MCLEOD_COMPANY_ID=TMS`,
 `MCLEOD_SQL_ENCRYPT=false` (D-MCC14 — typed, not silently downgraded) and L0's token.
 
 **What will happen, stated in advance so a surprise is a finding.** 156 loads and 335 stops arrive.
@@ -573,7 +573,7 @@ this repo's history meant a snapshot that had not landed.
 
 Append a dated line per merge. Never edit a status column — parallel PRs conflict on table rows.
 
-- 2026-09-17 — plan written from the first live connection through `silvicom_dispatch_ro`. §1–§4
+- 2026-09-17 — plan written from the first live connection through `<read-only SQL login>`. §1–§4
   measured against production `lme` this session; nothing built, nothing posted, no code changed.
   **LM1b's Done-when met** (156 loads / 335 stops / 14 dispatchers through the shipped mapping).
   `VIEW CHANGE TRACKING` confirmed granted, so D-MCC9's fallback is off the table. Five decisions

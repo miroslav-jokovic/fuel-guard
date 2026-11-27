@@ -14,13 +14,15 @@ import { AppBadge, AppButton, AppCallout, AppTabs, DataTable, DataWorkspace, Fil
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { useBrokerMailQuery } from "@/features/brokerMail/useBrokerMail";
+import BrokerMailPanel from "@/features/brokerMail/BrokerMailPanel.vue";
 import { answeredBy, matchNote, matchesBrokerMailSearch, waitLabel, waitTone, waitedMinutes } from "@/features/brokerMail/brokerMailRows";
 
 /**
  * Broker mail (BROKER-MAIL-READER-PLAN P2): the broker emails in the caller's OWN Outlook that nobody
  * has answered, read by the mail gateway. Oldest first, because the broker who has waited longest is
- * the one about to call. Replying in Outlook closes a row by itself on the gateway's next read (D-BMR9);
- * nothing here closes one, so the list can never claim an answer Outlook does not hold.
+ * the one about to call. Replying in Outlook closes a row by itself on the gateway's next read (D-BMR9).
+ * A row opens the email panel (P4): the load's facts, a reply draft 360 puts in the dispatcher's own
+ * Outlook, and the owner's two closes, "Handled by phone" and "Not for us".
  *
  * Whose rows arrive is the API's answer (Q-BM9): the caller's own mailbox, or every dispatcher's for a
  * holder of `dispatch.broker_mail_all` — only then is there a Dispatcher column and filter. The queue,
@@ -97,11 +99,12 @@ const emptyText = computed(() => {
   return `No broker email was answered in the last ${BROKER_MAIL_ANSWERED_HOURS} hours.`;
 });
 const rowOf = (r: unknown) => r as BrokerMailRow;
+const openId = computed<string | null>({ get: () => qs.one("email") || null, set: (v) => qs.set({ email: v ?? undefined }) });
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Broker emails in your Outlook that nobody has answered yet, oldest first. Reply in Outlook as usual: the row closes by itself within a minute or two." />
+    <PageHeader description="Broker emails in your Outlook that nobody has answered yet, oldest first. Open one for a reply draft from the load's facts, or reply in Outlook as usual: the row closes by itself within a minute or two." />
 
     <AppCallout v-if="mailboxNotice" :tone="mailboxNotice.tone" data-test="mailbox-notice">{{ mailboxNotice.text }}</AppCallout>
     <AppCallout v-if="textNotice" tone="caution" data-test="text-notice">{{ textNotice }}</AppCallout>
@@ -132,6 +135,7 @@ const rowOf = (r: unknown) => r as BrokerMailRow;
         :error="isError ? 'Could not load broker mail.' : null"
         :retrying="isFetching"
         @retry="refetch"
+        @row-click="(r) => (openId = rowOf(r).id)"
       >
         <template #empty>
           <p v-if="activeFilterCount">No broker email matches these filters.</p>
@@ -172,5 +176,6 @@ const rowOf = (r: unknown) => r as BrokerMailRow;
     <p v-if="myBackups.length" class="text-xs text-ink-tertiary" data-test="my-backups">
       Your backups, told a few minutes later if it is still unanswered: {{ myBackups.join(", ") }}. An admin changes them on Settings › Broker mail.
     </p>
+    <BrokerMailPanel :message-id="openId" @close="openId = null" />
   </div>
 </template>

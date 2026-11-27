@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, View } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,7 +31,16 @@ import {
 export default function LiveEdgePrototype() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // The prototype shows live stats, so it does re-render on detections — but at most twice a second,
+  // never per event (S2.3, the same reason as app/scan.tsx).
   const [detection, setDetection] = useState<LiveEdgeDetection | null>(null);
+  const lastShown = useRef(0);
+  const onDetection = useCallback((e: { nativeEvent: LiveEdgeDetection }) => {
+    const now = Date.now();
+    if (now - lastShown.current < 500 && e.nativeEvent.gate !== 'captured') return;
+    lastShown.current = now;
+    setDetection(e.nativeEvent);
+  }, []);
   const [camera, setCamera] = useState<LiveEdgeCameraState | null>(null);
   const [capture, setCapture] = useState<LiveEdgeCapture | null>(null);
   const [minPageLongEdgePx, setMinPageLongEdgePx] = useState<number | null>(null);
@@ -62,7 +71,7 @@ export default function LiveEdgePrototype() {
           fillColor={colors.accent.replace('rgb(', 'rgba(').replace(')', ', 0.12)')}
           successColor={colors.success}
           minPageLongEdgePx={minPageLongEdgePx}
-          onDetection={(e) => setDetection(e.nativeEvent)}
+          onDetection={onDetection}
           onCameraState={(e) => setCamera(e.nativeEvent)}
           onCapture={(e) => setCapture(e.nativeEvent)}
         />
@@ -71,7 +80,7 @@ export default function LiveEdgePrototype() {
       ) : (
         <View className="flex-1 items-center justify-center p-6">
           <AppText tone="onHero" className="text-center">
-            The live edge camera is iPhone-only until step L4, and needs a build made after it was added.
+            The live edge camera needs a build made after it was added (iPhone runtime 1.5.0, Android 1.6.0).
           </AppText>
         </View>
       )}

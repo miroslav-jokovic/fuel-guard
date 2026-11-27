@@ -152,3 +152,14 @@ attachment read is fine at that size.
   on Pilot invoices. The ledger and its writer ship in one merge (`lint:table-producers`: a new table needs its
   producer in the same PR; new tables are exempt from the ordering rule). Done = a `pilot_bill_mails` row with
   state `recorded` landing in production by itself after the release.
+- 2026-11-27 — The weekly bill now carries the old statement's day blocks. Each day has its product subtotals,
+  `Date Subtotal`, `Average Cost Per Gallon` and `Savings SubTotal`, and the week ends with `** Customer Total` and
+  its average. They appear on the page as a "By day" table and in the Excel as rows under each day's lines. The
+  Excel uses live formulas, and the Customer Total skips the subtotal rows, so nothing is counted twice. Checked by
+  recalculating in Numbers on db139445F1 (08/10–08/16): every day's fuel $, retail, savings and product subtotals
+  match Pilot's printed day blocks to the cent, and so does the Customer Total ($263,452.57 fuel, $27,596.59
+  savings). Pilot's printed per-day average is not reproducible: fuel $ ÷ gallons is within 0.05¢ on 4 of 7 days
+  and off by 0.3¢ and 0.9¢ on 08/11 and 08/12. It is labelled as fuel $ ÷ gallons (`weeklyBillReport.ts`).
+  Gallons run 3–4 gal/week above Pilot's printed total, because lines are printed to 0.1 gal. Still open:
+  INV-24259 (11/09–11/15) was refused by the bill pull on 11/24 (lines $305,384.12 vs printed $337,893.10). Its
+  PDF was not kept, so the owner is asked to save it.

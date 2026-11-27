@@ -22,6 +22,8 @@ describe("dispatch wording", () => {
     expect(dispatchHeadline(d)).toMatch(/^Dispatched to Dana Kelly · \d{2}\/\d{2}\/2026 \d{1,2}:\d{2} [AP]M$/);
     expect(dispatchHeadline(d)).not.toMatch(/sent/i);
     expect(dispatchHeadline(null)).toBe("Not dispatched");
+    // S1.1: only an app dispatch is in the driver's hands, and only then does the headline say so.
+    expect(dispatchHeadline({ ...d, channel: "app", outcome: "sent", outcomeReason: null })).toContain("Dana Kelly · in their app ·");
   });
 
   it("names a driver who has left the roster rather than showing nothing", () => {

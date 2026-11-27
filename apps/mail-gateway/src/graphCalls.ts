@@ -7,8 +7,17 @@
  * them for the same mailbox. There is no free-form request function in this program. A test
  * enumerates `CALL_SHAPES` and fails on a fifth, so adding a call is a visible decision in a diff.
  *
- * No send, no move, no mark-read, no delete, no attachments, no folder or rule changes — none of
- * those can be expressed. P4 adds the draft shapes (D-BMR4 5–8) in its own PR.
+ * No send, no move, no mark-read, no attachments, no folder or rule changes — none of those can be
+ * expressed. P4 (0656) added the four draft shapes, and each is narrower than Graph's general call:
+ *   5. `find_message` — one message by the `internetMessageId` 360 stored, `$select=id,conversationId`;
+ *   6. `conversation_drafts` — the DRAFTS folder's messages on one conversation, `$select=id` only:
+ *      "has a person already started a reply here?" (never step on a human);
+ *   7. `create_reply` — POST createReply on that message with our text as its comment. A reply DRAFT:
+ *      Graph saves it in Drafts and sends nothing; the dispatcher presses Send in Outlook;
+ *   8. `delete_draft` — DELETE of a message id 360 recorded, addressed UNDER the Drafts folder, so a
+ *      draft the dispatcher already sent (Outlook moved it to Sent Items) answers 404 and survives.
+ * PATCH of a draft's body (D-BMR4's first list) is not a shape: createReply's `comment` writes our text
+ * in the same call, above the broker's quoted message, so there is no second write to allow.
  *
  * The mailbox check is the second half: every builder takes the cycle's allowed-mailbox set, and a
  * mailbox outside it throws BEFORE any request exists (D-BMR4, "a mailbox outside the cycle's list is
@@ -22,7 +31,12 @@ export const GRAPH_ROOT = "https://graph.microsoft.com/v1.0";
 export const ENVELOPE_SELECT =
   "id,internetMessageId,conversationId,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,subject";
 
-export const CALL_SHAPES = ["folder_delta", "message_delta", "message_body", "inbox_probe"] as const;
+export const CALL_SHAPES = [
+  "folder_delta", "message_delta", "message_body", "inbox_probe",
+  "find_message", "conversation_drafts", "create_reply", "delete_draft",
+] as const;
+/** The shapes that change a mailbox. Only `graphWrite.ts` sends them, and only these. */
+export const WRITE_SHAPES = ["create_reply", "delete_draft"] as const satisfies readonly CallShape[];
 export type CallShape = (typeof CALL_SHAPES)[number];
 
 /** A folder the gateway reads: a well-known name (Inbox, Sent Items) or an Inbox subfolder's id. */
@@ -32,7 +46,11 @@ export type GraphCall =
   | { shape: "folder_delta"; mailbox: string }
   | { shape: "message_delta"; mailbox: string; folder: FolderRef; receivedSince: string }
   | { shape: "message_body"; mailbox: string; messageId: string }
-  | { shape: "inbox_probe"; mailbox: string };
+  | { shape: "inbox_probe"; mailbox: string }
+  | { shape: "find_message"; mailbox: string; internetMessageId: string }
+  | { shape: "conversation_drafts"; mailbox: string; conversationId: string }
+  | { shape: "create_reply"; mailbox: string; messageId: string }
+  | { shape: "delete_draft"; mailbox: string; draftId: string };
 
 export class RefusedCall extends Error {
   constructor(reason: string) {
@@ -42,6 +60,10 @@ export class RefusedCall extends Error {
 }
 
 const ID = /^[A-Za-z0-9=+/_-]{1,512}$/;
+/** RFC 5322 message ids are `<local@host>`; nothing that could close an OData string survives. */
+const INTERNET_ID = /^<[^<>\s'"]{1,990}>$/;
+/** A literal inside an OData filter: single quotes doubled (the OData escape), then the URL's own encoding. */
+const odataString = (v: string) => encodeURIComponent(`'${v.replace(/'/g, "''")}'`);
 const MAILBOX = /^[^@\s/()'"?#]+@[a-z0-9.-]+$/;
 
 function mailboxPath(mailbox: string, allowed: ReadonlySet<string>): string {
@@ -80,6 +102,18 @@ export function graphUrl(call: GraphCall, allowed: ReadonlySet<string>, opts: { 
       return `${base}/messages/${encodeURIComponent(call.messageId)}?$select=body`;
     case "inbox_probe":
       return `${base}/mailFolders/inbox?$select=id`;
+    case "find_message":
+      if (!INTERNET_ID.test(call.internetMessageId)) throw new RefusedCall("not an internet message id");
+      return `${base}/messages?$filter=${encodeURIComponent("internetMessageId eq ")}${odataString(call.internetMessageId)}&$select=id,conversationId&$top=2`;
+    case "conversation_drafts":
+      if (!ID.test(call.conversationId)) throw new RefusedCall("not a conversation id");
+      return `${base}/mailFolders/drafts/messages?$filter=${encodeURIComponent("conversationId eq ")}${odataString(call.conversationId)}&$select=id&$top=10`;
+    case "create_reply":
+      if (!ID.test(call.messageId)) throw new RefusedCall("not a message id");
+      return `${base}/messages/${encodeURIComponent(call.messageId)}/createReply`;
+    case "delete_draft":
+      if (!ID.test(call.draftId)) throw new RefusedCall("not a draft id");
+      return `${base}/mailFolders/drafts/messages/${encodeURIComponent(call.draftId)}`;
   }
 }
 

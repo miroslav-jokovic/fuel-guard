@@ -10,6 +10,8 @@ import { warningSubjectId, type DeskWarning, type WarningSubject } from "@silvic
 export interface StoredWarning extends DeskWarning {
   id: string;
   source: string;
+  /** Samsara's own identity for the warning: the safety event id, the defect id, the incident URL… */
+  sourceKey: string;
   subjectId: string | null;
   samsaraUrl: string | null;
   detail: Record<string, unknown>;
@@ -17,13 +19,14 @@ export interface StoredWarning extends DeskWarning {
 }
 
 const COLUMNS =
-  "id, source, kind, subject_kind, vehicle_samsara_id, trailer_samsara_id, driver_samsara_id, unit_name, driver_name, label, happened_at, ended_at, still_active, samsara_url, detail, updated_at";
+  "id, source, source_key, kind, subject_kind, vehicle_samsara_id, trailer_samsara_id, driver_samsara_id, unit_name, driver_name, label, happened_at, ended_at, still_active, samsara_url, detail, updated_at";
 const PAGE = 1000;
 
 function toWarning(r: Record<string, unknown>): StoredWarning {
   const w = {
     id: String(r.id),
     source: String(r.source),
+    sourceKey: String(r.source_key),
     kind: String(r.kind),
     subjectKind: r.subject_kind as WarningSubject,
     vehicleSamsaraId: (r.vehicle_samsara_id as string | null) ?? null,

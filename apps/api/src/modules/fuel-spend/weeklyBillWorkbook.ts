@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import type { WeeklyBillReport, WeeklyBillRow } from "@silvicom/shared";
+import type { WeeklyBillDay, WeeklyBillReport, WeeklyBillRow } from "@silvicom/shared";
 import type { WeeklyBillStatement } from "./weeklyBillRead.js";
 
 /**
@@ -75,17 +75,70 @@ function linesSheet(wb: ExcelJS.Workbook, s: WeeklyBillStatement, r: WeeklyBillR
     if (c.fmt) ws.getColumn(i + 1).numFmt = c.fmt;
   });
   const first = ws.rowCount + 1;
-  for (const row of r.rows) ws.addRow(COLUMNS.map((c) => c.value(row)));
+  for (const day of r.byDay) dayBlock(ws, r, day);
   const last = ws.rowCount;
+  // Lines only: the day blocks' own subtotal rows are labelled "… Subtotal"/"… SubTotal" in the first column, and
+  // SUMIF's "<>*Subtotal*" (case-insensitive) leaves them out, so the week is never counted twice.
   const total = ws.addRow(COLUMNS.map((c) => {
     if (c.header === "Card Number") return "** Customer Total";
     if (!SUMMED.includes(c.header)) return null;
-    const key = { Units: "units", Amount: "amount", "Misc./Disc.": "misc", "Sales Tax": "tax", "Invoice Total": "invoiceTotal", "Retail Total": "retailTotal", Savings: "savings" }[c.header] as keyof WeeklyBillReport["totals"];
     const L = col(c.header);
-    return { formula: `SUM(${L}${first}:${L}${last})`, result: r.totals[key] };
+    return { formula: `SUMIF(A${first}:A${last},"<>*Subtotal*",${L}${first}:${L}${last})`, result: r.totals[TOTAL_KEY[c.header]!] };
   }));
   total.font = { bold: true };
   total.eachCell((c) => { c.border = { top: { style: "thin", color: { argb: "FF9AA5B8" } } }; });
+  const avg = ws.addRow(COLUMNS.map((c) => {
+    if (c.header === "Card Number") return "Average Cost Per Gallon";
+    if (c.header !== "Fuel Cost") return null;
+    return { formula: `IF(${col("Units")}${total.number}=0,"",${col("Amount")}${total.number}/${col("Units")}${total.number})`, result: r.totals.avgCostPerGal ?? "" };
+  }));
+  avg.font = { bold: true };
+}
+
+const TOTAL_KEY: Record<string, keyof Omit<WeeklyBillReport["totals"], "avgCostPerGal">> = {
+  Units: "units", Amount: "amount", "Misc./Disc.": "misc", "Sales Tax": "tax", "Invoice Total": "invoiceTotal", "Retail Total": "retailTotal", Savings: "savings",
+};
+const DAY_KEY: Record<string, keyof WeeklyBillDay> = {
+  Units: "units", Amount: "amount", "Misc./Disc.": "misc", "Sales Tax": "tax", "Invoice Total": "invoiceTotal", "Retail Total": "retailTotal", Savings: "savings",
+};
+
+/**
+ * One day as the old statement printed it: the day's lines, then `020 Subtotal` per product, `Date Subtotal`,
+ * `Average Cost Per Gallon` and `Savings SubTotal` (db139445F1, 2026-08-17). Live formulas over the day's own
+ * lines, each with the report's value cached so Excel shows it on open. The day's average is fuel $ ÷ gallons, which can
+ * differ from Pilot's printed day figure by up to about a cent (weeklyBillReport.ts `avgCost`).
+ */
+function dayBlock(ws: ExcelJS.Worksheet, r: WeeklyBillReport, day: WeeklyBillDay): void {
+  const from = ws.rowCount + 1;
+  for (const row of r.rows.filter((x) => x.date === day.date)) ws.addRow(COLUMNS.map((c) => c.value(row)));
+  const to = ws.rowCount;
+  const range = (h: string) => `${col(h)}${from}:${col(h)}${to}`;
+  // The label goes in the first column: the Customer Total's SUMIF keys on it to leave these rows out.
+  const label = (text: string, cells: Record<string, ExcelJS.CellFormulaValue>) => {
+    const row = ws.addRow(COLUMNS.map((c) => (c.header === "Card Number" ? text : (cells[c.header] ?? null))));
+    row.font = { bold: true };
+    return row;
+  };
+  // SUMPRODUCT compares the product code as text; SUMIF would read the criterion "020" as the number 20.
+  const byProd = (code: string, h: string) => `SUMPRODUCT((${range("Prod")}="${code}")*${range(h)})`;
+  for (const p of day.byProduct) {
+    label(`${p.code} Subtotal`, {
+      Units: { formula: byProd(p.code, "Units"), result: p.units },
+      Amount: { formula: byProd(p.code, "Amount"), result: p.amount },
+    });
+  }
+  const sum = Object.fromEntries(
+    SUMMED.map((h) => [h, { formula: `SUM(${range(h)})`, result: day[DAY_KEY[h]!] as number }]),
+  ) as Record<string, ExcelJS.CellFormulaValue>;
+  const dateRow = label("Date Subtotal", sum);
+  label("Average Cost Per Gallon", {
+    "Fuel Cost": {
+      formula: `IF(${col("Units")}${dateRow.number}=0,"",${col("Amount")}${dateRow.number}/${col("Units")}${dateRow.number})`,
+      result: day.avgCostPerGal ?? "",
+    },
+  });
+  label("Savings SubTotal", { Savings: { formula: `SUM(${range("Savings")})`, result: day.savings } });
+  ws.addRow([]);
 }
 
 function summarySheet(wb: ExcelJS.Workbook, s: WeeklyBillStatement, r: WeeklyBillReport): void {

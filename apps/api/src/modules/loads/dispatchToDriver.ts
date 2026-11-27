@@ -14,6 +14,7 @@ import { smsConfigured } from "../../lib/sms.js";
 import { organizationTimezone } from "../idle/index.js";
 import { returnToDutyBlocked } from "../recruiting/index.js";
 import { mapChunks } from "../../lib/paging.js";
+import { loginForDriver, notify } from "../messaging/index.js";
 import type { DispatchResult } from "./dispatchLoads/shared.js";
 
 /**
@@ -35,7 +36,17 @@ import type { DispatchResult } from "./dispatchLoads/shared.js";
  *   · SMS configured, no dispatch consent → `not_sent` / `no_dispatch_consent`
  *
  * The row is still written in both cases: the dispatcher's decision is the fact D-LMR5 asks for, and it
- * is what the driver app will read ("loads sent to me"). How the text goes is a separate outcome.
+ * is what the driver app reads ("loads sent to me"). How the text goes is a separate outcome.
+ *
+ * ── THE APP CHANNEL (DRIVER-APP-ENTERPRISE-PLAN S1.1, 2026-11-27) ───────────────────────────────────
+ * D-LMR6 named the channels "`sms` now, `app` later". Later is now: when the driver has an active app
+ * login, Send puts the load in their app — 0655 shows a sent load at every McLeod status — so the one
+ * row a Send writes is `app` / `sent`, and a `load_offered` notification ("New load from dispatch") goes
+ * to the driver and, when the dispatch names McLeod's driver, to the McLeod co-driver (O-3). Without a
+ * login nothing reaches a phone, and the row stays the held `sms` record above. ONE row per Send either
+ * way: the office's history reads one line per decision, and the visibility rule reads the latest row
+ * whatever its channel (0371/0655). A muted or undelivered push does not change `sent`: the load is in
+ * the app regardless, and push health is its own signal (`pushHealth.ts`).
  */
 
 type Unit = { unit_number: string } | { unit_number: string }[] | null;
@@ -64,7 +75,12 @@ async function prepare(
       .eq("org_id", orgId)
       .eq("id", loadId)
       .maybeSingle(),
-    admin.from("drivers").select("id, full_name, status").eq("org_id", orgId).eq("id", driverId).maybeSingle(),
+    admin
+      .from("drivers")
+      .select("id, full_name, status, user_id, app_access_enabled")
+      .eq("org_id", orgId)
+      .eq("id", driverId)
+      .maybeSingle(),
     admin
       .from("load_stops")
       .select("seq, kind, name, location_name, city, state, appointment_start")
@@ -86,7 +102,9 @@ async function prepare(
   if (!isDispatchable(load)) {
     return { ok: false, status: 409, code: "load_closed", message: "This load is already delivered or canceled" };
   }
-  const driver = driverRes.data as { id: string; full_name: string; status: string } | null;
+  const driver = driverRes.data as
+    | { id: string; full_name: string; status: string; user_id: string | null; app_access_enabled: boolean | null }
+    | null;
   if (!driver || driver.status !== "active") {
     return { ok: false, status: 422, code: "unknown_driver", message: "That driver is not an active driver here" };
   }
@@ -135,6 +153,7 @@ async function prepare(
         timeZone: organizationTimezone(org?.operating_hours),
       }),
       smsHeldBecause: smsHold(env),
+      inApp: driver.user_id != null && driver.app_access_enabled === true,
     },
   };
 }
@@ -170,9 +189,9 @@ export async function dispatchLoad(
       load_id: p.loadId,
       driver_id: p.driverId,
       sent_by: actorId,
-      channel: "sms",
-      outcome: "not_sent",
-      outcome_reason: p.smsHeldBecause,
+      channel: p.inApp ? "app" : "sms",
+      outcome: p.inApp ? "sent" : "not_sent",
+      outcome_reason: p.inApp ? null : p.smsHeldBecause,
       recipient: null,
       body: p.body,
       provider_message_id: null,
@@ -182,6 +201,7 @@ export async function dispatchLoad(
   if (error || !data) throw new Error(`load dispatch insert failed: ${error?.message ?? "no row"}`);
 
   const row = data as { id: string; sent_at: string };
+  if (p.inApp) await tellDriversOfDispatch(admin, orgId, p.loadId, p.driverId, row.id);
   return {
     ok: true,
     data: {
@@ -191,12 +211,50 @@ export async function dispatchLoad(
       driverName: p.driverName,
       sentBy: actorId,
       sentAt: row.sent_at,
-      channel: "sms",
-      outcome: "not_sent",
-      outcomeReason: p.smsHeldBecause,
+      channel: p.inApp ? "app" : "sms",
+      outcome: p.inApp ? "sent" : "not_sent",
+      outcomeReason: p.inApp ? null : p.smsHeldBecause,
       body: p.body,
     },
   };
+}
+
+/**
+ * "New load from dispatch" to the driver the dispatch names and, when that is McLeod's driver, to
+ * McLeod's co-driver (O-3) — the same two seats 0655 shows the load to. Keyed per dispatch row and
+ * login, so a retried request does not buzz twice and a genuine re-send does. Never fails the Send:
+ * `notify` swallows its own errors, and a seat without a login is simply not told.
+ */
+async function tellDriversOfDispatch(
+  admin: SupabaseClient,
+  orgId: string,
+  loadId: string,
+  driverId: string,
+  dispatchId: string,
+): Promise<void> {
+  const { data } = await admin
+    .from("loads")
+    .select("ref, driver_id, co_driver_id")
+    .eq("org_id", orgId)
+    .eq("id", loadId)
+    .maybeSingle();
+  const load = data as { ref: string; driver_id: string | null; co_driver_id: string | null } | null;
+  const seats = [driverId];
+  if (load?.co_driver_id && load.driver_id === driverId && load.co_driver_id !== driverId) seats.push(load.co_driver_id);
+  for (const seat of seats) {
+    const userId = await loginForDriver(admin, orgId, seat);
+    if (!userId) continue;
+    await notify(admin, {
+      orgId,
+      userId,
+      category: "load_offered",
+      title: "New load from dispatch",
+      body: load?.ref ? `Load ${load.ref} is in your app.` : "A new load is in your app.",
+      entityType: "load",
+      entityId: loadId,
+      dedupeKey: `load_dispatch:${dispatchId}:${userId}`,
+    });
+  }
 }
 
 type Named = { full_name: string } | { full_name: string }[] | null;

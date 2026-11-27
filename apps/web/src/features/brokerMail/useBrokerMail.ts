@@ -1,6 +1,6 @@
 import type { Ref } from "vue";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { BrokerMailAdmin, BrokerMailList, BrokerMailSettings, BrokerMailTab } from "@silvicom/shared";
+import type { BrokerMailAdmin, BrokerMailClose, BrokerMailCompose, BrokerMailDetail, BrokerMailList, BrokerMailQueueDraft, BrokerMailSettings, BrokerMailTab, BrokerMailWeek } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -39,6 +39,20 @@ export function useBrokerMailAdminQuery() {
   });
 }
 
+/** The measure-only week's report (§8): seven days from `from`, or the seven ending today when empty. */
+export function useBrokerMailWeekQuery(from: Ref<string>) {
+  return useQuery({
+    queryKey: [...KEY, "week", from] as const,
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<BrokerMailWeek> => {
+      const qs = from.value ? `?from=${encodeURIComponent(from.value)}` : "";
+      const r = await apiFetch<BrokerMailWeek>(`/api/broker-mail/week${qs}`);
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the measure week");
+      return r.data;
+    },
+  });
+}
+
 export function useSaveBrokerMailSettings() {
   const qc = useQueryClient();
   return useMutation({
@@ -70,6 +84,57 @@ export function useSaveBackups() {
     mutationFn: async (v: { userId: string; backupUserIds: string[] }) => {
       const r = await apiFetch(`/api/broker-mail/mailboxes/${v.userId}/backups`, { method: "PUT", body: { backupUserIds: v.backupUserIds } });
       if (!r.ok) throw new Error(r.error?.message ?? "Could not save the backups");
+      return v;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
+/**
+ * P4 (D-BMR11): one email's panel, and the owner's three acts on it. While a draft is on its way to
+ * Outlook the panel re-reads every 10 s, so "In your Outlook" appears without a reload.
+ */
+export function useBrokerMailDetail(id: Ref<string | null>) {
+  return useQuery({
+    queryKey: [...KEY, "detail", id] as const,
+    enabled: () => id.value !== null,
+    refetchInterval: (q) => (q.state.data?.draft && ["queued", "claimed"].includes(q.state.data.draft.state) ? 10_000 : false),
+    queryFn: async (): Promise<BrokerMailDetail> => {
+      const r = await apiFetch<BrokerMailDetail>(`/api/broker-mail/messages/${id.value}`);
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not open the email");
+      return r.data;
+    },
+  });
+}
+
+export function useComposeDraft() {
+  return useMutation({
+    mutationFn: async (id: string): Promise<BrokerMailCompose> => {
+      const r = await apiFetch<BrokerMailCompose>(`/api/broker-mail/messages/${id}/compose`, { method: "POST", body: {} });
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not write a draft");
+      return r.data;
+    },
+  });
+}
+
+export function useQueueDraft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { id: string; body: BrokerMailQueueDraft }) => {
+      const r = await apiFetch(`/api/broker-mail/messages/${v.id}/draft`, { method: "POST", body: v.body });
+      if (!r.ok) throw new Error(r.error?.message ?? "Could not put the draft in Outlook");
+      return v;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
+export function useCloseBrokerMail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { id: string; how: BrokerMailClose["how"] }) => {
+      const r = await apiFetch(`/api/broker-mail/messages/${v.id}/close`, { method: "POST", body: { how: v.how } });
+      if (!r.ok) throw new Error(r.error?.message ?? "Could not close it");
       return v;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),

@@ -217,6 +217,25 @@ const API_ALLOW = new Set([
   // Broker mail's texts (P3) leave through messaging's one text road — `sendAlerts` and the drain with its door
   // hook — through its index only; messaging imports nothing of broker-mail's.
   "broker-mail -> messaging",
+  // A reply draft (P4, D-BMR11) states the load's truck, trailer, next stop, ETA and miles exactly as the
+  // Dispatch board shows them, so it asks livemap's `readLoadStatusFacts` — the board's own rows, never a
+  // second composition — through livemap's index. livemap imports nothing of broker-mail's.
+  "broker-mail -> livemap",
+  // The warning desk's routes (WARNING-DESK-PLAN WD4). followups stores Samsara ids, never roster keys (0653 §1),
+  // so drawing a line asks three owners through their index only:
+  //   · samsara — the follow-up's warnings (`listSubjectWarnings`, the raw table is sealed to its collector), the
+  //     alert configurations' names, and a safety event's video fetched per click (D-WD7);
+  //   · roster  — the unit number, the driver to call and their phone (`readSamsaraSubjects`, D-WD15);
+  //   · org     — who did each action, named the way the Users page names them (`listOfficeMembers`).
+  // None of the three imports anything of followups'.
+  "followups -> samsara",
+  "followups -> roster",
+  "followups -> org",
+  // The measure week's report (§8) asks one question per matched load — is its McLeod dispatcher the
+  // mailbox's owner? — and `tms_dispatchers` is mcleod's RAW table, so the answer comes through
+  // `readFleetDispatchers` in mcleod's index, the same door loads and medstop use. mcleod imports
+  // nothing of broker-mail's.
+  "broker-mail -> mcleod",
   // The driver's own account closure (P4.2) closes their login by calling the roster module's
   // `disableDriverLogin` through its index — the ban, the push-token revoke and the
   // `app_access_enabled` flag. A second ban path in driver-app would be two implementations of
@@ -349,6 +368,11 @@ const API_ALLOW = new Set([
   "mcleod -> org",
   "fuel -> messaging",
   "recruiting -> messaging",
+  // DRIVER-APP-ENTERPRISE-PLAN S1.1 (2026-11-27): the office's Dispatch → Send puts a McLeod load in
+  // the driver's app (0655), and the driver and McLeod co-driver are told "New load from dispatch" —
+  // the `load_offered` category that already existed for exactly this. notify() and loginForDriver
+  // through messaging's index, the hazmat shape; messaging imports nothing of loads'.
+  "loads -> messaging",
   // · ads -> messaging — the 2026-11-03 audit (H2): a pause the platform keeps refusing, and a connection
   //   no pause can use, reach a person through notify() (`modules/ads/alerts/`), not only a failed
   //   `ads_actions` row nobody reads. messaging imports nothing of ads'.

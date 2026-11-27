@@ -19,7 +19,7 @@ import {
 } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
 import { RouterLink } from "vue-router";
-import { FILE_FILTERS, fileFilterOptions, VEHICLE_CHECKS, VEHICLE_CHECK_LABELS, VEHICLE_STATUSES, isStatusFromTms, matchesFileFilter, matchesVehicleCheck, paperStanding, PAPER_CHECK_ITEMS, todayInZone, unitFileChip, type Vehicle, type VehicleInput } from "@silvicom/shared";
+import { FILE_FILTERS, fileFilterOptions, isInServiceVehicleStatus, VEHICLE_CHECKS, VEHICLE_CHECK_LABELS, VEHICLE_STATUSES, isStatusFromTms, matchesFileFilter, matchesVehicleCheck, paperStanding, PAPER_CHECK_ITEMS, todayInZone, unitFileChip, type Vehicle, type VehicleInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useBulkUpdateVehicles } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -61,10 +61,17 @@ const { data: drivers } = useDriversQuery();
 const { query: tollTagsQ, byVehicle: tagsByVehicle } = useTollTagsByVehicle();
 
 // Filters, sort and page live in the URL (D-US2), so reload, a pasted link and Back from a truck keep
-// the list. "active" is the fallback, so it stays out of a plain link and "All statuses" writes `any`.
+// the list. "In service" is the fallback, so it stays out of a plain link and "All statuses" writes `any`.
 const qs = useQueryState();
 const search = qs.param("search");
-const statusFilter = qs.param("status", VEHICLE_STATUSES, "active");
+/**
+ * `in_service` — active and in the shop — is where the list opens (FLEET-MANAGER-HOME-PLAN D-FM11). It
+ * opened on `active` until 2026-11-27, so the page said 204 while McLeod had 210 in service: the 6 it
+ * hid were in the shop (`maintenance`), still in the fleet. The Operations tab's Trucks card totals the
+ * same 210, with `isInServiceVehicleStatus`.
+ */
+const IN_SERVICE = "in_service";
+const statusFilter = qs.param("status", [IN_SERVICE, ...VEHICLE_STATUSES], IN_SERVICE);
 /**
  * What a truck is missing — the Operations tab's Seats and Truck paperwork cards link here with it
  * (FLEET-MANAGER-HOME-PLAN D-FM9), so "11 registrations overdue" opens exactly those eleven. Asked of
@@ -85,12 +92,13 @@ const { zone } = useOrgTimezone();
 const today = computed(() => todayInZone(new Date(), zone.value));
 const checkOptions = [{ value: "", label: "Any" }, ...VEHICLE_CHECKS.map((c) => ({ value: c, label: VEHICLE_CHECK_LABELS[c] }))];
 const statusOptions = [
+  { value: IN_SERVICE, label: "In service (active + in the shop)" },
   { value: "", label: "All statuses" },
   ...VEHICLE_STATUSES.map((s) => ({ value: s, label: s })),
 ];
-// "active" is where the list opens, not a narrowing anybody chose: it does not count, and clearing returns to it.
+// "In service" is where the list opens, not a narrowing anybody chose: it does not count, and clearing returns to it.
 const activeFilterCount = computed(
-  () => (search.value.trim() ? 1 : 0) + (statusFilter.value !== "active" ? 1 : 0) + (checkFilter.value ? 1 : 0) + (fileFilter.value ? 1 : 0),
+  () => (search.value.trim() ? 1 : 0) + (statusFilter.value !== IN_SERVICE ? 1 : 0) + (checkFilter.value ? 1 : 0) + (fileFilter.value ? 1 : 0),
 );
 function resetFilters() {
   qs.set({ search: undefined, status: undefined, check: undefined, file: undefined });
@@ -99,7 +107,7 @@ function resetFilters() {
 const filtered = computed(() => {
   const term = search.value.toLowerCase();
   return (vehicles.value ?? []).filter((v) => {
-    if (statusFilter.value && v.status !== statusFilter.value) return false;
+    if (statusFilter.value === IN_SERVICE ? !isInServiceVehicleStatus(v.status) : statusFilter.value && v.status !== statusFilter.value) return false;
     if (checkFilter.value && !matchesVehicleCheck(v, checkFilter.value, fileById.value.get(v.id))) return false;
     if (fileFilter.value) {
       const chip = chipById.value.get(v.id);

@@ -19,3 +19,5 @@ export { startHomeTimeScheduler, runHomeTimeOnce } from "./homeTimeAlerts.js";
 export { readLiveMapBoard, FLEET_WIDE_SCOPE_REASON } from "./liveMapBoard.js";
 export { readLiveMapBoardCached, BOARD_CACHE_TTL_MS } from "./liveMapBoardCache.js";
 export { readDriverDispatch } from "./driverDispatch.js";
+// One load's status off the board's own rows, for a broker-mail reply draft (BROKER-MAIL-READER-PLAN D-BMR11).
+export { readLoadStatusFacts } from "./loadStatusFacts.js";

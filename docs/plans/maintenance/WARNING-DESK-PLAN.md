@@ -338,3 +338,42 @@ screens; trailer TPMS and wheel-end temperature rules (catalogue entries, enable
   - Defects read 180 days back on the first run (a defect is not "updated" until it is fixed, and 44 of
     46 open ones were older than three days). HOS is re-read over the last two days at most hourly.
 
+- 2026-11-27 — **WD6-a merged** (#2682, migration 0654): `notification_events`' CHECK and
+  `NOTIFICATION_CATEGORIES` gain `follow_up_urgent`. Nothing writes it until WD6-b, its own merge.
+- 2026-11-27 — **WD4 + WD5 built** in one PR: `/api/follow-ups` (list, detail, actions, video, rules) and the
+  three screens — Maintenance › Follow-ups (`/shop/follow-ups`), Loads › Route follow-ups
+  (`/loads/follow-ups`, the same page fixed to Route), Settings › Follow-up rules (admin only). As built:
+  - **Who works the desk is two screens and the section behind each.** Seeing needs `maintenance.follow-ups`
+    (every category) or `dispatch.route-follow-ups` (Route alone); acting also needs `manage` on that
+    screen's section, so the auditor and the accountant read and change nothing. A line in a category the
+    caller cannot see answers 404, not 403, so a dispatcher cannot probe for safety lines.
+  - **Who to call is read when the line is drawn**, through roster's new `readSamsaraSubjects`: a driver's
+    problem — that driver; a truck's — the driver Samsara has on the truck now, else the one it named on the
+    warning; a trailer's — its truck now, then that truck's driver ("trailer pairing"). A Samsara name the
+    roster cannot match is shown with "not in roster" and no phone. D-WD15's "from the driver app"
+    (`duty_equipment_segments`) is not read in v1: one driver has an app login on 2026-11-27.
+  - **Alert rule labels come from Samsara's configuration names, cached ten minutes per org** (the list
+    refreshes every minute; the tick reads them fresh). Samsara down: the fixed kinds still resolve, the
+    card says so, and a line whose configuration is gone reads "Samsara alert".
+  - **No second audit row for an action**: `follow_up_actions` is the record (D-WD9). Rule saves and resets
+    are on the Audit page (`settings.follow_up_rule_saved` / `_reset`).
+  - **Video**: the event must be one of the follow-up's own warnings before Samsara is asked; a crash is
+    never fetched (Sensitive Assets) and opens in Samsara. CSP `media-src` gains `https://*.samsara.com`.
+- 2026-11-27 — **WD6-b built**: the urgent bell. `orchestration/warningDeskBell.ts` rings, after each
+  evaluation, every holder of `maintenance.follow-ups` (`surfaceHolders`, the Permissions page's own
+  resolver — no role list) once per urgent follow-up (`follow_up:<id>`), category `follow_up_urgent`,
+  severity critical; the web bell opens `/shop/follow-ups?open=<id>`. A bell failure never fails the tick.
+- 2026-11-27 — **WD4–WD6 merged** (#2686 `422a7fa`, #2690 `9a59fff`). **Verified on staging** (serving
+  `422a7fa`, schema 0655): signed in as the staging admin, `GET /api/follow-ups` answers all four
+  categories and `GET /api/follow-ups/rules` lists 25 rules (8 fixed + 17 Samsara alerts, so the API's
+  Samsara token answers); as the staging dispatcher, the list answers Route alone, `?category=safety` 403,
+  `/rules` 403. The page serves, and the CSP carries `media-src … https://*.samsara.com`.
+  **Not verifiable on staging, and why:** the `warning_desk` tick has never run there — the `general`
+  scheduler lane is still held by the retired Railway `uat` service at `70e1592` (2026-10-28; owner ruling
+  2026-11-15: leave it), so `samsara_warnings` and `follow_ups` hold 0 rows; with no line there is no video
+  to play and no action to log. Those halves are proven by `routes.test.ts`, `evaluate.test.ts`,
+  `warningDeskBell.test.ts` and `supabase/tests/warning-desk.test.mjs`. **First real run is production**
+  after the owner approves a release (01:07 CT train, 0653/0654 apply first). Expect ≈ 88 day-one backlog
+  lines (§1.6).
+- **WD7 measurement due 14 days after the release ships:** per rule, follow-ups opened vs §1.6, median time
+  New → closed, share closed *Not a problem* (> 50% → raise that rule's N), red-STOP-lamp ongoing rate.

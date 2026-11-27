@@ -41,6 +41,8 @@ export interface PilotBillMailDeps {
   ingest: (words: StatementWord[], filename: string, bytes: Buffer) => Promise<StatementIngestResult>;
   /** Runs the invoice check for a recorded statement; returns the run id, or an error to note. */
   check: (words: StatementWord[], filename: string, statementId: string) => Promise<{ runId?: string; error?: string }>;
+  /** Keeps a refused PDF's bytes, so the refusal can be diagnosed and the bill re-read without the email. */
+  keepRefused: (sha256: string, bytes: Buffer) => Promise<void>;
   now: () => Date;
 }
 
@@ -89,6 +91,27 @@ async function existingStatement(admin: SupabaseClient, orgId: string, sha256: s
   return ((data ?? []) as { id: string; invoice_no: string }[])[0] ?? null;
 }
 
+/** The object a refused bill's PDF is kept under, in the statement bucket. Pure; exported for the tests. */
+export const refusedPdfPath = (orgId: string, sha256: string) => `${orgId}/refused/${sha256}.pdf`;
+
+/**
+ * ── WHY A REFUSED BILL'S PDF IS KEPT ─────────────────────────────────────────────────────────────────
+ * Until 2026-11-27 only a RECORDED bill's PDF was stored (`fuelStatementIngest.ts` storeSource). INV-24259 (week
+ * 11/09–11/15) was refused on 2026-11-24 because its lines added up to $305,384.12 against a printed $337,893.10.
+ * Finding which lines the reader missed then needed the email itself, and the email sits in a mailbox only the
+ * production server can read. The bytes are now kept the moment a bill is refused, under its own hash. Storing
+ * is best-effort: a failed copy is noted on the row and never turns the refusal into a failure.
+ */
+async function keep(outcome: Outcome, sha: string, bytes: Buffer, deps: PilotBillMailDeps): Promise<Outcome> {
+  try {
+    await deps.keepRefused(sha, bytes);
+    return outcome;
+  } catch (e) {
+    const note = ` (The PDF could not be kept: ${e instanceof Error ? e.message : String(e)})`;
+    return { ...outcome, error: `${String(outcome.error ?? "")}${note}`.slice(0, 2000) };
+  }
+}
+
 async function handle(admin: SupabaseClient, orgId: string, msg: FolderMessage, deps: PilotBillMailDeps): Promise<Outcome> {
   if (!msg.id) return { state: "failed", error: "Graph returned the email without an id." };
   let pdfs: { name: string; bytes: Buffer }[];
@@ -133,6 +156,7 @@ async function handle(admin: SupabaseClient, orgId: string, msg: FolderMessage, 
     } catch (e) {
       outcome = { state: "failed", ...file, error: `${pdf.name}: ${e instanceof Error ? e.message : String(e)}`.slice(0, 2000) };
     }
+    if (outcome.state === "refused") outcome = await keep(outcome, sha, pdf.bytes, deps);
     if (!first || (first.state !== "recorded" && outcome.state === "recorded")) {
       if (first) notes.push(`${String(first.file_name)}: ${first.state}`);
       first = outcome;

@@ -15,11 +15,11 @@ so the reasoning stays auditable.
 
 | Fact | Value |
 |---|---|
-| Server | `APPNEW`, SQL Server 2019 Enterprise (15.0.2120.1) |
+| Server | `<LME SQL host>`, SQL Server 2019 Enterprise (15.0.2120.1) |
 | Our database | `lme_analytics` — **created 2026-08-21 09:46:06**, SIMPLE recovery |
 | **Production database** | **`lme`** — created 2022-11-28, FULL recovery, on the same instance. `HAS_DBACCESS('lme') = 0` — we cannot read it |
 | Also present | `lme_dev`, `silvicom_dashboard`, `FleetpalData` (created 2026-08-19) |
-| Our login | `NikiAnalytics`, member of **`db_datareader` only** |
+| Our login | `<analytics SQL login>`, member of **`db_datareader` only** |
 
 **`lme_analytics` is a SANDBOX the carrier stood up for this work** — a restore taken 2026-08-21 09:46,
 deliberately isolated so an implementation can be got wrong repeatedly without touching production
@@ -532,7 +532,7 @@ What was found:
 
 | | |
 |---|---|
-| Exposed | `docs/McLeod-Testing/setup.md` — McLeod SQL login (`NikiAnalytics`), host `10.0.1.171`, db `lme_analytics` |
+| Exposed | `docs/McLeod-Testing/setup.md` — McLeod SQL login (`<analytics SQL login>`), host `<LME SQL LAN IP>`, db `lme_analytics` |
 | Since | **2026-08-21 21:05** (commit `a286370`), also `985b698` |
 | Where | **`origin/main` and ~45 remote branches** |
 | Repository | **PUBLIC** (`github.com/miroslav-jokovic/fuel-guard`) |

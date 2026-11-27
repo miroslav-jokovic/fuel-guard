@@ -1,7 +1,7 @@
-// Silvicom 360 — the mail gateway's database door (migration 0643, BROKER-MAIL-READER-PLAN.md D-BMR3).
+// Silvicom 360 — the mail gateway's database door (migrations 0643 and 0656, BROKER-MAIL-READER-PLAN.md D-BMR3).
 //
-// The gateway logs in as `mail_gateway`. The promise is that this login can execute exactly the six
-// mailgw_* door functions and touch NO table — and that the functions themselves refuse what the
+// The gateway logs in as `mail_gateway`. The promise is that this login can execute exactly the eight
+// mailgw_* door functions (six since 0643, the two draft functions since 0656) and touch NO table — and that the functions themselves refuse what the
 // gateway must not do: name a mailbox off the derived list, write outside its lease, keep an internal
 // message, close a thread on unrelated mail, or keep running once the canary has opened.
 //
@@ -26,6 +26,7 @@ import {
   BROKER_MAIL_MATCH_STATES, BROKER_MAIL_THREAD_STATES, MAIL_GATEWAY_MAILBOX_STATES,
   MAIL_GATEWAY_PROBE_RESULTS, MAIL_GATEWAY_FOLDER_ROLES, BROKER_MAIL_SUBJECT_MAX, normaliseBrokerMailToken,
   mailGatewayCycleStartSchema, BROKER_MAIL_ROSTER_REASONS,
+  BROKER_MAIL_ASK_KINDS, BROKER_MAIL_DRAFT_STATES, BROKER_MAIL_DRAFT_FACTS, BROKER_MAIL_COMPOSE_OUTCOMES, mailGatewayDraftWorkSchema,
 } from "../../packages/shared/dist/index.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -68,7 +69,8 @@ for (const f of MIGRATIONS) {
   catch (e) { console.error(`migration ${f} failed: ${e.message}`); process.exit(1); }
 }
 
-const DOOR = ["mailgw_begin_cycle", "mailgw_save_cursor", "mailgw_record_messages", "mailgw_mark_threads", "mailgw_record_probe", "mailgw_end_cycle"];
+const DOOR = ["mailgw_begin_cycle", "mailgw_save_cursor", "mailgw_record_messages", "mailgw_mark_threads", "mailgw_record_probe", "mailgw_end_cycle",
+  "mailgw_claim_drafts", "mailgw_complete_draft"];
 
 // ── 1. the login itself ──────────────────────────────────────────────────────────────────────────
 console.log("\nthe role");
@@ -84,7 +86,7 @@ const memberOf = await all(`select r.rolname from pg_auth_members am join pg_rol
                              join pg_roles m on m.oid = am.member where m.rolname = 'mail_gateway'`);
 ok("member of no role (it holds only what PUBLIC holds, plus its own grants)", memberOf.length === 0, JSON.stringify(memberOf));
 
-// ── 2. the door: exactly six functions, no table ─────────────────────────────────────────────────
+// ── 2. the door: exactly eight functions, no table ─────────────────────────────────────────────────
 console.log("\nthe door, walked from the catalog");
 const fns = await all(`select p.oid, p.proname, p.prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                         where n.nspname = 'public' and p.prokind in ('f', 'p')`);
@@ -96,7 +98,7 @@ for (const f of fns) {
 const trig = new Set((await all(`select p.oid from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                                     where n.nspname = 'public' and p.prorettype = 'trigger'::regtype`)).map((r) => r.oid));
 const reachableDefiner = reachable.filter((f) => f.prosecdef && !trig.has(f.oid)).map((f) => f.proname).sort();
-ok("the callable SECURITY DEFINER functions mail_gateway can execute are exactly the six door functions",
+ok("the callable SECURITY DEFINER functions mail_gateway can execute are exactly the eight door functions",
   JSON.stringify(reachableDefiner) === JSON.stringify([...DOOR].sort()), `got ${JSON.stringify(reachableDefiner)}`);
 // Trigger functions created before 0412 still carry PUBLIC execute; Postgres refuses to call one
 // directly, which is the only reason they may stay reachable. Proved by calling one.
@@ -374,6 +376,112 @@ ok("a recorded envelope starts un-alerted on both stamps", (await all(`select 1 
 ok("broker_mail_backups is RLS-on, and mail_gateway can neither read nor write it",
   (await one(`select relrowsecurity x from pg_class where relname = 'broker_mail_backups'`)).x === true &&
   (await gw(`select * from broker_mail_backups`)).error === "42501");
+
+// ── 7. drafts, asks and a person's closes (0656, P4-a) ──────────────────────────────────────────
+console.log("\ndrafts, asks and closes (0656)");
+const arrayWords = async (table, column) => {
+  const d = (await all(`select pg_get_constraintdef(c.oid) d from pg_constraint c join pg_class t on t.oid = c.conrelid
+                         where t.relname = $1 and c.contype = 'c'`, [table])).map((r) => r.d).find((x) => x.includes(`(${column} <@`));
+  return d ? [...d.matchAll(/'([a-z_]+)'::text/g)].map((m) => m[1]).sort() : null;
+};
+const same = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify(b);
+ok("ask_kinds: contract = CHECK", same(BROKER_MAIL_ASK_KINDS, await arrayWords("broker_mail_messages", "ask_kinds")));
+ok("facts_included: contract = CHECK", same(BROKER_MAIL_DRAFT_FACTS, await arrayWords("broker_mail_drafts", "facts_included")));
+// The table has three CHECKs naming `state`; the vocabulary is the one that lists every word.
+const draftStateWords = (await all(`select pg_get_constraintdef(c.oid) d from pg_constraint c join pg_class t on t.oid = c.conrelid
+                                     where t.relname = 'broker_mail_drafts' and c.contype = 'c'`))
+  .map((r) => [...r.d.matchAll(/'([a-z_]+)'::text/g)].map((m) => m[1])).sort((a, b) => b.length - a.length)[0].sort();
+ok("draft state: contract = CHECK", same(BROKER_MAIL_DRAFT_STATES, draftStateWords), JSON.stringify(draftStateWords));
+ok("compose outcome: contract = CHECK", same(BROKER_MAIL_COMPOSE_OUTCOMES, await checkWords("broker_mail_compose_usage", "outcome")));
+ok("the new tables are RLS-on, and mail_gateway can touch neither",
+  (await all(`select relname from pg_class where relname in ('broker_mail_drafts', 'broker_mail_compose_usage') and relrowsecurity`)).length === 2 &&
+  (await gw(`select * from broker_mail_drafts`)).error === "42501" && (await gw(`select * from broker_mail_compose_usage`)).error === "42501");
+
+s = await begin();
+const C7 = s.cycle_id;
+r = await rec(C7, [
+  env({ internet_message_id: "<a1>", tokens: ["L55501"], ask_kinds: ["eta", "tracking_link", "eta"] }),
+  env({ internet_message_id: "<a2>", conversation_id: "conv-a2", ask_kinds: ["eta", "send money", 7] }),
+  env({ internet_message_id: "<a3>", conversation_id: "conv-a3" }),
+]);
+const asks = Object.fromEntries((await all(`select internet_message_id i, ask_kinds k from broker_mail_messages where internet_message_id like '<a%'`)).map((x) => [x.i, x.k]));
+ok("record_messages stores the asks, deduplicated and sorted", JSON.stringify(asks["<a1>"]) === '["eta","tracking_link"]', JSON.stringify(asks));
+ok("a word outside the closed list is dropped, not refused — the batch still lands", r.rows?.[0]?.n === 3 && JSON.stringify(asks["<a2>"]) === '["eta"]');
+ok("an envelope with no ask_kinds key (the P1 gateway) stores none", JSON.stringify(asks["<a3>"]) === "[]");
+
+const A1 = (await one(`select id from broker_mail_messages where internet_message_id = '<a1>'`)).id;
+const A2 = (await one(`select id from broker_mail_messages where internet_message_id = '<a2>'`)).id;
+const SHA = "a".repeat(64);
+const queue = (msg, text = "Hi, truck 412 is 86 miles out.") => sr(
+  `insert into broker_mail_drafts (org_id, message_id, mailbox, owner_user_id, requested_by, draft_text, text_sha256, composed_by, facts_included)
+   values ('${ORG}', $1, 'ann@carrier.com', '${U.ann}', '${U.ann}', $2, '${SHA}', 'model', '{truck,miles_left}') returning id`, [msg, text]);
+const D1 = (await queue(A1)).rows?.[0]?.id;
+ok("the API (service role) queues a draft", Boolean(D1));
+ok("a second open draft for the same email is refused (one open draft per email)", (await queue(A1)).error === "23505");
+ok("a queued draft without its text is refused (text only while queued or claimed)",
+  (await sr(`insert into broker_mail_drafts (org_id, message_id, mailbox, owner_user_id, text_sha256, composed_by) values ('${ORG}', '${A2}', 'ann@carrier.com', '${U.ann}', '${SHA}', 'model')`)).error === "23514");
+
+const claim = async (cycle) => { const x = await gw(`select mailgw_claim_drafts($1) w`, [cycle]); return x.error ? x : x.rows[0].w; };
+let w = await claim(C7);
+ok("claim_drafts' answer parses with mailGatewayDraftWorkSchema", mailGatewayDraftWorkSchema.safeParse(w).success, JSON.stringify(mailGatewayDraftWorkSchema.safeParse(w).error?.issues?.[0]));
+ok("it hands over the draft with its text and the email's two ids, and marks it claimed",
+  w.create.length === 1 && w.create[0].draft_id === D1 && w.create[0].internet_message_id === "<a1>" && w.create[0].conversation_id === "conv-1" &&
+  (await one(`select state from broker_mail_drafts where id = '${D1}'`)).state === "claimed");
+ok("a claimed draft is not handed over again in the same minute", (await claim(C7)).create.length === 0);
+const done = (cycle, d, result, gid = null) => gw(`select mailgw_complete_draft($1, $2, $3, $4)`, [cycle, d, result, gid]);
+ok("in Outlook without Graph's id is refused", (await done(C7, D1, "in_outlook")).error === "22023");
+ok("a result that is not a draft's is refused", (await done(C7, D1, "sent")).error === "22023");
+ok("removed straight from claimed is refused (only a draft in Outlook can be removed)", (await done(C7, D1, "removed")).error === "22023");
+r = await done(C7, D1, "in_outlook", "AAMkDraft1");
+const d1 = await one(`select state, draft_text, graph_draft_id, in_outlook_at is not null o, text_sha256 from broker_mail_drafts where id = '${D1}'`);
+ok("in Outlook: the text is CLEARED, the Graph id and the SHA-256 kept", !r.error && d1.state === "in_outlook" && d1.draft_text === null && d1.graph_draft_id === "AAMkDraft1" && d1.o && d1.text_sha256 === SHA, JSON.stringify({ r, d1 }));
+ok("with the draft in Outlook a second open draft is still refused", (await queue(A1)).error === "23505");
+ok("nothing to remove while the email is unanswered", (await claim(C7)).remove.length === 0);
+await mark(C7, [{ mailbox: "ann@carrier.com", conversation_id: "conv-1", answered_at: new Date(Date.now() + 60_000).toISOString(), by: "owner", recipients: ["ops@broker.com"] }], []);
+w = await claim(C7);
+ok("the owner answered after the draft went in: claim hands it back to REMOVE, with Graph's id",
+  w.remove.length === 1 && w.remove[0].draft_id === D1 && w.remove[0].graph_draft_id === "AAMkDraft1", JSON.stringify(w));
+ok("removed from in_outlook is accepted", !(await done(C7, D1, "removed")).error && (await one(`select state from broker_mail_drafts where id = '${D1}'`)).state === "removed");
+ok("…and is not handed back again", (await claim(C7)).remove.length === 0);
+
+const D2 = (await queue(A2)).rows?.[0]?.id;
+await db.exec(`update broker_mail_messages set thread_state = 'answered_by_colleague', answered_at = now() where id = '${A2}'`);
+w = await claim(C7);
+const d2 = await one(`select state, draft_text from broker_mail_drafts where id = '${D2}'`);
+ok("an email answered before Outlook had its draft: answered_first, text cleared, nothing to create", w.create.length === 0 && d2.state === "answered_first" && d2.draft_text === null);
+
+const A3 = (await one(`select id from broker_mail_messages where internet_message_id = '<a3>'`)).id;
+const D3 = (await queue(A3)).rows?.[0]?.id;
+await db.exec(`update broker_mail_drafts set requested_at = now() - interval '31 minutes' where id = '${D3}'`);
+await claim(C7);
+ok("a draft no run took in 30 minutes expires, its text cleared", JSON.stringify(await one(`select state, draft_text from broker_mail_drafts where id = '${D3}'`)) === '{"state":"expired","draft_text":null}');
+await release(C7);
+s = await begin();
+const C8 = s.cycle_id;
+const D4 = (await sr(`insert into broker_mail_drafts (org_id, message_id, mailbox, owner_user_id, draft_text, text_sha256, composed_by)
+  values ('${ORG}', '${A3}', 'ann@carrier.com', '${U.ann}', 'x', '${SHA}', 'edited') returning id`)).rows[0].id;
+w = await claim(C8);
+ok("a draft claimed by one run cannot be completed by another run", w.create.length === 1 && !(await done(C8, D4, "person_draft_found")).error);
+ok("…every end clears the text", (await one(`select draft_text from broker_mail_drafts where id = '${D4}'`)).draft_text === null);
+await release(C8);
+ok("a draft cannot be completed outside the lease", (await done(C8, D4, "failed")).error === "55P03");
+
+// A person's close: the gateway can never reopen it.
+await db.exec(`update broker_mail_messages set thread_state = 'closed_by_phone', answered_at = now(), closed_by = '${U.ann}' where id = '${A3}'`);
+s = await begin();
+await mark(s.cycle_id, [{ mailbox: "ann@carrier.com", conversation_id: "conv-a3", answered_at: new Date(Date.now() + 120_000).toISOString(), by: "colleague", recipients: ["ops@broker.com"] }], ["ann@carrier.com"]);
+ok("a row the owner closed by hand stays closed after the gateway's next answers", (await one(`select thread_state from broker_mail_messages where id = '${A3}'`)).thread_state === "closed_by_phone");
+await release(s.cycle_id);
+ok("an unknown thread state is still refused", await db.query(`update broker_mail_messages set thread_state = 'closed_by_magic' where id = '${A3}'`).then(() => false, () => true));
+
+// The compose ledger and the carrier's token counter, in one call.
+const compose = (inTok, outTok, outcome) => sr(`select broker_mail_record_compose('${ORG}', '${U.ann}', '${A1}', 'claude-sonnet-5-5', ${inTok}, ${outTok}, '${outcome}', null, '2026-11')`);
+ok("mail_gateway cannot record a composition", (await gw(`select broker_mail_record_compose('${ORG}', null, null, 'm', 1, 1, 'drafted', null, '2026-11')`)).error === "42501");
+ok("a composition writes its ledger row and adds its tokens to org_usage_month",
+  !(await compose(900, 120, "drafted")).error && JSON.stringify(await one(`select input_tokens::int i, output_tokens::int o from org_usage_month where org_id = '${ORG}' and yyyymm = '2026-11'`)) === '{"i":900,"o":120}');
+ok("a call that reached no model writes a ledger row and no tokens",
+  !(await compose(0, 0, "error")).error && (await one(`select input_tokens::int i from org_usage_month where org_id = '${ORG}' and yyyymm = '2026-11'`)).i === 900 &&
+  (await one(`select count(*)::int n from broker_mail_compose_usage`)).n === 2);
 
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

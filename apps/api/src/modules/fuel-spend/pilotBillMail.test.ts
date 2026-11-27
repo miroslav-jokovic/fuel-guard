@@ -4,7 +4,7 @@ import type { FolderMessage } from "../../lib/graphFolder.js";
 import type { PdfWordsOutcome } from "../../lib/pdfWords.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
 import type { StatementIngestResult } from "./fuelStatementIngest.js";
-import { BILL_LOOKBACK_MS, MAX_ATTEMPTS, PILOT_BILL_FOLDER, billNeedsWork, runPilotBillMail, type PilotBillMailDeps } from "./pilotBillMail.js";
+import { BILL_LOOKBACK_MS, MAX_ATTEMPTS, PILOT_BILL_FOLDER, billNeedsWork, refusedPdfPath, runPilotBillMail, type PilotBillMailDeps } from "./pilotBillMail.js";
 
 /**
  * The Pilot weekly bill pull (PILOT-INVOICE-FORMAT-ANALYSIS-2026-11-24 §4). The PDF reading and the statement
@@ -32,8 +32,9 @@ function deps(messages: FolderMessage[], over: Partial<PilotBillMailDeps> = {}, 
   const readWords = vi.fn(async (_b: Buffer): Promise<PdfWordsOutcome> => ({ ok: true, words: WORDS }));
   const ingest = vi.fn(async (_w: StatementWord[], _n: string, _b: Buffer): Promise<StatementIngestResult> => RECORDED);
   const check = vi.fn(async (_w: StatementWord[], _n: string, _s: string) => ({ runId: "run-1" }));
-  const d: PilotBillMailDeps = { reader: { listSince, pdfAttachments }, readWords, ingest, check, now: () => NOW, ...over };
-  return { d, listSince, pdfAttachments, readWords, ingest, check };
+  const keepRefused = vi.fn(async (_sha: string, _b: Buffer) => {});
+  const d: PilotBillMailDeps = { reader: { listSince, pdfAttachments }, readWords, ingest, check, keepRefused, now: () => NOW, ...over };
+  return { d, listSince, pdfAttachments, readWords, ingest, check, keepRefused };
 }
 
 /** The ledger and the statements, answering only this org's rows for the keys the run asked about. */
@@ -93,6 +94,31 @@ describe("runPilotBillMail", () => {
     expect(check).not.toHaveBeenCalled();
     expect(rec.writtenRows("pilot_bill_mails")[0]).toMatchObject({ state: "refused", error: "The statement didn't add up. off by $787.77" });
     expect(billNeedsWork({ id: "x", internet_message_id: "<c@pilot.test>", state: "refused", attempts: 1 })).toBe(false);
+  });
+
+  it("keeps a refused bill's PDF under its own hash, so the refusal can be diagnosed without the email", async () => {
+    const sha = (await import("node:crypto")).createHash("sha256").update(PDF).digest("hex");
+    const refused: StatementIngestResult = { ok: false, error: "The statement didn't add up." };
+    const { d, keepRefused } = deps([mail("c2")], { ingest: vi.fn(async () => refused) });
+    await runPilotBillMail(tables().client, ORG, d);
+    expect(keepRefused).toHaveBeenCalledWith(sha, PDF);
+    expect(refusedPdfPath(ORG, sha)).toBe(`${ORG}/refused/${sha}.pdf`);
+  });
+
+  it("a refused bill whose PDF cannot be kept stays refused, with the reason noted — never a failure", async () => {
+    const rec = tables();
+    const refused: StatementIngestResult = { ok: false, error: "The statement didn't add up." };
+    const { d } = deps([mail("c3")], { ingest: vi.fn(async () => refused), keepRefused: vi.fn(async () => { throw new Error("bucket full"); }) });
+    expect((await runPilotBillMail(rec.client, ORG, d)).refused).toBe(1);
+    expect(rec.writtenRows("pilot_bill_mails")[0]).toMatchObject({
+      state: "refused", error: "The statement didn't add up. (The PDF could not be kept: bucket full)",
+    });
+  });
+
+  it("keeps nothing for a recorded bill — its PDF is the statement's own source", async () => {
+    const { d, keepRefused } = deps([mail("c4")]);
+    await runPilotBillMail(tables().client, ORG, d);
+    expect(keepRefused).not.toHaveBeenCalled();
   });
 
   it("refuses a scanned PDF with the reason, rather than recording an empty bill", async () => {

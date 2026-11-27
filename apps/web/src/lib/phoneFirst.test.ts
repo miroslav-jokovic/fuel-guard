@@ -24,9 +24,9 @@ describe("the shop's tab row", () => {
     const sidebar = NAV_SURFACES.filter((s) => s.group === "maintenance").map((s) => s.label);
     expect(tabs?.items.map((i) => i.name)).toEqual(sidebar);
     // Labels needs a printer: a desk child screen, not a door (rules 6, 7). Equipment is a door again
-    // since M7 (Q-MX7): Shop · Trucks & trailers · Equipment · Annual inspections · Parts.
+    // since M7 (Q-MX7): Shop · Trucks & trailers · Equipment · Annual inspections · Follow-ups (WARNING-DESK-PLAN WD5) · Parts.
     expect(tabs?.items.map((i) => i.name)).not.toContain("Labels");
-    expect(tabs?.items.map((i) => i.name)).toEqual(["Shop", "Trucks & trailers", "Equipment", "Annual inspections", "Shop parts"]);
+    expect(tabs?.items.map((i) => i.name)).toEqual(["Shop", "Trucks & trailers", "Equipment", "Annual inspections", "Follow-ups", "Shop parts"]);
   });
 
   it("is drawn under the shop only", () => {

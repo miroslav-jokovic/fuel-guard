@@ -10,7 +10,7 @@ it names a position, `git log` outranks it.
 
 ## 1. What exists, in one paragraph
 
-A carrier read-only login (`silvicom_dispatch_ro`) reads the **live** McLeod database `lme` over the
+A carrier read-only login (`<read-only SQL login>`) reads the **live** McLeod database `lme` over the
 VPN. The shipped agent turns the open board into a payload and posts it to `POST /api/tms/loads`,
 which lands every load as **`pending_approval`** — a feed cannot put work on a driver's phone. That
 has been run **twice against production**: 158 loads and 335 stops are in the database now and
@@ -80,7 +80,7 @@ waiver is REMOVED from `scripts/check-table-producers.mjs`** (see §5); a real `
 ## 4. Traps — each of these cost time today
 
 1. **`node --env-file` truncates an unquoted value at `#`.** A 16-character password parsed as 13 and
-   produced a bare `Login failed for user 'silvicom_dispatch_ro'` — no TLS error, no permission
+   produced a bare `Login failed for user '<read-only SQL login>'` — no TLS error, no permission
    error, and the same credential worked in a direct probe. **Quote every secret in a `.env`.**
    Diagnose by comparing LENGTHS, never values:
    `node --env-file=.env -e 'console.log(process.env.X.length)'`.

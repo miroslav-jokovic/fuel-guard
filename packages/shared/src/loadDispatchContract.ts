@@ -79,6 +79,13 @@ export interface LoadDispatchPreview {
   body: string;
   /** Null when a text would go out; otherwise why it will be recorded as not sent. */
   smsHeldBecause: LoadDispatchSmsReason | null;
+  /**
+   * Whether Send puts the load in the driver's app (DRIVER-APP-ENTERPRISE-PLAN S1.1): true when the
+   * driver has an active app login (`drivers.user_id` with `app_access_enabled`). Then the dispatch is
+   * recorded on the `app` channel as `sent` — the load is in their app from that moment (0655), and a
+   * "New load" notification goes to them and to the McLeod co-driver. False → the `sms` record as before.
+   */
+  inApp: boolean;
 }
 
 export interface DispatchSmsStop {

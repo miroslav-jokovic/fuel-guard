@@ -27,9 +27,45 @@ import { recordId } from "./recordId.js";
 export const BROKER_MAIL_MATCH_STATES = ["one", "several", "none", "not_tried"] as const;
 export type BrokerMailMatchState = (typeof BROKER_MAIL_MATCH_STATES)[number];
 
-/** Whether the owner's mailbox holds proof of an answer (D-BMR9). */
-export const BROKER_MAIL_THREAD_STATES = ["waiting", "answered_by_owner", "answered_by_colleague"] as const;
+/**
+ * Whether the owner's mailbox holds proof of an answer (D-BMR9) — or, since 0656, the owner closed it
+ * by hand: `closed_not_for_us` / `closed_by_phone` (the mockup's two buttons). Only the API writes the
+ * two closes, and the gateway only ever moves a `waiting` row, so a person's close is never undone.
+ */
+export const BROKER_MAIL_THREAD_STATES = ["waiting", "answered_by_owner", "answered_by_colleague", "closed_not_for_us", "closed_by_phone"] as const;
 export type BrokerMailThreadState = (typeof BROKER_MAIL_THREAD_STATES)[number];
+export const BROKER_MAIL_PERSON_CLOSES = ["closed_not_for_us", "closed_by_phone"] as const;
+export type BrokerMailPersonClose = (typeof BROKER_MAIL_PERSON_CLOSES)[number];
+
+/**
+ * What a broker asks (D-BMR11, 0656): found by the gateway's fixed word rules on the subject and, with
+ * body reading on, the body in memory. An enum, never text — the draft is composed from 360's own load
+ * facts and these words, so nothing a broker wrote reaches the model. `other`: a broker email whose
+ * question the rules cannot name; the draft then gives the load's status and leaves a line for the
+ * dispatcher (ruled 2026-11-24).
+ */
+export const BROKER_MAIL_ASK_KINDS = ["eta", "location", "tracking_link", "appointment", "pod", "delay_reason", "other"] as const;
+export type BrokerMailAskKind = (typeof BROKER_MAIL_ASK_KINDS)[number];
+
+/**
+ * A reply draft's life (0656). `queued` → the gateway `claimed` it → `in_outlook`, or one of the ends:
+ * `answered_first` (answered or closed before Outlook had it), `person_draft_found` (a person already
+ * started a reply in that conversation — never step on a human), `not_found` (the email left the
+ * mailbox), `refused` (Microsoft refused the write: the mail scope has no write permission yet),
+ * `failed`, `expired` (no reader run took it in 30 minutes). From `in_outlook`: `removed` (the owner
+ * answered in their own words, so 360's draft was deleted) or `sent_or_gone`.
+ */
+export const BROKER_MAIL_DRAFT_STATES = [
+  "queued", "claimed", "in_outlook", "answered_first", "person_draft_found", "not_found",
+  "refused", "failed", "expired", "removed", "sent_or_gone",
+] as const;
+export type BrokerMailDraftState = (typeof BROKER_MAIL_DRAFT_STATES)[number];
+/** The load facts a draft may state (0656 `facts_included`) — what P5 compares a sent reply against. */
+export const BROKER_MAIL_DRAFT_FACTS = ["status", "accepted", "truck", "trailer", "location", "eta", "miles_left", "appointment", "next_stop"] as const;
+export type BrokerMailDraftFact = (typeof BROKER_MAIL_DRAFT_FACTS)[number];
+/** `broker_mail_drafts.draft_text`'s CHECK (0656). */
+export const BROKER_MAIL_DRAFT_TEXT_MAX = 4000;
+export const BROKER_MAIL_COMPOSE_OUTCOMES = ["drafted", "fact_check_refused", "model_refused", "off_schema", "error"] as const;
 
 /**
  * What Graph said about a mailbox (D-BMR14). `still_connected_after_unlink`: it left the derived
@@ -105,6 +141,8 @@ export const brokerMailEnvelopeSchema = z.object({
   body_was_read: z.boolean(),
   /** Tokens to match, normalised by the gateway; the function matches and keeps only the ones that hit. */
   tokens: z.array(z.string().min(1).max(64)).max(BROKER_MAIL_MAX_TOKENS),
+  /** What the broker asks (0656): the gateway's word rules, never the words themselves. */
+  ask_kinds: z.array(z.enum(BROKER_MAIL_ASK_KINDS)).max(BROKER_MAIL_ASK_KINDS.length),
 });
 export type BrokerMailEnvelope = z.infer<typeof brokerMailEnvelopeSchema>;
 
@@ -124,6 +162,23 @@ export const brokerMailAnswerSchema = z.object({
 });
 export type BrokerMailAnswer = z.infer<typeof brokerMailAnswerSchema>;
 
+/** One run's draft work from `mailgw_claim_drafts` (0656): drafts to create, and 360's drafts to remove. */
+export const mailGatewayDraftWorkSchema = z.object({
+  create: z.array(z.object({
+    draft_id: recordId(),
+    mailbox: address,
+    text: z.string().min(1).max(BROKER_MAIL_DRAFT_TEXT_MAX),
+    internet_message_id: z.string().min(1).max(998),
+    conversation_id: z.string().min(1).max(512).nullable(),
+  })),
+  remove: z.array(z.object({ draft_id: recordId(), mailbox: address, graph_draft_id: z.string().min(1).max(512) })),
+});
+export type MailGatewayDraftWork = z.infer<typeof mailGatewayDraftWorkSchema>;
+/** What `mailgw_complete_draft` accepts: from `claimed`, and from `in_outlook`. */
+export const MAIL_GATEWAY_DRAFT_CREATE_RESULTS = ["in_outlook", "answered_first", "person_draft_found", "not_found", "refused", "failed"] as const;
+export const MAIL_GATEWAY_DRAFT_REMOVE_RESULTS = ["removed", "sent_or_gone"] as const;
+export type MailGatewayDraftResult = (typeof MAIL_GATEWAY_DRAFT_CREATE_RESULTS)[number] | (typeof MAIL_GATEWAY_DRAFT_REMOVE_RESULTS)[number];
+
 /** `mailgw_end_cycle`'s counts — the heartbeat and the measure week's daily sums (§8). */
 export const mailGatewayCycleCountsSchema = z.object({
   mailboxes_read: z.number().int().nonnegative(),
@@ -134,6 +189,12 @@ export const mailGatewayCycleCountsSchema = z.object({
   bodies_read: z.number().int().nonnegative(),
   graph_throttled: z.number().int().nonnegative(),
   errors: z.number().int().nonnegative(),
+  // P4 (0656): what this run did with reply drafts. Kept with the rest by `mailgw_end_cycle`.
+  drafts_created: z.number().int().nonnegative(),
+  drafts_stood_back: z.number().int().nonnegative(),
+  drafts_refused: z.number().int().nonnegative(),
+  drafts_removed: z.number().int().nonnegative(),
+  drafts_failed: z.number().int().nonnegative(),
 });
 export type MailGatewayCycleCounts = z.infer<typeof mailGatewayCycleCountsSchema>;
 
@@ -146,4 +207,26 @@ export type MailGatewayCycleCounts = z.infer<typeof mailGatewayCycleCountsSchema
 export function normaliseBrokerMailToken(raw: string): string | null {
   const t = raw.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
   return t.length >= 4 && t.length <= 64 ? t : null;
+}
+
+/**
+ * Reference-shaped tokens in free text: a run of letters, digits and `-#/` at least four long with a
+ * digit in it (load numbers, POs, pickup numbers — never an ordinary word). Normalised the way the
+ * database compares them, deduplicated, capped (D-BMR8).
+ *
+ * It lives here, not in the gateway, because two readers must apply the SAME rule: the gateway, to
+ * find tokens in a subject and (with body reading on) a body; and the API's measure-week report (§8),
+ * which re-reads a stored subject to tell "matched by the subject alone" from "matched only once the
+ * body was read". A copy in each would be two rules that drift.
+ */
+export function brokerMailTokensIn(text: string | null): string[] {
+  if (!text) return [];
+  const out = new Set<string>();
+  const add = (raw: string) => { const t = normaliseBrokerMailToken(raw); if (t && out.size < BROKER_MAIL_MAX_TOKENS) out.add(t); };
+  for (const m of text.matchAll(/[A-Za-z0-9][A-Za-z0-9#\-/]{3,}/g)) if (/\d/.test(m[0])) add(m[0]);
+  // "PO# 4411" reaches the run above as a bare "4411", but a load may store "PO-4411": a number
+  // after one of the reference words is offered in both forms. A form that matches nothing is
+  // counted as a miss, never kept (D-BMR7), so the extra token costs nothing.
+  for (const m of text.matchAll(/\b(PO|PU|BOL|PRO|REF|ORDER)\s*#?\s*[:-]?\s*([A-Za-z0-9-]*\d[A-Za-z0-9-]*)/gi)) add(`${m[1]}${m[2]}`);
+  return [...out];
 }

@@ -23,9 +23,9 @@ the rules are ours to change without re-reading McLeod.
 
 | Fact | Value |
 |---|---|
-| Server | `10.0.1.171:1433`, SQL Server 2019 Enterprise 15.0.2120.1, host `APPNEW` |
+| Server | `<LME SQL LAN IP>:1433`, SQL Server 2019 Enterprise 15.0.2120.1, host `<LME SQL host>` |
 | Database | `lme_analytics` (sandbox restore; production is `lme`, unreachable from this login) |
-| Login | `NikiAnalytics`, `db_datareader` |
+| Login | `<analytics SQL login>`, `db_datareader` |
 | Operating company | `dbo.company.id = 'TMS'` — Silvicom, Inc. |
 | Company scope | GL is 99.8% `TMS`; `TMS2`/`TMS3`/`TMS4` are small and must be excluded by predicate |
 

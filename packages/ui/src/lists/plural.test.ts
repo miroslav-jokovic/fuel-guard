@@ -130,6 +130,8 @@ const EXPECTED: Record<string, string> = {
   entries: "entry",
   // DB-UX 2026-10-10: the Loads page's Exceptions tab keeps the toolbar, so it counts its rows.
   exceptions: "exception",
+  // The warning desk: one follow-up per row (WARNING-DESK-PLAN WD5).
+  "follow-ups": "follow-up",
   files: "file",
   "fill-ups": "fill-up",
   "fills in sequence": "fill in sequence",

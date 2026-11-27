@@ -330,6 +330,7 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
 | B-4 | V2/V7/V8 are documentation, not measurements. | — | P0 proves each before PR-b depends on it; the KMS certificate is the fallback for V7. | Simo + owner + Claude |
 | B-5 | Migration number race with parallel chats. | — | Take the number at PR time; renumber on conflict. | Claude |
 | B-6 | Broker mail that arrives in a **shared mailbox or a list**, not a dispatcher's own (this is also Q-BMR4). A shared mailbox has no owner and no dispatcher link, so the derived list never contains it, and a "send as" reply may be saved there instead of in the sender's Sent Items. | ask the owner from memory / measure and guess / get the facts from Exchange | **Facts first:** P0's one list for Simo asks for every shared mailbox and distribution list that has a dispatcher as member or delegate, and whether sent-as copies are kept in the shared mailbox. None → closed. Any → P1 reads it envelope-only like the others and the week counts its mail; the owner then rules who owns such a row (proposed: the matched load's dispatcher). No build work depends on the answer before P2. | Simo (P0 list), then owner |
+| B-7 | **P5's learning notes: how a note is formed is not ruled** (found 2026-11-27, at the end of P4). Q-BM8 rules what a note may say (one sentence, no quotes, names, emails or phones, counted, 90 days) and that "the gateway compares the sent reply with 360's draft". It does not rule which text a model may read. Measured: 360's draft text is cleared the minute Outlook has it (0656, only its SHA-256 is kept). The dispatcher's sent reply sits in Sent Items with the broker's email quoted under it. | (a) **Template notes, no model.** The gateway reads the sent reply in memory (body reading on, `Mail.Read`), cuts at the quote, and reports only a closed list: which fact kinds the reply states, matched against a facts snapshot 360 keeps with the draft (our load data, not mail), and whether it was edited. The API writes a fixed sentence when one broker domain or dispatcher shows the same pattern three times ("Replies to chrobinson.com usually add the trailer number — 360 now includes it"). (b) **Model notes.** The dispatcher's words above the quote, plus 360's draft, go to the model, which writes the sentence, and the validator refuses names, emails and phones. This sends a dispatcher's email text to the provider, and a quote cut that fails sends a broker's too, reversing D-BMR11. | **(a)**: nothing from a mailbox reaches a model, the validator cannot be beaten by wording, and the notes still change the next draft (a fact kind the draft always includes for that broker). Needs one migration (the facts snapshot on `broker_mail_drafts`, a door function for the sent-reply report, `broker_mail_notes` with the 90-day rule) and the "What 360 has learned" card. | **Owner** |
 
 ## 11. Assumptions
 
@@ -589,6 +590,64 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
     click has something to open. "Not for us" / "Handled by phone" closes are not built. Today a row
     closes only on proof from Outlook. A person's close would contradict the gateway's next read unless
     the gateway learns it, and that belongs with P4's command side.
+- 2026-11-27 — **The measure week's report is built** (owner: "build everything on our side while Simo
+  finishes"). Settings › Broker mail › Measure week, `GET /api/broker-mail/week?from=`, admin only.
+  It answers every §8 line from the envelope rows and the gateway's run counts. Rules:
+  `brokerMailWeekContract.ts`. Choices made at build:
+  - **"Messages in" exists per day only.** `mail_gateway_cycles.counts` is company-wide per run, so the
+    per-mailbox figures are about external mail, the rows themselves. Run counts are kept 14 days, so
+    an older week shows rows and says its run counts are gone.
+  - **Subject versus body.** The token rule moved from the gateway into shared (`brokerMailTokensIn`).
+    The report applies it to the stored subject: a `one` row whose matched reference is not in its
+    subject needed the body. One rule, two readers.
+  - **"Would have texted"** replays P3's rule with today's settings. Night = the SMS quiet window. A
+    night backup notice counts only if the email was still unanswered when the window ended (Q-BM12).
+  - **The hand check** is a fixed 50-row pick per first day (rows on the page's two open queues,
+    ordered by a hash of their id). The verdicts are a person's and are not stored.
+  - **Is the load the owner's?** Through mcleod's index (`readFleetDispatchers`); new boundary edge
+    `broker-mail -> mcleod`.
+- 2026-11-27 — **P4 built: reply drafts** (owner: "build everything on our side while Simo finishes").
+  Two merges, because a column and its first reader ship apart: P4-a is migration 0656 alone, P4-b is
+  everything that uses it. Choices made at build:
+  - **Four call shapes, not D-BMR4's four.** (5) find the email by the `internetMessageId` 360 stored;
+    (6) list the Drafts folder's messages on that conversation, ids only; (7) `createReply` with our
+    text as its `comment`; (8) DELETE under `mailFolders/drafts`. There is no PATCH: createReply's
+    comment writes the text in the same call, above the broker's quoted message. Deleting under Drafts
+    means a draft the dispatcher already sent (moved to Sent Items) answers 404 and survives. The
+    writes live in `graphWrite.ts`, apart from the GET-only client. Each one re-checks its URL's shape,
+    so a GET URL can never be POSTed.
+  - **Reply, not reply-all.** The draft goes to the broker who wrote. The dispatcher adds anyone else
+    in Outlook before pressing Send.
+  - **Never step on a human:** any draft already in the email's conversation stands 360 back
+    (`person_draft_found`). An answer that arrives first drops the draft in `mailgw_claim_drafts`.
+    When the owner answers in their own words, 360's draft is deleted.
+  - **The facts are the board's own rows** (`readLoadStatusFacts` in livemap, the pattern
+    `readDriverDispatch` set; new edge `broker-mail -> livemap`). A broker is never told a different
+    ETA from the one on the dispatcher's screen. A load the board shows on no truck gives only what
+    the load row says.
+  - **The fact check** (`draftFactCheck`, shared) refuses a model draft with any number, or any
+    two-letter state code, the facts lack. Its stated limit: a city written out in words is not
+    checked, because no list of cities exists. The facts give only the next stop's city, and the
+    prompt forbids any other. An EDITED text is not checked: those are the dispatcher's words.
+  - **Owner-only acts.** Compose, "Put draft in Outlook", "Handled by phone" and "Not for us" belong to
+    the mailbox's owner alone. An admin who sees everyone's mail can read the panel but cannot write in
+    a dispatcher's name. Queue and close are audited; compose is on the cost ledger.
+  - **Model:** `BROKER_MAIL_DRAFT_MODEL`, default the catch-up's small model, as the plan ruled.
+  - **The wake-up invoke is NOT built.** It needs `lambda:InvokeFunction` for the app server's role.
+    D-BMR15 keeps that role away from the gateway, and the setup script's `--check` simulates exactly
+    that. A draft therefore waits for the next one-minute run, and the panel says "within a minute".
+    If the owner wants it instant, that is one IAM statement in `setup.sh` plus its `--check` case.
+  - **Until Simo gives the scope `Mail.ReadWrite`,** every draft ends `refused` and the panel says
+    Microsoft does not let 360 write drafts yet. Nothing is routed around it.
+  - **Not done:** the Dispatch board's envelope badge, the link in the dispatcher's text (done the same
+    day, entry below), and P5's learning notes. P5 waits on **B-7**: which text, if any, may reach a model.
+- 2026-11-27 — **The dispatcher's text says what Q-BM7 ruled.** Until now P3's line was "sender, load,
+  waiting N min". It now also names the truck (off the board's rows, one read per minute's batch; a board
+  that cannot be read costs the text its truck, never the text) and what is asked, and the text ends with
+  a link that opens that email's panel. The link is text-only: messaging's `AlertEvent` gains `textLine`,
+  because the bell reuses `line` as its title and links by itself (`notificationRoute.ts`: the
+  dispatcher's alert opens the panel; a backup's notice opens the list, since a backup cannot open a
+  colleague's email).
 
 ## Sources
 
