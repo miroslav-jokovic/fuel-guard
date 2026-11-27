@@ -69,5 +69,7 @@ export const smsReasonText = (code: string | null): string | null =>
 export function dispatchHeadline(d: LoadDispatchSummary | null | undefined): string {
   if (!d) return "Not dispatched";
   const who = d.driverName ?? "a driver no longer on the roster";
-  return `Dispatched to ${who} · ${formatDateTime(d.sentAt, d.sentAt)}`;
+  // S1.1: an `app` / `sent` dispatch is in the driver's app — say so, the one case where "sent" is true.
+  const where = d.channel === "app" && d.outcome === "sent" ? " · in their app" : "";
+  return `Dispatched to ${who}${where} · ${formatDateTime(d.sentAt, d.sentAt)}`;
 }

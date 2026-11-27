@@ -38,6 +38,8 @@ vi.mock("@/lib/api", () => ({
           driverName: "whoever",
           body: `Silvicom Transport: load 0012345\nPick up: ACME Foods, Dallas TX, 09/25/2026 8:00 AM [${driverId}]`,
           smsHeldBecause: "sms_not_configured",
+          // OTHER has an app login in this fixture; MCLEOD does not.
+          inApp: driverId === OTHER,
         },
       },
     };
@@ -81,6 +83,18 @@ describe("DispatchLoadDrawer", () => {
       `Silvicom Transport: load 0012345\nPick up: ACME Foods, Dallas TX, 09/25/2026 8:00 AM [${MCLEOD}]`,
     );
     expect(w.get("[data-testid=dispatch-held]").text()).toContain("Text messages aren't set up yet, so no text was sent.");
+  });
+
+  it("says before Send whether the load reaches the driver's app (S1.1)", async () => {
+    const w = mountIt();
+    await flushPromises();
+    expect(w.get("[data-testid=dispatch-no-app]").text()).toContain("has no app login, so this load won't reach their phone");
+    expect(w.find("[data-testid=dispatch-in-app]").exists()).toBe(false);
+    w.findComponent(AppCombobox).vm.$emit("update:modelValue", OTHER);
+    await flushPromises();
+    expect(w.get("[data-testid=dispatch-in-app]").text()).toContain("app and notifies them");
+    expect(w.find("[data-testid=dispatch-no-app]").exists()).toBe(false);
+    expect(w.find("[data-testid=dispatch-held]").exists()).toBe(false);
   });
 
   it("sends the driver the dispatcher CHOSE, even when it is not McLeod's", async () => {
