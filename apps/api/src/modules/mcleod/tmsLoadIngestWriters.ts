@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { TmsLoadInput } from "@silvicom/shared";
+import { requiredPhotosFor, type TmsLoadInput } from "@silvicom/shared";
 
 /**
  * The write half of the TMS load ingest, set-based (L11).
@@ -152,9 +152,10 @@ export async function writeStops(
       lon: s.lon ?? null,
       appointment_start: s.appointment_start ?? null,
       appointment_end: s.appointment_end ?? null,
-      // The feed does not know a carrier's photo policy — dispatch sets those slots. Defaults keep a
-      // driver from arriving at a shipper with nothing to capture.
-      required_photos: s.kind === "pickup" ? ["trailer", "bol"] : ["bol"],
+      // The feed does not know a carrier's photo policy, so the stop gets the carrier's one rule
+      // (`REQUIRED_PHOTOS_BY_STOP_KIND` in `@silvicom/shared`) and a driver never arrives at a shipper
+      // with nothing to capture.
+      required_photos: requiredPhotosFor(s.kind),
       notes: s.notes ?? null,
     })),
   );

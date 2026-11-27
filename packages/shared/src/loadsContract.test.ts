@@ -7,6 +7,10 @@ import {
   nextStop,
   photoSlotLabel,
   isDocumentSlot,
+  PHOTO_SLOTS,
+  REQUIRED_PHOTOS_BY_STOP_KIND,
+  requiredPhotosFor,
+  STOP_KINDS,
   stopPhotoPath,
   stopProgress,
   type LoadStop,
@@ -190,5 +194,22 @@ describe("isDocumentSlot", () => {
     for (const slot of ["trailer", "seal", "damage", "load_secured", "other", "custom_slot"]) {
       expect(isDocumentSlot(slot)).toBe(false);
     }
+  });
+});
+
+describe("the required-photo rule (MCLEOD-API-KIT-PLAN D-MKN5.1)", () => {
+  it("every required photo slot is one the driver app can label", () => {
+    for (const kind of STOP_KINDS) {
+      const slots = REQUIRED_PHOTOS_BY_STOP_KIND[kind];
+      expect(slots.length).toBeGreaterThan(0);
+      for (const slot of slots) expect(PHOTO_SLOTS as readonly string[]).toContain(slot);
+    }
+  });
+
+  it("requiredPhotosFor returns a copy, so a writer cannot change the rule", () => {
+    const first = requiredPhotosFor("pickup");
+    first.push("damage");
+    expect(requiredPhotosFor("pickup")).toEqual([...REQUIRED_PHOTOS_BY_STOP_KIND.pickup]);
+    expect(requiredPhotosFor("pickup")).not.toBe(requiredPhotosFor("pickup"));
   });
 });

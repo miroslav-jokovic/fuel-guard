@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { LoadStatus, ProjectedLoad } from "@silvicom/shared";
+import { requiredPhotosFor, type LoadStatus, type ProjectedLoad } from "@silvicom/shared";
 
 /**
  * The write half of the McLeod projection (LOADS-MIRROR-PLAN.md LR4; D-LMR2, D-LMR4, D-LMR7) — the
@@ -118,8 +118,9 @@ async function writeStops(admin: SupabaseClient, orgId: string, byLoad: Map<stri
       load_id: loadId,
       ...s,
       // McLeod knows no carrier photo policy, and nothing in the office sets it on a McLeod load since LR6
-      // removed editing, so every sync writes the ingest's defaults on the stops it (re)writes.
-      required_photos: s.kind === "pickup" ? ["trailer", "bol"] : ["bol"],
+      // removed editing, so every sync writes the carrier's one rule (`REQUIRED_PHOTOS_BY_STOP_KIND` in
+      // `@silvicom/shared`) on the stops it (re)writes.
+      required_photos: requiredPhotosFor(s.kind),
     })),
   );
   for (let i = 0; i < rows.length; i += 500) {

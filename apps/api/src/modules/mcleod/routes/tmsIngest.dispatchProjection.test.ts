@@ -170,6 +170,17 @@ describe("LR4 — the projection, raw → core", () => {
     expect(Object.keys(stops[0]!)).not.toContain("arrived_at");
   });
 
+  // The literal values, not `requiredPhotosFor`: this test is what notices the shared rule changing.
+  it("the mirror writes the shared required photos on every stop it writes", async () => {
+    const { rec } = await run();
+    const stops = rec.writtenRows("load_stops");
+    expect(stops.length).toBeGreaterThan(0);
+    for (const s of stops) {
+      expect(s.required_photos).toEqual(s.kind === "pickup" ? ["trailer", "bol"] : ["bol"]);
+    }
+    expect(new Set(stops.map((s) => s.kind))).toEqual(new Set(["pickup", "dropoff"]));
+  });
+
   it("only a driver's untouched stops are cleared — a worked stop is never deleted", async () => {
     const { rec } = await run();
     const del = rec.forTable("load_stops").find((q) => q.write?.method === "delete")!;
