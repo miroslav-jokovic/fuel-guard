@@ -12,7 +12,10 @@ vi.mock("../org/index.js", () => ({
   orgTimezone: async () => "America/Chicago",
   listOfficeMembers: async () => [{ userId: OWNER, fullName: "Artur", email: "a@x.test", role: "dispatcher" }],
 }));
-const { dueAlerts, brokerMailDoor, runBrokerMailTextsOnce } = await import("./brokerMailTexts.js");
+vi.mock("../livemap/index.js", () => ({
+  readLoadStatusFacts: async (_a: unknown, _o: unknown, ids: string[]) => new Map(ids.map((id) => [id, { truckUnit: "412" }])),
+}));
+const { dueAlerts, brokerMailDoor, ownerLines, runBrokerMailTextsOnce } = await import("./brokerMailTexts.js");
 
 const ORG = "00000000-0000-4000-8000-0000000000aa";
 const OWNER = "00000000-0000-4000-8000-000000000031";
@@ -93,12 +96,14 @@ describe("one minute's run", () => {
 
   it("texts the dispatcher, never falls back to the managers, stamps the row, and drains only broker mail's texts", async () => {
     seed();
-    await runBrokerMailTextsOnce(rec.client, {} as never, NOW);
+    await runBrokerMailTextsOnce(rec.client, { WEB_APP_URL: "https://360.example/" } as never, NOW);
     expect(sent.alerts).toHaveBeenCalledTimes(1);
     const [, , org, alert, events, , opts] = sent.alerts.mock.calls[0]!;
     expect([org, alert, opts]).toEqual([ORG, "broker_mail_waiting", { noFallback: true }]);
     expect(events[0]).toMatchObject({ dedupeKey: "broker_mail:00000000-0000-4000-8000-0000000000d1:owner", relations: { mailbox_owner: OWNER } });
     expect(events[0].line).toBe("chrobinson.com, no load matched, waiting 21 min");
+    // The text carries the link to the email's panel; the bell links by itself (notificationRoute).
+    expect(events[0].textLine).toMatch(/^chrobinson\.com, no load matched, waiting 21 min: .*\/broker-mail\?email=00000000-0000-4000-8000-0000000000d1$/);
     const stamp = rec.forTable("broker_mail_messages").find((q) => q.write?.method === "update")!;
     expect(Object.keys(stamp.write!.payload as object)).toEqual(["owner_alerted_at"]);
     expect(sent.drain.mock.calls[0]![5].only).toEqual(["broker_mail_waiting", "broker_mail_backup"]);
@@ -107,7 +112,7 @@ describe("one minute's run", () => {
 
   it("the backups get the short notice with the dispatcher's name and the time on the carrier's clock", async () => {
     seed({ messages: [row({ owner_alerted_at: ago(6), received_at: ago(26) })] });
-    await runBrokerMailTextsOnce(rec.client, {} as never, NOW);
+    await runBrokerMailTextsOnce(rec.client, { WEB_APP_URL: "https://360.example/" } as never, NOW);
     const [, , , alert, events] = sent.alerts.mock.calls[0]!;
     expect(alert).toBe("broker_mail_backup");
     expect(events[0].relations).toEqual({ dispatcher_backup: [BACKUP] });
@@ -116,16 +121,16 @@ describe("one minute's run", () => {
 
   it("a dispatcher with no backups: nobody is told, and the row is stamped so it is not asked again", async () => {
     seed({ messages: [row({ owner_alerted_at: ago(6), received_at: ago(26) })], backups: [] });
-    await runBrokerMailTextsOnce(rec.client, {} as never, NOW);
+    await runBrokerMailTextsOnce(rec.client, { WEB_APP_URL: "https://360.example/" } as never, NOW);
     expect(sent.alerts).not.toHaveBeenCalled();
     expect(rec.forTable("broker_mail_messages").some((q) => (q.write?.payload as Record<string, unknown> | undefined)?.backup_alerted_at)).toBe(true);
   });
 
   it("texts switched off, or the gateway switched off: no alert at all — and the drain's door skips what is held", async () => {
     seed({ settings: [{ org_id: ORG, ...S, texts_on_since: null }] });
-    await runBrokerMailTextsOnce(rec.client, {} as never, NOW);
+    await runBrokerMailTextsOnce(rec.client, { WEB_APP_URL: "https://360.example/" } as never, NOW);
     seed({ enabled: false });
-    await runBrokerMailTextsOnce(rec.client, {} as never, NOW);
+    await runBrokerMailTextsOnce(rec.client, { WEB_APP_URL: "https://360.example/" } as never, NOW);
     expect(sent.alerts).not.toHaveBeenCalled();
     expect(rec.forTable("broker_mail_messages")).toHaveLength(0);
     expect(sent.drain).toHaveBeenCalledTimes(2);
@@ -133,13 +138,24 @@ describe("one minute's run", () => {
 
   it("never asks about an email received before the texts were switched on", async () => {
     seed({ settings: [{ org_id: ORG, ...S, texts_on_since: ago(10) }] });
-    await runBrokerMailTextsOnce(rec.client, {} as never, NOW);
+    await runBrokerMailTextsOnce(rec.client, { WEB_APP_URL: "https://360.example/" } as never, NOW);
     expect(sent.alerts).not.toHaveBeenCalled();
   });
 
   it("no gateway config row: nothing runs", async () => {
     rec = createSupabaseRecorder({ tables: { mail_gateway_config: [] } });
-    expect(await runBrokerMailTextsOnce(rec.client, {} as never, NOW)).toBeNull();
+    expect(await runBrokerMailTextsOnce(rec.client, { WEB_APP_URL: "https://360.example/" } as never, NOW)).toBeNull();
     expect(sent.drain).not.toHaveBeenCalled();
+  });
+});
+
+describe("the dispatcher's full text (Q-BM7)", () => {
+  it("names the broker, the load, the truck, what is asked and how long, and the text links to the email", () => {
+    const l = ownerLines({ sender: "chrobinson.com", load: "load 48213", truck: "412", asks: ["eta", "tracking_link"], waited: 22, link: "https://360.example/broker-mail?email=x" });
+    expect(l.line).toBe("chrobinson.com, load 48213, truck 412, asks ETA, tracking, waiting 22 min");
+    expect(l.textLine).toBe(`${l.line}: https://360.example/broker-mail?email=x`);
+  });
+  it("leaves out what it does not know", () => {
+    expect(ownerLines({ sender: "tql.com", load: "no load matched", truck: null, asks: [], waited: 20, link: "L" }).line).toBe("tql.com, no load matched, waiting 20 min");
   });
 });

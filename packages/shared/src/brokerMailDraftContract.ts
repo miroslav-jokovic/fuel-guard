@@ -106,6 +106,22 @@ export type BrokerMailQueueDraft = z.infer<typeof brokerMailQueueDraftSchema>;
 export const brokerMailCloseSchema = z.object({ how: z.enum(BROKER_MAIL_PERSON_CLOSES) });
 export type BrokerMailClose = z.infer<typeof brokerMailCloseSchema>;
 
+/** What a broker asks, in a dispatcher's words: the panel's badges. */
+export const BROKER_MAIL_ASK_LABELS: Record<(typeof BROKER_MAIL_ASK_KINDS)[number], string> = {
+  eta: "ETA", location: "Where the truck is", tracking_link: "Tracking request", appointment: "Appointment",
+  pod: "POD / signed BOL", delay_reason: "Why it is late", other: "Something else",
+};
+/** The same, as short as a text message needs ("asks ETA, tracking"). */
+export const BROKER_MAIL_ASK_SHORT: Record<(typeof BROKER_MAIL_ASK_KINDS)[number], string> = {
+  eta: "ETA", location: "location", tracking_link: "tracking", appointment: "appointment",
+  pod: "POD", delay_reason: "why late", other: "a question",
+};
+
+/** The Broker mail page with one email's panel open — what the dispatcher's text links to. */
+export function brokerMailEmailPath(messageId: string): string {
+  return `/broker-mail?email=${encodeURIComponent(messageId)}`;
+}
+
 /** The words the panel prints for a draft's state. One home. */
 export const BROKER_MAIL_DRAFT_STATE_LABELS: Record<(typeof BROKER_MAIL_DRAFT_STATES)[number], string> = {
   queued: "Going to your Outlook…",

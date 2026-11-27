@@ -6,6 +6,11 @@ import { notificationRoute } from "./notificationRoute";
  * any notification, so only certain pairs route.
  */
 describe("notificationRoute", () => {
+  it("a broker-mail alert opens that email's panel; a backup's notice opens the list (they cannot open a colleague's email)", () => {
+    expect(notificationRoute("broker_mail_waiting", "broker_mail_message", "m1")).toBe("/broker-mail?email=m1");
+    expect(notificationRoute("broker_mail_backup", "broker_mail_message", "m1")).toBe("/broker-mail");
+  });
+
   it("an urgent follow-up opens the warning desk with its own drawer open, and only when it names one", () => {
     expect(notificationRoute("follow_up_urgent", "follow_up", "f1")).toBe("/shop/follow-ups?open=f1");
     expect(notificationRoute("follow_up_urgent", "follow_up", null)).toBeNull();

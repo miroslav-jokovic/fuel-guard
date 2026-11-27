@@ -53,8 +53,3 @@ export function matchesBrokerMailSearch(row: BrokerMailRow, term: string): boole
   return [row.fromAddress, row.subject, row.load?.ref, row.ownerName, ...row.matchedRefs].some((v) => v?.toLowerCase().includes(t));
 }
 
-/** The ask kinds in a dispatcher's words, for the panel. */
-export const ASK_WORDS: Record<string, string> = {
-  eta: "ETA", location: "Where the truck is", tracking_link: "Tracking request", appointment: "Appointment",
-  pod: "POD / signed BOL", delay_reason: "Why it is late", other: "Something else",
-};
