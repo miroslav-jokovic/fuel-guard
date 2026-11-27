@@ -27,6 +27,7 @@ import { readBrokerMailList, readSettingsRow } from "./brokerMailList.js";
 import { replaceBackups } from "./brokerMailBackups.js";
 import { readBrokerMailAdmin, saveBrokerMailSettings, setLeftOut } from "./brokerMailAdmin.js";
 import { readBrokerMailWeek } from "./brokerMailWeek.js";
+import { mountDraftRoutes } from "./draftRoutes.js";
 
 /**
  * `/api/broker-mail` (BROKER-MAIL-READER-PLAN P2).
@@ -39,6 +40,10 @@ import { readBrokerMailWeek } from "./brokerMailWeek.js";
  *    is on the Audit page with its old and new value.
  *  · `GET /week?from=YYYY-MM-DD` — the measure-only week's report (§8), on the same admin screen: seven
  *    days from `from` in the company's zone; without `from`, the seven days ending today.
+ *  · P4 (0656), the email panel: `GET /messages/:id` (the list's rule: own, or all with the switch);
+ *    `POST /messages/:id/compose`, `POST /messages/:id/draft` and `POST /messages/:id/close` — the
+ *    MAILBOX OWNER's alone, because the draft lands in their Outlook and a close silences their text.
+ *    Queueing and closing are audited; a composition is on the cost ledger (0656), never its words.
  */
 
 const listQuery = z.object({
@@ -77,6 +82,9 @@ export function brokerMailRouter(): Router {
       }));
     }),
   );
+
+  // P4 (0656): the email panel and the owner's three acts (`draftRoutes.ts`).
+  mountDraftRoutes(router);
 
   router.get(
     "/admin",

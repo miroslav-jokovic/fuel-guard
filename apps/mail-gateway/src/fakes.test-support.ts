@@ -1,4 +1,5 @@
-import type { BrokerMailAnswer, BrokerMailEnvelope, MailGatewayCycleCounts, MailGatewayCycleStart } from "@silvicom/shared";
+import type { BrokerMailAnswer, BrokerMailEnvelope, MailGatewayCycleCounts, MailGatewayCycleStart, MailGatewayDraftWork } from "@silvicom/shared";
+import type { GraphWrite } from "./graphWrite.js";
 import type { Door } from "./door.js";
 import { DoorNotReady } from "./door.js";
 import { CursorReset, GraphThrottled, MailboxOverQuota, MailboxRefused, type GraphGet, type GraphPage } from "./graphClient.js";
@@ -22,6 +23,9 @@ export type MailboxScript = {
   fail?: "refused" | "over_quota" | "throttled";
   /** Fail a folder's delta with a cursor reset. */
   resetFolder?: string;
+  /** P4: messages by internetMessageId → Graph id + conversation; drafts by conversation id. */
+  byInternetId?: Record<string, { id: string; conversationId: string }>;
+  draftsByConversation?: Record<string, string[]>;
 };
 
 export function fakeGraph(scripts: Record<string, MailboxScript>, probes: Record<string, number> = {}) {
@@ -41,6 +45,15 @@ export function fakeGraph(scripts: Record<string, MailboxScript>, probes: Record
       const mb = who(url);
       const s = scripts[mb];
       fail(s);
+      if (url.includes("/messages?$filter=internetMessageId")) {
+        const want = decodeURIComponent(/eq%20(.+?)&/.exec(url)?.[1] ?? "").replace(/^'|'$/g, "").replace(/''/g, "'");
+        const m = s?.byInternetId?.[want];
+        return { value: m ? [m] : [], nextLink: null, deltaLink: null };
+      }
+      if (url.includes("/mailFolders/drafts/messages?$filter=conversationId")) {
+        const conv = decodeURIComponent(/eq%20(.+?)&/.exec(url)?.[1] ?? "").replace(/^'|'$/g, "");
+        return { value: (s?.draftsByConversation?.[conv] ?? []).map((id) => ({ id })), nextLink: null, deltaLink: null };
+      }
       if (url.includes("/mailFolders/delta")) return { value: s?.folders ?? [], nextLink: null, deltaLink: `https://graph.microsoft.com/v1.0/users/${mb}/mailFolders/delta?$deltatoken=f` };
       const folder = /mailFolders\/([^/]+)\/messages/.exec(url)?.[1] ?? /mailFolders\('([^']+)'\)/.exec(url)?.[1] ?? "?";
       if (s?.resetFolder === folder) throw new CursorReset();
@@ -58,13 +71,14 @@ export function fakeGraph(scripts: Record<string, MailboxScript>, probes: Record
   return { graph, requested };
 }
 
-export function fakeDoor(start: Partial<MailGatewayCycleStart> & { mailboxes: MailGatewayCycleStart["mailboxes"] }, opts: { notReady?: boolean } = {}) {
+export function fakeDoor(start: Partial<MailGatewayCycleStart> & { mailboxes: MailGatewayCycleStart["mailboxes"] }, opts: { notReady?: boolean; drafts?: MailGatewayDraftWork; draftsNotReady?: boolean } = {}) {
   const calls: { fn: string; args: unknown[] }[] = [];
   const envelopes: BrokerMailEnvelope[] = [];
   const answers: BrokerMailAnswer[] = [];
   const checked: string[] = [];
   const cursors: { mailbox: string; folder: string; link: string | null }[] = [];
   let ended: { counts: MailGatewayCycleCounts; states: unknown[] } | null = null;
+  const completed: { draft: string; result: string; id: string | null }[] = [];
   let canaryOpenedStops = true;
   const door: Door = {
     async begin(commit) {
@@ -78,9 +92,15 @@ export function fakeDoor(start: Partial<MailGatewayCycleStart> & { mailboxes: Ma
     async markThreads(_c, list, chk) { calls.push({ fn: "markThreads", args: [list.length, chk] }); answers.push(...list); checked.push(...chk); return 0; },
     async recordProbe(_c, kind, mailbox, result) { calls.push({ fn: "recordProbe", args: [kind, mailbox, result] }); return !(kind === "canary" && result === "opened" && canaryOpenedStops); },
     async end(_c, counts, states) { calls.push({ fn: "end", args: [] }); ended = { counts, states }; },
+    async claimDrafts() {
+      calls.push({ fn: "claimDrafts", args: [] });
+      if (opts.draftsNotReady) throw new DoorNotReady("42883");
+      return opts.drafts ?? { create: [], remove: [] };
+    },
+    async completeDraft(_c, draft, result, id) { calls.push({ fn: "completeDraft", args: [draft, result, id] }); completed.push({ draft, result, id }); },
   };
   return {
-    door, calls, envelopes, answers, checked, cursors,
+    door, calls, envelopes, answers, checked, cursors, completed,
     get ended() { return ended; },
     set canaryOpenedStops(v: boolean) { canaryOpenedStops = v; },
   };
@@ -101,3 +121,18 @@ export const msg = (o: Partial<Record<string, unknown>> & { id: string }) => ({
   subject: "Update",
   ...o,
 });
+
+/** A GraphWrite that records each write and answers from a script (P4). */
+export function fakeWrite(o: { createStatus?: "ok" | "refused" | "throttled"; deleteAnswer?: "deleted" | "gone" } = {}) {
+  const writes: { kind: "create" | "delete"; url: string; comment?: string }[] = [];
+  const write: GraphWrite = {
+    async createReply(url, comment) {
+      writes.push({ kind: "create", url, comment });
+      if (o.createStatus === "refused") throw new MailboxRefused(403);
+      if (o.createStatus === "throttled") throw new GraphThrottled(30);
+      return "AAMkDraft-new";
+    },
+    async deleteDraft(url) { writes.push({ kind: "delete", url }); return o.deleteAnswer ?? "deleted"; },
+  };
+  return { write, writes };
+}

@@ -1,5 +1,5 @@
 import type { BrokerMailAnswer, BrokerMailEnvelope, MailGatewayCycleStart, MailGatewayFolderRole } from "@silvicom/shared";
-import { answerFrom, classifyInbox, tokensIn } from "./classify.js";
+import { answerFrom, askKindsIn, classifyInbox, tokensIn } from "./classify.js";
 import type { Door } from "./door.js";
 import { acceptPagingLink, graphUrl, type FolderRef } from "./graphCalls.js";
 import { CursorReset, type GraphGet } from "./graphClient.js";
@@ -91,15 +91,18 @@ async function readFolder(mailbox: string, folder: Folder, d: MailboxDeps, out: 
         out.counts.external++;
         let bodyWasRead = false;
         let tokens = v.envelope.tokens;
+        let body: string | null = null;
         if (v.candidate) out.counts.candidates++;
         if (v.candidate && d.start.body_reading && v.graphId) {
           // Held in memory for the length of one function call, searched, and dropped (D-BMR6).
-          const body = await d.graph.body(graphUrl({ shape: "message_body", mailbox, messageId: v.graphId }, d.allowed, { bodyReading: true }));
+          body = await d.graph.body(graphUrl({ shape: "message_body", mailbox, messageId: v.graphId }, d.allowed, { bodyReading: true }));
           tokens = [...new Set([...tokens, ...tokensIn(body)])].slice(0, 50);
           bodyWasRead = true;
           out.counts.bodies_read++;
         }
-        envelopes.push({ ...v.envelope, tokens, body_was_read: bodyWasRead });
+        // Only a broker email has a question worth a draft; the word rules never run on anything else.
+        const ask_kinds = v.candidate ? askKindsIn(v.envelope.subject, body) : [];
+        envelopes.push({ ...v.envelope, tokens, body_was_read: bodyWasRead, ask_kinds });
       }
       await d.door.recordMessages(d.cycle, envelopes);
       if (answers.length) await d.door.markThreads(d.cycle, answers, []);

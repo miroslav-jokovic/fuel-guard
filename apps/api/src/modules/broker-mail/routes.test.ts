@@ -277,3 +277,17 @@ describe("GET /api/broker-mail/week — the measure week's report (§8)", () => 
     expect((await call("admin", "GET", "/api/broker-mail/week?from=2999-01-01")).status).toBe(400);
   });
 });
+
+describe("the email panel's routes (P4) sit behind the page's own gate", () => {
+  it("a dispatcher whose role does not have the screen yet is refused the panel and every act", async () => {
+    const MSG = "00000000-0000-4000-8000-0000000000d1";
+    expect((await call("dispatcher", "GET", `/api/broker-mail/messages/${MSG}`)).status).toBe(403);
+    expect((await call("dispatcher", "POST", `/api/broker-mail/messages/${MSG}/compose`, {})).status).toBe(403);
+    expect((await call("dispatcher", "POST", `/api/broker-mail/messages/${MSG}/close`, { how: "closed_by_phone" })).status).toBe(403);
+  });
+
+  it("an id that is not a record id is a 404, and an unknown close word a 400", async () => {
+    expect((await call("admin", "GET", "/api/broker-mail/messages/not-an-id")).status).toBe(404);
+    expect((await call("admin", "POST", "/api/broker-mail/messages/00000000-0000-4000-8000-0000000000d1/close", { how: "ignored" })).status).toBe(400);
+  });
+});

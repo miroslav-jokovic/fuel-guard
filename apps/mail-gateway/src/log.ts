@@ -21,6 +21,7 @@ export type LogEvent =
   | { event: "cycle_end"; counts: MailGatewayCycleCounts; ms: number }
   | { event: "mailbox_error"; class: ErrorClass }
   | { event: "cycle_error"; class: ErrorClass }
+  | { event: "draft_error"; class: ErrorClass }
   | { event: "canary"; result: "refused" | "opened" | "not_found" | "error" };
 
 export type Logger = (e: LogEvent) => void;

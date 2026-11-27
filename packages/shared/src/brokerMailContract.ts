@@ -141,6 +141,8 @@ export const brokerMailEnvelopeSchema = z.object({
   body_was_read: z.boolean(),
   /** Tokens to match, normalised by the gateway; the function matches and keeps only the ones that hit. */
   tokens: z.array(z.string().min(1).max(64)).max(BROKER_MAIL_MAX_TOKENS),
+  /** What the broker asks (0656): the gateway's word rules, never the words themselves. */
+  ask_kinds: z.array(z.enum(BROKER_MAIL_ASK_KINDS)).max(BROKER_MAIL_ASK_KINDS.length),
 });
 export type BrokerMailEnvelope = z.infer<typeof brokerMailEnvelopeSchema>;
 
@@ -187,6 +189,12 @@ export const mailGatewayCycleCountsSchema = z.object({
   bodies_read: z.number().int().nonnegative(),
   graph_throttled: z.number().int().nonnegative(),
   errors: z.number().int().nonnegative(),
+  // P4 (0656): what this run did with reply drafts. Kept with the rest by `mailgw_end_cycle`.
+  drafts_created: z.number().int().nonnegative(),
+  drafts_stood_back: z.number().int().nonnegative(),
+  drafts_refused: z.number().int().nonnegative(),
+  drafts_removed: z.number().int().nonnegative(),
+  drafts_failed: z.number().int().nonnegative(),
 });
 export type MailGatewayCycleCounts = z.infer<typeof mailGatewayCycleCountsSchema>;
 

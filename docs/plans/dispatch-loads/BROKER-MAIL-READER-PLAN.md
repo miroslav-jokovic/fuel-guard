@@ -605,6 +605,41 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
     ordered by a hash of their id). The verdicts are a person's and are not stored.
   - **Is the load the owner's?** Through mcleod's index (`readFleetDispatchers`); new boundary edge
     `broker-mail -> mcleod`.
+- 2026-11-27 — **P4 built: reply drafts** (owner: "build everything on our side while Simo finishes").
+  Two merges, because a column and its first reader ship apart: P4-a is migration 0656 alone, P4-b is
+  everything that uses it. Choices made at build:
+  - **Four call shapes, not D-BMR4's four.** (5) find the email by the `internetMessageId` 360 stored;
+    (6) list the Drafts folder's messages on that conversation, ids only; (7) `createReply` with our
+    text as its `comment`; (8) DELETE under `mailFolders/drafts`. There is no PATCH: createReply's
+    comment writes the text in the same call, above the broker's quoted message. Deleting under Drafts
+    means a draft the dispatcher already sent (moved to Sent Items) answers 404 and survives. The
+    writes live in `graphWrite.ts`, apart from the GET-only client. Each one re-checks its URL's shape,
+    so a GET URL can never be POSTed.
+  - **Reply, not reply-all.** The draft goes to the broker who wrote. The dispatcher adds anyone else
+    in Outlook before pressing Send.
+  - **Never step on a human:** any draft already in the email's conversation stands 360 back
+    (`person_draft_found`). An answer that arrives first drops the draft in `mailgw_claim_drafts`.
+    When the owner answers in their own words, 360's draft is deleted.
+  - **The facts are the board's own rows** (`readLoadStatusFacts` in livemap, the pattern
+    `readDriverDispatch` set; new edge `broker-mail -> livemap`). A broker is never told a different
+    ETA from the one on the dispatcher's screen. A load the board shows on no truck gives only what
+    the load row says.
+  - **The fact check** (`draftFactCheck`, shared) refuses a model draft with any number, or any
+    two-letter state code, the facts lack. Its stated limit: a city written out in words is not
+    checked, because no list of cities exists. The facts give only the next stop's city, and the
+    prompt forbids any other. An EDITED text is not checked: those are the dispatcher's words.
+  - **Owner-only acts.** Compose, "Put draft in Outlook", "Handled by phone" and "Not for us" belong to
+    the mailbox's owner alone. An admin who sees everyone's mail can read the panel but cannot write in
+    a dispatcher's name. Queue and close are audited; compose is on the cost ledger.
+  - **Model:** `BROKER_MAIL_DRAFT_MODEL`, default the catch-up's small model, as the plan ruled.
+  - **The wake-up invoke is NOT built.** It needs `lambda:InvokeFunction` for the app server's role.
+    D-BMR15 keeps that role away from the gateway, and the setup script's `--check` simulates exactly
+    that. A draft therefore waits for the next one-minute run, and the panel says "within a minute".
+    If the owner wants it instant, that is one IAM statement in `setup.sh` plus its `--check` case.
+  - **Until Simo gives the scope `Mail.ReadWrite`,** every draft ends `refused` and the panel says
+    Microsoft does not let 360 write drafts yet. Nothing is routed around it.
+  - **Not done:** the Dispatch board's envelope badge, the "draft ready" link in the dispatcher's text,
+    and P5's learning notes.
 
 ## Sources
 

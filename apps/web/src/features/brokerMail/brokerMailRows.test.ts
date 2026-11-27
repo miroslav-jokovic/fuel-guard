@@ -45,3 +45,10 @@ describe("the Broker mail page's row rules (BROKER-MAIL-READER-PLAN P2)", () => 
     expect(matchesBrokerMailSearch(row, "tql")).toBe(false);
   });
 });
+
+describe("answeredBy — a person's close (0656)", () => {
+  it("names the two closes the way the owner pressed them", () => {
+    expect(answeredBy({ threadState: "closed_by_phone" }, false)).toBe("Handled by phone");
+    expect(answeredBy({ threadState: "closed_not_for_us" }, true)).toBe("Not for us");
+  });
+});

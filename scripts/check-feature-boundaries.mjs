@@ -217,6 +217,10 @@ const API_ALLOW = new Set([
   // Broker mail's texts (P3) leave through messaging's one text road — `sendAlerts` and the drain with its door
   // hook — through its index only; messaging imports nothing of broker-mail's.
   "broker-mail -> messaging",
+  // A reply draft (P4, D-BMR11) states the load's truck, trailer, next stop, ETA and miles exactly as the
+  // Dispatch board shows them, so it asks livemap's `readLoadStatusFacts` — the board's own rows, never a
+  // second composition — through livemap's index. livemap imports nothing of broker-mail's.
+  "broker-mail -> livemap",
   // The warning desk's routes (WARNING-DESK-PLAN WD4). followups stores Samsara ids, never roster keys (0653 §1),
   // so drawing a line asks three owners through their index only:
   //   · samsara — the follow-up's warnings (`listSubjectWarnings`, the raw table is sealed to its collector), the

@@ -1,4 +1,4 @@
-import { brokerMailTokensIn, type BrokerMailAnswer, type BrokerMailEnvelope } from "@silvicom/shared";
+import { brokerMailTokensIn, type BrokerMailAnswer, type BrokerMailAskKind, type BrokerMailEnvelope } from "@silvicom/shared";
 
 /**
  * What one Graph message means for 360 — pure, so every rule here is a unit test (D-BMR6, D-BMR9).
@@ -29,12 +29,34 @@ export function isInternal(address: string | null, mailDomains: readonly string[
 /** The token rule, shared with the API's measure-week report (`brokerMailTokensIn`, D-BMR8). */
 export const tokensIn = brokerMailTokensIn;
 
+/**
+ * What a broker asks (D-BMR11, 0656), by fixed word rules — the closed list, never the words. Read on
+ * the subject, and on the body while it is held in memory when body reading is on. A plain "update?" or
+ * "status?" is an ETA question: that is what brokers chase, and the mockup's drafts answered it so. A
+ * broker email whose question no rule names is `other`: its draft gives the load's status and leaves a
+ * line for the dispatcher (ruled 2026-11-24). Pure, so every rule is a test (`classify.test.ts`).
+ */
+const ASK_RULES: readonly [BrokerMailAskKind, RegExp][] = [
+  ["tracking_link", /\b(macro\s?point|trucker\s?tools|four\s?kites|project\s?44|p44|tracking\s+(link|request|invite)|accept\s+(the\s+)?tracking)\b/i],
+  ["pod", /\b(pod|proof\s+of\s+delivery|signed\s+(bol|bill\s+of\s+lading|paperwork))\b/i],
+  ["appointment", /\b(appt|appointment|scheduled?\s+(time|delivery|pickup)|check[\s-]?in\s+time)\b/i],
+  ["delay_reason", /\b(late|delay(ed)?|running\s+behind|behind\s+schedule|why\s+(is|has)n?'?t?)\b/i],
+  ["location", /\b(where\s+is|where's|location|current\s+position|gps|whereabouts|ping)\b/i],
+  ["eta", /\b(eta|e\.t\.a|arriv(e|al|ing)|how\s+far|when\s+will|update|status|any\s+news)\b/i],
+];
+
+export function askKindsIn(...texts: (string | null)[]): BrokerMailAskKind[] {
+  const all = texts.filter((t): t is string => Boolean(t)).join("\n");
+  const out = ASK_RULES.filter(([, re]) => re.test(all)).map(([k]) => k);
+  return out.length ? out : ["other"];
+}
+
 export interface InboxVerdict {
   /** External: becomes a row. Internal: maybe a colleague's answer, never a row. */
   external: boolean;
   /** D-BMR6: external AND (a reference-shaped token in the subject OR a sender domain that matched before). */
   candidate: boolean;
-  envelope: Omit<BrokerMailEnvelope, "body_was_read" | "tokens"> & { tokens: string[] };
+  envelope: Omit<BrokerMailEnvelope, "body_was_read" | "tokens" | "ask_kinds"> & { tokens: string[] };
   /** Graph's own id, for shape 3 — kept only for this cycle. */
   graphId: string | null;
 }
