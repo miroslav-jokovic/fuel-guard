@@ -193,6 +193,12 @@ export const NOTIFICATION_CATEGORIES = [
    */
   "broker_mail_waiting",
   "broker_mail_backup",
+  /**
+   * Warning desk (WARNING-DESK-PLAN D-WD14): an URGENT follow-up opened — a crash, a red STOP lamp, a
+   * panic button. Only urgent ones ring the bell; the rest wait on Maintenance › Follow-ups. Mirrored in
+   * the CHECK (0654); nothing writes it until WD6-b.
+   */
+  "follow_up_urgent",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -257,6 +263,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   lumper_billing_gap: "Lumper not billed in full",
   broker_mail_waiting: "Broker email unanswered",
   broker_mail_backup: "Broker email unanswered (backup)",
+  follow_up_urgent: "Urgent follow-ups",
 };
 
 /**
