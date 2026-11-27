@@ -249,6 +249,10 @@ export const ROLE_LIST_WAIVERS = new Map<string, string>([
     "the driver app's own surface — a role test, not a section question. Every row it returns is scoped to the caller's own driver record",
   ],
   [
+    "modules/driver-app/routes/meLoads.ts [driver]",
+    "the driver app's load routes, moved out of me.ts at T1 N-9 with the same role test — a driver works only the loads the database says are theirs (driver_visible_tms_load_ids / driver_load_access, 0661), resolved from the caller's own driver record",
+  ],
+  [
     "modules/hazmat/routes/meHazmat.ts [driver]",
     "the driver's hazmat capture surface — same role test as the rest of the driver app, and module-gated beside it",
   ],

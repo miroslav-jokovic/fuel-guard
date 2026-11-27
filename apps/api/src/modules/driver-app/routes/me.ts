@@ -1,15 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  acceptLoadRequestSchema,
-  addStopPhotosRequestSchema,
-  acceptanceCopy,
   changeEquipmentRequestSchema,
-  completeStopRequestSchema,
-  declineLoadRequestSchema,
   endShiftRequestSchema,
   scoreLeaderboardEnabled,
-  startLoadRequestSchema,
   startShiftRequestSchema,
   toFeatureMap,
 } from "@silvicom/shared";
@@ -28,16 +22,7 @@ import {
   startShift,
   type DutyResult,
 } from "../dutySessions.js";
-import {
-  acceptLoad,
-  addStopPhotos,
-  completeStop,
-  declineLoad,
-  getDriverLoads,
-  getDriverType,
-  startLoad,
-  type LoadResult,
-} from "../../loads/index.js";
+import { meLoadsRouter } from "./meLoads.js";
 import { getDriverLeaderboard, getDriverScore } from "../../performance/index.js";
 import { getResolvedFeatures } from "../driverAppFeatures.js";
 import { requestClosure } from "../accountClosure.js";
@@ -55,12 +40,6 @@ export function meRouter(): Router {
 
   /** Every driver route below needs the caller's roster driver row; 404 when no login is linked (D3). */
   const driverOnly = [requireOrg, requireRole("driver")] as const;
-
-  /** Express 5 types a path param as `string | string[]`; every route here declares exactly one. */
-  const pathParam = (req: Request, name: string): string => {
-    const v = req.params[name];
-    return Array.isArray(v) ? (v[0] ?? "") : (v ?? "");
-  };
 
   // The signed-in driver's own context: their driver record + assigned vehicle(s). Bootstrap call.
   router.get(
@@ -283,132 +262,8 @@ export function meRouter(): Router {
     }),
   );
 
-  // ── Loads (Phase 3B — D45/D46/D47) ──────────────────────────────────────────
-  // A driver only ever sees loads dispatch approved AND released. That gate is the RLS predicate in
-  // 0087; it is repeated in the query here so the service-role read never becomes the one path that
-  // leaks an unapproved load. Every transition is its own endpoint — there is no `PATCH status`.
-
-  /** Everything the driver may see, stops + photos nested, plus the D46 acceptance copy. */
-  router.get(
-    "/loads",
-    ...driverOnly,
-    asyncHandler(async (req, res) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const orgId = req.auth!.orgId!;
-      const driverId = await resolveDriverId(admin, orgId, req.auth!.userId);
-      if (!driverId) {
-        res.status(404).json(apiError("no_driver_record", "No driver record is linked to this account"));
-        return;
-      }
-      const [loads, driverType] = await Promise.all([
-        getDriverLoads(admin, orgId, driverId),
-        getDriverType(admin, orgId, driverId),
-      ]);
-      res.json({ loads, driver_type: driverType, acceptance: acceptanceCopy(driverType) });
-    }),
-  );
-
-  /** Shared tail for the four load transitions: resolve the driver, run it, audit, return fresh state. */
-  const runLoadMutation = async (
-    req: Request,
-    res: Response,
-    action: string,
-    op: (admin: SupabaseClient, orgId: string, driverId: string) => Promise<LoadResult>,
-  ): Promise<void> => {
-    const admin = getSupabaseAdmin(getAppLocals(req).env);
-    const orgId = req.auth!.orgId!;
-    const driverId = await resolveDriverId(admin, orgId, req.auth!.userId);
-    if (!driverId) {
-      res.status(404).json(apiError("no_driver_record", "No driver record is linked to this account"));
-      return;
-    }
-
-    const result = await op(admin, orgId, driverId);
-    if (!result.ok) {
-      res
-        .status(result.status)
-        .json({ ...apiError(result.code, result.message), ...(result.detail ? { detail: result.detail } : {}) });
-      return;
-    }
-
-    await writeAudit(admin, {
-      orgId,
-      actorId: req.auth!.userId,
-      action,
-      entity: "loads",
-      entityId: pathParam(req, "id"),
-      meta: { driver_id: driverId },
-    });
-    res.json({ load: result.load });
-  };
-
-  /** Accept / acknowledge — stamps the duty session and flags any equipment mismatch (D47). */
-  router.post(
-    "/loads/:id/accept",
-    ...driverOnly,
-    validateBody(acceptLoadRequestSchema),
-    asyncHandler(async (req, res) => {
-      const body = res.locals.body as ReturnType<typeof acceptLoadRequestSchema.parse>;
-      await runLoadMutation(req, res, "load.accepted", (admin, orgId, driverId) =>
-        acceptLoad(admin, orgId, driverId, pathParam(req, "id"), req.auth!.userId, body),
-      );
-    }),
-  );
-
-  /** Decline — returns the load to dispatch for an owner-operator, raises an exception otherwise. */
-  router.post(
-    "/loads/:id/decline",
-    ...driverOnly,
-    validateBody(declineLoadRequestSchema),
-    asyncHandler(async (req, res) => {
-      const body = res.locals.body as ReturnType<typeof declineLoadRequestSchema.parse>;
-      await runLoadMutation(req, res, "load.declined", (admin, orgId, driverId) =>
-        declineLoad(admin, orgId, driverId, pathParam(req, "id"), req.auth!.userId, body),
-      );
-    }),
-  );
-
-  /** Explicit "rolling" — the first worked stop does this implicitly as well. */
-  router.post(
-    "/loads/:id/start",
-    ...driverOnly,
-    validateBody(startLoadRequestSchema),
-    asyncHandler(async (req, res) => {
-      const body = res.locals.body as ReturnType<typeof startLoadRequestSchema.parse>;
-      await runLoadMutation(req, res, "load.started", (admin, orgId, driverId) =>
-        startLoad(admin, orgId, driverId, pathParam(req, "id"), req.auth!.userId, body),
-      );
-    }),
-  );
-
-  /** Advance a stop + record its already-uploaded photos. Idempotent on the client photo UUIDs. */
-  router.post(
-    "/loads/:id/stops/:stopId",
-    ...driverOnly,
-    validateBody(completeStopRequestSchema),
-    asyncHandler(async (req, res) => {
-      const body = res.locals.body as ReturnType<typeof completeStopRequestSchema.parse>;
-      await runLoadMutation(req, res, "load.stop_recorded", (admin, orgId, driverId) =>
-        completeStop(admin, orgId, driverId, pathParam(req, "id"), pathParam(req, "stopId"), req.auth!.userId, body),
-      );
-    }),
-  );
-
-  /**
-   * A late photo for a stop the driver already finished (D-DV30, migration 0645). Photos only; the
-   * stop stays as it was finished. Idempotent on the client photo UUIDs, so an outbox replay is free.
-   */
-  router.post(
-    "/loads/:id/stops/:stopId/photos",
-    ...driverOnly,
-    validateBody(addStopPhotosRequestSchema),
-    asyncHandler(async (req, res) => {
-      const body = res.locals.body as ReturnType<typeof addStopPhotosRequestSchema.parse>;
-      await runLoadMutation(req, res, "load.stop_photos_added", (admin, orgId, driverId) =>
-        addStopPhotos(admin, orgId, driverId, pathParam(req, "id"), pathParam(req, "stopId"), req.auth!.userId, body),
-      );
-    }),
-  );
+  // ── Loads (Phase 3B — D45/D46/D47; T1 N-9) — the load routes live in meLoads.ts ──
+  router.use(meLoadsRouter());
 
   /**
    * Account closure — the driver asks for their company-issued login to be closed (P4.2, D-PR8).

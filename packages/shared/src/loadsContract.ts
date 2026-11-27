@@ -11,9 +11,11 @@ import { recordId } from "./recordId.js";
 
 // ── enums (mirror the CHECK constraints in 0085) ──────────────────────────────
 /**
- * Every state a load can hold, matching the `loads_status_check` constraint in 0087. The first three
- * are dispatch-only: a driver never receives them, because `loads_driver_scope` filters them out at
- * the database (D45). `DRIVER_VISIBLE_STATUSES` in `loadsLifecycle.ts` is that narrower set.
+ * Every state a load can hold, matching the `loads_status_check` constraint in 0087. On a MANUAL load
+ * the first three are dispatch-only: `loads_driver_scope` filters them out at the database (D45), and
+ * `DRIVER_VISIBLE_STATUSES` in `loadsLifecycle.ts` is that narrower set. A McLeod load the office SENT
+ * reaches its driver at pending_approval and approved too (0655, DF-1: "as soon as dispatch assigns
+ * it"); only `draft` — uncovered in McLeod, nobody holds it — never does (`TMS_DRIVER_VISIBLE_STATUSES`).
  */
 export const LOAD_STATUSES = [
   "draft",
@@ -116,6 +118,16 @@ export const loadStopSchema = z.object({
   skip_reason: z.string().nullable(),
   notes: z.string().nullable(),
   photos: z.array(loadStopPhotoSchema).default([]),
+  // ── McLeod's account of the stop (T1 N-9, columns since 0366 / 0660) ──
+  // Every one is `.nullable().default(null)` (cD DR-4): an app must still parse an older or rolled-back
+  // API that does not send them, and a manual load has none of them.
+  /** McLeod's own `stop.status`, verbatim (`A` / `D`); null on a manual load. */
+  external_status: z.string().nullable().default(null),
+  /** McLeod's recorded arrival and departure — McLeod's facts, shown beside the driver's, never merged. */
+  actual_arrival_at: z.string().nullable().default(null),
+  actual_departure_at: z.string().nullable().default(null),
+  /** When McLeod stopped listing the stop (0660, D-MK15). It stays on the load, behind the driver, labelled. */
+  mcleod_removed_at: z.string().nullable().default(null),
 });
 export type LoadStop = z.infer<typeof loadStopSchema>;
 
@@ -135,6 +147,19 @@ export const loadSchema = z.object({
   vehicle_unit: z.string().nullable().default(null),
   trailer_unit: z.string().nullable().default(null),
   stops: z.array(loadStopSchema).default([]),
+  /**
+   * Which system the load came from. A McLeod (`tms`) load is never offered or accepted: the office
+   * sends it, the driver says "Got it", and its status stays McLeod's (D-LMR2). Defaulted so an app
+   * reading an API from before T1 N-9 treats every load as the manual kind it was then.
+   */
+  source: z.enum(["manual", "tms"]).default("manual"),
+  /**
+   * When THIS driver said "Got it" to the load's CURRENT dispatch (0661 `driver_acknowledge_load`). Null
+   * on a manual load, and again after the office re-sends the load: a new dispatch is a new question.
+   */
+  acknowledged_at: z.string().nullable().default(null),
+  /** The customer the load is for — McLeod's, or the office's on a manual load. */
+  customer_name: z.string().nullable().default(null),
 });
 export type Load = z.infer<typeof loadSchema>;
 
@@ -146,12 +171,20 @@ export type MeLoadsResponse = z.infer<typeof meLoadsResponseSchema>;
 
 // ── write shapes ──────────────────────────────────────────────────────────────
 /**
+ * The outbox record id of a driver action (D-MK23). 0661 writes the action's event WITH this id, so a
+ * replay after a lost response finds its own event and does nothing. Optional until N-18 makes it
+ * required; "Got it" requires it already (`acknowledgeLoadRequestSchema`).
+ */
+export const actionId = recordId().optional();
+
+/**
  * `POST /api/me/loads/:id/accept` — no body needed; the driver comes from the JWT and the load from
  * the path. `accepted_at` is client-supplied ONLY as a record of when the driver actually tapped
  * (they may have been offline for hours); the server still stamps its own authoritative time.
  */
 export const acceptLoadRequestSchema = z.object({
   accepted_at: z.string().optional(),
+  action_id: actionId,
 });
 export type AcceptLoadRequest = z.infer<typeof acceptLoadRequestSchema>;
 
@@ -162,6 +195,8 @@ export const stopPhotoInputSchema = z.object({
   slot: z.string().min(1),
   storage_path: z.string().min(1),
   captured_at: z.string().optional(),
+  /** Hex SHA-256 of the uploaded bytes (0661 stores it), so the office can prove a file is the one taken. */
+  sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
 });
 export type StopPhotoInput = z.infer<typeof stopPhotoInputSchema>;
 
@@ -176,6 +211,14 @@ export const completeStopRequestSchema = z.object({
   photos: z.array(stopPhotoInputSchema).max(12).default([]),
   /** When the driver actually did this (may predate the sync by hours). */
   occurred_at: z.string().optional(),
+  action_id: actionId,
+  /**
+   * The Arrive this Complete carries (D-MK21): when the phone queued Arrive then Complete offline, the
+   * Complete brings the arrival with it, so a McLeod stop's arrival is the driver's tap and not a
+   * guess. `arrive_action_id` is that Arrive's own record id, so the Arrive arriving later replays.
+   */
+  arrived_at: z.string().optional(),
+  arrive_action_id: recordId().optional(),
 });
 export type CompleteStopRequest = z.infer<typeof completeStopRequestSchema>;
 
@@ -193,8 +236,38 @@ export const LATE_PHOTO_WINDOW_DAYS = 14;
 export const addStopPhotosRequestSchema = z.object({
   photos: z.array(stopPhotoInputSchema).min(1).max(12),
   occurred_at: z.string().optional(),
+  // Accepted for one outbox shape across every load action; the late-photo function's replay key is
+  // each photo's own id (0645, kept by 0661), so the API does not pass this on.
+  action_id: actionId,
 });
 export type AddStopPhotosRequest = z.infer<typeof addStopPhotosRequestSchema>;
+
+/**
+ * `POST /api/me/loads/:id/acknowledge` — "Got it" on a McLeod load the office sent (DF-2). The action
+ * id is REQUIRED here from the first build (0661 raises DL015 without it): "Got it" has no state to
+ * be idempotent on, so the outbox record id is the only thing that makes a replay a no-op.
+ */
+export const acknowledgeLoadRequestSchema = z.object({
+  action_id: recordId(),
+  occurred_at: z.string().optional(),
+});
+export type AcknowledgeLoadRequest = z.infer<typeof acknowledgeLoadRequestSchema>;
+
+/**
+ * What a load action did, as the database function answered it (0661). `late_evidence` is a 200, never
+ * a 4xx (D-MK20): the phone's photos were KEPT, against a load the office has since re-sent or a stop
+ * McLeod removed, and the outbox must mark the record done rather than park it in Needs attention.
+ */
+export const LOAD_ACTION_STATUSES = ["recorded", "replayed", "photos_added", "already_done", "late_evidence"] as const;
+export type LoadActionStatus = (typeof LOAD_ACTION_STATUSES)[number];
+
+/** The 200 answer of every `POST /api/me/loads/:id/...` action: the fresh load (null once it left you) and what happened. */
+export const loadActionResponseSchema = z.object({
+  load: loadSchema.nullable(),
+  // Defaulted: an API from before T1 N-9 answered `{ load }` alone, and then every 200 was a recording.
+  status: z.enum(LOAD_ACTION_STATUSES).default("recorded"),
+});
+export type LoadActionResponse = z.infer<typeof loadActionResponseSchema>;
 
 /**
  * True while a COMPLETED stop still takes a late photo: completed, and within the window. A skipped
@@ -210,36 +283,8 @@ export function latePhotoOpen(
 }
 
 // ── derivations shared by the app and the web dashboard ───────────────────────
-/** The three buckets the driver app groups loads into. */
-export function loadBucket(status: LoadStatus): "upcoming" | "current" | "previous" {
-  // Only `in_transit` is Current — a load the driver has accepted but not started working is still
-  // Upcoming. (This is the pairing that made `in_transit` unreachable before 0087 gave it a writer.)
-  if (status === "in_transit") return "current";
-  if (status === "delivered" || status === "canceled") return "previous";
-  // Everything else — including the dispatch-only states a driver never receives — is ahead of them.
-  return "upcoming";
-}
-
-/**
- * The next stop a driver should work — the lowest-seq stop that isn't finished.
- *
- * The DRIVER'S reading: only the driver app's own statuses count. The office's reading of where a
- * truck goes next also counts McLeod's departures (`nextStopOnRoute`, loadBoard.ts). They are kept
- * apart on purpose: whether McLeod's departure should finish a stop in the driver app is Q-LMR2
- * (LOADS-MIRROR-PLAN.md), still open, and deciding it here by sharing one function would rule it silently.
- */
-export function nextStop(load: Pick<Load, "stops">): LoadStop | null {
-  const open = load.stops.filter((s) => !DRIVER_DONE_STOP_STATUSES.includes(s.status)).sort((a, b) => a.seq - b.seq);
-  return open[0] ?? null;
-}
-
-/** Progress along the run, for the Home hero's stop counter and bar. */
-export function stopProgress(load: Pick<Load, "stops">): { current: number; total: number } {
-  const total = load.stops.length;
-  const done = load.stops.filter((s) => DRIVER_DONE_STOP_STATUSES.includes(s.status)).length;
-  // "Stop 2 of 3" means the one being worked on, so clamp to the total once everything is finished.
-  return { current: Math.min(done + 1, Math.max(total, 1)), total };
-}
+// `loadBucket`, `nextStop` and `stopProgress` live in `driverLoadPhase.ts` (T1 N-9): they read the
+// office's `isStopBehindTruck` (loadBoard.ts), which imports this file, so here they made a cycle.
 
 /** Which required slots still have no photo — drives the capture checklist. */
 export function missingPhotoSlots(stop: Pick<LoadStop, "required_photos" | "photos">): string[] {

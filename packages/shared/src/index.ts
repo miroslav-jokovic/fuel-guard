@@ -161,6 +161,7 @@ export * from "./loadChargesContract.js";
 export * from "./recordSearchContract.js";
 export * from "./loadsLifecycle.js";
 export * from "./loadBoard.js";
+export * from "./driverLoadPhase.js";
 export * from "./loadActivity.js";
 export * from "./dispatchContract.js";
 export * from "./homeTimeContract.js";

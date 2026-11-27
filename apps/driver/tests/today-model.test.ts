@@ -11,7 +11,7 @@ function stop(over: Partial<LoadStop> = {}): LoadStop {
     city: 'Effingham', state: 'IL', postal_code: '62401', lat: null, lon: null,
     appointment_start: '2026-09-07T14:00:00Z', appointment_end: '2026-09-07T16:00:00Z',
     status: 'pending', arrived_at: null, completed_at: null, required_photos: [],
-    skip_reason: null, notes: null, photos: [], ...over,
+    skip_reason: null, notes: null, photos: [], external_status: null, actual_arrival_at: null, actual_departure_at: null, mcleod_removed_at: null, ...over,
   };
 }
 
@@ -20,7 +20,7 @@ function load(over: Partial<Load> = {}): Load {
     id: '11111111-1111-4111-8111-111111111111', ref: 'LD-20481', status: 'in_transit',
     equipment: 'Dry van', commodity: null, hazmat: false, total_miles: 412, accepted_at: null,
     completed_at: null, notes: null, created_at: '2026-09-06T08:00:00Z', vehicle_unit: '4471',
-    trailer_unit: null, stops: [stop()], ...over,
+    trailer_unit: null, source: 'manual', acknowledged_at: null, customer_name: null, stops: [stop()], ...over,
   };
 }
 
