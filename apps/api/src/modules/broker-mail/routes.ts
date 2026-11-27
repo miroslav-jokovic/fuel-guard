@@ -3,6 +3,10 @@ import { z } from "zod";
 import {
   BROKER_MAIL_ALL_PERMISSION,
   BROKER_MAIL_TABS,
+  BROKER_MAIL_WEEK_DAYS,
+  isCalendarDay,
+  shiftDay,
+  todayInZone,
   brokerMailBackupsSchema,
   brokerMailLeftOutSchema,
   brokerMailSettingsSchema,
@@ -18,10 +22,11 @@ import { apiError, asyncHandler, validateBody } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
-import { holdsNamedPermission, listOfficeMembers } from "../org/index.js";
+import { holdsNamedPermission, listOfficeMembers, orgTimezone } from "../org/index.js";
 import { readBrokerMailList, readSettingsRow } from "./brokerMailList.js";
 import { replaceBackups } from "./brokerMailBackups.js";
 import { readBrokerMailAdmin, saveBrokerMailSettings, setLeftOut } from "./brokerMailAdmin.js";
+import { readBrokerMailWeek } from "./brokerMailWeek.js";
 
 /**
  * `/api/broker-mail` (BROKER-MAIL-READER-PLAN P2).
@@ -32,6 +37,8 @@ import { readBrokerMailAdmin, saveBrokerMailSettings, setLeftOut } from "./broke
  *  · `GET /admin`, `PUT /settings`, `PUT /mailboxes/:userId/left-out`, `PUT /mailboxes/:userId/backups` —
  *    Settings › Broker mail, an ADMIN screen (Q-BM9; Q-BM10: only an admin chooses backups). Each save
  *    is on the Audit page with its old and new value.
+ *  · `GET /week?from=YYYY-MM-DD` — the measure-only week's report (§8), on the same admin screen: seven
+ *    days from `from` in the company's zone; without `from`, the seven days ending today.
  */
 
 const listQuery = z.object({
@@ -76,6 +83,27 @@ export function brokerMailRouter(): Router {
     ...settingsGate,
     asyncHandler(async (req, res) => {
       res.json(await readBrokerMailAdmin(adminOf(req), getAppLocals(req).env, req.auth!.orgId!));
+    }),
+  );
+
+  router.get(
+    "/week",
+    ...settingsGate,
+    asyncHandler(async (req, res) => {
+      const orgId = req.auth!.orgId!;
+      const raw = typeof req.query.from === "string" ? req.query.from : undefined;
+      if (raw !== undefined && !isCalendarDay(raw)) {
+        res.status(400).json(apiError("bad_request", "The first day must be a date, YYYY-MM-DD."));
+        return;
+      }
+      const admin = adminOf(req);
+      const today = todayInZone(new Date(), await orgTimezone(admin, orgId));
+      const from = raw ?? shiftDay(today, -(BROKER_MAIL_WEEK_DAYS - 1));
+      if (from > today) {
+        res.status(400).json(apiError("bad_request", "The week cannot start in the future."));
+        return;
+      }
+      res.json(await readBrokerMailWeek(admin, orgId, from, shiftDay(from, BROKER_MAIL_WEEK_DAYS - 1)));
     }),
   );
 

@@ -16,6 +16,7 @@ import type { BadgeTone } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useBrokerMailAdminQuery, useSaveBrokerMailSettings, useSetLeftOut } from "@/features/brokerMail/useBrokerMail";
 import BrokerMailBackupsDrawer from "@/features/brokerMail/BrokerMailBackupsDrawer.vue";
+import BrokerMailWeekReport from "@/features/brokerMail/BrokerMailWeekReport.vue";
 
 /**
  * Settings › Broker mail (BROKER-MAIL-READER-PLAN P2; Q-BM9: the admin's alone).
@@ -26,6 +27,7 @@ import BrokerMailBackupsDrawer from "@/features/brokerMail/BrokerMailBackupsDraw
  *  · Mailboxes (D-BMR14) — every McLeod dispatcher, whether their Outlook is read, and if not why, in the
  *    database's own words (`mailgw_mailbox_roster`, 0649: the same rule the gateway reads by, so this
  *    list cannot disagree with it). "Leave out" is Q-BMR11's choice, audited.
+ *  · Measure week (§8) — the report the go / change / stop ruling is made on, once the reader runs.
  */
 const { data, isLoading, isError, error, isFetching, refetch } = useBrokerMailAdminQuery();
 const save = useSaveBrokerMailSettings();
@@ -224,6 +226,8 @@ const rowOf = (r: unknown) => r as BrokerMailMailbox;
             </template>
           </DataTable>
         </section>
+
+        <BrokerMailWeekReport v-if="gateway.configured" />
       </template>
     </QueryState>
     <BrokerMailBackupsDrawer :mailbox="editing" :members="data?.members ?? []" @close="editing = null" />

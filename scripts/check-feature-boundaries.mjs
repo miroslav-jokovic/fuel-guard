@@ -227,6 +227,11 @@ const API_ALLOW = new Set([
   "followups -> samsara",
   "followups -> roster",
   "followups -> org",
+  // The measure week's report (§8) asks one question per matched load — is its McLeod dispatcher the
+  // mailbox's owner? — and `tms_dispatchers` is mcleod's RAW table, so the answer comes through
+  // `readFleetDispatchers` in mcleod's index, the same door loads and medstop use. mcleod imports
+  // nothing of broker-mail's.
+  "broker-mail -> mcleod",
   // The driver's own account closure (P4.2) closes their login by calling the roster module's
   // `disableDriverLogin` through its index — the ban, the push-token revoke and the
   // `app_access_enabled` flag. A second ban path in driver-app would be two implementations of

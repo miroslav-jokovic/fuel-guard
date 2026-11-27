@@ -200,3 +200,25 @@ export function normaliseBrokerMailToken(raw: string): string | null {
   const t = raw.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
   return t.length >= 4 && t.length <= 64 ? t : null;
 }
+
+/**
+ * Reference-shaped tokens in free text: a run of letters, digits and `-#/` at least four long with a
+ * digit in it (load numbers, POs, pickup numbers — never an ordinary word). Normalised the way the
+ * database compares them, deduplicated, capped (D-BMR8).
+ *
+ * It lives here, not in the gateway, because two readers must apply the SAME rule: the gateway, to
+ * find tokens in a subject and (with body reading on) a body; and the API's measure-week report (§8),
+ * which re-reads a stored subject to tell "matched by the subject alone" from "matched only once the
+ * body was read". A copy in each would be two rules that drift.
+ */
+export function brokerMailTokensIn(text: string | null): string[] {
+  if (!text) return [];
+  const out = new Set<string>();
+  const add = (raw: string) => { const t = normaliseBrokerMailToken(raw); if (t && out.size < BROKER_MAIL_MAX_TOKENS) out.add(t); };
+  for (const m of text.matchAll(/[A-Za-z0-9][A-Za-z0-9#\-/]{3,}/g)) if (/\d/.test(m[0])) add(m[0]);
+  // "PO# 4411" reaches the run above as a bare "4411", but a load may store "PO-4411": a number
+  // after one of the reference words is offered in both forms. A form that matches nothing is
+  // counted as a miss, never kept (D-BMR7), so the extra token costs nothing.
+  for (const m of text.matchAll(/\b(PO|PU|BOL|PRO|REF|ORDER)\s*#?\s*[:-]?\s*([A-Za-z0-9-]*\d[A-Za-z0-9-]*)/gi)) add(`${m[1]}${m[2]}`);
+  return [...out];
+}
