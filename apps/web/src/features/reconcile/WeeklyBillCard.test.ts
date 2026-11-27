@@ -29,7 +29,11 @@ function mountCard(statementId: string | null) {
     report: {
       rows: [overLine],
       byProduct: [{ code: "020", units: 63779.19, amount: 321565.53, retail: 374638.66, savings: 52960.57, lines: 499 }],
-      totals: { units: 1, amount: 1, misc: 0, tax: 0, invoiceTotal: 341127.06, retailTotal: 394755.16, savings: 53628.1 },
+      byDay: [
+        { date: "2026-11-16", byProduct: [], units: 9876.5, amount: 48210.33, misc: 0, tax: 0, invoiceTotal: 48230.1, retailTotal: 55900.2, savings: 7670.1, avgCostPerGal: 4.8813 },
+        { date: "2026-11-17", byProduct: [], units: 0, amount: 0, misc: 9.99, tax: 0.6, invoiceTotal: 10.59, retailTotal: 10.59, savings: 0, avgCostPerGal: null },
+      ],
+      totals: { units: 67699.74, amount: 1, misc: 0, tax: 0, invoiceTotal: 341127.06, retailTotal: 394755.16, savings: 53628.1, avgCostPerGal: 5.0357 },
       overQuote: [overLine],
       quote: { tractorLines: 499, quoted: 349, unquoted: 150, floorUsd: 5 },
     },
@@ -65,5 +69,18 @@ describe("WeeklyBillCard", () => {
     expect(w.text()).toContain("The statement itself was not saved with this check");
     expect(w.text()).not.toContain("$0.00");
     expect(w.findComponent(ExportStub).exists()).toBe(false);
+  });
+
+  it("subtotals each day as the old statement did, with the week's average cost per gallon", () => {
+    const days = mountCard("s1").get('[data-test="weekly-bill-days"]');
+    const text = days.text();
+    for (const figure of ["11/16/2026", "9,876.5", "$48,210.33", "$4.8813", "$48,230.10", "$7,670.10", "11/17/2026", "$10.59"]) {
+      expect(text).toContain(figure);
+    }
+    // A day of in-store items only has no gallons, so no average: a dash, never $0.0000.
+    expect(text).not.toContain("$0.0000");
+    expect(text).toContain("—");
+    expect(text).toContain("Average cost per gallon for the week: $5.0357");
+    expect(text).toContain("67,699.7 gal");
   });
 });

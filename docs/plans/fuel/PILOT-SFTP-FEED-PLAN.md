@@ -74,6 +74,17 @@ or failed with the reason. Endpoint `GET /api/fueling/prices/sftp`, gated on `di
 - **Report email** to the owner, Vasko and Silvija in the old weekly statement layout. Daily or weekly is Q-PSF3;
   the owner asked to look at the SFTP data first.
 
+## 7a. Decisions
+
+- **D-PSF1 — an SFTP quote is stored under the same price source as an emailed one (`pilot_email`).** The
+  2026-11-27 audit flagged this label as misleading. It stays, for a reason measured in the schema: `fuel_prices`
+  is unique on `(org_id, source, station_id, product, observed_at)` (0245). A second label would store the same
+  Pilot quote twice per station per day whenever it arrives by both routes (Q-PSF2 keeps both for two weeks), and
+  every reader (the planner, Pilot quotes, the contract scan, the weekly bill's quote check) would then see two
+  rows. The label means "Pilot's daily contract quote", not the delivery route. Which route delivered a quote is
+  answered per item by `pilot_price_mails` and `pilot_sftp_files`. Renaming the label to say that is a four-step
+  rename and not worth it while nothing reads the label.
+
 ## 8. Open questions
 
 - **Q-PSF1 — where do Pilot transaction rows go?** They describe the same fills the EFS feed already writes to
@@ -89,5 +100,9 @@ or failed with the reason. Endpoint `GET /api/fueling/prices/sftp`, gated on `di
 
 ## Progress log
 
+
 - 2026-11-26 — S1 built: migration 0652, `sftpClient.ts`, `pilotSftpFeed.ts`, scheduler `pilot-sftp`, card. Pilot's
   root still had 0 files at 02:30 CT.
+- 2026-11-27 — Audit: production is on 1eaa647 (0652) and the feed is live with 0 files. Pilot's root still had 0
+  entries at 09:09 CT, and the Transaction file due 11/26 has not arrived. Asked the owner to check with Pilot.
+  D-PSF1 recorded.
