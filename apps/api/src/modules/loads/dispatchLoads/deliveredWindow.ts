@@ -28,6 +28,8 @@ export async function deliveredCandidateIds(
         .from("load_stops")
         .select("load_id")
         .eq("org_id", orgId)
+        // D-MK15 (T1 N-7): a stop McLeod stopped listing keeps its row (its photos cascade from it) — not a stop to compute on.
+        .is("mcleod_removed_at", null)
         .eq("kind", "dropoff")
         .gte(column, fromIso)
         .lt(column, beforeIso)
@@ -59,6 +61,7 @@ export async function loadsHistoryFrom(admin: SupabaseClient, orgId: string): Pr
       .from("load_stops")
       .select("actual_departure_at")
       .eq("org_id", orgId)
+      .is("mcleod_removed_at", null)
       .eq("kind", "dropoff")
       .not("actual_departure_at", "is", null)
       .order("actual_departure_at", { ascending: true })

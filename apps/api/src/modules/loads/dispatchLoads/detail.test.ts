@@ -30,13 +30,24 @@ interface StubOptions {
   photoQueryError?: boolean;
   /** Record the filters applied per table so a test can assert the org scope. */
   filters?: { table: string; column: string; value: unknown }[];
+  /** Record each `.select()` column list and each `.is()` filter, per table. */
+  selects?: { table: string; columns: string }[];
+  isFilters?: { table: string; column: string; value: unknown }[];
 }
 
 function stubAdmin(opts: StubOptions): SupabaseClient {
   const tables = opts.tables ?? {};
   const builder = (table: string, rows: unknown[], error: { message: string } | null): Record<string, unknown> => {
     const self: Record<string, unknown> = {};
-    for (const m of ["select", "order", "in", "is", "not", "limit", "or", "lte", "gte"]) self[m] = () => self;
+    for (const m of ["order", "in", "not", "limit", "or", "lte", "gte"]) self[m] = () => self;
+    self.select = (columns: string) => {
+      opts.selects?.push({ table, columns: String(columns) });
+      return self;
+    };
+    self.is = (column: string, value: unknown) => {
+      opts.isFilters?.push({ table, column, value });
+      return self;
+    };
     self.eq = (column: string, value: unknown) => {
       opts.filters?.push({ table, column, value });
       return self;
@@ -134,6 +145,23 @@ describe("getLoadDetail", () => {
     expect(detail.stops[0]!.photos).toHaveLength(1);
     expect(detail.stops[0]!.photos[0]!.slot).toBe("bol");
     expect(detail.stops[0]!.photos[0]!.url).toContain("https://signed.example/");
+  });
+
+  // D-MK15 (T1 N-7): a stop McLeod stopped listing keeps its row and its photos; the load page shows it,
+  // labelled "Removed in McLeod" from `mcleod_removed_at` (DispatchLoadDetailPage.vue).
+  it("a stop removed in McLeod is listed and labelled", async () => {
+    const selects: StubOptions["selects"] = [];
+    const isFilters: StubOptions["isFilters"] = [];
+    const removed = { ...stopRow, id: "00000000-0000-4000-8000-00000000b002", seq: 2, mcleod_removed_at: "2026-11-20T15:00:00.000Z" };
+    const detail = (await getLoadDetail(
+      stubAdmin({ tables: { ...fullTables, load_stops: [{ ...stopRow, mcleod_removed_at: null }, removed] }, selects, isFilters }),
+      ORG,
+      LOAD,
+    )) as { stops: { id: string; mcleod_removed_at: string | null; photos: unknown[] }[] };
+    expect(detail.stops.map((s) => [s.id, s.mcleod_removed_at])).toEqual([[STOP, null], [removed.id, removed.mcleod_removed_at]]);
+    expect(selects.find((q) => q.table === "load_stops")!.columns).toMatch(/\bmcleod_removed_at\b/);
+    // A display read: it must not filter the removed stop away as the compute reads do.
+    expect(isFilters.filter((f) => f.table === "load_stops" && f.column === "mcleod_removed_at")).toEqual([]);
   });
 
   it("flattens the joins and keeps every lifecycle timestamp the list type used to drop", async () => {

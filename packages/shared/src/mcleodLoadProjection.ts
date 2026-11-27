@@ -63,6 +63,12 @@ export interface RawDispatchStop {
 }
 
 export interface ProjectedStop {
+  /**
+   * McLeod's `stop.id`, trimmed — the stop's identity on our side from S0b on (T1 N-7, D-MK15):
+   * `apply_mcleod_load_stops` (0660) upserts on `(load_id, mcleod_stop_id)`, so `load_stops.id` survives
+   * every re-send and a driver's queued tap still names a row that exists. `seq` is only its position.
+   */
+  mcleod_stop_id: string;
   seq: number;
   kind: "pickup" | "dropoff";
   name: string;
@@ -259,6 +265,7 @@ export function projectMcleodMovement(m: RawDispatchMovement, stops: RawDispatch
       return;
     }
     projected.push({
+      mcleod_stop_id: s.stop_id.trim(),
       // McLeod's own sequence, so a stop keeps its number across syncs even when a VA sits between.
       seq: s.movement_sequence,
       kind,

@@ -16,8 +16,9 @@ import { requiredPhotosFor, type LoadStatus, type ProjectedLoad } from "@silvico
  * dispatch record, which is not on this table at all (D-LMR6).
  *
  * ── STOPS ────────────────────────────────────────────────────────────────────────────────────────
- * The pending stops of each load are replaced; a stop a driver has worked (arrived, completed,
- * skipped) is never deleted — the rule `writeStops` has always kept. McLeod's arrival goes in
+ * Since S0b (T1 N-7) a stop is matched by McLeod's stop id and updated in place by
+ * `apply_mcleod_load_stops`, so its `load_stops.id` lives as long as the McLeod stop does; one McLeod
+ * stopped listing is stamped `mcleod_removed_at`, never deleted. McLeod's arrival goes in
  * `actual_arrival_at`, beside the driver's `arrived_at`, never into it (Q-LMR2 is open).
  *
  * ── EVENTS ───────────────────────────────────────────────────────────────────────────────────────
@@ -40,6 +41,8 @@ export interface MirrorWriteResult {
   stops: number;
   /** Loads written with a price to `load_charges` (0639) this sync. */
   charges: number;
+  /** Loads whose stops `apply_mcleod_load_stops` refused, with its reason (0660; T1 N-7). Not thrown. */
+  stopsRefused: { loadId: string; reason: string }[];
 }
 
 const READ_CHUNK = 200;
@@ -101,33 +104,57 @@ async function readExisting(
   return out;
 }
 
-async function writeStops(admin: SupabaseClient, orgId: string, byLoad: Map<string, MirroredLoad>): Promise<number> {
-  const loadIds = [...byLoad.keys()];
-  for (let i = 0; i < loadIds.length; i += READ_CHUNK) {
-    const { error } = await admin
-      .from("load_stops")
-      .delete()
-      .eq("org_id", orgId)
-      .in("load_id", loadIds.slice(i, i + READ_CHUNK))
-      .eq("status", "pending");
-    if (error) throw new Error(`[mcleod-mirror] could not clear pending stops: ${error.message}`);
-  }
-  const rows = [...byLoad].flatMap(([loadId, l]) =>
-    l.stops.map((s) => ({
-      org_id: orgId,
-      load_id: loadId,
+/** Loads per `apply_mcleod_load_stops` call. A load's stops always travel together (they are one item). */
+const STOP_RPC_CHUNK = 50;
+
+interface StopApplyResult {
+  written: string[];
+  refused: { load_id: string; reason: string }[];
+}
+
+/**
+ * Every McLeod stop goes through `apply_mcleod_load_stops` (0660; T1 N-7 S0b, D-MK15, D-MK16), keyed on
+ * McLeod's stop id. Until S0b this deleted each load's pending stops and re-inserted them on
+ * `(load_id, seq)` every 60-second sweep, so `load_stops.id` churned and a phone that queued "arrived at
+ * stop <id>" offline came back to an id that no longer existed (Spec A C1/C2); and because it keyed on
+ * `seq`, a worked stop McLeod re-sequenced took its neighbour's address. The function updates in place,
+ * never touches the driver's columns (status, arrived_at, completed_at, skip_reason), and stamps
+ * `mcleod_removed_at` on a stop McLeod stopped listing instead of deleting it, since the stop's photos
+ * cascade from it.
+ *
+ * One load that the function refuses (another org's id, a tail over 200, a band left non-empty, a stop
+ * with no McLeod id) is RETURNED, not raised — the rest of the batch is written and the sweep goes on. A
+ * thrown RPC error still throws: that is the batch's failure (or a 40001/40P01 the function re-raises),
+ * and the connector re-sends the batch next cycle.
+ */
+async function writeStops(
+  admin: SupabaseClient,
+  orgId: string,
+  byLoad: Map<string, MirroredLoad>,
+): Promise<{ stops: number; refused: { loadId: string; reason: string }[] }> {
+  const items = [...byLoad].map(([loadId, l]) => ({
+    load_id: loadId,
+    stops: l.stops.map((s) => ({
       ...s,
       // McLeod knows no carrier photo policy, and nothing in the office sets it on a McLeod load since LR6
       // removed editing, so every sync writes the carrier's one rule (`REQUIRED_PHOTOS_BY_STOP_KIND` in
-      // `@silvicom/shared`) on the stops it (re)writes.
+      // `@silvicom/shared`) on the stops it writes.
       required_photos: requiredPhotosFor(s.kind),
     })),
-  );
-  for (let i = 0; i < rows.length; i += 500) {
-    const { error } = await admin.from("load_stops").upsert(rows.slice(i, i + 500), { onConflict: "load_id,seq" });
+  }));
+  const refused: { loadId: string; reason: string }[] = [];
+  const written = new Set<string>();
+  for (let i = 0; i < items.length; i += STOP_RPC_CHUNK) {
+    const { data, error } = await admin.rpc("apply_mcleod_load_stops", { p_org: orgId, p_loads: items.slice(i, i + STOP_RPC_CHUNK) });
     if (error) throw new Error(`[mcleod-mirror] stops not recorded: ${error.message}`);
+    const out = (data ?? { written: [], refused: [] }) as StopApplyResult;
+    for (const id of out.written ?? []) written.add(id);
+    for (const r of out.refused ?? []) refused.push({ loadId: r.load_id, reason: r.reason });
   }
-  return rows.length;
+  // Counts only: a refusal's message can carry stop data, and the load_events row already names the load.
+  if (refused.length) console.warn(`[mcleod-mirror] stops refused: ${refused.length}`);
+  const stops = items.reduce((n, it) => n + (written.has(it.load_id) ? it.stops.length : 0), 0);
+  return { stops, refused };
 }
 
 /**
@@ -205,7 +232,7 @@ export async function applyMirroredLoads(
   provider: string,
   loads: MirroredLoad[],
 ): Promise<MirrorWriteResult> {
-  if (!loads.length) return { created: 0, updated: 0, statusChanged: 0, stops: 0, charges: 0 };
+  if (!loads.length) return { created: 0, updated: 0, statusChanged: 0, stops: 0, charges: 0, stopsRefused: [] };
   const syncedAt = new Date().toISOString();
   const existing = await readExisting(admin, orgId, provider, loads.map((l) => l.external_id));
   const events: Record<string, unknown>[] = [];
@@ -252,12 +279,12 @@ export async function applyMirroredLoads(
       to_status: l.status, payload: { source: "mcleod", mcleod_status: l.external_status } });
   }
 
-  const stops = await writeStops(admin, orgId, byLoad);
+  const { stops, refused: stopsRefused } = await writeStops(admin, orgId, byLoad);
   const charges = await writeCharges(admin, orgId, byLoad, syncedAt);
   if (events.length) {
     // Best-effort, like the ingest's: a lost timeline row must not fail the sync that the load itself survived.
     const { error } = await admin.from("load_events").insert(events);
     if (error) console.error(`[mcleod-mirror] ${events.length} load event(s) not recorded: ${error.message}`);
   }
-  return { created: creates.length, updated: updates.length, statusChanged, stops, charges };
+  return { created: creates.length, updated: updates.length, statusChanged, stops, charges, stopsRefused };
 }

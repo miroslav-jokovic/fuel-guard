@@ -63,6 +63,23 @@ describe("listAssignmentHistory", () => {
     expectOrgScoped(rec, ORG);
   });
 
+  it("a drop removed in McLeod does not end the load's time on the truck", async () => {
+    // D-MK15 (T1 N-7): the removed drop's departure (before the segment) is ignored, so the load is still
+    // on the truck through the 30 h → 20 h segment and is named against it.
+    const l = load("291013", hoursAgo(40), null);
+    l.stops.push({ seq: 3, kind: "dropoff", actual_departure_at: hoursAgo(35), completed_at: null, mcleod_removed_at: hoursAgo(34) } as never);
+    const rec = recorder({
+      segments: [segment()],
+      drivers: [{ id: DRIVER, full_name: "Pete Ross", samsara_driver_id: "sd-pete" }],
+      vehicles: [{ id: TRUCK, unit_number: "773", samsara_vehicle_id: "sv-773" }],
+      loads: [l],
+    });
+    const { rows } = await listAssignmentHistory(rec.client, ORG, QUERY, NOW);
+    expect(rows[0]!.load_refs).toEqual(["291013"]);
+    const select = rec.forTable("loads").flatMap((q) => q.ops).find((o) => o.method === "select")!;
+    expect(String(select.args[0])).toMatch(/load_stops\([^)]*\bmcleod_removed_at\b/);
+  });
+
   it("tells a segment still held from one that ended at a time Samsara no longer reports", async () => {
     const rec = recorder({
       segments: [

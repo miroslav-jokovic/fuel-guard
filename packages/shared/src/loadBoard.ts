@@ -180,6 +180,8 @@ export interface RouteStop {
   status: string | null;
   /** McLeod's own `stop.status`, verbatim (`A` / `D`); null on a load McLeod never sent. */
   external_status?: string | null;
+  /** When McLeod stopped listing the stop (0660, D-MK15); absent on a read that already skips removed stops. */
+  mcleod_removed_at?: string | null;
 }
 
 /**
@@ -190,6 +192,9 @@ export interface RouteStop {
  * made the map name the pickup McLeod had departed as the next stop, on every McLeod truck.
  */
 export function isStopBehindTruck(stop: RouteStop): boolean {
+  // A stop McLeod removed is nowhere the truck is going (D-MK15, T1 N-7). Every compute read already filters
+  // it out; this keeps one that reaches here anyway from ever being called "next".
+  if (stop.mcleod_removed_at) return true;
   return DRIVER_DONE_STOP_STATUSES.includes(stop.status as StopStatus) || mcleodStopDeparted(stop.external_status);
 }
 

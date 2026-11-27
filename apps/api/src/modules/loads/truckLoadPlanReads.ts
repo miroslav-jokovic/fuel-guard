@@ -106,6 +106,8 @@ export async function readTruckLoadPlans(
           "external_status, actual_arrival_at, lat, lon",
       )
       .eq("org_id", orgId)
+      // D-MK15 (T1 N-7): a stop McLeod stopped listing keeps its row (its photos cascade from it) — not a stop to compute on.
+      .is("mcleod_removed_at", null)
       .in("load_id", ids)
       .order("seq", { ascending: true })
       .limit(STOP_CAP);

@@ -110,6 +110,8 @@ export async function readLiveLoadContext(
         "load_id, seq, kind, name, location_name, address_line, city, state, postal_code, appointment_start, appointment_end, status, external_status",
       )
       .eq("org_id", orgId)
+      // D-MK15 (T1 N-7): a stop McLeod stopped listing keeps its row (its photos cascade from it) — not a stop to compute on.
+      .is("mcleod_removed_at", null)
       .in("load_id", ids)
       .order("seq", { ascending: true })
       .limit(STOP_CAP);
@@ -229,6 +231,7 @@ export async function readLoadForRoute(admin: SupabaseClient, orgId: string, loa
     .from("load_stops")
     .select("seq, kind, name, location_name, lat, lon, status, external_status, actual_departure_at, completed_at")
     .eq("org_id", orgId)
+    .is("mcleod_removed_at", null)
     .eq("load_id", loadId)
     .order("seq", { ascending: true });
   if (sErr) throw new Error(sErr.message);

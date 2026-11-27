@@ -507,7 +507,6 @@
     "apps/api/src/modules/loads/etaPredictions.ts"
   ],
   "load_stops": [
-    "apps/api/src/modules/loads/mirrorLoads.ts",
     "apps/api/src/modules/mcleod/tmsLoadIngestWriters.ts"
   ],
   "loads": [
