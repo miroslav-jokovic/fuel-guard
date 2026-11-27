@@ -110,6 +110,12 @@ Migration numbers are never fixed here (D-MK18): each is the next free number at
 
 Load-rates R4 (PR #2602) is not in this table: it ships alone under its own plan (D-MK38).
 
+T1 (written 2026-11-27, `v2/T1-driver-and-data.md` §1) adds two rows and fixes one dependency: **N-19** (Send notifies
+the driver's and co-driver's app, a `load_dispatched` notification; after N-9) and **N-18** (`action_id` required,
+before any store tag; D-MK23's install count recorded there); and **N-8 needs PR #2684 (`0655`) merged first** — T1
+builds the action door on 0655's visibility rule instead of spec A's `driver_visible_load_ids`. S-2..S-4 are held by
+the owner's D-DA12 (driver builds stay local until the app is finished).
+
 ## 3. Outside answers (register §6, with the build per outcome in the track documents)
 
 | What we wait on | Who answers | What it blocks | Silence (10 business days, then escalate) | Builds per outcome |
