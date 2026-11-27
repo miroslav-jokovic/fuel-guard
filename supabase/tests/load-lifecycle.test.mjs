@@ -9,7 +9,7 @@
 // Requires: pnpm add -w @electric-sql/pglite
 
 import { PGlite } from "@electric-sql/pglite";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -342,6 +342,55 @@ ok("...and nothing is attributed after it",
   (await covering(at(19))) === undefined);
 ok("a segment that ended BEFORE the shift keeps its own end",
   (await one(`select to_at from driver_equipment_timeline where segment_id = $1`, [SEG1])).to_at.toISOString().startsWith('2026-08-08T12:00'));
+
+// ── a McLeod load at the action door (0661, M-A; T1 N-8) ─────────────────────────────────────
+//
+// The curated list above stops long before McLeod loads, dispatches and co-drivers exist, so these two
+// rows run on a second database with EVERY migration applied (late-stop-photo.test.mjs's harness). The
+// full McLeod matrix is driver-load-actions.test.mjs; these pin the one change to assert_driver_load.
+{
+  const { pg_trgm } = await import("@electric-sql/pglite/contrib/pg_trgm");
+  const full = new PGlite({ extensions: { pg_trgm } });
+  const q1 = async (q, p = []) => (await full.query(q, p)).rows[0];
+  await full.exec(`
+    create schema if not exists auth;
+    create table auth.users (id uuid primary key default gen_random_uuid(), email text);
+    create schema if not exists storage;
+    create table storage.buckets (id text primary key, name text, public boolean default false,
+      file_size_limit bigint, allowed_mime_types text[], owner uuid,
+      created_at timestamptz default now(), updated_at timestamptz default now());
+    create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text,
+      name text, owner uuid, owner_id text, created_at timestamptz default now());
+    alter table storage.objects enable row level security;
+    create or replace function storage.foldername(name text) returns text[] language sql immutable
+    as $fn$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1]; $fn$;
+    create schema supabase_migrations;
+    create table supabase_migrations.schema_migrations (version text primary key, name text, statements text[]);
+    create role supabase_auth_admin nologin; create role authenticated nologin;
+    create role anon nologin; create role service_role nologin bypassrls;
+  `);
+  for (const f of readdirSync(join(SUPA, "migrations")).filter((x) => x.endsWith(".sql")).sort())
+    await full.exec(read(join("migrations", f)).replace(/create extension if not exists pgcrypto;?/gi, ""));
+  const org = (await q1(`insert into organizations (id,name) values (gen_random_uuid(),'T') returning id`)).id;
+  const seat = (await q1(`insert into drivers (org_id,full_name) values ($1,'McLeod Driver') returning id`, [org])).id;
+  const co = (await q1(`insert into drivers (org_id,full_name) values ($1,'McLeod Co-Driver') returning id`, [org])).id;
+  const sender = (await q1(`insert into auth.users (email) values ('office@example.com') returning id`)).id;
+  const tms = async (ref) => (await q1(
+    `insert into loads (org_id, ref, status, source, provider, external_id, driver_id, co_driver_id)
+     values ($1,$2,'in_transit','tms','mcleod',$2,$3,$4) returning id`, [org, ref, seat, co])).id;
+  const assert = (drv, load) => full.query(`select public.assert_driver_load($1,$2,$3) s`, [org, drv, load])
+    .then((r) => r.rows[0].s, (e) => ({ code: e.code }));
+
+  const UNSENT = await tms("TMS:UNSENT");
+  ok("assert_driver_load refuses an undispatched McLeod load (DL002)", (await assert(seat, UNSENT))?.code === "DL002");
+
+  const TEAM = await tms("TMS:TEAM");
+  await full.query(
+    `insert into load_dispatches (org_id, load_id, driver_id, sent_by, channel, outcome, outcome_reason, body)
+     values ($1,$2,$3,$4,'app','sent',null,'Load')`, [org, TEAM, seat, sender]);
+  ok("the co-driver may act on a team load", (await assert(co, TEAM)) === "in_transit");
+  await full.close();
+}
 
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

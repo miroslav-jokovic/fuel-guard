@@ -48,6 +48,7 @@ const sha = (s) => createHash("sha256").update(s).digest("hex");
 const RLS_MATRIX = ["node", ["supabase/tests/rls.test.mjs"]];
 const HAZMAT_MATRIX = ["node", ["supabase/tests/hazmat_rls.test.mjs"]];
 const TRIGGERS_MATRIX = ["node", ["supabase/tests/efs-card-control-triggers.test.mjs"]];
+const DRIVER_LOAD_ACTIONS_MATRIX = ["node", ["supabase/tests/driver-load-actions.test.mjs"]];
 const apiTest = (f) => ["pnpm", ["--filter", "@silvicom/api", "exec", "vitest", "run", f]];
 const sharedTest = (f) => ["pnpm", ["--filter", "@silvicom/shared", "exec", "vitest", "run", f]];
 const webTest = (f) => ["pnpm", ["--filter", "@silvicom/web", "exec", "vitest", "run", f]];
@@ -408,6 +409,31 @@ const MUTATIONS = [
     find: "      if (!vehicle) {\n        res.status(404).json(apiError(\n          \"unknown_unit\",",
     replace: "      if (false) {\n        res.status(404).json(apiError(\n          \"unknown_unit\",",
     detect: apiTest("src/modules/efs/routes/unitMileageRoute.test.ts"),
+  },
+  // ── the driver load action door (0661, M-A; T1 N-8) ────────────────────────────────────────
+  {
+    id: "driver-decline-replay-unchecked",
+    why: "A replayed offline decline writes a second declined event, and an owner-operator's replay answers DL002.",
+    file: "supabase/migrations/0661_driver_loads_mcleod_actions.sql",
+    find: "  if public.load_action_seen(p_action_id, p_org, p_load, array['declined']) then\n    return;\n  end if;\n",
+    replace: "",
+    detect: DRIVER_LOAD_ACTIONS_MATRIX,
+  },
+  {
+    id: "driver-action-id-kind-unchecked",
+    why: "An outbox id already used for another kind of action reads as a replay, so the second action is silently dropped.",
+    file: "supabase/migrations/0661_driver_loads_mcleod_actions.sql",
+    find: "       and e.kind = any(p_kinds)\n",
+    replace: "",
+    detect: DRIVER_LOAD_ACTIONS_MATRIX,
+  },
+  {
+    id: "driver-access-seat-without-dispatch",
+    why: "A McLeod load the office never sent becomes workable by its McLeod seats — spec A's hole, reopened.",
+    file: "supabase/migrations/0661_driver_loads_mcleod_actions.sql",
+    find: "  if p_load in (select public.driver_visible_tms_load_ids(p_org, p_driver))\n",
+    replace: "  if (p_load in (select public.driver_visible_tms_load_ids(p_org, p_driver)) or p_driver in (v_driver, v_co))\n",
+    detect: DRIVER_LOAD_ACTIONS_MATRIX,
   },
   {
     id: "driver-tests-uncollected",

@@ -177,6 +177,10 @@ export const LOAD_EVENT_KINDS = [
   // McLeod stopped listing (kept, stamped, moved to the tail) and a load whose stops could not be
   // applied. Named here in the merge that adds them to the CHECK, 0645's rule, ahead of N-7's writer.
   "stop_removed_in_mcleod", "stop_mirror_refused",
+  // N-8 (M-A) — see the driver_loads_mcleod_actions migration. A driver's "Got it" on the load the office
+  // sent, written only by `driver_acknowledge_load`, one per dispatch per driver. Named here in the merge
+  // that adds it to the CHECK, 0645's rule, ahead of N-9's first caller.
+  "acknowledged",
 ] as const;
 export type LoadEventKind = (typeof LOAD_EVENT_KINDS)[number];
 
@@ -216,4 +220,5 @@ export const LOAD_EVENT_LABELS: Record<LoadEventKind, string> = {
   stop_photo_added: "Late photo received",
   stop_removed_in_mcleod: "Stop removed in McLeod",
   stop_mirror_refused: "McLeod stops not applied",
+  acknowledged: "Seen by driver",
 };
