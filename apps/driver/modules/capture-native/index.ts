@@ -170,6 +170,16 @@ export interface CaptureNativeModule {
    */
   processPages?(uris: string[], options: Pick<NativeScanOptions, "enhanceLongEdgePx" | "enhanceQuality">): Promise<NativeScanResult>;
   cancel(): void;
+  /**
+   * Android, debuggable builds only (2026-11-27): run the shipped live-edge detector on one image file
+   * and return its corners in that image's pixels — the on-device model check. Absent on iOS.
+   */
+  detectImageForTest?(path: string): Promise<{
+    width: number;
+    height: number;
+    confidence: number | null;
+    corners: [number, number][] | null;
+  }>;
 }
 
 let cached: CaptureNativeModule | null = null;

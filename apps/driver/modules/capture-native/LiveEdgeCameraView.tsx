@@ -8,8 +8,9 @@ import { requireNativeViewManager } from 'expo-modules-core';
  * the view also decides when to take the photo (the capture gate, D-LED6) and reports why it is waiting.
  * Detection events arrive at most ten times a second, plus one on every gate transition.
  *
- * iOS only until step L4: Android's module declares no view, so asking for one there would throw.
- * `getLiveEdgeCameraView()` answers null on Android, and on a binary built before this view existed.
+ * Both phones since step L4 (2026-11-25): iOS's `LiveEdgeCameraView.swift` and Android's
+ * `LiveEdgeCameraView.kt` take the same props and send the same events. `getLiveEdgeCameraView()`
+ * answers null on a binary built before the view existed (iOS runtime < 1.5.0, Android < 1.6.0).
  */
 
 export interface LiveEdgeDetection {
@@ -82,7 +83,7 @@ let cached: ComponentType<LiveEdgeCameraViewProps> | null | undefined;
 
 export function getLiveEdgeCameraView(): ComponentType<LiveEdgeCameraViewProps> | null {
   if (cached !== undefined) return cached;
-  if (Platform.OS !== 'ios') return (cached = null);
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') return (cached = null);
   try {
     cached = requireNativeViewManager<LiveEdgeCameraViewProps>('CaptureNative');
   } catch {

@@ -156,6 +156,16 @@ describe("supportFromNative", () => {
     );
   });
 
+  it("lets our own camera scan where the OS scanner is missing (gap G5)", () => {
+    // A phone without Google Play services: ML Kit's scanner cannot exist, our camera can.
+    const noPlay = { camera: true, docScanner: false, ocr: true, scannerModule: "unavailable" as const };
+    expect(supportFromNative(noPlay).supported).toBe(false);
+    expect(supportFromNative(noPlay, true).supported).toBe(true);
+    expect(supportFromNative(noPlay, true).reason).toBeUndefined();
+    // No camera is no scanner, whichever source.
+    expect(supportFromNative({ camera: false, docScanner: true, ocr: true }, true).supported).toBe(false);
+  });
+
   it("does not guess when the module state is unknown", () => {
     // iOS never reports `scannerModule` (there is no Play-Services module to report), and Android
     // omits it when it cannot tell. Neither is evidence of an absent module.

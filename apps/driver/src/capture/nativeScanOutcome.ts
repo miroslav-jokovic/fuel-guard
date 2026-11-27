@@ -113,9 +113,17 @@ export function deviceClassFromNative(s: Pick<NativeSupport, "deviceModel" | "os
   return omitUndefinedStrings({ deviceModel: s.deviceModel, osVersion: s.osVersion });
 }
 
-/** The engine's SupportResult from a native probe, carrying WHY when it cannot scan. */
-export function supportFromNative(s: NativeSupport): SupportResult {
-  const supported = s.camera && s.docScanner;
+/**
+ * The engine's SupportResult from a native probe, carrying WHY when it cannot scan.
+ *
+ * `ownCamera`: the pages come from OUR camera (D-LED6), not the OS scanner, so the OS scanner's absence
+ * is not a reason to refuse. That is the whole point of gap G5 (LIVE-EDGE-DETECTION-PLAN.md §1): ML
+ * Kit's scanner is a Play-services module, and a phone without Play services — de-Googled, or
+ * enterprise-locked — reports `docScanner: false` while our camera works on it. Without this, the engine
+ * would fall back to the plain camera on exactly the phones our scanner was built for.
+ */
+export function supportFromNative(s: NativeSupport, ownCamera = false): SupportResult {
+  const supported = s.camera && (ownCamera || s.docScanner);
   return {
     supported,
     camera: s.camera,

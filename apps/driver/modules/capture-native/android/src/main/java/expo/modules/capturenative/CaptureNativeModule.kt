@@ -2,6 +2,7 @@ package expo.modules.capturenative
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import androidx.activity.result.IntentSenderRequest
@@ -134,7 +135,7 @@ class CaptureNativeModule : Module() {
           val pages = withContext(Dispatchers.IO) {
             GmsDocumentScanningResult.fromActivityResultIntent(result.data)
               ?.pages.orEmpty()
-              .mapNotNull { page -> processPage(page.imageUri, longEdge, quality) }
+              .mapNotNull { page -> processPage(page.imageUri, longEdge, quality, osEnhanced = true) }
           }
           mapOf("pages" to pages, "cancelled" to false)
         }
@@ -178,6 +179,59 @@ class CaptureNativeModule : Module() {
       }
     }
 
+    /**
+     * The pages OUR camera took (`LiveEdgeCameraView`, D-LED6), through the SAME processing ML Kit's
+     * pages go through — the original kept byte for byte, the model-facing derivative, its hash and the
+     * on-device OCR — so everything above this bridge treats them exactly as it treats an OS scan. One
+     * scanner for every document (owner, 2026-11-23); one pipeline behind it. iOS's `processPages`.
+     *
+     * `osEnhanced` is false: these pages are straightened, not colour-enhanced by the OS, and the
+     * provenance says so rather than inheriting ML Kit's `true`. A page we cannot read REJECTS: we wrote
+     * it moments ago, so failing to read it is the unforeseen (D-SCAN7), not an outcome about the device.
+     */
+    // The on-device half of the model check (LIVE-EDGE-DETECTION-PLAN §8 "Open check", 2026-11-27): the
+    // shipped path — JPEG → RGBA → `DocAlignerDecode.input` → LiteRT 1.4.2 → decode — on a file, so a
+    // dev route can hold Android's corners to the ONNX fixture (`fixtures/edges/docaligner-decode.json`).
+    // The model was verified only on the Python runtime; this is what proves the phone's runtime agrees.
+    // Debuggable builds only: a release binary answers DEBUG_ONLY and opens no file.
+    AsyncFunction("detectImageForTest") Coroutine { path: String ->
+      val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      if ((ctx.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
+        throw CodedScannerException("DEBUG_ONLY", "detectImageForTest runs only in a debuggable build")
+      }
+      withContext(Dispatchers.Default) {
+        val bmp = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
+          ?: throw CodedScannerException("PROVIDER_ERROR", "could not decode $path")
+        val rgba = java.nio.ByteBuffer.allocateDirect(bmp.byteCount)
+        bmp.copyPixelsToBuffer(rgba)
+        val detector = DocAlignerDetector(ctx)
+        try {
+          val r = detector.detect(rgba, bmp.width, bmp.height, bmp.rowBytes, 0)
+          mapOf(
+            "width" to bmp.width,
+            "height" to bmp.height,
+            "confidence" to (r?.confidence?.toDouble()),
+            "corners" to r?.quad?.points?.map { listOf(it.x, it.y) },
+          )
+        } finally {
+          detector.close()
+          bmp.recycle()
+        }
+      }
+    }
+
+    AsyncFunction("processPages") Coroutine { uris: List<String>, options: Map<String, Any?> ->
+      val longEdge = (options["enhanceLongEdgePx"] as? Number)?.toInt() ?: 1568
+      val quality = (options["enhanceQuality"] as? Number)?.toInt() ?: 80
+      val pages = withContext(Dispatchers.IO) {
+        uris.map { uri ->
+          processPage(Uri.parse(uri), longEdge, quality, osEnhanced = false)
+            ?: throw CodedScannerException("PROVIDER_ERROR", "Could not load a scanned page at $uri")
+        }
+      }
+      mapOf("pages" to pages, "cancelled" to false)
+    }
+
     AsyncFunction("recognize") Coroutine { uri: String ->
       withContext(Dispatchers.IO) {
         val bitmap = BitmapFactory.decodeFile(Uri.parse(uri).path)
@@ -190,12 +244,24 @@ class CaptureNativeModule : Module() {
       // The scanner activity owns its own cancel affordance; nothing to tear down here.
     }
 
+    // LIVE-EDGE-DETECTION-PLAN.md L4: our own camera with a native outline (D-LED2) that takes its own
+    // photo under the capture gate (D-LED6) — the same view, props and events as iOS's.
+    View(LiveEdgeCameraView::class) {
+      Events("onDetection", "onCameraState", "onCapture")
+      Prop("active") { view: LiveEdgeCameraView, active: Boolean -> view.active = active }
+      Prop("strokeColor") { view: LiveEdgeCameraView, color: Color -> view.setStroke(color.toArgb()) }
+      Prop("fillColor") { view: LiveEdgeCameraView, color: Color -> view.fillColor = color.toArgb() }
+      Prop("successColor") { view: LiveEdgeCameraView, color: Color -> view.successColor = color.toArgb() }
+      Prop("minPageLongEdgePx") { view: LiveEdgeCameraView, px: Double -> view.minPageLongEdgePx = px }
+      OnViewDestroys { view: LiveEdgeCameraView -> view.destroy() }
+    }
+
     RegisterActivityContracts {
       scannerLauncher = registerForActivityResult(DocumentScannerContract { pendingRequest }) { _, _ -> }
     }
   }
 
-  private fun processPage(imageUri: Uri, longEdge: Int, quality: Int): Map<String, Any?>? {
+  private fun processPage(imageUri: Uri, longEdge: Int, quality: Int, osEnhanced: Boolean): Map<String, Any?>? {
     val path = imageUri.path ?: return null
     // Decoded at a bounded size rather than at full resolution. `BitmapFactory.decodeFile(path)` with
     // no options allocates the whole sensor-resolution bitmap in ARGB_8888 — a 12 MP page is about
@@ -230,7 +296,7 @@ class CaptureNativeModule : Module() {
     val page = mapOf(
       "original" to original,
       "derived" to describe(out, resized.width, resized.height),
-      "osEnhanced" to true,
+      "osEnhanced" to osEnhanced,
       "ocr" to ocr,
     )
     // Freed here rather than left to the collector: every value read out of these bitmaps is already

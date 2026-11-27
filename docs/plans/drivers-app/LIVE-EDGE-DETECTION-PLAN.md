@@ -3,7 +3,7 @@
 **Ask (owner, 2026-11-20):** make the driver app's scanner find a document's edges with top-of-the-line
 precision, and draw an animated outline on those edges before the photo is taken, the way Genius Scan does.
 
-**Status:** analysis; owner chose to BUILD (Q-LED1, 2026-11-20); nothing built yet. This is Phase 7 of `SCANNER-UPGRADE-PLAN.md` (the "v2
+**Status (2026-11-25):** owner chose to BUILD (Q-LED1, 2026-11-20). Built: L0 (iOS camera), L1 tooling and baseline, the D-LED6 gate on iOS, and **L4: Android runs our own scanner** with DocAligner through LiteRT (§8). L2 waits on our own labelled photos. (Was: "analysis; nothing built yet".) This is Phase 7 of `SCANNER-UPGRADE-PLAN.md` (the "v2
 RawCapture" scanner). D-SCAN12 deliberately left that phase unscheduled until a measured number opened it.
 **This document records the owner's ask as the trigger that opens it (D-LED1)** and lays out how to build it.
 Open questions are in §7. Three of them need an answer before anything gets built.
@@ -466,6 +466,57 @@ trained; L5 ~1 week. That is **about 6–8 weeks in total**, against a licence f
   · Driver 576 tests, shared 18, Swift 66 checks; `CaptureNative` compiles; three mutants killed
     (session not superseding, empty finish as a scan, a non-document slot scanned).
 
+- **2026-11-25 — L4 built: our own scanner on Android (owner: "start with our own scanner").** On the
+  owner's Galaxy Tab A9 the BOL slot still opened Google's ML Kit scanner. That was by plan, but it is
+  not the scanner the owner asked for. Android now opens `app/scan.tsx` with our camera, as the iPhone
+  does. Runtime 1.5.0 → **1.6.0**.
+  · **Detector: (a) DocAligner, through LiteRT.** Android has no Apple segmentation, and (a) is L1's
+    measured winner. The ONNX model is converted to TFLite by `tools/edges/tflite/convert.sh`, with
+    versions pinned. **The first conversion was wrong in a way averages hide:** its mean heatmap
+    difference was 0.001, but corner peaks moved by up to 62 heatmap pixels (12 px of page per heatmap
+    pixel). Bisected to the BiFPN's 20 `einsum("i,i...->...")` weighted sums, which the TFLite
+    converter mis-lowers (the TF SavedModel matched ONNX to 4e-6). They are rewritten as
+    reshape × sum first (`rewrite_einsum.py`, same arithmetic, 3.9e-7). `verify_tflite.py` now fails a
+    model unless it is within 1e-4 with **no** peak moved, and it fails the unfixed conversion. Shipped:
+    fp32, 4.7 MB, SHA-256 `875fcfbc…0832`; two independent runs gave the same bytes. fp16 was refused
+    because it moves a peak by one heatmap pixel.
+  · **Runtime: LiteRT 1.4.2** (classic Java `Interpreter`), bundled — corrected 2026-11-27; this line said
+    2.2.0, which `build.gradle` does not use. ONNX Runtime would add 36 MB of arm64 library. LiteRT 2.2's
+    manifest adds FOREGROUND_SERVICE / FOREGROUND_SERVICE_DATA_SYNC (a Play declaration the scanner cannot
+    justify) and its GPU accelerator artifacts collide in AGP; 2.3+ is compiled with Kotlin 2.4 metadata,
+    which the app's Kotlin 2.2 refuses. Every native library is 16 KB-aligned.
+    **Device check, PASSED 2026-11-27.** The model was verified against ONNX with the Python runtime
+    (`ai-edge-litert==2.4.0`, 200 SmartDoc frames, max heatmap difference 1.33e-6), and the Android 1.4.2
+    runtime is now held to it on the device: `apps/driver/scripts/check-device-detector.mjs` runs the
+    SHIPPED path (JPEG → RGBA → `DocAlignerDecode.input` → LiteRT 1.4.2 → decode) through the debug-only
+    `detectImageForTest` on the fixture's five SmartDoc frames and compares to the ONNX corners at 640 × 360.
+    Galaxy Tab A9 (Android 16): worst corner 0.688 px (0.379 / 0.469 / 0.428 / 0.688 / 0.664), tolerance
+    1 px, confidence 0.901–0.939. Re-run it after any change to the model, LiteRT or the decoder.
+  · **One reference, held exactly.** DocAligner's pre- and post-processing moved from the scorer tool
+    into `capture-engine/src/edges/docalignerDecode.ts` with no change of behaviour. Kotlin's
+    `DocAlignerDecode.kt` is held to it over `fixtures/edges/docaligner-decode.json`: real heatmaps from
+    all five SmartDoc backgrounds, a weak corner, a second blob, and the model input at all four camera
+    rotations, with corners equal to 1e-9 px. `tests/docalignerDecode.test.ts` re-derives the fixture,
+    so it cannot go stale. Kotlin visits only the pixels that can reach the threshold, and the parity
+    test is what proves that changes nothing.
+  · **The gate and geometry are ported line for line** (`LiveCaptureGate.kt`, `LiveEdgeGeometry.kt`),
+    tested case for case with the Swift checks. These are JVM tests, so unlike Swift they run in CI's
+    `native-android` job. **12 mutants, all killed:** ROI off by one column; ROI zeros not counted in
+    Otsu; rotation 90 read as 270; RGB for BGR; first blob for largest; threshold dropped; fire at
+    once; no settle; anchor following every frame; no motion gate; clipper winding; outline on one
+    frame.
+  · **Gap G5 closed in JS too.** The provider counted a phone as able to scan only with the OS scanner
+    present (`camera && docScanner`), so a phone without Play services would have fallen back to the
+    plain camera even though our camera works there. `PageSource.needsOsScanner` now says which source
+    needs it (`tests/native-scan-outcome.test.ts`: "lets our own camera scan where the OS scanner is
+    missing (gap G5)").
+  · **Not yet proven, owed:** the tablet run (below); speed and latency on the Tab A9; iOS still runs
+    Apple's detector (b), so the two phones differ until iOS moves to the same model (L0's own
+    conclusion); the 3.1 MB GPU accelerator LiteRT packages and this detector does not use (an
+    app-level packaging exclusion); and an open-source notices screen, because Apache-2.0 §4 asks for
+    the licence and attribution to travel with the app (models/README.md). That screen is a store
+    prerequisite, not a local one. Q-LED2 (training-data provenance) is still the owner's.
+
 ## Sources
 
 - Genius Scan SDK: https://geniusscansdk.com/features/ ·
@@ -486,3 +537,12 @@ trained; L5 ~1 week. That is **about 6–8 weeks in total**, against a licence f
 - Open source read at source level: https://github.com/WeTransfer/WeScan (MIT, archived) · https://github.com/JaMoLpE88/ScanFromCam (Apache-2.0) · https://github.com/DocsaidLab/DocAligner (Apache-2.0 code) · https://github.com/rydn/docap (MIT)
 - SmartDoc 2015 challenge 1: https://marcalr.github.io/pdfs/ICDAR15e.pdf · https://github.com/jchazalon/smartdoc15-ch1-dataset
 - One Euro filter: https://gery.casiez.net/1euro/
+
+- **2026-11-27 (S2.3, DRIVER-APP-ENTERPRISE-PLAN):** memory on the Tab A9, 10-minute soaks on the live edge
+  screen with `apps/driver/scripts/mem-soak.mjs` (development build both times). Before: PSS +7.6 % from
+  minute 2 to minute 10 (906 → 975 MB), swap 0 → 99 MB — FAIL against the plan's 5 % bar. Cause: every
+  detection event (10/s) re-rendered the whole screen. After (headline-only state on `app/scan.tsx`, stable
+  camera props, stats at 2/s on the prototype): +2.2 % (873 → 892 MB), swap 0 → 7 MB, no kill — PASS. Most
+  of the ~900 MB is the DEBUG build itself: Home with no camera reads 932 MB, the camera adds ~80 MB. A
+  release-build soak needs a staging driver login (owner action).
+

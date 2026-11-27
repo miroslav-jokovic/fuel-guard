@@ -12,6 +12,13 @@ android {
     versionCode 1
     versionName '0.1.0'
   }
+  // The live edge detector's model (LIVE-EDGE-DETECTION-PLAN.md L4) lives beside the module's other
+  // shared inputs, not under src/, so iOS can read the same file the day it moves off Apple's detector.
+  // Loaded through an InputStream into a direct buffer, so the app's packaging does not need a
+  // `noCompress 'tflite'` rule it might not have.
+  sourceSets {
+    main.assets.srcDirs += ['../models']
+  }
 }
 
 /**
@@ -44,6 +51,27 @@ dependencies {
   implementation 'com.google.mlkit:text-recognition:16.0.1'
   implementation 'androidx.activity:activity-ktx:1.11.0'
   implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+
+  // Our own scanner on Android (LIVE-EDGE-DETECTION-PLAN.md L4, D-LED2): CameraX for preview, analysis
+  // and the full-resolution photo from one 4:3 field of view (D-LED7), and LiteRT (TensorFlow Lite) for
+  // the DocAligner corner model (LiteRT is TensorFlow Lite's current name). Measured 2026-11-25:
+  //   - LiteRT, not ONNX Runtime: 4.5 MB of arm64 library against 36 MB;
+  //   - bundled, not Play-services TFLite, because a phone without Play services is exactly the case
+  //     the OS scanner cannot serve (gap G5);
+  //   - 1.4.2, the classic Java `Interpreter`, not 2.x. LiteRT 2.2's manifest adds FOREGROUND_SERVICE
+  //     and FOREGROUND_SERVICE_DATA_SYNC (a Play Console declaration a scanner cannot justify) plus NPU
+  //     vendor libraries and a 3.1 MB GPU accelerator, and AGP refuses it outright (its two artifacts
+  //     share one namespace); 2.3+ is compiled with Kotlin 2.4 metadata this app's Kotlin 2.2 refuses.
+  //     1.4.2's manifest declares nothing, and its runtime (built 2026-03) is newer than the TF 2.19
+  //     converter that wrote the model.
+  // Both are 16 KB page-aligned (scripts/check-16kb.mjs).
+  def camerax = '1.7.0'
+  implementation "androidx.camera:camera-core:$camerax"
+  implementation "androidx.camera:camera-camera2:$camerax"
+  implementation "androidx.camera:camera-lifecycle:$camerax"
+  implementation "androidx.camera:camera-view:$camerax"
+  implementation 'com.google.ai.edge.litert:litert:1.4.2'
+  implementation 'androidx.exifinterface:exifinterface:1.4.1'
 
   // Test-only, and therefore not in the APK. Gson rather than `org.json`, which would be the natural
   // choice: `org.json` IS in android.jar, so the mockable android.jar shadows the real dependency and
