@@ -74,7 +74,10 @@ const LOAD_COLUMNS =
 
 const STOP_COLUMNS =
   "id, seq, kind, name, address_line, city, state, postal_code, lat, lon, appointment_start, " +
-  "appointment_end, status, arrived_at, completed_at, required_photos, skip_reason, notes, load_id";
+  "appointment_end, status, arrived_at, completed_at, required_photos, skip_reason, notes, load_id, " +
+  // D-MK15 (T1 N-7): a stop McLeod stopped listing stays on the driver's load (its photos live on it),
+  // marked; N-9 adds the field to `loadStopSchema` so the app can label it.
+  "mcleod_removed_at";
 
 type UnitJoin = { unit_number: string } | { unit_number: string }[] | null;
 const unit = (u: UnitJoin): string | null =>

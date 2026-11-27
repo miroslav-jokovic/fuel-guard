@@ -22,7 +22,7 @@ interface LoadOnTruck {
   ref: string;
   vehicle_id: string;
   created_at: string;
-  stops: { seq: number; kind: "pickup" | "dropoff"; actual_departure_at: string | null; completed_at: string | null }[];
+  stops: { seq: number; kind: "pickup" | "dropoff"; actual_departure_at: string | null; completed_at: string | null; mcleod_removed_at?: string | null }[];
 }
 
 /** How far before the range a load may have started and still be on the truck inside it. */
@@ -89,13 +89,17 @@ async function readLoadsOnTrucks(admin: SupabaseClient, orgId: string, vehicleId
   return fetchAllPaged<LoadOnTruck>((from, to) =>
     admin
       .from("loads")
-      .select("ref, vehicle_id, created_at, stops:load_stops(seq, kind, actual_departure_at, completed_at)")
+      .select("ref, vehicle_id, created_at, stops:load_stops(seq, kind, actual_departure_at, completed_at, mcleod_removed_at)")
       .eq("org_id", orgId)
       .in("vehicle_id", [...vehicleIds])
       .gte("created_at", since)
       .order("id")
       .range(from, to)
       .then(({ data, error }) => ({ data: data as unknown as LoadOnTruck[] | null, error })),
+  ).then((loads) =>
+    // D-MK15 (T1 N-7): a stop McLeod stopped listing keeps its row, but is not when the load left a pickup
+    // or a drop. Dropped here rather than by an embedded filter, so the read stays one plain select.
+    loads.map((l) => ({ ...l, stops: (l.stops ?? []).filter((st) => !st.mcleod_removed_at) })),
   );
 }
 

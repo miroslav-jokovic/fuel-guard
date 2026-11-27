@@ -85,6 +85,8 @@ async function prepare(
       .from("load_stops")
       .select("seq, kind, name, location_name, city, state, appointment_start")
       .eq("org_id", orgId)
+      // D-MK15 (T1 N-7): the SMS lists the stops McLeod lists now, never one it removed.
+      .is("mcleod_removed_at", null)
       .eq("load_id", loadId)
       .order("seq", { ascending: true }),
     admin.from("organizations").select("name, operating_hours").eq("id", orgId).maybeSingle(),

@@ -92,6 +92,12 @@ describe("nextStopOnRoute — where the truck goes next, by any source's evidenc
     expect(nextStopOnRoute([stop(3, "pending", "A"), stop(2, "pending", "A"), stop(1, "pending", "D")])?.id).toBe("s2");
   });
 
+  it("never names a stop McLeod removed, whatever its status says (D-MK15)", () => {
+    const removed = { ...stop(1, "pending", "A"), mcleod_removed_at: "2026-11-20T15:00:00Z" };
+    expect(nextStopOnRoute([removed, stop(2, "pending", "A")])?.id).toBe("s2");
+    expect(isStopBehindTruck(removed)).toBe(true);
+  });
+
   it("is null when every stop is behind the truck, or there are none", () => {
     expect(nextStopOnRoute([stop(1, "pending", "D"), stop(2, "completed", "A")])).toBeNull();
     expect(nextStopOnRoute([])).toBeNull();

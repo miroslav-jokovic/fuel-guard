@@ -29,7 +29,10 @@ export const STOP_COLUMNS =
   "appointment_start, appointment_end, status, arrived_at, completed_at, required_photos, skip_reason, notes, " +
   // McLeod's own view of the stop (LR2 columns, written by the LR4b projection): the real place name,
   // what McLeod saw happen, and its ETA — beside the driver app's `arrived_at`, never in it (Q-LMR2).
-  "location_name, external_status, actual_arrival_at, actual_departure_at, eta_at";
+  "location_name, external_status, actual_arrival_at, actual_departure_at, eta_at, " +
+  // D-MK15 (T1 N-7): when McLeod stopped listing the stop. The row is kept for its photos; the load page
+  // labels it "Removed in McLeod", and the list's compute read filters it out before it gets here.
+  "mcleod_removed_at";
 
 export type Join = { unit_number?: string; full_name?: string } | { unit_number?: string; full_name?: string }[] | null;
 export const one = (j: Join): { unit_number?: string; full_name?: string } | null =>

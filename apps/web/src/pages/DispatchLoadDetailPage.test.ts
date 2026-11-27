@@ -102,3 +102,22 @@ describe("DispatchLoadDetailPage — what the load pays", () => {
     expect(progress).toHaveProperty("Created");
   });
 });
+
+/** D-MK15 (T1 N-7): a stop McLeod stopped listing stays on the load page, labelled. */
+describe("DispatchLoadDetailPage — a stop removed in McLeod", () => {
+  const stop = (over: Record<string, unknown>) => ({
+    id: "s-1", seq: 1, kind: "pickup", name: "Dock", city: "Howell", state: "MI", appointment_start: null, appointment_end: null,
+    required_photos: [], photos: [], status: "pending", mcleod_removed_at: null, ...over,
+  });
+
+  it("labels the removed stop, and only that one", async () => {
+    setActivePinia(createPinia());
+    load.value = tmsLoad({ stops: [stop({}), stop({ id: "s-2", seq: 2, kind: "dropoff", mcleod_removed_at: "2026-11-20T15:00:00Z" })] });
+    const w = mount(Page, { global: { stubs } });
+    await flushPromises();
+    const items = w.findAll("li").filter((li) => li.text().includes("Dock"));
+    expect(items).toHaveLength(2);
+    expect(items[0]!.find('[data-testid="stop-removed-in-mcleod"]').exists()).toBe(false);
+    expect(items[1]!.get('[data-testid="stop-removed-in-mcleod"]').text()).toBe("Removed in McLeod");
+  });
+});

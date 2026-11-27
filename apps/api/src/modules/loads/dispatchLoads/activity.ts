@@ -62,6 +62,8 @@ export async function listLoadActivity(admin: SupabaseClient, orgId: string, now
       .from("load_stops")
       .select("load_id, seq, kind, actual_departure_at, completed_at")
       .eq("org_id", orgId)
+      // D-MK15 (T1 N-7): a stop McLeod stopped listing keeps its row (its photos cascade from it) — not a stop to compute on.
+      .is("mcleod_removed_at", null)
       .in("load_id", ids);
     if (error) throw new Error(error.message);
     for (const s of (data ?? []) as (ActivityStop & { load_id: string })[]) {

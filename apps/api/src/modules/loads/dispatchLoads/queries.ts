@@ -168,6 +168,8 @@ async function stopsOf(admin: SupabaseClient, orgId: string, loadIds: string[]):
       // Scoped to the org as well as to ids an org-scoped read produced: the service role bypasses RLS,
       // and a read that is only safe because of the query above it stops being safe when that changes.
       .eq("org_id", orgId)
+      // D-MK15 (T1 N-7): a stop McLeod stopped listing keeps its row (its photos cascade from it) — not a stop to compute on.
+      .is("mcleod_removed_at", null)
       .in("load_id", ids)
       .order("seq", { ascending: true });
     if (error) throw new Error(error.message);

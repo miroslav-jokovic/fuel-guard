@@ -247,6 +247,16 @@ function markBroken(id: string) {
                 </span>
                 <div class="flex items-center gap-2">
                   <span class="text-xs text-ink-muted">{{ [stop.city, stop.state].filter(Boolean).join(", ") }}</span>
+                  <!-- D-MK15 (T1 N-7): McLeod no longer lists this stop. Kept, not deleted, because the
+                       driver's photos at it live on the row; it sits at the end of the list. -->
+                  <span
+                    v-if="stop.mcleod_removed_at"
+                    :class="[BADGE_BASE, toneClass('neutral')]"
+                    :title="`McLeod stopped listing this stop ${when(stop.mcleod_removed_at)}`"
+                    data-testid="stop-removed-in-mcleod"
+                  >
+                    Removed in McLeod
+                  </span>
                   <span
                     v-if="outstandingSlots(stop).length"
                     :class="[BADGE_BASE, toneClass('warning')]"

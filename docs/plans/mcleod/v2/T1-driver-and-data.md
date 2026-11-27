@@ -970,5 +970,9 @@ dependency.** prod before any S-3 store tag (D-MK23: from the first store build)
 
 Q-3 (N-16, who else presses Hire again — default managers), Q-5 and Q-DA2 with D-DA12's "finished" ruling (S-2..S-4),
 Q-8 (14 days, the default built), the owner naming a V1 dispatcher (N-11), Alex's one SQL review and VM visit (CU-1,
-then N-11/N-12), the CloudWatch count before N-7's 410 (an operation, not an owner question), Q-9 (the dispatcher
+then N-11/N-12), the CloudWatch count before N-7's 410 (an operation, not an owner question — but on 2026-11-27 it could not be
+taken: `/silvicom/production` holds no per-request lines, Caddy writes no access log and `[metrics]` names only the
+top-5 busiest / top-3 slowest routes a minute, so absence there is not a count of 0. N-7 shipped the RPC half and kept
+`ingestLoads`; the 410 needs first a 7-day per-call count, from a Caddy access log for `/api/tms/*` (recommended:
+no app deploy, every route) or one log line in `POST /loads`), Q-9 (the dispatcher
 briefing that Send is how a load reaches the phone; N-19 itself is built by PR #2689). Q-1..Q-10 were unanswered on 2026-11-27; none is assumed.

@@ -32,6 +32,8 @@ export async function readDriverPickupsSince(admin: SupabaseClient, orgId: strin
       .from("load_stops")
       .select("load_id, actual_arrival_at")
       .eq("org_id", orgId)
+      // D-MK15 (T1 N-7): a stop McLeod stopped listing keeps its row (its photos cascade from it) — not a stop to compute on.
+      .is("mcleod_removed_at", null)
       .eq("kind", "pickup")
       .gte("actual_arrival_at", since.toISOString())
       .order("actual_arrival_at", { ascending: true })

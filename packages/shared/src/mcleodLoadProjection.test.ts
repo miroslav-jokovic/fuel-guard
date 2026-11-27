@@ -140,6 +140,14 @@ describe("stops", () => {
     const s = ok(movement(), [stop()]).stops[0]!;
     expect([s.lat, s.lon]).toEqual([42.6, -83.93]);
   });
+  it("every projected stop carries McLeod's stop id, trimmed", () => {
+    // McLeod pads char columns; 0660's unique index and the RPC both key on the trimmed id.
+    const stops = ok(movement(), [
+      stop({ stop_id: "  4410921 ", movement_sequence: 1 }),
+      stop({ stop_id: "4410922  ", movement_sequence: 2, stop_type: "SO" }),
+    ]).stops;
+    expect(stops.map((s) => s.mcleod_stop_id)).toEqual(["4410921", "4410922"]);
+  });
 });
 
 describe("what a load pays (LOAD-RATES-PLAN D-RATE3..5)", () => {

@@ -55,7 +55,7 @@ const scoped = (q: RecordedQuery) =>
   q.filters().some((f) => f.col === "org_id" && f.val === ORG) && q.filters().some((f) => f.col === "company_id" && f.val === "TMS");
 
 /** Serve the raw tables as the ingest just wrote them: the payload, in the raw tables' shape. */
-function seed(movements: Record<string, unknown>[]) {
+function seed(movements: Record<string, unknown>[], refuse: Record<string, string> = {}) {
   const rawMovements = movements.map((m) => ({ ...m, company_id: "TMS", closed_at: m.movement_status === "D" ? "2026-09-24T18:00:00.000Z" : null }));
   const rawStops = movements.flatMap((m) => (m.stops as Record<string, unknown>[]).map((s) => ({ ...s, movement_id: m.movement_id })));
   return createSupabaseRecorder({
@@ -80,8 +80,23 @@ function seed(movements: Record<string, unknown>[]) {
           ? [{ id: EXISTING_LOAD, status: "pending_approval", external_id: "TMS:901" }] : [];
       },
     },
+    // 0660's answer: every load written unless the test names it refused (by load id, with the reason).
+    rpc: (fn, args) => {
+      if (fn !== "apply_mcleod_load_stops") return null;
+      const ids = (args as StopRpcArgs).p_loads.map((l) => l.load_id);
+      return {
+        written: ids.filter((id) => !refuse[id]),
+        refused: ids.filter((id) => refuse[id]).map((id) => ({ load_id: id, reason: refuse[id] })),
+      };
+    },
   });
 }
+
+type StopRpcArgs = { p_org: string; p_loads: { load_id: string; stops: Record<string, unknown>[] }[] };
+/** What the projection handed `apply_mcleod_load_stops`, every call in order. */
+const stopCalls = (rec: ReturnType<typeof seed>) =>
+  rec.rpcs().filter((c) => c.fn === "apply_mcleod_load_stops").map((c) => c.args as StopRpcArgs);
+const rpcStops = (rec: ReturnType<typeof seed>) => stopCalls(rec).flatMap((a) => a.p_loads.flatMap((l) => l.stops.map((s): Record<string, unknown> => ({ load_id: l.load_id, ...s }))));
 
 let server: Server;
 let baseUrl: string;
@@ -163,7 +178,7 @@ describe("LR4 — the projection, raw → core", () => {
 
   it("draws PU and SO with McLeod's name, times and contact; the VA stays in raw", async () => {
     const { rec } = await run();
-    const stops = rec.writtenRows("load_stops");
+    const stops = rpcStops(rec);
     expect(stops.filter((s) => s.load_id === "new-0").map((s) => [s.seq, s.kind])).toEqual([[1, "pickup"], [3, "dropoff"]]);
     expect(stops[0]).toMatchObject({ name: "BATTERY SOLUTIONS", appointment_start: "2026-09-30T22:00:00.000Z",
       eta_at: "2026-09-30T21:45:00.000Z", contact_phone: "5555550100", po_number: "PO-9" });
@@ -173,7 +188,7 @@ describe("LR4 — the projection, raw → core", () => {
   // The literal values, not `requiredPhotosFor`: this test is what notices the shared rule changing.
   it("the mirror writes the shared required photos on every stop it writes", async () => {
     const { rec } = await run();
-    const stops = rec.writtenRows("load_stops");
+    const stops = rpcStops(rec);
     expect(stops.length).toBeGreaterThan(0);
     for (const s of stops) {
       expect(s.required_photos).toEqual(s.kind === "pickup" ? ["trailer", "bol"] : ["bol"]);
@@ -181,10 +196,58 @@ describe("LR4 — the projection, raw → core", () => {
     expect(new Set(stops.map((s) => s.kind))).toEqual(new Set(["pickup", "dropoff"]));
   });
 
-  it("only a driver's untouched stops are cleared — a worked stop is never deleted", async () => {
-    const { rec } = await run();
-    const del = rec.forTable("load_stops").find((q) => q.write?.method === "delete")!;
-    expect(del.filters()).toContainEqual({ col: "status", val: "pending" });
+  // T1 N-7 (S0b). The column list is 0660's insert; the driver's four are the ones it must never set.
+  it("stops go through apply_mcleod_load_stops with every projected column and none of the driver's", async () => {
+    const { rec, body } = await run();
+    const calls = stopCalls(rec);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.p_org).toBe(ORG);
+    expect(calls[0]!.p_loads.map((l) => l.load_id).sort()).toEqual([EXISTING_LOAD, "new-0"].sort());
+    const PROJECTED = [
+      "mcleod_stop_id", "seq", "kind", "name", "address_line", "city", "state", "postal_code", "lat", "lon",
+      "appointment_start", "appointment_end", "location_name", "location_code", "external_status",
+      "actual_arrival_at", "actual_departure_at", "eta_at", "contact_name", "contact_phone", "po_number", "required_photos",
+    ];
+    for (const s of calls[0]!.p_loads.flatMap((l) => l.stops)) {
+      expect(Object.keys(s).sort()).toEqual([...PROJECTED].sort());
+    }
+    // No table write on load_stops at all: the old delete-and-reinsert is gone.
+    expect(rec.forTable("load_stops").filter((q) => q.write)).toEqual([]);
+    expect(body.projection).toMatchObject({ stops: 3, stopsRefused: [] });
+  });
+
+  it("a refused load is reported in stopsRefused, not thrown", async () => {
+    const movements = board();
+    const rec = seed(movements, { [EXISTING_LOAD]: "stop_tail_over_200" });
+    holder.client = rec.client;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const res = await post({ company_id: "TMS", movements });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { projection: Record<string, unknown> };
+      expect(body.projection.stopsRefused).toEqual([{ loadId: EXISTING_LOAD, reason: "stop_tail_over_200" }]);
+      // The written load's stops still count; the refused one's do not.
+      expect(body.projection.stops).toBe(2);
+      expect(warn).toHaveBeenCalledWith("[mcleod-mirror] stops refused: 1");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("a re-sent movement keeps its stop ids", async () => {
+    // Identity is McLeod's stop id, handed to the RPC that upserts on (load_id, mcleod_stop_id). Sent twice,
+    // the same load names the same McLeod stops both times, and nothing deletes or re-inserts a row.
+    const movements = board();
+    const rec = seed(movements);
+    holder.client = rec.client;
+    expect((await post({ company_id: "TMS", movements })).status).toBe(200);
+    expect((await post({ company_id: "TMS", movements })).status).toBe(200);
+    const calls = stopCalls(rec);
+    expect(calls).toHaveLength(2);
+    const ids = (a: StopRpcArgs) => Object.fromEntries(a.p_loads.map((l) => [l.load_id, l.stops.map((s) => s.mcleod_stop_id)]));
+    expect(ids(calls[0]!)).toEqual({ "new-0": ["zz1", "zz3"], [EXISTING_LOAD]: ["d1"] });
+    expect(ids(calls[1]!)).toEqual(ids(calls[0]!));
+    expect(rec.forTable("load_stops").filter((q) => q.write)).toEqual([]);
   });
 
   // LOAD-RATES-PLAN D-RATE2/D-RATE3. The charges are added to the agent's output by hand until R4 makes the

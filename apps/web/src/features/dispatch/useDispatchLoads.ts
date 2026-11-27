@@ -47,6 +47,11 @@ export interface DispatchStop {
   actual_arrival_at?: string | null;
   actual_departure_at?: string | null;
   eta_at?: string | null;
+  /**
+   * When McLeod stopped listing this stop (0660, D-MK15). The row is kept because the driver's photos
+   * hang off it; only the load page receives one, labelled "Removed in McLeod" — the list's read skips it.
+   */
+  mcleod_removed_at?: string | null;
 }
 
 /** A load row from `GET /api/dispatch/loads` — core columns plus the resolved driver/unit joins. */
