@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { answerFrom, classifyInbox, isInternal, tokensIn } from "./classify.js";
+import { answerFrom, askKindsIn, classifyInbox, isInternal, tokensIn } from "./classify.js";
 
 const ctx = { mailbox: "ann@carrier.com", mailDomains: ["carrier.com"], knownSenderDomains: new Set(["known.com"]) };
 const m = (o: Record<string, unknown>) => ({
@@ -49,5 +49,20 @@ describe("classify", () => {
     const self = answerFrom(m({ from: { emailAddress: { address: "ann@carrier.com" } } }), { mailbox: "ann@carrier.com", folder: "inbox" });
     expect(self?.by).toBe("owner");
     expect(answerFrom(m({ toRecipients: [], ccRecipients: [] }), { mailbox: "ann@carrier.com", folder: "sent" })).toBeNull();
+  });
+});
+
+describe("askKindsIn — what a broker asks, by word rules (0656)", () => {
+  it("names each kind, several at once, and `other` when no rule fits", () => {
+    expect(askKindsIn("RE: 48213 ETA?")).toEqual(["eta"]);
+    expect(askKindsIn("Update on CY-55120 please")).toEqual(["eta"]);
+    expect(askKindsIn("MacroPoint tracking request — TQL# 7781204")).toEqual(["tracking_link"]);
+    expect(askKindsIn("Where is the truck? Receiver says it's late")).toEqual(["delay_reason", "location"]);
+    expect(askKindsIn("Need POD for 48190")).toEqual(["pod"]);
+    expect(askKindsIn("Delivery appt moved", null)).toEqual(["appointment"]);
+    expect(askKindsIn("Invoice 48213 attached")).toEqual(["other"]);
+  });
+  it("reads the body when it is there", () => {
+    expect(askKindsIn("RE: 48213", "Can you send the signed BOL?")).toEqual(["pod"]);
   });
 });

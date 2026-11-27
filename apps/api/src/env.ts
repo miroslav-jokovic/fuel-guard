@@ -64,6 +64,9 @@ const EnvSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   // Office chat's "Catch me up" (OFFICE-CHAT-PLAN CH12): a short summary, so the small model.
   CHAT_CATCHUP_MODEL: z.string().min(1).default("claude-haiku-5-5"),
+  // Broker mail's reply drafts (BROKER-MAIL-READER-PLAN D-BMR11): a few sentences worded from load facts,
+  // so the catch-up's small model, as the plan rules ("default the catch-up's").
+  BROKER_MAIL_DRAFT_MODEL: z.string().min(1).default("claude-haiku-5-5"),
 
   // Sentry error monitoring (optional; no-op when unset). DSN is a project ingest key; traces
   // sampling defaults to 0 (errors only) to bound event volume/cost. See instrument.ts.

@@ -4,14 +4,17 @@ import {
   type BrokerMailEnvelope,
   type MailGatewayCycleCounts,
   type MailGatewayCycleStart,
+  type MailGatewayDraftResult,
+  type MailGatewayDraftWork,
+  mailGatewayDraftWorkSchema,
   type MailGatewayFolderRole,
   type MailGatewayProbeKind,
   type MailGatewayProbeResult,
 } from "@silvicom/shared";
 
 /**
- * The gateway's whole database surface: the six `mailgw_*` functions of migration 0643, and nothing
- * else (D-BMR3). The login cannot touch a table, so there is no query here that names one — and no
+ * The gateway's whole database surface: the eight `mailgw_*` functions — six from migration 0643, the
+ * two draft functions from 0656 — and nothing else (D-BMR3). The login cannot touch a table, so there is no query here that names one — and no
  * function takes an org, so neither does anything below.
  *
  * `runCycle` depends on the `Door` interface, so its tests run against an in-memory fake; `pgDoor`
@@ -24,6 +27,9 @@ export interface Door {
   markThreads(cycle: string, answers: BrokerMailAnswer[], checkedMailboxes: string[]): Promise<number>;
   recordProbe(cycle: string, kind: MailGatewayProbeKind, mailbox: string, result: MailGatewayProbeResult): Promise<boolean>;
   end(cycle: string, counts: MailGatewayCycleCounts, states: { mailbox: string; state: "not_connected" | "over_quota" }[]): Promise<void>;
+  /** P4 (0656): this run's drafts to create and to remove. */
+  claimDrafts(cycle: string): Promise<MailGatewayDraftWork>;
+  completeDraft(cycle: string, draftId: string, result: MailGatewayDraftResult, graphDraftId: string | null): Promise<void>;
 }
 
 /**
@@ -72,6 +78,13 @@ export function pgDoor(sql: Sql, json: SqlJson): Door {
     }),
     end: (cycle, counts, states) => call(async () => {
       await sql`select mailgw_end_cycle(${cycle}, ${json(counts)}, ${json(states)})`;
+    }),
+    claimDrafts: (cycle) => call(async () => {
+      const [row] = await sql<{ w: unknown }>`select mailgw_claim_drafts(${cycle}) as w`;
+      return mailGatewayDraftWorkSchema.parse(row?.w);
+    }),
+    completeDraft: (cycle, draftId, result, graphDraftId) => call(async () => {
+      await sql`select mailgw_complete_draft(${cycle}, ${draftId}, ${result}, ${graphDraftId})`;
     }),
   };
 }

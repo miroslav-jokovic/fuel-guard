@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { runCycle } from "./runCycle.js";
-import { at, captureLog, fakeDoor, fakeGraph, msg } from "./fakes.test-support.js";
+import { at, captureLog, fakeDoor, fakeGraph, fakeWrite, msg } from "./fakes.test-support.js";
 
 const ANN = { mailbox: "ann@carrier.com", owner_user_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };
 const BOB = { mailbox: "bob@carrier.com", owner_user_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" };
 const NOW = at("2026-11-24T16:00:00Z");
-const base = { log: captureLog().log, now: () => NOW, commit: "abc1234", canaryMailbox: "mail-canary@carrier.com" };
+const base = { write: fakeWrite().write, log: captureLog().log, now: () => NOW, commit: "abc1234", canaryMailbox: "mail-canary@carrier.com" };
 
 describe("runCycle", () => {
   it("records external Inbox mail, never internal mail, and saves each cursor after its page", async () => {

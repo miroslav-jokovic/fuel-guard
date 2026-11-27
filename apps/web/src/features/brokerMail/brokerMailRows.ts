@@ -38,9 +38,11 @@ export function matchNote(row: Pick<BrokerMailRow, "matchState" | "matchedRefs">
   return "No load reference found";
 }
 
-/** Who answered, for the Answered queue. */
+/** Who answered, for the Answered queue — or how the owner closed it (0656). */
 export function answeredBy(row: Pick<BrokerMailRow, "threadState">, seesAll: boolean): string {
   if (row.threadState === "answered_by_colleague") return "A colleague replied";
+  if (row.threadState === "closed_by_phone") return "Handled by phone";
+  if (row.threadState === "closed_not_for_us") return "Not for us";
   return seesAll ? "The dispatcher replied" : "You replied";
 }
 
@@ -50,3 +52,9 @@ export function matchesBrokerMailSearch(row: BrokerMailRow, term: string): boole
   if (!t) return true;
   return [row.fromAddress, row.subject, row.load?.ref, row.ownerName, ...row.matchedRefs].some((v) => v?.toLowerCase().includes(t));
 }
+
+/** The ask kinds in a dispatcher's words, for the panel. */
+export const ASK_WORDS: Record<string, string> = {
+  eta: "ETA", location: "Where the truck is", tracking_link: "Tracking request", appointment: "Appointment",
+  pod: "POD / signed BOL", delay_reason: "Why it is late", other: "Something else",
+};

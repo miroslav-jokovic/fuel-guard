@@ -115,6 +115,7 @@
     "apps/api/src/modules/broker-mail/brokerMailBackups.ts"
   ],
   "broker_mail_messages": [
+    "apps/api/src/modules/broker-mail/brokerMailDraft.ts",
     "apps/api/src/modules/broker-mail/brokerMailTexts.ts"
   ],
   "broker_mail_settings": [
@@ -435,8 +436,8 @@
     "apps/api/src/modules/efs/services/efsIngestRejects.ts"
   ],
   "imports": [
-    "apps/api/src/modules/efs/services/efsIngestRejects.ts",
     "apps/api/src/modules/efs/services/efsIngestReject.ts",
+    "apps/api/src/modules/efs/services/efsIngestRejects.ts",
     "apps/api/src/modules/efs/services/efsIngestShared.ts",
     "apps/api/src/modules/efs/services/efsSync.ts"
   ],
@@ -905,5 +906,8 @@
   ],
   "web_push_subscriptions": [
     "apps/api/src/modules/messaging/chatPush.ts"
+  ],
+  "broker_mail_drafts": [
+    "apps/api/src/modules/broker-mail/brokerMailDraft.ts"
   ]
 }

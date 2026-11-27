@@ -3,6 +3,7 @@ import { GetWebIdentityTokenCommand, STSClient } from "@aws-sdk/client-sts";
 import postgres from "postgres";
 import { pgDoor, type Sql, type SqlJson } from "./door.js";
 import { graphGet } from "./graphClient.js";
+import { graphWrite } from "./graphWrite.js";
 import { consoleLogger, errorClass } from "./log.js";
 import { runCycle } from "./runCycle.js";
 import { federatedTokens } from "./token.js";
@@ -67,6 +68,7 @@ export async function handler(): Promise<{ outcome: string }> {
     const outcome = await runCycle({
       door: pgDoor(sql as unknown as Sql, ((v: unknown) => sql.json(v as never)) as SqlJson),
       graph: graphGet((url, init) => fetch(url, init), tokens),
+      write: graphWrite((url, init) => fetch(url, init), tokens),
       log: consoleLogger,
       now: () => new Date(),
       commit: COMMIT,
