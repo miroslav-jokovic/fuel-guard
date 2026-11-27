@@ -117,7 +117,7 @@ visibility rule instead of spec A's `driver_visible_load_ids`. S-2..S-4 are held
 stay local until the app is finished).
 
 **Corrections, chat 3 (2026-11-27):** PR #2684 (0655) is **merged** to main, so N-8's precondition holds. **N-19 is
-built by PR #2689**, not by a T1 PR: a Send to a driver with an active app login writes one `load_dispatches` row
+built by PR #2689** (merged 2026-11-27), not by a T1 PR: a Send to a driver with an active app login writes one `load_dispatches` row
 `channel='app', outcome='sent'` (else the held `sms` row) and notifies the driver and, when the dispatch names McLeod's
 driver, `loads.co_driver_id` under the **existing `load_offered` category** ("New load from dispatch", deep link
 `/loads/:id`, dedupe `load_dispatch:<row id>:<user id>`); the Dispatch drawer says beforehand whether the load reaches

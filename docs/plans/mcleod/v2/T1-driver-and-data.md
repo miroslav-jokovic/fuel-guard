@@ -3,7 +3,7 @@
 **Status:** PLAN, 2026-11-27, against `origin/main` merged into this branch at `ecc25c22d` (migrations end at
 `0654_follow_up_urgent_category.sql`) and PR #2684 (`claude/driver-s1-dispatch-visible`, migration
 `0655_sent_load_visible_at_any_mcleod_status.sql`; **merged to main** — corrected by chat 3, 2026-11-27). PR #2689
-(Send puts the load in the app and notifies, enterprise S1.1's second half) builds N-19 (corrected by chat 3). Index:
+(Send puts the load in the app and notifies, enterprise S1.1's second half; merged 2026-11-27) builds N-19 (corrected by chat 3). Index:
 `../MCLEOD-API-KIT-PLAN-V2.md`. Decisions are the register's (`../DECISION-REGISTER-2026-11-20-API-KIT.md`); every D-MK
 id below is its. T2's interfaces (`v2/T2-transport.md` top) are used by name and never restated. Every file:line was
 re-read on `ecc25c22d` (or on the PR branch where it says so). Migration numbers: none is taken here; each is the next
@@ -682,9 +682,8 @@ read from its diff:
   exist; production on 2026-11-27 has 1 login of 195 active drivers, so `sms`/`not_sent` stays the common row).
 - `dispatchHeadline`'s " · Seen {date time}" (N-9) is appended after #2689's " · in their app".
 
-**Release dependency.** #2689 ships in the release that carries it; on 2026-11-27 it was open with CI running. If it
-were closed unmerged, the build is exactly #2689's diff (it is the ruled shape), re-opened under N-9. The dispatcher
-briefing (D-MK34, Q-9) says Send is how a load reaches the phone.
+**Release dependency.** #2689 was merged to main on 2026-11-27 and reaches production with the next approved
+release. The dispatcher briefing (D-MK34, Q-9) says Send is how a load reaches the phone.
 
 ---
 
