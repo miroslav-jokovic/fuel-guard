@@ -102,6 +102,21 @@ export const trainingAssignSchema = z.object({
 export type TrainingAssign = z.infer<typeof trainingAssignSchema>;
 
 /**
+ * Send a course to a person who is not on the roster, by name and phone number (0663; owner
+ * 2026-11-27). The number is typed by the office in any common shape; the API keeps it as +1 and ten
+ * digits (`normaliseUsPhone`) and refuses anything else, and 0663's CHECK is the authority. Nothing is
+ * texted: the link comes back for the office to send (Q-TR9 (a) is what would text it).
+ */
+export const trainingSendToPhoneSchema = z.object({
+  name: z.string().trim().min(1, "Write the person's name.").max(120, "At most 120 characters."),
+  phone: z.string().trim().min(7, "Write a phone number.").max(30),
+  courseId: recordId(),
+  lessonIds: z.array(recordId()).min(1).max(100).nullable().optional().default(null),
+  dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().default(null),
+});
+export type TrainingSendToPhone = z.infer<typeof trainingSendToPhoneSchema>;
+
+/**
  * How one driver can be reached, decided by the API (D-TR11): a text only when a number AND a consent
  * that covers it exist — today that is an applicant with SMS consent; email when there is an address;
  * otherwise the office copies the link.
@@ -115,7 +130,8 @@ export interface TrainingReach {
 
 /** One driver's outcome of a send. `link` is present only when the office must deliver it (copy). */
 export interface TrainingSendOutcome {
-  driverId: string;
+  /** Null when the link went to a person by phone number (0663) rather than a roster driver. */
+  driverId: string | null;
   assignmentId: string;
   via: TrainingSendVia;
   ok: boolean;
@@ -177,8 +193,12 @@ export interface TrainingQuestionView {
 /** One row of the Progress tab. */
 export interface TrainingAssignmentRow {
   id: string;
-  driverId: string;
+  /** Null for a person sent the link by phone number, outside the roster (0663). */
+  driverId: string | null;
+  /** The driver's name, or the name the office gave a phone-number recipient. */
   driverName: string;
+  /** A phone-number recipient's number (+1 form); null for a roster driver. */
+  recipientPhone: string | null;
   courseId: string;
   courseTitle: string;
   sentAt: string;

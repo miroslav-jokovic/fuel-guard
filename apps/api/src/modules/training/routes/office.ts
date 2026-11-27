@@ -8,9 +8,11 @@ import {
   trainingLessonCreateSchema,
   trainingLessonUpdateSchema,
   trainingQuestionSchema,
+  trainingSendToPhoneSchema,
   trainingUploadStartSchema,
   trainingVersionUpdateSchema,
   type TrainingAssign,
+  type TrainingSendToPhone,
 } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { requireModule } from "../../../middleware/requireModule.js";
@@ -20,7 +22,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { pgQueueDriver } from "../../../queue/pgDriver.js";
 import { drainKindNow } from "../../../queue/inprocessDrain.js";
-import { assign, progressRows, reachOf, resend, revoke, type TrainingTexter } from "../assignments.js";
+import { assign, assignToPhone, progressRows, reachOf, resend, revoke, type TrainingTexter } from "../assignments.js";
 import { createCourse, createLesson, listCatalogue, updateCourse, updateLesson } from "../catalogue.js";
 import { isRefusal, type TrainingRefusal } from "../refusal.js";
 import { confirmUpload, deleteQuestion, listQuestions, previewVersion, publishVersion, saveQuestion, startUpload, updateVersion, withdrawVersion } from "../versions.js";
@@ -198,6 +200,16 @@ export function trainingRouter(deps: { texter: TrainingTexter }): Router {
     const out = await assign(adminOf(req), envOf(req), deps.texter, org(req), user(req), body);
     if (isRefusal(out)) return void send(res, out);
     for (const o of out) await audit(req, "sent", "training_assignments", o.assignmentId, { driverId: o.driverId, courseId: body.courseId, lessons: body.lessonIds, via: o.via });
+    res.status(201).json({ ok: true, sent: out });
+  }));
+
+  // A person outside the roster, by name and phone number (0663). The audit row names the assignment,
+  // which holds who it went to; the number itself is not copied into the append-only audit log.
+  router.post("/assignments/phone", manage, validateBody(trainingSendToPhoneSchema), asyncHandler(async (req, res) => {
+    const body = res.locals.body as TrainingSendToPhone;
+    const out = await assignToPhone(adminOf(req), envOf(req), org(req), user(req), body);
+    if (isRefusal(out)) return void send(res, out);
+    await audit(req, "sent", "training_assignments", out.assignmentId, { recipient: "phone", courseId: body.courseId, lessons: body.lessonIds, via: out.via });
     res.status(201).json({ ok: true, sent: out });
   }));
 

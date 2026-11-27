@@ -60,7 +60,7 @@ describe("how a driver gets the link (D-TR11)", () => {
 
 describe("where a sent training stands", () => {
   const row = (over: Partial<TrainingAssignmentRow>): TrainingAssignmentRow => ({
-    id: "a", driverId: "d", driverName: "Ana", courseId: "c", courseTitle: "Act I", sentAt: "2026-11-20T10:00:00Z", lastSentVia: "email",
+    id: "a", driverId: "d", driverName: "Ana", recipientPhone: null, courseId: "c", courseTitle: "Act I", sentAt: "2026-11-20T10:00:00Z", lastSentVia: "email",
     dueOn: null, firstOpenedAt: null, completedAt: null, revokedAt: null, lessons: [], ...over,
   });
   it("puts cancelled and finished ahead of a due date, and reads the due date as a calendar day", () => {

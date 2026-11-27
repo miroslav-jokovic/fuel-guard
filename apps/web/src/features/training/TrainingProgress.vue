@@ -6,7 +6,7 @@ import FilterSelect from "@/components/ui/FilterSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { useToastStore } from "@/stores/toast";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatPhone } from "@/lib/format";
 import { useCancelTraining, useResendTraining, useTrainingAssignments } from "./useTraining";
 import { LESSON_STATUS, lessonCell, STANDING, standing, VIA_LABEL, type AssignmentStanding } from "./trainingRows";
 
@@ -32,7 +32,11 @@ const today = computed(() => new Intl.DateTimeFormat("en-CA", { timeZone: zone.v
 const all = computed(() => (assignments.data.value ?? []).map((a) => ({ ...a, standing: standing(a, today.value) })));
 const rows = computed(() => {
   const q = search.value.trim().toLowerCase();
-  return all.value.filter((a) => (!show.value || a.standing === show.value) && (!q || a.driverName.toLowerCase().includes(q) || a.courseTitle.toLowerCase().includes(q)));
+  // A phone-number recipient is found by their number too, however it is typed: "312 555" finds +1312555….
+  const digits = q.replace(/\D/g, "");
+  const matches = (a: TrainingAssignmentRow) =>
+    a.driverName.toLowerCase().includes(q) || a.courseTitle.toLowerCase().includes(q) || (digits.length >= 3 && !!a.recipientPhone?.includes(digits));
+  return all.value.filter((a) => (!show.value || a.standing === show.value) && (!q || matches(a)));
 });
 const pageRows = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const counts = computed(() => {
@@ -43,7 +47,7 @@ const counts = computed(() => {
 const showOptions = (Object.keys(STANDING) as AssignmentStanding[]).map((k) => ({ value: k, label: STANDING[k].label }));
 
 const columns: DataTableColumn[] = [
-  { key: "driverName", label: "Driver" },
+  { key: "driverName", label: "Driver or person" },
   { key: "sentAt", label: "Sent" },
   { key: "films", label: "Videos" },
   { key: "dueOn", label: "Due" },
@@ -114,6 +118,9 @@ async function copy(link: string) {
         <template #empty><p>{{ all.length ? "Nothing matches these filters." : "No training sent yet. Send it from Send to drivers." }}</p></template>
         <template #cell-driverName="{ row }">
           <span class="block font-medium text-ink">{{ row.driverName }}</span>
+          <span v-if="row.recipientPhone" class="flex items-center gap-1.5 text-xs text-ink-tertiary" data-test="progress-outside-roster">
+            <AppBadge tone="neutral">Not on the driver list</AppBadge>{{ formatPhone(row.recipientPhone) }}
+          </span>
           <span class="block text-xs text-ink-tertiary">{{ row.courseTitle }}</span>
         </template>
         <template #cell-sentAt="{ row }">
