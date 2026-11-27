@@ -103,10 +103,10 @@ describe("nextStopOnRoute — where the truck goes next, by any source's evidenc
     expect(nextStopOnRoute([])).toBeNull();
   });
 
-  it("is a separate reading from the driver's nextStop, which McLeod's departure does not move (Q-LMR2)", () => {
+  it("the driver's nextStop is the office's nextStopOnRoute: a stop McLeod departed is behind the driver (Q-MK3)", () => {
     const load = { stops: [{ ...stop(1, "pending", "D"), kind: "pickup" }, { ...stop(2, "pending", "A"), kind: "dropoff" }] };
     expect(isStopBehindTruck(load.stops[0]!)).toBe(true);
-    expect(nextStop(load as never)?.id).toBe("s1");
+    expect(nextStop(load as never)?.id).toBe("s2");
   });
 });
 

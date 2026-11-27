@@ -23,7 +23,7 @@ function stop(over: Partial<LoadStop> = {}): LoadStop {
     id: `00000000-0000-4000-8000-${String(seq).padStart(12, '0')}`, seq, kind: 'pickup', name: 'Ardent Mills',
     address_line: null, city: 'Chicago', state: 'IL', postal_code: null, lat: null, lon: null,
     appointment_start: at(6), appointment_end: at(8), status: 'pending', arrived_at: null, completed_at: null,
-    required_photos: [], skip_reason: null, notes: null, photos: [], ...over,
+    required_photos: [], skip_reason: null, notes: null, photos: [], external_status: null, actual_arrival_at: null, actual_departure_at: null, mcleod_removed_at: null, ...over,
   };
 }
 
@@ -31,7 +31,7 @@ function load(over: Partial<Load> = {}): Load {
   return {
     id: '11111111-1111-4111-8111-111111111111', ref: '1184530', status: 'in_transit',
     equipment: 'Dry van', commodity: null, hazmat: false, total_miles: 183, accepted_at: null,
-    completed_at: null, notes: null, created_at: at(0), vehicle_unit: '2241', trailer_unit: '53118',
+    completed_at: null, notes: null, created_at: at(0), vehicle_unit: '2241', trailer_unit: '53118', source: 'manual', acknowledged_at: null, customer_name: null,
     stops: [stop(), stop({ seq: 2, kind: 'dropoff', name: 'Kroger DC', city: 'Indianapolis', state: 'IN', appointment_start: at(14), appointment_end: at(16) })],
     ...over,
   };

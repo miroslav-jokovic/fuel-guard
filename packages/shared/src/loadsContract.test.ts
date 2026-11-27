@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   deliveredWindowQuerySchema,
-  loadBucket,
   loadSchema,
   missingPhotoSlots,
-  nextStop,
   photoSlotLabel,
   isDocumentSlot,
   PHOTO_SLOTS,
@@ -12,7 +10,6 @@ import {
   requiredPhotosFor,
   STOP_KINDS,
   stopPhotoPath,
-  stopProgress,
   type LoadStop,
 } from "./index.js";
 
@@ -37,69 +34,13 @@ function stop(over: Partial<LoadStop> = {}): LoadStop {
     skip_reason: null,
     notes: null,
     photos: [],
+    external_status: null,
+    actual_arrival_at: null,
+    actual_departure_at: null,
+    mcleod_removed_at: null,
     ...over,
   };
 }
-
-describe("loadBucket", () => {
-  it("groups statuses into the app's three tabs", () => {
-    expect(loadBucket("offered")).toBe("upcoming");
-    expect(loadBucket("accepted")).toBe("upcoming");
-    expect(loadBucket("in_transit")).toBe("current");
-    expect(loadBucket("delivered")).toBe("previous");
-    expect(loadBucket("canceled")).toBe("previous");
-  });
-});
-
-describe("nextStop", () => {
-  it("returns the lowest-seq unfinished stop", () => {
-    const load = {
-      stops: [
-        stop({ id: "a", seq: 1, status: "completed" }),
-        stop({ id: "b", seq: 2, status: "pending" }),
-        stop({ id: "c", seq: 3, status: "pending" }),
-      ],
-    };
-    expect(nextStop(load)?.id).toBe("b");
-  });
-
-  it("treats a skipped stop as finished", () => {
-    const load = {
-      stops: [stop({ id: "a", seq: 1, status: "skipped" }), stop({ id: "b", seq: 2, status: "arrived" })],
-    };
-    expect(nextStop(load)?.id).toBe("b");
-  });
-
-  it("returns null once every stop is done", () => {
-    expect(nextStop({ stops: [stop({ status: "completed" })] })).toBeNull();
-  });
-
-  it("is order-independent (data may arrive unsorted)", () => {
-    const load = {
-      stops: [stop({ id: "c", seq: 3 }), stop({ id: "a", seq: 1 }), stop({ id: "b", seq: 2 })],
-    };
-    expect(nextStop(load)?.id).toBe("a");
-  });
-});
-
-describe("stopProgress", () => {
-  it("counts the stop being worked on, not the one finished", () => {
-    expect(stopProgress({ stops: [stop({ status: "completed" }), stop(), stop()] })).toEqual({
-      current: 2,
-      total: 3,
-    });
-  });
-
-  it("clamps to the total when everything is done", () => {
-    expect(
-      stopProgress({ stops: [stop({ status: "completed" }), stop({ status: "completed" })] }),
-    ).toEqual({ current: 2, total: 2 });
-  });
-
-  it("does not divide by zero on a stopless load", () => {
-    expect(stopProgress({ stops: [] })).toEqual({ current: 1, total: 0 });
-  });
-});
 
 describe("missingPhotoSlots", () => {
   it("lists required slots with no capture yet", () => {
@@ -166,6 +107,20 @@ describe("loadSchema (parse, never cast)", () => {
     expect(parsed.total_miles).toBe(361.5);
     expect(parsed.stops).toEqual([]);
     expect(parsed.vehicle_unit).toBeNull();
+  });
+
+  it("a load from an API without source/acknowledged_at still parses", () => {
+    const parsed = loadSchema.parse(base);
+    expect(parsed.source).toBe("manual");
+    expect(parsed.acknowledged_at).toBeNull();
+    expect(parsed.customer_name).toBeNull();
+  });
+
+  it("a stop without the McLeod fields still parses", () => {
+    const { external_status, actual_arrival_at, actual_departure_at, mcleod_removed_at, ...older } = stop();
+    void [external_status, actual_arrival_at, actual_departure_at, mcleod_removed_at];
+    const parsed = loadSchema.parse({ ...base, stops: [older] });
+    expect(parsed.stops[0]).toMatchObject({ external_status: null, actual_arrival_at: null, actual_departure_at: null, mcleod_removed_at: null });
   });
 
   it("rejects an unknown status rather than trusting a drifted server", () => {

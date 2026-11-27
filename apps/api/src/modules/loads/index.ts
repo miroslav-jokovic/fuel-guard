@@ -36,15 +36,14 @@ export { readDriverPickupsSince, type DriverPickup } from "./driverPickups.js";
 export { recordStopEtaPredictions, type StopEtaPrediction } from "./etaPredictions.js";
 export {
   acceptLoad,
+  acknowledgeLoad,
   addStopPhotos,
   completeStop,
   declineLoad,
-  getDriverLoads,
-  getDriverLoad,
-  getDriverType,
   startLoad,
   type LoadResult,
 } from "./driverLoads.js";
+export { getDriverLoads, getDriverLoad, getDriverType } from "./driverLoadReads.js";
 // McLeod's projected loads, written by the one module that owns `loads` (LOADS-MIRROR-PLAN.md LR4).
 // `mcleod` reads its raw tables and calls this; it never writes `loads` for the mirror itself.
 export { applyMirroredLoads, readMirroredLinks, type MirroredLinks, type MirroredLoad, type MirrorWriteResult } from "./mirrorLoads.js";
