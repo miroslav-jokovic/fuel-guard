@@ -8,7 +8,7 @@
  * fleet — the thing a fleet manager reads before anything else — so they lead the tab as four tiles
  * across its full width (catalogued `span: 12`), the shared `StatCard`, two-up on a phone.
  *
- * The three parts still partition the board, and "No driver" is still NOT here — it is the Seats
+ * The three parts still partition the board, and "No driver" is still NOT here — it is the Trucks
  * card's figure, read from the roster, and every state figure on the tab appears once (D-FO1).
  *
  * ── EVERY TILE WITH A LIST IS ITS DOOR (D-FM9) ───────────────────────────────────────────────────
@@ -19,8 +19,8 @@
  * ── THE TOTAL SAYS WHAT IT LEAVES OUT (D-FM10, 2026-11-26) ────────────────────────────────────────
  * "Trucks on the board" is every truck the board shows with nothing chosen, so McLeod's fleet '1', the
  * Unassigned pool (Q-DB2), is not in it. The caption said "live from dispatch" until the owner read 181
- * here against 196 on the Seats card; it now names the one group left out, and the Seats card counts
- * these same trucks and puts the pool on its "Off the board" line.
+ * here against 196 on the Seats card; it now names the one group left out. The Trucks card (D-FM11)
+ * calls these same trucks "Under dispatch", and lists the pool as "Parked in the Unassigned pool".
  *
  * Shares the board's query key, so this tab costs no request `/assignments` does not already make.
  */

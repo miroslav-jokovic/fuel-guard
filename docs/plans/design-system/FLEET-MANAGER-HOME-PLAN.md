@@ -122,6 +122,18 @@ Real fleet, org `86d6b3ea…`, read-only `supabase db query --linked`.
   the 2 pool trucks still holding a driver (664, 683). "Trucks on order" left the card — not in
   service, not a seat question; Vehicles lists them under status `ordered`. Fleet right now's total
   now says "Unassigned pool not counted". The one known gap is Q-FM10.
+- **D-FM11: the card is the fleet, as a ledger (2026-11-27, supersedes D-FM10's readout).** The owner
+  read "177 of 181" against the Vehicles page's 204 and ruled for precise numbers: the total, the
+  trucks under dispatch, the trucks ordered and not in yet, and the trucks sold but still in McLeod.
+  204 was the Vehicles page's DEFAULT (`active`), which hid the 6 trucks McLeod marks in the shop
+  (`tractor_status S` → `maintenance`) — still in service, still in the fleet. Measured that day: 210
+  in service = 181 under dispatch (the board's own total; 177 with a driver, 4 without) + 21 parked in
+  the Unassigned pool (5 in the shop, 3 still holding a driver: 664, 683, 806) + 8 sold or retiring;
+  13 ordered beside it; 13 drivers without a truck. Built: shared `fleetGroup` puts every truck in
+  service in exactly one group (checks `under_dispatch`, `parked`, `winding_down`); the card is
+  "Trucks" — readout "210 trucks", caption "181 under dispatch + 21 parked + 8 sold or retiring";
+  the Vehicles page opens on "In service (active + in the shop)", so it says 210 too; Truck
+  paperwork counts the same 210, the shop's papers included. Q-FM10 still stands.
 
 ## 4. The cards
 
@@ -448,3 +460,10 @@ landing tab.
   "seats: counts the board's trucks — the shop's in, the pool and the wound-down on one line of their
   own" and `VehiclesPage.test.ts` "opens the Seats card's two truck doors on exactly the trucks it
   counted — the pool off the board, the shop on it". Q-FM10 is the one gap left open.
+
+- 2026-11-27: **D-FM11 built** — the Trucks card. Production replay of the shipped rules: 210 in service
+  (204 active + 6 in the shop) = 181 under dispatch (177 with a driver, 4 without) + 21 parked (5 in
+  the shop; 664, 683, 806 still hold a driver) + 8 sold or retiring; 13 ordered; 13 drivers without a
+  truck. Pinned by `opsTab.test.ts` "trucks: the fleet is every truck in service, and its three groups
+  add up to it (D-FM11)" and `VehiclesPage.test.ts` "opens on the trucks in service — the shop's
+  included — and each Trucks-card door on exactly its group".

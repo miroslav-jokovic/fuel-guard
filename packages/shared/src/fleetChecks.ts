@@ -30,7 +30,16 @@
  * without a driver" were parked in McLeod's fleet '1', the Unassigned pool the board leaves out by
  * the owner's ruling (Q-DB2). Two cards, two truck totals, one tab (D-FM10). So the Seats population
  * IS the board's — `isOnDispatchBoard` — `no_driver` asks only of it, and every truck the board leaves
- * out is counted once, on its own line, by `off_board`.
+ * out is counted once, on its own line.
+ *
+ * ── ONE GROUP PER TRUCK IN THE FLEET (D-FM11, 2026-11-27) ────────────────────────────────────────
+ * The owner then read "177 of 181" against the Vehicles page's 204 and asked for the fleet itself,
+ * precise: the total, the trucks under dispatch, the trucks ordered and not in yet, and the trucks sold
+ * but still in McLeod. 204 was the Vehicles page's DEFAULT, status `active` — it hid the 6 trucks McLeod
+ * marks in the shop (`tractor_status = 'S'`, stored `maintenance`), which are in service and in the
+ * fleet. So the fleet is `isInServiceVehicleStatus` — 210 that day — and `fleetGroup` puts every one of
+ * them in exactly ONE group: under dispatch (181), parked in the Unassigned pool (21), or sold or
+ * retiring (8). Ordered trucks (13) are not in service and are counted beside the total, never in it.
  */
 import { INSPECTION_EXPIRY_WARNING_DAYS } from "./annualInspectionContract.js";
 import { isInServiceVehicleStatus } from "./constants.js";
@@ -40,7 +49,8 @@ import type { UnitFileCell, UnitFileRow } from "./unitFileContract.js";
 
 export const VEHICLE_CHECKS = [
   "no_driver",
-  "off_board",
+  "under_dispatch",
+  "parked",
   "winding_down",
   "inspection_overdue",
   "inspection_due",
@@ -55,8 +65,9 @@ export type VehicleCheck = (typeof VEHICLE_CHECKS)[number];
 
 export const VEHICLE_CHECK_LABELS: Record<VehicleCheck, string> = {
   no_driver: "On the dispatch board, no driver",
-  off_board: "Off the dispatch board (Unassigned pool, sold, retiring)",
-  winding_down: "Being wound down (sold or retiring)",
+  under_dispatch: "Under dispatch (on the dispatch board)",
+  parked: "Parked in the Unassigned pool (not dispatched)",
+  winding_down: "Sold or retiring, still in McLeod",
   inspection_overdue: "Annual inspection overdue",
   inspection_due: `Annual inspection due in ${INSPECTION_EXPIRY_WARNING_DAYS} days`,
   inspection_missing: "Annual inspection: no paper, no date",
@@ -113,6 +124,21 @@ export function isOnDispatchBoard(v: BoardTruck, holdsLoad: boolean): boolean {
   return boardCarriesTruck(v, holdsLoad) && !isUnassignedPool(v.mcleod_fleet_code);
 }
 
+/** The group a truck in the fleet belongs to — exactly one (D-FM11). */
+export type FleetGroup = "under_dispatch" | "parked" | "winding_down";
+
+/**
+ * Which of the three groups a truck in the fleet is in, or null for one not in the fleet (ordered, not
+ * delivered; retired). Asked of the vehicle row alone, holding no load, like every seat check: under
+ * dispatch is `isOnDispatchBoard`; a truck being wound down is that, whatever its fleet; everything else
+ * in service is parked in the Unassigned pool. The gap that `false` leaves is Q-FM10's.
+ */
+export function fleetGroup(v: BoardTruck): FleetGroup | null {
+  if (!isInServiceVehicleStatus(v.status)) return null;
+  if (isOnDispatchBoard(v, false)) return "under_dispatch";
+  return v.winding_down === true ? "winding_down" : "parked";
+}
+
 /**
  * Where a unit stands on one paper: the filed paper's own date, else McLeod's typed date beside the
  * missing item (D-UF3), else nothing. `source` says which, so a list can print "date only".
@@ -144,8 +170,7 @@ const PAPER_ASKS = ["overdue", "due", "missing", "date_only"] as const;
 export function matchesVehicleCheck(v: Checked, check: string, file: CheckedFile | undefined): boolean {
   // The seat checks are the Seats card's, asked as it asks them: of the vehicle row, holding no load.
   if (check === "no_driver") return isOnDispatchBoard(v, false) && v.assigned_driver_id == null;
-  if (check === "off_board") return isInServiceVehicleStatus(v.status) && !isOnDispatchBoard(v, false);
-  if (check === "winding_down") return v.winding_down === true;
+  if (check === "under_dispatch" || check === "parked" || check === "winding_down") return fleetGroup(v) === check;
   const cut = check.indexOf("_");
   const item = PAPER_CHECK_ITEMS[check.slice(0, cut) as keyof typeof PAPER_CHECK_ITEMS];
   const ask = check.slice(cut + 1) as (typeof PAPER_ASKS)[number];

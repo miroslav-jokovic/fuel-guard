@@ -352,15 +352,17 @@ describe("every count is the row count behind its door (D-FM7)", () => {
     expect(n(w, "no-truck")).toBe("2"); // b (only on retired t5) and c
   });
 
-  it("seats: counts the board's trucks — the shop's in, the pool and the wound-down on one line of their own", () => {
-    // 2026-11-26: "179 of 196" beside a board of 181, 14 of 17 empty seats parked in fleet '1' (D-FM10).
+  it("trucks: the fleet is every truck in service, and its three groups add up to it (D-FM11)", () => {
+    // 2026-11-27: "177 of 181" beside the Vehicles page's 204 — itself hiding 6 in the shop — of 210.
     const w = render();
+    // Under dispatch t1, t2, t3 and t8 (in the shop); parked t7 (pool); sold or retiring t6.
+    expect([n(w, "under-dispatch"), n(w, "parked"), n(w, "winding-down")]).toEqual(["4", "1", "1"]);
     expect(n(w, "no-driver")).toBe("3"); // t2, t3, t8 — not t6 (wound down), not t7 (pool)
-    expect(n(w, "off-board")).toBe("2"); // t6, t7 — ordered t4 and retired t5 are not in service
+    expect(n(w, "ordered")).toBe("1"); // t4, beside the total, never in it; retired t5 is nowhere
     const card = w.get("[data-test='widget-ops.seats']").text();
-    expect(card).toContain("1 of 4"); // t1 of t1, t2, t3, t8
-    expect(card).toContain("1 parked in the Unassigned pool · 1 sold or retiring");
-    expect(card).not.toContain("on order");
+    expect(card).toContain("6 trucks");
+    expect(card).toContain("4 under dispatch + 1 parked + 1 sold or retiring");
+    expect(card).toContain("on the Dispatch board · 1 with a driver");
   });
 
   it("paperwork: active trucks only, read from each truck's file, with date-only and nothing-on-file on lines of their own", () => {
@@ -430,7 +432,7 @@ describe("every count is the row count behind its door (D-FM7)", () => {
       "/assignments?scope=all", "/assignments?scope=all&queue=empty", "/assignments?scope=all&queue=late",
       "/assignments?scope=all&queue=hos-low", "/loads?queue=uncovered&scope=all",
       "/drivers?file=expired", "/drivers?file=not_started",
-      "/vehicles?status=any&check=no_driver", "/drivers?status=active&seat=none", "/vehicles?status=any&check=off_board",
+      "/vehicles?check=under_dispatch", "/vehicles?check=no_driver", "/vehicles?check=parked", "/vehicles?check=winding_down", "/vehicles?status=ordered", "/drivers?status=active&seat=none",
       "/vehicles?check=inspection_overdue", "/vehicles?check=registration_missing",
       "/?tab=fleet", "/anomalies", "/idling", "/hazmat/review", "/recruitment", "/recruitment?waiting=them",
       "/shop/work-orders", "/shop/defects",
