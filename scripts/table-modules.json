@@ -2312,6 +2312,28 @@
         "why": "new in 0620 (2026-11-16, IA-S6); one row per (device, address) pair, read from auth.sessions.ip; production had 18 distinct addresses across 80 sessions on 2026-11-16. Written at most once per five minutes per pair. pruned 365 days after last_seen_at (Q-IA17)."
       }
     },
+    "two_step_codes": {
+      "module": "org",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 30,
+        "partition": null,
+        "budget_rows_per_day": 20,
+        "why": "new in 0662 (2026-11-27, IA-S1 rev 2, Q-IA20); one row per emailed sign-in code. Bounded by five per person per hour and, in use, by office people x devices x one code a week (19 accounts on production 2026-11-16). pruned 30 days after created_at: a code lives ten minutes, the rows are kept only as a recent sending record."
+      }
+    },
+    "two_step_devices": {
+      "module": "org",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 90,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "new in 0662 (2026-11-27, IA-S1 rev 2, Q-IA20); one row per (company, person, device) that gave its emailed code, updated in place each week. A row older than TWO_STEP_DAYS trusts nothing; pruned 90 days after verified_at."
+      }
+    },
     "member_devices": {
       "module": "org",
       "layer": "core",
