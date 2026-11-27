@@ -516,3 +516,14 @@ spoken. ⚠ **A safety person checks every question against the film before rele
   the `training` module is granted to its org. The console's grant needs a step-up, which staging
   cannot give (Q-AD41), and an agent's direct grant on the staging database was refused by the
   auto-mode classifier, so the grant is the owner's one command.
+- 2026-11-27 (later): all five films published on staging, course "Defensive driving, Act I": 01 (204 s,
+  18 questions), 02 (193 s, 18), 03 (195 s, 12), 04 (214 s, 18), 05 (217 s, 18), each with the chapters
+  of §2. Staging needed three things first. (1) The `training` module, granted by the owner. (2) Railway's
+  retired `uat` held staging's `general` and `egress` lanes at a commit older than training; the owner
+  deleted the Railway project (purge 2026-11-29), but staging runs no `general` lane of its own
+  (`infra/server/staging.env` RUN_SCHEDULERS=false), so a conversion a deploy interrupts stays queued.
+  (3) #2691: a second "uploaded" on a film already queued now starts the queue again instead of a 500.
+  The loader starts the conversions one film at a time (~3½ min each on the t4g.medium). Merges from
+  other work redeployed staging every 5–15 minutes and interrupted film 02 twice. Left on staging: two
+  unused copies of film 01 (v1 ready, v2 queued). Next: the phone walk (§6 step 3), then the safety
+  review of all 84 (§6 step 4) before production.
