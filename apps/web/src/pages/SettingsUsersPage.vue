@@ -252,7 +252,7 @@ async function sendRole(m: OrgMember, newRole: string) {
   await load();
 }
 
-const rowAct = ref<{ kind: "rename" | "reset" | "devices" | "second-factor"; member: OrgMember } | null>(null); // 0363, IA-S3 — each drawer owns its act and its step-up
+const rowAct = ref<{ kind: "rename" | "reset" | "devices"; member: OrgMember } | null>(null); // 0363, IA-S3 — each drawer owns its act and its step-up
 // ── search + multi-select (members) ─────────────────────────────────────────
 // In the URL (D-US2), so a reload or Back keeps the member the admin searched for. The page's other
 // list, invitations, has no filter, so the key needs no scope.
@@ -428,7 +428,6 @@ const inviteColumns: DataTableColumn[] = [
             <BaseButton v-if="row.userId !== session.userId" class="kebab-item" @click="rowAct = { kind: 'reset', member: row }">Send password reset…</BaseButton>
             <BaseButton class="kebab-item" @click="rowAct = { kind: 'devices', member: row }">Signed-in devices…</BaseButton>
             <template v-if="offersAccessActions(row, session.userId)">
-              <BaseButton class="kebab-item" @click="rowAct = { kind: 'second-factor', member: row }">Remove two-step sign-in…</BaseButton>
               <BaseButton v-if="isSuspended(row)" class="kebab-item" @click="memberAct(reinstateMember, row)">Reinstate member…</BaseButton>
               <BaseButton v-else class="kebab-item" @click="memberAct(suspendMember, row)">Suspend member…</BaseButton>
               <BaseButton class="kebab-item kebab-item-danger" @click="memberAct(removeMember, row)">Remove member…</BaseButton>

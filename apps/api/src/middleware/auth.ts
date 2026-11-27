@@ -23,7 +23,7 @@ import * as Sentry from "@sentry/node";
 class AccessChanged extends Error {}
 /** The token is genuine but its session was ended — the device was signed out (Q-IA10, 0616). */
 class SignedOut extends Error {}
-/** The token is genuine but its owner must take the second step and this session has not (IA-S1, 0617). */
+/** The token is genuine but its device owes the emailed code: never given, or not in the last week (IA-S1 rev 2, 0662). */
 class SecondStepNeeded extends Error {}
 /** The token is genuine but its device is a fourth: the account already holds its three places (IA-S6, 0620). */
 class DeviceLimit extends Error {}
@@ -43,10 +43,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 }
 
 /**
- * `requireAuth` for the ONE router a one-step token may still call: `/api/me/second-factor`, which tells
- * the app that a code is needed (IA-S1). Everything else about the token is checked exactly as above —
- * signature, membership, session — and only the second-step refusal is waived. Without it an admin whose
- * date had passed would be refused by every route including the one that could say why.
+ * `requireAuth` for the ONE router a token that owes its code may still call: `/api/me/second-factor`, which
+ * says a code is needed, sends it and takes it (IA-S1 rev 2). Everything else about the token is checked exactly
+ * as above — signature, membership, session — and only the second-step refusal is waived. Without it a person
+ * whose week had run out would be refused by every route including the one that could let them back in.
  */
 export function requireAuthFirstStep(req: Request, res: Response, next: NextFunction): void {
   authenticate(req, res, next, { firstStep: true });
@@ -109,10 +109,10 @@ function authenticate(req: Request, res: Response, next: NextFunction, waive: Wa
         res.status(401).json(apiError("access_changed", "This device was signed out. Sign in again."));
         return;
       }
-      // 403, not 401: the token is good and must NOT be thrown away — the same session becomes `aal2` once
-      // the code is entered. The web sends the person to the code page on this code (lib/api.ts).
+      // 403, not 401: the token is good and must NOT be thrown away — the same session is let in once its
+      // device gives the emailed code. The web sends the person to the code page on this code (lib/api.ts).
       if (err instanceof SecondStepNeeded) {
-        res.status(403).json(apiError(SECOND_FACTOR_REQUIRED, "Enter the code from your authenticator app to continue."));
+        res.status(403).json(apiError(SECOND_FACTOR_REQUIRED, "Enter the sign-in code we emailed you to continue."));
         return;
       }
       // 403, not 401, for the reason the second step's is: the token is good and must be kept — it is the one

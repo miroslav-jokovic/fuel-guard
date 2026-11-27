@@ -268,25 +268,6 @@ describe("SettingsUsersPage — suspend, reinstate, remove", () => {
     w2.unmount();
   });
 
-  it("removes a member's two-step sign-in from their row — for a colleague, never for oneself", async () => {
-    const w = mountPage();
-    await flushPromises();
-    expect(await menuOf(w, "shop@silvicom.test")).toContain("Remove two-step sign-in…");
-    await pick("Remove two-step sign-in…");
-    // The drawer says what it does first; nothing is sent until its own button is pressed.
-    expect(calls.some((c) => c.path.endsWith("/second-factor"))).toBe(false);
-    expect(document.body.textContent).toContain("they are signed out on every device");
-    [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent!.trim() === "Remove two-step sign-in")!.click();
-    await flushPromises();
-    expect(calls.filter((c) => c.path === "/api/members/u-tech/second-factor").map((c) => c.init?.method)).toEqual(["DELETE"]);
-    expect(toasts.at(-1)).toMatchObject({ kind: "success", title: "Two-step sign-in removed" });
-    w.unmount();
-    const w2 = mountPage();
-    await flushPromises();
-    expect(await menuOf(w2, "boss@silvicom.test")).not.toContain("Remove two-step sign-in…");
-    w2.unmount();
-  });
-
   it("offers no access act on yourself, or on a driver-app login", async () => {
     const w = mountPage();
     await flushPromises();
