@@ -1,4 +1,4 @@
-import { BROKER_MAIL_MAX_TOKENS, normaliseBrokerMailToken, type BrokerMailAnswer, type BrokerMailEnvelope } from "@silvicom/shared";
+import { brokerMailTokensIn, type BrokerMailAnswer, type BrokerMailEnvelope } from "@silvicom/shared";
 
 /**
  * What one Graph message means for 360 — pure, so every rule here is a unit test (D-BMR6, D-BMR9).
@@ -26,22 +26,8 @@ export function isInternal(address: string | null, mailDomains: readonly string[
   return d !== null && mailDomains.some((m) => m.toLowerCase() === d);
 }
 
-/**
- * Reference-shaped tokens in free text: a run of letters, digits and `-#/` at least four long with a
- * digit in it (load numbers, POs, pickup numbers — never an ordinary word). Normalised the way the
- * database compares them, deduplicated, capped (D-BMR8).
- */
-export function tokensIn(text: string | null): string[] {
-  if (!text) return [];
-  const out = new Set<string>();
-  const add = (raw: string) => { const t = normaliseBrokerMailToken(raw); if (t && out.size < BROKER_MAIL_MAX_TOKENS) out.add(t); };
-  for (const m of text.matchAll(/[A-Za-z0-9][A-Za-z0-9#\-/]{3,}/g)) if (/\d/.test(m[0])) add(m[0]);
-  // "PO# 4411" reaches the run above as a bare "4411", but a load may store "PO-4411": a number
-  // after one of the reference words is offered in both forms. A form that matches nothing is
-  // counted as a miss, never kept (D-BMR7), so the extra token costs nothing.
-  for (const m of text.matchAll(/\b(PO|PU|BOL|PRO|REF|ORDER)\s*#?\s*[:-]?\s*([A-Za-z0-9-]*\d[A-Za-z0-9-]*)/gi)) add(`${m[1]}${m[2]}`);
-  return [...out];
-}
+/** The token rule, shared with the API's measure-week report (`brokerMailTokensIn`, D-BMR8). */
+export const tokensIn = brokerMailTokensIn;
 
 export interface InboxVerdict {
   /** External: becomes a row. Internal: maybe a colleague's answer, never a row. */

@@ -1,6 +1,6 @@
 import type { Ref } from "vue";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { BrokerMailAdmin, BrokerMailList, BrokerMailSettings, BrokerMailTab } from "@silvicom/shared";
+import type { BrokerMailAdmin, BrokerMailList, BrokerMailSettings, BrokerMailTab, BrokerMailWeek } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -34,6 +34,20 @@ export function useBrokerMailAdminQuery() {
     queryFn: async (): Promise<BrokerMailAdmin> => {
       const r = await apiFetch<BrokerMailAdmin>("/api/broker-mail/admin");
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the broker mail settings");
+      return r.data;
+    },
+  });
+}
+
+/** The measure-only week's report (§8): seven days from `from`, or the seven ending today when empty. */
+export function useBrokerMailWeekQuery(from: Ref<string>) {
+  return useQuery({
+    queryKey: [...KEY, "week", from] as const,
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<BrokerMailWeek> => {
+      const qs = from.value ? `?from=${encodeURIComponent(from.value)}` : "";
+      const r = await apiFetch<BrokerMailWeek>(`/api/broker-mail/week${qs}`);
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the measure week");
       return r.data;
     },
   });

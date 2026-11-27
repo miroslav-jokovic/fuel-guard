@@ -589,6 +589,22 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
     click has something to open. "Not for us" / "Handled by phone" closes are not built. Today a row
     closes only on proof from Outlook. A person's close would contradict the gateway's next read unless
     the gateway learns it, and that belongs with P4's command side.
+- 2026-11-27 — **The measure week's report is built** (owner: "build everything on our side while Simo
+  finishes"). Settings › Broker mail › Measure week, `GET /api/broker-mail/week?from=`, admin only.
+  It answers every §8 line from the envelope rows and the gateway's run counts. Rules:
+  `brokerMailWeekContract.ts`. Choices made at build:
+  - **"Messages in" exists per day only.** `mail_gateway_cycles.counts` is company-wide per run, so the
+    per-mailbox figures are about external mail, the rows themselves. Run counts are kept 14 days, so
+    an older week shows rows and says its run counts are gone.
+  - **Subject versus body.** The token rule moved from the gateway into shared (`brokerMailTokensIn`).
+    The report applies it to the stored subject: a `one` row whose matched reference is not in its
+    subject needed the body. One rule, two readers.
+  - **"Would have texted"** replays P3's rule with today's settings. Night = the SMS quiet window. A
+    night backup notice counts only if the email was still unanswered when the window ended (Q-BM12).
+  - **The hand check** is a fixed 50-row pick per first day (rows on the page's two open queues,
+    ordered by a hash of their id). The verdicts are a person's and are not stored.
+  - **Is the load the owner's?** Through mcleod's index (`readFleetDispatchers`); new boundary edge
+    `broker-mail -> mcleod`.
 
 ## Sources
 

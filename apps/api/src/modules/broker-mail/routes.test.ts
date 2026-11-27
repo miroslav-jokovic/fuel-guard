@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import express, { type NextFunction, type Request, type Response } from "express";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { BROKER_MAIL_ALL_PERMISSION, brokerMailAdminSchema, brokerMailListSchema, type UserRole } from "@silvicom/shared";
+import { BROKER_MAIL_ALL_PERMISSION, brokerMailAdminSchema, brokerMailListSchema, brokerMailWeekSchema, type UserRole } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../testing/httpServer.js";
 
@@ -70,7 +70,12 @@ beforeEach(() => {
         from_address: "anna@chrobinson.com", from_domain: "chrobinson.com", subject: "RE: 48213 ETA?", match_state: "one",
         matched_refs: ["48213"], load_id: LOAD, thread_state: "waiting", answered_at: null, addressed_directly: true, org_id: ORG,
       }],
-      loads: [{ id: LOAD, ref: "48213", org_id: ORG }],
+      loads: [{ id: LOAD, ref: "48213", org_id: ORG, dispatcher_external_id: "IVOK" }],
+      organizations: [{ id: ORG, operating_hours: { tz: "America/Chicago" } }],
+      notification_channel_settings: [],
+      tms_dispatchers: [{ org_id: ORG, provider: "mcleod", external_id: "IVOK", display_name: "Ivo", is_system: false, is_active: true, user_id: USER }],
+      tms_fleets: [],
+      mail_gateway_cycles: [{ id: "00000000-0000-4000-8000-0000000000e1", org_id: ORG, started_at: "2026-11-25T14:41:00Z", counts: { messages_in: 3, bodies_read: 0, graph_throttled: 0, errors: 0 } }],
       broker_mail_settings: () => settingsRows,
       broker_mail_backups: [{ org_id: ORG, dispatcher_user_id: USER, backup_user_id: OTHER }],
       notification_contacts: [{ org_id: ORG, user_id: USER, verified_at: "2026-11-01T00:00:00Z", stopped_at: null }],
@@ -241,5 +246,34 @@ describe("Settings › Broker mail — the admin's alone (Q-BM9)", () => {
     expect((await call("admin", "PUT", `/api/broker-mail/mailboxes/${USER}/backups`, { backupUserIds: [stranger] })).status).toBe(400);
     expect((await call("admin", "PUT", `/api/broker-mail/mailboxes/${USER}/backups`, { backupUserIds: [USER] })).status).toBe(400);
     expect(rec.forTable("broker_mail_backups").some((q) => q.write)).toBe(false);
+  });
+});
+
+describe("GET /api/broker-mail/week — the measure week's report (§8)", () => {
+  it("is the admin's alone: a fleet manager granted the screen is still refused", async () => {
+    surfaceGrants = { fleet_manager: { "admin.settings.broker-mail": true } };
+    expect((await call("fleet_manager", "GET", "/api/broker-mail/week")).status).toBe(403);
+  });
+
+  it("reads the range org-scoped, page by page, and answers the contract", async () => {
+    const r = await call("admin", "GET", "/api/broker-mail/week?from=2026-11-21");
+    expect(r.status).toBe(200);
+    const week = brokerMailWeekSchema.parse(r.json);
+    expect(week.from).toBe("2026-11-21");
+    expect(week.to).toBe("2026-11-27");
+    expect(week.days).toHaveLength(7);
+    expect(week.total.external).toBe(1);
+    expect(week.total.match.one).toBe(1);
+    // The load's McLeod dispatcher (IVOK → Ivo) is the mailbox's owner.
+    expect(week.total.oneOwnersLoad).toBe(1);
+    expect(week.total.oneBySubject).toBe(1);
+    const messages = rec.queries.filter((q) => q.table === "broker_mail_messages");
+    expect(messages.length).toBeGreaterThan(0);
+    expectOrgScoped(rec, ORG, { exempt: ["org_role_surface_access", "user_surface_access"] });
+  });
+
+  it("refuses a first day that is not a date, or is in the future", async () => {
+    expect((await call("admin", "GET", "/api/broker-mail/week?from=last-week")).status).toBe(400);
+    expect((await call("admin", "GET", "/api/broker-mail/week?from=2999-01-01")).status).toBe(400);
   });
 });
