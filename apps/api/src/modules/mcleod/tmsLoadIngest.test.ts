@@ -129,15 +129,17 @@ describe("a new load from the feed", () => {
     expect(inserted.source).toBe("tms");
   });
 
-  it("gives every stop a photo checklist, so a driver never arrives with nothing to capture", async () => {
+  // The literal values, not `requiredPhotosFor`: this test is what notices the shared rule changing.
+  it("the TMS feed writes the shared required photos per stop kind", async () => {
     const { admin, writes } = stub({});
     await ingestLoads(admin, "org", "mcleod", [load()]);
     const stops = writes.find((w) => w.table === "load_stops" && w.op === "upsert")?.payload as {
       kind: string; required_photos: string[];
     }[];
-    expect(stops).toHaveLength(2);
-    expect(stops[0]?.required_photos).toContain("bol");
-    expect(stops[1]?.required_photos).toContain("bol");
+    expect(stops.map((s) => [s.kind, s.required_photos])).toEqual([
+      ["pickup", ["trailer", "bol"]],
+      ["dropoff", ["bol"]],
+    ]);
   });
 
   it("only auto-approves when the org has opted in", async () => {

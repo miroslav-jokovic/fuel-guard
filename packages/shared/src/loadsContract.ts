@@ -57,6 +57,25 @@ export function photoSlotLabel(slot: string): string {
 }
 
 /**
+ * The photos a driver is asked for at each kind of stop, on every load the office did not author
+ * (McLeod's mirror and the old TMS feed). McLeod knows no carrier photo policy, so this is ours, stated
+ * once (MCLEOD-API-KIT-PLAN Q-MK9, D-MKN5.1). It was written twice, identically, until 2026-11-27:
+ * `loads/mirrorLoads.ts` and the retired `/api/tms/loads` writer `mcleod/tmsLoadIngestWriters.ts`.
+ * `tms.ts`'s `tmsStopInputSchema` restates the stop kinds for that retired feed and goes with it (N-7).
+ * No settings screen and no table: nobody has named a stop that needs another list, and
+ * `load_stops.required_photos` stays free-form `text[]`, so a future per-stop rule needs no migration.
+ */
+export const REQUIRED_PHOTOS_BY_STOP_KIND: Readonly<Record<StopKind, readonly PhotoSlot[]>> = {
+  pickup: ["trailer", "bol"],
+  dropoff: ["bol"],
+};
+
+/** A fresh array: the value is written into a `text[]` column and must not alias the constant. */
+export function requiredPhotosFor(kind: StopKind): PhotoSlot[] {
+  return [...REQUIRED_PHOTOS_BY_STOP_KIND[kind]];
+}
+
+/**
  * The slots that hold a DOCUMENT rather than a photo of a thing. A document is scanned — the scanner
  * finds the page, straightens it and checks it can be read (owner, 2026-11-23: one scanner for every
  * document); a trailer, a seal or damage is photographed as it is.
