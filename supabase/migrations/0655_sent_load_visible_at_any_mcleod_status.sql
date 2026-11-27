@@ -69,11 +69,13 @@ revoke all on function public.auth_visible_tms_load_ids() from public;
 grant execute on function public.auth_visible_tms_load_ids() to anon, authenticated, service_role;
 
 -- ── the three driver scopes: 0371's bodies, with the tms branch replaced ───────────────────────────
+-- `auth_role()` is wrapped as `(select auth_role())`, the form every policy has used since the
+-- wrapped-helpers pass (rls-wrapped-helpers.test.mjs refuses a bare call): one evaluation per query.
 drop policy if exists loads_driver_scope on loads;
 create policy loads_driver_scope on loads
   as restrictive for select
   using (
-    auth_role() <> 'driver'
+    (select auth_role()) <> 'driver'
     or (
       source <> 'tms'
       and driver_id = auth_driver_id()
@@ -90,7 +92,7 @@ drop policy if exists load_stops_driver_scope on load_stops;
 create policy load_stops_driver_scope on load_stops
   as restrictive for select
   using (
-    auth_role() <> 'driver'
+    (select auth_role()) <> 'driver'
     or exists (
       select 1 from loads l
        where l.id = load_stops.load_id
@@ -109,7 +111,7 @@ drop policy if exists load_events_driver_scope on load_events;
 create policy load_events_driver_scope on load_events
   as restrictive for select
   using (
-    auth_role() <> 'driver'
+    (select auth_role()) <> 'driver'
     or exists (
       select 1 from loads l
        where l.id = load_events.load_id
