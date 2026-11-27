@@ -430,6 +430,18 @@ export const RETENTION_RULES: RetentionRule[] = [
     why: "D-SR7 (SCANNER-RELAY-PLAN): relayed scanner reads and the tab each was routed to; never delivered past 60 s, and what a scan led to lives in its own table",
   },
   {
+    // 0656 (BROKER-MAIL-READER-PLAN P4): what each broker-mail reply draft cost — tokens and outcome, never
+    // the words. Kept as long as Ask AI's cost ledger (Q-AI4 (a), the rule just below) for the same
+    // reason: the year-over-year cost view keeps last year's same month whole. `org_usage_month` carries
+    // the month's totals, so nothing the budget reads is pruned.
+    table: "broker_mail_compose_usage",
+    timeColumn: "composed_at",
+    keepDays: 400,
+    strategy: "id",
+    orgScoped: true,
+    why: "BROKER-MAIL-READER-PLAN D-BMR11: per-draft cost rows, no text; 13 months like Ask AI's ledger (Q-AI4)",
+  },
+  {
     // 0584 (F21 R2), ruled Q-AI4 (a) 2026-11-11: the Ask AI cost ledger — tokens and dollars per answer,
     // no question and no answer text. 400 days, not 365: "13 months" means a year-over-year view keeps
     // last year's SAME month whole, and on the 31st that month began 396 days back. The question asked

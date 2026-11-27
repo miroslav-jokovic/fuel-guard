@@ -2888,6 +2888,15 @@ async function main() {
       // never both consumed AND revoked, and it expires after it was made — plus a token_hash that
       // must be a SHA-256 hex digest. Each exists so the raw token or an impossible state cannot be
       // stored; handing the seeder a real live row is cheaper than loosening any of them.
+      // 0656: a draft's text exists exactly while it is queued or claimed (D-BMR11: our words leave the
+      // database the minute Outlook has them), and it hangs off a broker email owned by a user. The
+      // synthesiser's all-null text breaks the first; a live queued draft on a real envelope is the row.
+      broker_mail_drafts: (org) =>
+        `with u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-bmd@example.com') returning id), ` +
+        `     m as (insert into broker_mail_messages (org_id, owner_user_id, mailbox, internet_message_id, received_at, addressed_directly, was_candidate, body_was_read, match_state) ` +
+        `           select '${org}', id, 'rls-bmd@example.com', gen_random_uuid()::text, now(), true, true, false, 'not_tried' from u returning id, owner_user_id) ` +
+        `insert into broker_mail_drafts (org_id, message_id, mailbox, owner_user_id, draft_text, text_sha256, composed_by) ` +
+        `select '${org}', id, 'rls-bmd@example.com', owner_user_id, 'Truck is on time.', repeat('a', 64), 'model' from m`,
       password_resets: (org) =>
         `with u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-pwr@example.com') returning id) ` +
         `insert into password_resets (org_id, user_id, token_hash, expires_at) ` +
