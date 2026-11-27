@@ -3,6 +3,7 @@ import { computed, ref, toRef, watch } from "vue";
 import {
   FOLLOW_UP_ACTION_LABELS,
   FOLLOW_UP_CATEGORY_LABELS,
+  followUpHasTruckCodes,
   formatDisplayDateTime,
   type FollowUpAction,
   type FollowUpVideo,
@@ -13,6 +14,7 @@ import SlideOver from "@/components/SlideOver.vue";
 import { phoneDialString, formatPhone } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
 import { useFollowUpAction, useFollowUpDetailQuery, useFollowUpVideo } from "./useFollowUps";
+import FollowUpTruckCodes from "./FollowUpTruckCodes.vue";
 import { coachingLabel, driverLabel, problemDetail, SEVERITY_BADGE, stateBadge, unitLabel } from "./followUpRows";
 
 /**
@@ -208,6 +210,8 @@ const CAMERA: Record<string, string> = {
           </ol>
           <p v-if="data.warnings.length === 0" class="text-sm text-ink-muted">Samsara's warnings for this follow-up are older than 90 days and no longer kept.</p>
         </section>
+
+        <FollowUpTruckCodes v-if="followUpHasTruckCodes(line)" :follow-up-id="line.id" />
 
         <section aria-labelledby="fu-history" class="space-y-2">
           <h3 id="fu-history" class="text-sm font-semibold text-ink">History</h3>

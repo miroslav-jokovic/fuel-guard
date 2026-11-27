@@ -11,12 +11,15 @@
 import {
   alertRuleDefault,
   alertRuleKey,
+  faultCodeGroup,
   HOS_DRIVING_TYPES,
   SERIOUS_SAFETY_BEHAVIOURS,
   type AlertConfigurationSummary,
+  type TruckFaultCode,
   type WarningSource,
   type WarningSubject,
 } from "@silvicom/shared";
+import { parseFaultReading } from "./faultCodes.js";
 
 export interface WarningRow {
   org_id: string;
@@ -227,9 +230,17 @@ export interface TruckLamps {
   name: string | null;
   stop: boolean;
   amber: boolean;
-  /** Up to three code descriptions, for the desk to read out to the shop. */
-  codes: string[];
+  /**
+   * The codes behind the lamp, kept on the lamp row as the drawer's fallback when Samsara does not
+   * answer (D-ORM10). Whole codes — SPN, FMI, module — because 53% of live codes have no description
+   * (measured 2026-11-27) and a description alone told the shop nothing. At most `LAMP_DETAIL_CODES`,
+   * then cut to `LAMP_DETAIL_BYTES` (below).
+   */
+  codes: TruckFaultCode[];
 }
+
+export const LAMP_DETAIL_CODES = 8;
+const LAMP_DETAIL_TEXT = 80;
 
 export function truckLamps(raw: unknown): TruckLamps | null {
   const v = obj(raw);
@@ -237,17 +248,33 @@ export function truckLamps(raw: unknown): TruckLamps | null {
   if (!v || !id) return null;
   const name = nameOf(v);
   if (isRetiredUnitName(name)) return null;
-  const j = obj(obj(v.faultCodes)?.j1939);
-  const lights = obj(j?.checkEngineLights);
-  const codes = (Array.isArray(j?.diagnosticTroubleCodes) ? j.diagnosticTroubleCodes : [])
-    .map((c) => str(obj(c)?.spnDescription))
-    .filter((c): c is string => c !== null)
-    .slice(0, 3);
+  const { codes, lamps } = parseFaultReading(v.faultCodes);
+  const short = (t: string | null) => (t && t.length > LAMP_DETAIL_TEXT ? t.slice(0, LAMP_DETAIL_TEXT) : t);
   return {
     vehicleId: id,
     name,
-    stop: lights?.stopIsOn === true,
-    amber: lights?.warningIsOn === true || lights?.emissionsIsOn === true,
-    codes,
+    stop: lamps?.stop === true,
+    amber: lamps?.warning === true || lamps?.emissions === true,
+    codes: fitDetail(vehicleCodesFirst(codes).slice(0, LAMP_DETAIL_CODES).map((c) => ({ ...c, moduleName: short(c.moduleName), description: short(c.description), fmiDescription: short(c.fmiDescription) }))),
   };
+}
+
+/**
+ * Drop codes from the end until `{ codes }` is under `LAMP_DETAIL_BYTES` as text — the row is refused
+ * outright past 0653's `pg_column_size(detail) <= 2048`, and a refused row would fail the collector's
+ * whole lamp write, not just this truck's. The budget is TEXT bytes but the CHECK measures jsonb, which
+ * is larger: on the live fleet's worst truck (2026-11-27), 1,556 text bytes were 2,007 in production's
+ * Postgres — 41 bytes from refusal — and 1,199 were 1,604. Hence 1,200, which kept 205 of 217 live
+ * codes; the twelve cut were on trucks with more than seven.
+ */
+export const LAMP_DETAIL_BYTES = 1200;
+
+/** When codes must be cut, the truck's own go first and the cameras' and radios' last (Q-ORM7). */
+function vehicleCodesFirst(codes: TruckFaultCode[]): TruckFaultCode[] {
+  return [...codes.filter((c) => faultCodeGroup(c) === "vehicle"), ...codes.filter((c) => faultCodeGroup(c) === "electronics")];
+}
+function fitDetail(codes: TruckFaultCode[]): TruckFaultCode[] {
+  const out = [...codes];
+  while (out.length > 0 && Buffer.byteLength(JSON.stringify({ codes: out })) > LAMP_DETAIL_BYTES) out.pop();
+  return out;
 }

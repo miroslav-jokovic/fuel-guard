@@ -7,6 +7,7 @@ import type {
   FollowUpList,
   FollowUpRuleSave,
   FollowUpRules,
+  FollowUpTruckCodes,
   FollowUpVideo,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
@@ -68,6 +69,23 @@ export function useFollowUpVideo() {
     mutationFn: async (v: { id: string; eventId: string }): Promise<FollowUpVideo> => {
       const r = await apiFetch<FollowUpVideo>(`/api/follow-ups/${v.id}/video/${encodeURIComponent(v.eventId)}`);
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not fetch the video");
+      return r.data;
+    },
+  });
+}
+
+/**
+ * A maintenance follow-up's truck codes (D-ORM9), read when the drawer opens. Not polled: a reading
+ * changes when the truck's controllers do, and the drawer is open for minutes. A minute's staleness
+ * lets a person close and reopen the drawer without asking Samsara again.
+ */
+export function useFollowUpTruckCodesQuery(id: Ref<string>) {
+  return useQuery({
+    queryKey: [...KEY, "codes", id] as const,
+    staleTime: 60_000,
+    queryFn: async (): Promise<FollowUpTruckCodes> => {
+      const r = await apiFetch<FollowUpTruckCodes>(`/api/follow-ups/${id.value}/codes`);
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not read the truck's codes");
       return r.data;
     },
   });

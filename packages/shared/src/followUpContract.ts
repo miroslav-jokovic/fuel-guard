@@ -8,6 +8,7 @@ import {
   WARNING_SUBJECTS,
   type FollowUpCategory,
 } from "./followUpRules.js";
+import { truckFaultCodeSchema, truckLampStateSchema } from "./truckFaultCodes.js";
 
 /**
  * The warning desk's wire (docs/plans/maintenance/WARNING-DESK-PLAN.md WD4/WD5): what
@@ -174,6 +175,31 @@ export const followUpVideoSchema = z.discriminatedUnion("restricted", [
   z.object({ restricted: z.literal(true), samsaraUrl: z.string().nullable() }),
 ]);
 export type FollowUpVideo = z.infer<typeof followUpVideoSchema>;
+
+/**
+ * Samsara's fault codes on a maintenance follow-up's truck (OUT-OF-ROUTE-MAP-ANALYSIS §7, D-ORM8–10),
+ * read when the drawer opens and never stored. `samsara`: the truck's latest reading (`asOf` is when
+ * Samsara took it — measured from minutes to 561 days old, so it is always shown) and the codes that
+ * came and went since `since`. `stored`: Samsara did not answer, and these are the codes the collector
+ * kept when the truck's lamp last came on (`asOf`) — fewer, older, and said so.
+ */
+export const followUpTruckCodesSchema = z.discriminatedUnion("source", [
+  z.object({
+    source: z.literal("samsara"),
+    asOf: z.string().nullable(),
+    lamps: truckLampStateSchema.nullable(),
+    now: z.array(truckFaultCodeSchema),
+    cameAndWent: z.array(truckFaultCodeSchema.extend({ firstSeen: z.string(), lastSeen: z.string() })),
+    since: z.string(),
+    sinceCapped: z.boolean(),
+  }),
+  z.object({
+    source: z.literal("stored"),
+    asOf: z.string(),
+    now: z.array(truckFaultCodeSchema),
+  }),
+]);
+export type FollowUpTruckCodes = z.infer<typeof followUpTruckCodesSchema>;
 
 // ── rules (admin only, D-WD10) ──────────────────────────────────────────────────────────────────
 const ruleSettings = {

@@ -103,3 +103,6 @@ export {
 } from "./warnings/warningReads.js";
 // A safety event's video, fetched fresh per click and never stored (D-WD7).
 export { fetchSafetyEventVideo, type SafetyEventMedia } from "./warnings/safetyVideo.js";
+// A maintenance follow-up's truck: its fault codes now and those that came and went, read on open and
+// never stored (OUT-OF-ROUTE-MAP-ANALYSIS D-ORM9).
+export { readTruckFaultCodes, type TruckFaultCodesRead } from "./warnings/faultCodes.js";
