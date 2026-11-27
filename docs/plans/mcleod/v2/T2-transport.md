@@ -786,7 +786,8 @@ previous commit. **Release:** merged after T-5 is in production; reaches the VM 
 One connector commit carrying: B4's reference-number statements (T1's N-10 agent half), the test-company movement
 read (below), T-2 and T-8's agent code, the regenerated `review/SILVICOM-READ-ROUTINE.sql`, and the
 `update-connector.ps1` `/ws` failure lines. Every API line off. **One** SQL review by Alex (B4 + test-company
-statements) and **one** VM visit. Load-rates R4 (PR #2602) is not in it.
+statements, plus T3 D-10a's finance statements and the grants-file edit, so the review stays one — added by chat 3)
+and **one** VM visit. T3's `/ws` adapters merged before this commit is cut ride it too (T3 §0). Load-rates R4 (PR #2602) is not in it.
 
 **Test-company read.** The agent's company-scoped statements run a second time for `MCLEOD_TEST_COMPANY` (in
 `mcleod-ws.env`, absent = not run) — **movements and stops only**; drivers, tractors and trailers of the test company

@@ -7,7 +7,7 @@ Nothing below is built. Track documents:
 |---|---|---|
 | T1 driver loads and data fixes (Track N, store track, Hire again's roster side) | `v2/T1-driver-and-data.md` | chat 2 (`HANDOFF-2026-11-27-V2-CHAT2.md`) |
 | T2 transport and the write pipeline (Track T) | `v2/T2-transport.md` | chat 1 (this commit) |
-| T3 office, documents, finance (Track D), re-rulings, the two messages | `v2/T3-office-docs-finance.md`, `v2/RE-RULINGS.md` | chat 3 |
+| T3 office, documents, finance (Track D), re-rulings, the two messages | `v2/T3-office-docs-finance.md`, `v2/RE-RULINGS.md`, `v2/ALEX-MESSAGE-DRAFT.md`, `v2/MCLEOD-MESSAGE-DRAFT.md` (drafts, not sent) | chat 3 (2026-11-27, `HANDOFF-2026-11-27-V2-CHAT3.md`) |
 
 **Superseded.** This file and its three track documents replace `MCLEOD-API-KIT-PLAN.md` (v1, PR #2572) as the build
 plan. v1 stays as the record of the 2026-11-19 rulings; where the two differ, v2 and the register win. The ranking is
@@ -110,11 +110,20 @@ Migration numbers are never fixed here (D-MK18): each is the next free number at
 
 Load-rates R4 (PR #2602) is not in this table: it ships alone under its own plan (D-MK38).
 
-T1 (written 2026-11-27, `v2/T1-driver-and-data.md` §1) adds two rows and fixes one dependency: **N-19** (Send notifies
-the driver's and co-driver's app, a `load_dispatched` notification; after N-9) and **N-18** (`action_id` required,
-before any store tag; D-MK23's install count recorded there); and **N-8 needs PR #2684 (`0655`) merged first** — T1
-builds the action door on 0655's visibility rule instead of spec A's `driver_visible_load_ids`. S-2..S-4 are held by
-the owner's D-DA12 (driver builds stay local until the app is finished).
+T1 (written 2026-11-27, `v2/T1-driver-and-data.md` §1) adds two rows and fixes one dependency: **N-19** (Send
+reaches the driver's and co-driver's app) and **N-18** (`action_id` required, before any store tag; D-MK23's install
+count recorded there); and **N-8 needs PR #2684 (`0655`) merged first** — T1 builds the action door on 0655's
+visibility rule instead of spec A's `driver_visible_load_ids`. S-2..S-4 are held by the owner's D-DA12 (driver builds
+stay local until the app is finished).
+
+**Corrections, chat 3 (2026-11-27):** PR #2684 (0655) is **merged** to main, so N-8's precondition holds. **N-19 is
+built by PR #2689**, not by a T1 PR: a Send to a driver with an active app login writes one `load_dispatches` row
+`channel='app', outcome='sent'` (else the held `sms` row) and notifies the driver and, when the dispatch names McLeod's
+driver, `loads.co_driver_id` under the **existing `load_offered` category** ("New load from dispatch", deep link
+`/loads/:id`, dedupe `load_dispatch:<row id>:<user id>`); the Dispatch drawer says beforehand whether the load reaches
+the app; boundary edge `loads -> messaging`. There is no `load_dispatched` category. T3 (D-1..D-13) is in
+`v2/T3-office-docs-finance.md`; the re-rulings and the preamble of rulings made inside T1/T2 are in `v2/RE-RULINGS.md`;
+the two outside messages are drafts, not sent (`ALEX-MESSAGE-DRAFT.md`, `MCLEOD-MESSAGE-DRAFT.md`).
 
 ## 3. Outside answers (register §6, with the build per outcome in the track documents)
 
@@ -130,9 +139,13 @@ the owner's D-DA12 (driver builds stay local until the app is finished).
 | Static egress IP | CloudWatch, Alex | the IP refusal rule | recorded + alert only | T2 §T-3 |
 | Store release | owner (Q-5) | every driver benefit | Android first, iOS via external TestFlight | T1 |
 | EDI customers | Alex (code read 2026-11-27: our login's `customer` grant is column-limited to `id, name, city, state_id, company_id`, `tools/mcleod-agent/review/SILVICOM-GRANTS.sql:79-83`, so no EDI field is selectable — D-MK33 step 3 applies) | `live` for deliveries | D-MK33 step 4 | T2 §T-12 |
-| `reason_for_leaving` codes | MK0 K25, else Alex | termination write | D-MK40 | T3 |
+| `reason_for_leaving` codes | MK0 K25, else Alex | termination write | D-MK40 | T3 §D-6 |
+| Where a `/ws` image lands | McLeod (message item 14) | MK4 | both image operations `off` | T3 §D-4 |
+| Lumper receipts in McLeod (enterprise plan X6) | billing | D-2 only | not built | T3 §D-2 |
 
 Facts recorded since the register (2026-11-27):
+- **DB7 was run (2026-11-24/25, `DISPATCH-BOARD-PLAN.md:595-672`):** p90 error 689 min within 4 h of arrival, so no
+  ETA is written (spec D D-MK6-1b); T3 D-12 re-applies the gate after Q-DB4's reset fix.
 - **Dispatch to a driver is the office's act.** The owner re-confirmed D-LMR5 on 2026-11-27: a McLeod load reaches a
   driver only when the office presses Dispatch → Send in 360. Production on 2026-11-27: **0 `load_dispatches` rows ever**;
   99 `in_transit` and 39 `pending_approval` loads with `source='tms'`. So no `driver_app` stop request can exist until

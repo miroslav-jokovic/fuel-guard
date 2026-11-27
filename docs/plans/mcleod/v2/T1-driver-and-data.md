@@ -1,8 +1,9 @@
 # T1 — driver loads and data fixes (McLeod API Kit v2, Track N, the store track, Hire again's roster side)
 
 **Status:** PLAN, 2026-11-27, against `origin/main` merged into this branch at `ecc25c22d` (migrations end at
-`0654_follow_up_urgent_category.sql`) and the open PR #2684 (`claude/driver-s1-dispatch-visible`, migration
-`0655_sent_load_visible_at_any_mcleod_status.sql`, not merged when this was written). Index:
+`0654_follow_up_urgent_category.sql`) and PR #2684 (`claude/driver-s1-dispatch-visible`, migration
+`0655_sent_load_visible_at_any_mcleod_status.sql`; **merged to main** — corrected by chat 3, 2026-11-27). PR #2689
+(Send puts the load in the app and notifies, enterprise S1.1's second half) builds N-19 (corrected by chat 3). Index:
 `../MCLEOD-API-KIT-PLAN-V2.md`. Decisions are the register's (`../DECISION-REGISTER-2026-11-20-API-KIT.md`); every D-MK
 id below is its. T2's interfaces (`v2/T2-transport.md` top) are used by name and never restated. Every file:line was
 re-read on `ecc25c22d` (or on the PR branch where it says so). Migration numbers: none is taken here; each is the next
@@ -84,7 +85,7 @@ before (D-MK20), and refuse everyone else with DL002, as before.
 | N-7 | S0b projection through the RPC; retire `POST /api/tms/loads` | — | N-1, N-6 stg | **prod** | N-1, CU-1 (`dispatchProjection.ts`, see N-7) |
 | N-8 | M-A driver loads SQL (the one `driver_complete_stop` signature change) | loads — after N-6's; 0655 merged first | N-6 applied, 0655 applied | stg | T-4 rewrites its body |
 | N-9 | C-A1 API + shared + web for M-A | — | N-8 stg; N-7 **in the same or an earlier release** | **prod** | T-5 (`driverLoads.ts`, `exceptions.ts`) |
-| N-19 | Send reaches the app (push on Dispatch → Send) | messaging — any time after 0654 | N-9 merged | prod | N-9 (`dispatchToDriver.ts`) |
+| N-19 | Send reaches the app — **built by PR #2689** (`app`/`sent` row + `load_offered` notice; no migration) | — | — | prod (its own release) | N-9 (`dispatchToDriver.ts`: N-9 rebases onto it) |
 | N-10 | B4 API half (BOL, customer, McLeod times, references expand) | — | N-2 stg | prod; agent half rides CU-1 | — |
 | CU-1 | (T2) connector update: B4 statements + test-company read + `/ws` client | — | N-10 prod | VM | N-7 |
 | N-11 | V1 PU qualifier check (operation) | — | CU-1 on VM | — | — |
@@ -103,8 +104,8 @@ before (D-MK20), and refuse everyone else with DL002, as before.
 
 Order rules that are not obvious from the table:
 - **0655 merges before N-8.** N-8 re-creates 0655's helper as a wrapper; on a branch where 0655 is absent N-8 must
-  not be merged (its `create or replace` would create a helper no policy reads). If PR #2684 is closed unmerged, N-8
-  carries 0655's three policies verbatim instead — it is the same SQL.
+  not be merged (its `create or replace` would create a helper no policy reads). PR #2684 is merged (chat 3,
+  2026-11-27), so this precondition holds.
 - **N-7 and N-9 in one release or N-7 first** (aA A-44, cD DR-21): N-9's app-visible stops must be stable ids.
 - **N-7 and CU-1 touch `dispatchProjection.ts`.** N-7 changes only `applyMirroredLoads`' stop write (inside
   `mirrorLoads.ts`) and adds nothing to `dispatchProjection.ts` beyond the `stopsRefused` count; CU-1's test-company
@@ -589,10 +590,13 @@ load, and late evidence in Exceptions. Drivers on today's builds see nothing new
   (one chunked `load_events` read, names via the existing `drivers(full_name)` join). `reachable` is **derived**, not
   restated (cD DR-14, re-derived against 0655): `closed` when `external_closed_at` is set; `uncovered_in_mcleod` when
   `loads.status = 'draft'` (0655 shows every other McLeod status); `no_app_login` when the dispatched driver has no
-  `user_id` or `app_access_enabled` is false (the 1-of-195 fact makes this the commonest case today);
+  `user_id` or `app_access_enabled` is false — the predicate PR #2689's `inApp` already computes in `prepare()`, so
+  N-9 exports it once as `driverHasAppLogin(driver)` and both read it (N-19) (the 1-of-195 fact makes this the
+  commonest case today);
   `seatNote` when the dispatched driver is neither McLeod seat (0655 still shows them the load — the office's dispatch
-  decides, D-LMR6 — but the office should know McLeod disagrees, e.g. after a repower). The Send modal's preview
-  shows the same line before Send.
+  decides, D-LMR6 — but the office should know McLeod disagrees, e.g. after a repower). The Dispatch drawer's
+  preview already says the `no_app_login` case before Send (#2689's `inApp` line); N-9 adds `uncovered_in_mcleod`
+  and `seatNote` to that preview from the same derivation.
 - `apps/api/src/modules/loads/dispatchLoads/exceptions.ts` (166): `EXCEPTION_KINDS` + `late_evidence` (events whose
   `payload->>late_evidence = 'true'`, one extra read), `dispatch_not_visible` (current dispatch with `reachable.ok =
   false`, derived over open loads), `stop_mirror_refused` (open while no later `exception_resolved` names it). The two
@@ -644,40 +648,43 @@ before N-17 is built for the tablets (the app's new fields default, so order is 
 
 ---
 
-## N-19 Send reaches the app (push on Dispatch → Send)
+## N-19 Send reaches the app — BUILT by PR #2689 (no T1 PR)
 
-Not in the register's list; it is the second "missing" item of
-`enterprise-progress/2026-11-27-1600-s0-correction-dispatch.md` and S1.1's consumer needs it: today a Send records only
-the held SMS (`dispatchToDriver.ts:167-182`, `channel: "sms"`, outcome `not_sent`), so a driver learns of a sent load
-only by opening the app.
+**Status (corrected 2026-11-27, chat 3).** This step is **built** by PR #2689 (`claude/driver-s1-send-push`,
+enterprise plan S1.1's second half; `gh pr diff 2689`). T1's first draft of N-19 (a new `load_dispatched` category and
+"a notification, not a `channel='app'` row") is **withdrawn**; nothing below is to be built again. What #2689 does,
+read from its diff:
+- **One `load_dispatches` row per Send, its channel decided by the login.** `dispatchToDriver.ts` `prepare()` reads
+  `drivers.user_id, app_access_enabled`; `inApp = user_id != null && app_access_enabled === true`. With a login the row
+  is `channel='app', outcome='sent', outcome_reason=null`; without one it is the held `sms` / `not_sent` row as before
+  (Q-LMR9). The visibility rule (0371/0655) reads the latest row whatever its channel, so "latest dispatch decides"
+  still reads one line per decision.
+- **The notification is the existing `load_offered` category** (`notificationsContract.ts:18`, deep link `/loads/:id`
+  at `:344`), titled "New load from dispatch", body "Load {ref} is in your app.", sent through messaging's `notify()`
+  (mutes, quiet hours, dedupe) by `tellDriversOfDispatch` to the dispatched driver's login and, when the dispatch names
+  the load's McLeod `driver_id`, to `loads.co_driver_id`'s login (O-3, the seats 0655 shows); `dedupeKey =
+  load_dispatch:<dispatch row id>:<user id>`. A failed notify never fails the Send. **No migration**: no new category.
+- **The office is told beforehand.** The preview contract (`loadDispatchContract.ts`) gains `inApp: boolean`; the web
+  Dispatch drawer says "Send puts this load in X's app and notifies them." or "X has no app login, so this load won't
+  reach their phone. Dispatching still records who takes the load and when. Set up app access on the driver's page.";
+  the toast says "It is in their app now."; `dispatchHeadline` adds " · in their app" for an `app`/`sent` row.
+- **Boundary edge `loads -> messaging`** (`scripts/check-feature-boundaries.mjs`, the `hazmat -> messaging` shape;
+  messaging imports nothing of loads).
+- Tests (its titles): "puts the load in the app of a driver with an app login: one app/sent row, and a New load notice to
+  driver and co-driver (S1.1)"; "tells nobody, and keeps the held text record, when the driver has no app login";
+  "says before Send whether the load reaches the driver's app (S1.1)".
 
-**What changes for a user.** The driver's phone buzzes "New load from dispatch: {ref}" when the office presses Send;
-the co-driver's too. The Send modal says "Sent to the driver's app" (or why not, N-9's `reachable`).
+**What T1 still owes against #2689 (carried by N-9, not a new PR):**
+- N-9's `reachable.no_app_login` is the **same predicate** as #2689's `inApp`; N-9 derives it by calling one exported
+  `driverHasAppLogin(driver)` in `dispatchToDriver.ts` that both `prepare()` and `dispatchesByLoad` use, so the preview
+  line, the history line and the `dispatch_not_visible` exception cannot disagree (deriving beats restating).
+- N-9's `acknowledgements` read the current dispatch row of either channel (an `app` row is the normal case once logins
+  exist; production on 2026-11-27 has 1 login of 195 active drivers, so `sms`/`not_sent` stays the common row).
+- `dispatchHeadline`'s " · Seen {date time}" (N-9) is appended after #2689's " · in their app".
 
-**Ruling made here (no register row; recorded for chat 3):** the app delivery is a **notification**, not a second
-`load_dispatches` row. A `channel='app'` row (allowed by `load_dispatches_channel_check`, `schema.generated.sql:7995`)
-would put two rows per Send into the history the "latest dispatch decides" rule reads, and the notification ledger
-already records delivery per login. Rejected: reusing `load_offered` (its words are the manual offer chain's).
-
-**Files.** Migration (messaging) `<next>_load_dispatched_notification.sql`: re-adds `notification_events_category_check`
-from its latest definition (`0654_follow_up_urgent_category.sql`) plus `'load_dispatched'`. Next merge: shared
-`NOTIFICATION_CATEGORIES` (`packages/shared/src/notificationsContract.ts:17`) + `load_dispatched`, `deepLinkFor`
-(`:339`) → `/loads/{id}`, not mutable (a load is work); `dispatchToDriver.ts` `dispatchLoad` calls messaging's
-exported `notify()` (`modules/messaging/index.ts:22`) for the dispatched driver's login and, when the dispatch names
-the load's McLeod `driver_id`, the `co_driver_id`'s login — the same seats 0655 shows — with `dedupeKey =
-load_dispatched:<dispatch id>:<driver id>`; a failed notify never fails the Send (`notify.ts:61-79`'s rule). The
-`LoadDispatch` answer gains `appNotified: string[]` (driver ids reached).
-
-**Tests.** `notificationsContract.test.ts`: "load_dispatched deep-links to the load and cannot be muted".
-`dispatchToDriver.test.ts`: "Send notifies the dispatched driver's login"; "Send to a team's McLeod driver notifies the
-co-driver too"; "a driver with no login is not notified and the Send still succeeds". Matrix `notifications` (the
-existing category matrix): "notification_events accepts load_dispatched".
-
-**Gates.** `lint:migrations`, `lint:migration-ordering` (category CHECK first, writer next merge), `test-api`.
-**Staging check.** Send a fixture load to the staging test driver with a registered tablet: the push arrives; `select
-category from notification_events where entity_id = <load>` → `load_dispatched`. **Rollback.** Revert the code; the
-category stays allowed. **Release dependency.** prod; the dispatcher briefing (D-MK34, Q-9) says Send is how a load
-reaches the phone (correction file, last paragraph).
+**Release dependency.** #2689 ships in the release that carries it; on 2026-11-27 it was open with CI running. If it
+were closed unmerged, the build is exactly #2689's diff (it is the ruled shape), re-opened under N-9. The dispatcher
+briefing (D-MK34, Q-9) says Send is how a load reaches the phone.
 
 ---
 
@@ -952,7 +959,10 @@ dependency.** prod before any S-3 store tag (D-MK23: from the first store build)
 6. **M-A never refuses evidence for a time**; it flags `time_flags`, and T-4 answers `implausible_time`.
 7. **DR-14's reasons re-derived against 0655**: `no_app_login`, `uncovered_in_mcleod` (draft), `closed`, plus a
    `seatNote` when McLeod seats someone else (the load stays visible to the dispatched driver).
-8. **N-19: the app delivery of a Send is a `load_dispatched` notification**, not a `channel='app'` dispatch row.
+8. **N-19 is built by PR #2689, and its shape replaces this list's first draft**: a Send to a driver with an app login
+   writes ONE `load_dispatches` row `channel='app', outcome='sent'` (else the held `sms` row) and notifies the driver and
+   the McLeod co-driver under the existing `load_offered` category ("New load from dispatch"); no `load_dispatched`
+   category exists. N-9's `reachable.no_app_login` derives from #2689's `inApp` predicate (one function).
 9. **Hire again's "managers" = a new editable permission shipped to fleet and safety managers** (Q-3 = a Settings tick).
 10. **D-MK22's push-registration column is `last_seen_at`**, not `updated_at`.
 11. **S0c has no reader merge**: no reader of the predictions table exists.
@@ -962,4 +972,4 @@ dependency.** prod before any S-3 store tag (D-MK23: from the first store build)
 Q-3 (N-16, who else presses Hire again — default managers), Q-5 and Q-DA2 with D-DA12's "finished" ruling (S-2..S-4),
 Q-8 (14 days, the default built), the owner naming a V1 dispatcher (N-11), Alex's one SQL review and VM visit (CU-1,
 then N-11/N-12), the CloudWatch count before N-7's 410 (an operation, not an owner question), Q-9 (the dispatcher
-briefing that Send is how a load reaches the phone, N-19). Q-1..Q-10 were unanswered on 2026-11-27; none is assumed.
+briefing that Send is how a load reaches the phone; N-19 itself is built by PR #2689). Q-1..Q-10 were unanswered on 2026-11-27; none is assumed.
