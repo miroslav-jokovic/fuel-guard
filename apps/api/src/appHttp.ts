@@ -91,7 +91,13 @@ function securityHeaders(env: Env) {
         // (WARNING-DESK-PLAN D-WD7) — a signed link fetched on the click, never stored, served from
         // `us4-safetymediadelivery.samsara.com` (measured 2026-11-26). The wildcard rather than that one
         // host because the `us4-` prefix is Samsara's region shard, not a promise.
-        mediaSrc: ["'self'", "https://*.supabase.co", "https://*.samsara.com"],
+        //
+        // ⚠ AND THE BUCKET IT REDIRECTS TO. That link is not the file: it answers 307 to a presigned S3 URL
+        // on `samsara-transcoded-video-cache.s3.us-west-2.amazonaws.com` (H.264 MP4, 6 h expiry), and CSP
+        // checks every redirect hop — so with `*.samsara.com` alone the player stayed black in production
+        // (owner, 2026-11-27; measured the same day — the 11-26 measurement followed redirects and hid it).
+        // The exact bucket host, never `*.amazonaws.com`, which would admit media from anyone's bucket.
+        mediaSrc: ["'self'", "https://*.supabase.co", "https://*.samsara.com", "https://samsara-transcoded-video-cache.s3.us-west-2.amazonaws.com"],
         connectSrc: [
           "'self'",
           ...apiConnectSrc,
