@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
+import { onKeyStroke } from "@vueuse/core";
 import { AppIcon } from "@silvicom/ui";
 import { ChevronRightIcon, EllipsisHorizontalCircleIcon } from "@silvicom/ui/icons";
 import type { NavGroup } from "@/lib/nav";
@@ -45,6 +46,7 @@ const moreOpen = ref(false);
 const sheet = ref<HTMLElement | null>(null);
 const route = useRoute();
 watch(() => route.fullPath, () => (moreOpen.value = false));
+onKeyStroke("Escape", () => (moreOpen.value = false));
 watch(moreOpen, async (open) => {
   if (!open) return;
   await nextTick();
@@ -100,7 +102,6 @@ watch(moreOpen, async (open) => {
         aria-modal="true"
         :aria-label="`More in ${group.label ?? 'this section'}`"
         class="more-sheet fixed inset-x-0 bottom-0 z-popover rounded-t-dialog bg-surface shadow-overlay md:hidden"
-        @keydown.escape="moreOpen = false"
       >
         <div class="mx-auto mt-2 h-1 w-10 rounded-full bg-edge" aria-hidden="true" />
         <p class="px-5 pt-3 pb-1 text-xs font-medium text-ink-tertiary">{{ group.label ?? "More" }}</p>
