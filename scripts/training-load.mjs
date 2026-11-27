@@ -94,11 +94,36 @@ async function signIn() {
   return j.access_token;
 }
 const token = await signIn();
+/**
+ * One device name for every run (0620's device key, `DEVICE_KEY_HEADER`), and a sign-out at the end:
+ * each password sign-in is a new session, and a member holds at most `DEVICE_LIMIT` (3) devices, so a
+ * loader that left its sessions behind locked its own login out after three runs (measured 2026-11-27,
+ * `403 device_limit`).
+ */
+const DEVICE = { "x-silvicom-device": "training-loader-script" };
+const signOut = () => fetch(`${target.supabase}/auth/v1/logout?scope=local`, { method: "POST", headers: { apikey: target.anonKey, authorization: `Bearer ${token}` } }).catch(() => {});
 
+/**
+ * A merge redeploys staging in minutes, and while the API restarts it answers 502 (seen twice in one
+ * hour, 2026-11-27). A read is simply asked again; a write is not, since it may have landed — the next
+ * run's idempotent steps pick it up instead.
+ */
 async function api(path, init = {}) {
+  for (let i = 0; ; i++) {
+    try {
+      return await apiOnce(path, init);
+    } catch (e) {
+      const restarting = /→ 50[234]\b/.test(e.message) || e.cause?.code === "ECONNRESET";
+      if ((init.method ?? "GET") !== "GET" || !restarting || i >= 12) throw e;
+      await sleep(10_000);
+    }
+  }
+}
+
+async function apiOnce(path, init = {}) {
   const r = await fetch(`${target.api}/api/training${path}`, {
     method: init.method ?? "GET",
-    headers: { authorization: `Bearer ${token}`, ...(init.body ? { "content-type": "application/json" } : {}) },
+    headers: { authorization: `Bearer ${token}`, ...DEVICE, ...(init.body ? { "content-type": "application/json" } : {}) },
     body: init.body ? JSON.stringify(init.body) : undefined,
   });
   const text = await r.text();
@@ -162,7 +187,12 @@ async function waitReady(lessonId, versionId) {
     if (v.processError) throw new Error(`preparing failed: ${v.processError}`);
     await sleep(10_000);
   }
-  throw new Error("still preparing after 15 minutes — is the staging worker running the trainingTranscode queue?");
+  // `/uploaded` kicks the job in the API process; a deploy in the middle puts it back in the queue, and
+  // only the `general` lane's drain takes it from there (inprocessDrain.ts `drainKinds`). Measured on
+  // staging 2026-11-27: that lane is held by the retired Railway `uat` service at 70e1592, which predates
+  // `training_transcode`, so a released job sits `queued` for good. Asking `/uploaded` again does not help:
+  // the queued row's dedup key makes it a 500.
+  throw new Error("still preparing after 15 minutes — check `jobs` for its training_transcode row, and who holds the general lane (platform_scheduler_leases)");
 }
 
 async function load(courseId, f) {
@@ -196,15 +226,22 @@ async function load(courseId, f) {
   }
 }
 
-const courseId = await ensureCourse();
 let failed = 0;
-for (const f of chosen) {
-  try {
-    await load(courseId, f);
-  } catch (e) {
-    failed++;
-    console.error(`  ✗ ${e.message}`);
+try {
+  const courseId = await ensureCourse();
+  for (const f of chosen) {
+    try {
+      await load(courseId, f);
+    } catch (e) {
+      failed++;
+      console.error(`  ✗ ${e.message}`);
+    }
   }
+} catch (e) {
+  failed = chosen.length;
+  console.error(`✗ ${e.message}`);
+} finally {
+  await signOut();
 }
 console.log(failed ? `${failed} film(s) not finished — fix and run again; done steps are skipped.` : "All films loaded.");
 process.exit(failed ? 1 : 0);
