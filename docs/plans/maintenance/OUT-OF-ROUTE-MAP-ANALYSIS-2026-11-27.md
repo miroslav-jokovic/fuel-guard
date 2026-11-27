@@ -1,6 +1,8 @@
 # Out of route on our own map — and Samsara's codes on maintenance follow-ups · analysis · 2026-11-27
 
-**Status:** analysis only. Nothing built. The owner picks an option (§6, Q-ORM1) before any feature code.
+**Status:** owner ruled 2026-11-27 — "analyze and proceed as recommended": Q-ORM1–4 and Q-ORM6–8 take
+their recommendation (§6, §7). Q-ORM5 belongs to option B and stays open. Building: codes first (§7.3),
+then option A (§3). Progress in the log (§9).
 Decision IDs **D-ORM**, question IDs **Q-ORM** (both unused in the repo before this file). Parent plan:
 `WARNING-DESK-PLAN.md` (D-WD7 video never stored, D-WD13 Out of route is one record shared with dispatch).
 
@@ -255,6 +257,26 @@ whatever else is chosen). One PR, ~250 lines with tests, no table.
 | **Q-ORM7** | Show camera / telematics / driver-assist module codes? | (a) all, grouped "Engine & drivetrain" first, "Camera & telematics" folded · (b) hide them | **(a)** |
 | **Q-ORM8** | Decode "Manufacturer Assignable SPN"? | (a) no — show SPN/FMI + module so the shop's own tool reads it · (b) license OEM tables (Cummins/Detroit/PACCAR) | **(a)**; (b) is a purchase, out of scope |
 
+### 7.3 Decisions (built 2026-11-27)
+
+- **D-ORM8. A code is SPN, FMI and module, in Samsara's words.** One shared shape (`truckFaultCodeSchema`,
+  `packages/shared/src/truckFaultCodes.ts`); Samsara's payload parsed only in `modules/samsara`
+  (`warnings/faultCodes.ts`). Samsara's "Manufacturer Assignable SPN" text sets `makerSpecific` and leaves
+  no description — the flag is Samsara's text, not an SPN range of ours. Grouping reads the J1939 source
+  address (`txId`): 232, 42, 74, 37, 76 (camera, radar, cellular, gateway, radio — 99 of 290 live codes)
+  fold beneath the truck's own; any other address, seen or not, is drawn with the truck's.
+- **D-ORM9. Read on open, never stored.** `GET /api/follow-ups/:id/codes`, for `followUpHasTruckCodes`
+  (maintenance + truck, shared by API and drawer). Two parallel GETs: the latest reading and the history
+  from a day before the first warning (Samsara writes a reading only on a change, so a code on at the
+  start is only seen in an earlier one) to the close or now, capped at 30 days. The reading's own time is
+  always shown — measured from minutes to 561 days old (p50 2 days, p90 83).
+- **D-ORM10. The lamp row keeps whole codes, and they are the fallback.** `truckLamps` keeps up to eight
+  codes (the truck's own first) cut to 1,200 text bytes, because 0653's CHECK measures jsonb, which is
+  larger: on the live fleet's worst truck 1,556 text bytes were 2,007 in production's Postgres, 1,199 were
+  1,604. When Samsara fails, the newest lamp row's codes are shown with the time they were kept; with
+  none kept, 502. No Samsara token is 503, as for the video. Rows written before this change hold
+  descriptions only and are passed over.
+
 ## 8. Out of scope
 
 Writing anything to Samsara (token is read-only, and must stay so) · changing the Out of Route
@@ -264,3 +286,8 @@ configuration's 6 mi / 10 min · storing GPS, routes or video · webhooks (alert
 
 - 2026-11-27 — Analysis written. Measured read-only on org 6308 and production; scratch scripts not
   committed. Waiting on Q-ORM1 (and Q-ORM6–8 for the codes).
+- 2026-11-27 — Owner: "analyze and proceed as recommended". Q-ORM1 (a), Q-ORM2 (a), Q-ORM3 (a), Q-ORM4 (a),
+  Q-ORM6 (a), Q-ORM7 (a), Q-ORM8 (a) ruled; Q-ORM5 open with option B. Codes built first (D-ORM8–10).
+  Measured before building: fault-code history is one reading per change (0 in 30 days on a truck whose
+  14 codes never moved), ≤ 2 pages and ≤ 483 ms for 30 days on the four busiest trucks; lamp-row jsonb
+  size checked in production's Postgres (above).

@@ -378,3 +378,4 @@ export * from "./brokerMailWeekContract.js";
 export * from "./brokerMailDraftContract.js";
 export * from "./followUpRules.js";
 export * from "./followUpContract.js";
+export * from "./truckFaultCodes.js";

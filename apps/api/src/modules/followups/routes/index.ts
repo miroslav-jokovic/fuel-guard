@@ -9,6 +9,7 @@ import {
   type FollowUpCategory,
   type FollowUpDetail,
   type FollowUpList,
+  type FollowUpTruckCodes,
   type FollowUpVideo,
   type FollowUpWarning,
 } from "@silvicom/shared";
@@ -22,6 +23,7 @@ import { listOfficeMembers } from "../../org/index.js";
 import { deskAccess } from "../access.js";
 import { CLOSED_LIMIT, countOpenByCategory, readFollowUpRow, readFollowUpRows, sortLines, subjectIdsOf, toLine, type FollowUpRow } from "../lines.js";
 import { resolvedRules } from "../ruleViews.js";
+import { hasTruckCodes, readFollowUpTruckCodes } from "../truckCodes.js";
 import { followUpRulesRouter } from "./rules.js";
 
 /**
@@ -34,6 +36,7 @@ import { followUpRulesRouter } from "./rules.js";
  *    Its `follow_up_actions` row IS the record of who told which driver what (D-WD9), so no second
  *    audit row is written beside it.
  *  · `GET /:id/video/:eventId` — a fresh signed link from Samsara, never stored (D-WD7).
+ *  · `GET /:id/codes` — a maintenance follow-up's truck: Samsara's fault codes, never stored (D-ORM9).
  *  · `/rules` — the admin's card (`./rules.ts`).
  *
  * The router-level gate is the union of the two sections behind the two screens; the screen itself —
@@ -250,6 +253,30 @@ export function followUpsRouter(): Router {
         }
         console.error("[follow-ups] video fetch failed:", e instanceof Error ? e.message : e);
         res.status(502).json(apiError("samsara_unavailable", "Samsara did not answer. Open the video in Samsara, or try again in a minute."));
+      }
+    }),
+  );
+
+  router.get(
+    "/:id/codes",
+    asyncHandler(async (req, res) => {
+      const found = await visibleFollowUp(req, res);
+      if (!found) return;
+      // Codes belong to a truck's engine controllers: a trailer, a driver or a route line has none to read.
+      if (!hasTruckCodes(found.row)) {
+        res.status(404).json(apiError("not_found", "Fault codes are read for a maintenance follow-up on a truck."));
+        return;
+      }
+      try {
+        const body: FollowUpTruckCodes = await readFollowUpTruckCodes(adminOf(req), getAppLocals(req).env, req.auth!.orgId!, found.row, Date.now());
+        res.set("Cache-Control", "no-store").json(body);
+      } catch (e) {
+        if (e instanceof NoSamsaraTokenError) {
+          res.status(503).json(apiError("samsara_unavailable", "Samsara is not connected for this company, so the truck's codes cannot be read."));
+          return;
+        }
+        console.error("[follow-ups] fault codes failed:", e instanceof Error ? e.message : e);
+        res.status(502).json(apiError("samsara_unavailable", "Samsara did not answer, and no codes were kept for this truck. Try again in a minute."));
       }
     }),
   );
