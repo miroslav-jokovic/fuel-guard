@@ -1,13 +1,13 @@
 # Round 3 — assumption hunt (COUNCIL §2–§5, AUDIT §1–§2, §5)
 
 Repo `/Users/miroslavjokovic/Projects/FG-mcleod-api` at `1c8ed3583` (last migration 0636). Docs: C = `docs/plans/mcleod/COUNCIL-2026-11-20-API-KIT.md`,
-A = `AUDIT-2026-11-20-API-KIT-SPECS.md`. "tms-map" = `https://tms-map.mcleodhosted.com/ws/docs/` (`?role=-1`), **another
+A = `AUDIT-2026-11-20-API-KIT-SPECS.md`. "<other-customer /ws>" = `<customer-hosted /ws docs>` (`?role=-1`), **another
 carrier's install**: a PROVEN-DOC there proves McLeod's product docs, never our site settings.
 
 Things I re-ran or re-opened myself this round:
 - `node docs/plans/mcleod/api-kit-council/pg/t2.mjs` → `RESULT: 15 passed, 0 failed`. t3 → claim 47–57 ms at 260,000 requests.
   t1 → `delete stop 200: ERR … violates RESTRICT … reqs_stop_id_fkey` and the same for `loads` (finding N-3 below).
-- The tms-map Date type page (fetched 2026-11-20): "When vmparam set to `true`, pattern `yyyyMMddHHmmss`; `false`, pattern
+- The <other-customer /ws> Date type page (fetched 2026-11-20): "When vmparam set to `true`, pattern `yyyyMMddHHmmss`; `false`, pattern
   `yyyyMMddHHmmssZ`. Currently, vmparam set to `false`." `ss` = "Second in minute".
 - `gh repo view` → PUBLIC. `gh run list --workflow driver-store.yml` → **one run** (workflow_dispatch, 2026-09-07, failure).
 
@@ -20,9 +20,9 @@ Classes: **PC** proven-code · **PD** proven-doc · **AS** assumed · **W** wron
 | 1 | `test` sends only admin prove requests, only to companies on `org_integrations.config` test-company list | C:38 | AS (design) | No such key exists (`git grep test_compan` in migrations/api → none). Needs: which company IS a test company (row 23). Build: owner act writes list from `GET /metadata` (K1). |
 | 2 | Each `leased` event records the switch row | C:40 | PD | 1-pipeline P-5, pg/t2 "test mode does not lease a driver_app request" passes (re-run). |
 | 3 | McLeod times equal ours → `confirmed already_applied` | C:42 | AS | "Equal" needs McLeod to store exactly what we send. Unknown: second-precision storage, rounding, McLeod adjusting arrival (e.g. arrival > departure, arrival before prior stop). Closure: K13 with seconds ≠ 0 and arrival = departure − 1 s; build: compare at the measured precision (RT-6), else minute-truncate + store raw. |
-| 4 | A dispatcher cleared first → terminal `already_in_mcleod` | C:43 | AS | We cannot tell *who* cleared from RowStop unless a "cleared by" field exists; audit read is one day on tms-map (A:44). A crash-after-apply whose stored times were rounded/adjusted would be mis-filed as `already_in_mcleod` (harmless label, wrong history). Closure: K9 (type page: any `entered_by`/`updated_by` on RowStop) + K5 audit 200/403. Build: field exists → classify by user; else by time-equality only, label wording "cleared in McLeod". |
+| 4 | A dispatcher cleared first → terminal `already_in_mcleod` | C:43 | AS | We cannot tell *who* cleared from RowStop unless a "cleared by" field exists; audit read is one day on <other-customer /ws> (A:44). A crash-after-apply whose stored times were rounded/adjusted would be mis-filed as `already_in_mcleod` (harmless label, wrong history). Closure: K9 (type page: any `entered_by`/`updated_by` on RowStop) + K5 audit 200/403. Build: field exists → classify by user; else by time-equality only, label wording "cleared in McLeod". |
 | 5 | Stop already `D` at enqueue gets no request | C:44 | PC (mechanism) / AS (freshness) | `mcleodStopDeparted` `packages/shared/src/mcleodLoadProjection.ts:111-118`. But `external_status` is the mirror, ≤ one sweep old (15 min), so "D at enqueue" is "D as of last sweep"; the write-time precheck covers the rest. Fine — state the lag. |
-| 6 | McLeod dates carry seconds | C:45 | PD | tms-map Date page `ss` (fetched). What McLeod STORES is AS → K13 (row 3). |
+| 6 | McLeod dates carry seconds | C:45 | PD | <other-customer /ws> Date page `ss` (fetched). What McLeod STORES is AS → K13 (row 3). |
 | 7 | Time zone proven against the SQL mirror before canary; a wrong zone confirms itself on read-back | C:45-46 | PC + AS | SQL side is Central: `tools/mcleod-agent/centralTime.mjs:5-6` ("server itself reported `…-05`"). `/ws` side zone is AS → K6 (raw `actual_arrival` string of a cleared stop vs the SQL `CONVERT(…,126)` value of the same stop). Build: offset string → `offset` mode; bare → `server_central` mode + RT-22 fall-back rule. |
 | 8 | `claimNext` does not keep order today | C:47 | PC | `apps/driver/src/data/outbox.ts:95-108` orders by `created_at` over all due records; a due Complete overtakes an Arrive in backoff. Audit A:69 was **W**. |
 | 9 | FIFO per load "built in the tested `pickNext`" | C:48 | PC | `policy.ts:55-62`, `policy.test.ts:138-142`. Today it is global oldest-due, not per load: the change is real work. |
@@ -32,7 +32,7 @@ Classes: **PC** proven-code · **PD** proven-doc · **AS** assumed · **W** wron
 | 13 | "VM's existing lines" do not exist | C:55 | PC | `grep MCLEOD_API_WRITES tools/` → none (RT-2). |
 | 14 | Alex disabling the McLeod user/token is "the true instant stop" | C:56 | AS | Nobody knows whether disabling a web user revokes an already-issued `/ws` token at once or only at next login. Closure: question to McLeod + test-company probe (disable user, next call within 5 s → 401?). Build: instant → keep as switch #1; lazy → switch #1 = "delete the token" (token mode) and state its latency. |
 | 15 | API master switch | C:55 | PC (latency) | Settings come from SSM at container start (`infra/server/fetch-settings.sh:32-36`); a change needs a redeploy/restart → minutes, not seconds (OPS-3 right). |
-| 16 | W9: `PUT /equipstatus/create` through TableRowService is a documented route | C:58 | PD (tms-map) | WS.md:174-176. Whether OUR Users login may call it: AS → K21-type probe on test company. |
+| 16 | W9: `PUT /equipstatus/create` through TableRowService is a documented route | C:58 | PD (<other-customer /ws>) | WS.md:174-176. Whether OUR Users login may call it: AS → K21-type probe on test company. |
 | 17 | Home time never writes `pta_date` | C:59 | ruling | design. |
 | 18 | We read `tractor_status` | C:60 | PC | `tools/mcleod-agent/queries.mjs:91`. RowTractor key carrying S/I: AS → OF-5 probe (`GET /tractors/{id}` for an S and an I truck). |
 | 19 | Trailers write only `is_active` + `outservice_date` | C:61 | AS (writability) | Field writability undocumented (W4/W12). Closure K21. Build: not writable → trailer status stays office-in-McLeod. |
@@ -60,7 +60,7 @@ Classes: **PC** proven-code · **PD** proven-doc · **AS** assumed · **W** wron
 | 41 | `occurred_at` not in the future | C:88 | AS (tolerance) | Zero tolerance refuses every phone whose clock runs ahead. OPS-7 had "> 5 min after receive"; C dropped the number. Measurement: `load_events` skew `created_at − occurred_at` distribution for driver events (p99.9 negative skew) → tolerance. |
 | 42 | `occurred_at` not before the stop was dispatched | C:89 | AS | Which time? `load_dispatches.created_at` (360 press) or McLeod dispatch? With C-11 the driver sees the load at McLeod dispatch; a pickup arrival can precede the 360 dispatch row. Decide the anchor; measure on staging. |
 | 43 | Agent refuses to write until date setting known | C:89 | design | OPS-13 env line. |
-| 44 | DST fall-back handled by offset-qualified times | C:89-90 | AS | Only if our `useServerTimezone=false`. tms-map is `false` (fetched) — ours unknown. If `true`, no offset can be sent; RT-22's "earlier instant" rule applies. Closure K6. Also percent-encode `+`/`-` in query params (RT-22) — a test, not an assumption. |
+| 44 | DST fall-back handled by offset-qualified times | C:89-90 | AS | Only if our `useServerTimezone=false`. <other-customer /ws> is `false` (fetched) — ours unknown. If `true`, no offset can be sent; RT-22's "earlier instant" rule applies. Closure K6. Also percent-encode `+`/`-` in query params (RT-22) — a test, not an assumption. |
 | 45 | SSN strip in client `write()` | C:96 | design | OPS-15; K11 records key names. |
 | 46 | Gate refusing committed `/ws` host etc. | C:97 | design | — |
 | 47 | C-9 scratch band (seq 101–150) | C:98 | PC (premise) | `load_stops_seq_check` 1–50 (`0423:102`); unique `(load_id, seq)` non-deferrable (`0085:162-163`); seq = `movement_sequence` (`mcleodLoadProjection.ts:207-209`). AS: movement_sequence ≤ 50 always (constraint already enforces; violations would already fail today). |
@@ -85,7 +85,7 @@ Classes: **PC** proven-code · **PD** proven-doc · **AS** assumed · **W** wron
 | 66 | C-21 token mode preferred | C:138 | AS | Whether our install issues Smartphone Mobile Service tokens to an integration user — K3. Licence seat per login — K23 (McLeod). |
 | 67 | `update-connector.ps1` refuses unless exactly one line differs | C:135 via OPS-5 | PD (council) | OPS-5 cites `:194-197`; `update-connector.ps1:9,99` confirms mssql is the only dependency and must exist. |
 | 68 | C-23 three readers move into a new shared file | C:141 | PC | `wouldClaimFromTelematics` `packages/shared/src/driverEditMeaning.ts:42`; `resolveDriverUpdate` + `DRIVER_IDENTITY_FIELDS` `packages/shared/src/rosterContract.ts:360,403` (file 452 lines, over the 450 warn → new file is forced). |
-| 69 | Q-2: `isReportable=false` does not stop the SF record | C:149 | PD | tms-map clearStop param text (RT-7). Whether our site refuses a late clear without `delayCode`: AS → K17. |
+| 69 | Q-2: `isReportable=false` does not stop the SF record | C:149 | PD | <other-customer /ws> clearStop param text (RT-7). Whether our site refuses a late clear without `delayCode`: AS → K17. |
 | 70 | Direction: append-only beats mutable status "at this volume" | C:155-156 | PD (PGlite) / AS (prod) | PGlite in-process numbers. Production DB is a micro instance that swaps (memory). Measurement: run t3's claim on staging Supabase with 260k rows (EXPLAIN ANALYZE). |
 | 71 | 15/15 PGlite checks pass | C:157 | PC | Re-ran t2: 15 passed. |
 | 72 | 260,000 requests claim ≈ 55 ms | C:157-158 | PC (PGlite) | Re-ran t3: 57/49/47 ms, sweep 130 ms. Where does 260,000 come from? ≈ 700/day × 365 = 255,500 — consistent with A's budget (row 79). |
@@ -93,14 +93,14 @@ Classes: **PC** proven-code · **PD** proven-doc · **AS** assumed · **W** wron
 | 74 | 12 R, 9 T, 3 A probes | C:160-161 | W (count) | `3-ops.md` table has 24 rows: R = K1–K12 + K24 (13); T only = K13–K17, K19, K22 (7); A+T = K18, K20, K21 (3); A+R = K23 (1). Fix the sentence to the table. |
 | 75 | No password ever committed; repo public | C:162 | PC (public) / PD (history) | `gh repo view` PUBLIC; history claim from OPS-16 `git log -S` (not re-run). |
 | 76 | Alex 13 items, McLeod 15 items | C:164 | not verified | count when v2 drafts the messages. |
-| 77 | W1 settlement/deduction/billing writable | A:37 | PD (tms-map) | WS.md. |
-| 78 | W2 trailer fields | A:38 | PD (tms-map) | ours = K9. |
-| 79 | W3 `GET /metadata` without login | A:39 | PD (tms-map) | ours = K1. |
+| 77 | W1 settlement/deduction/billing writable | A:37 | PD (<other-customer /ws>) | WS.md. |
+| 78 | W2 trailer fields | A:38 | PD (<other-customer /ws>) | ours = K9. |
+| 79 | W3 `GET /metadata` without login | A:39 | PD (<other-customer /ws>) | ours = K1. |
 | 80 | W4 nulls omitted; keys from type page | A:40 | PD | WS.md. |
 | 81 | W5 image upload raw body, rowType letter, result ambiguous | A:41 | PD | WS.md. |
 | 82 | W6 date format by vmparam | A:42 | PD | Fetched; ours = K6. |
 | 83 | W7 partial update, `NULL` word, no optimistic concurrency | A:43 | PD | WS.md; "read-before-write is the only conflict guard" = race window between precheck and write remains (dispatcher clears in between). Accept + verify catches it. |
-| 84 | W8 audit keeps one day | A:44 | IM | tms-map text says "based upon purge settings" — site setting (RT-12). Ours AS → K5 + Alex. |
+| 84 | W8 audit keeps one day | A:44 | IM | <other-customer /ws> text says "based upon purge settings" — site setting (RT-12). Ours AS → K5 + Alex. |
 | 85 | W9 EquipStatus Drivers-only → `next_home_date`/`pta_date` | A:45 | W | Superseded by C §2.8 (RT-11). |
 | 86 | W10 call-in `new_eta` candidate | A:46 | PD | WS.md:91-94. |
 | 87 | W11 75 services | A:47 | IM | SURFACE doc says 73 (`MCLEOD-API-SURFACE-2026-11-19.md:6`). One number in v2. |
@@ -181,7 +181,7 @@ Counts (114 rows): PC 39 · PD 25 · AS 35 · W 9 · IM 6 (rows with a split cla
 Top 15:
 1. A test company is assumed and never confirmed. Ten of the 24 probes, and every switch past `off`, depend on it (row 26).
 2. The C-7 VM egress-IP pin assumes the carrier's public IP is static. Nobody has measured it, and the API can see it (rows 33, 27).
-3. The time zone and stored precision on our install are unknown. The DST fix "sends offset times", which works only if our vmparam is `false`. tms-map is `false`; ours has not been read (rows 3, 6, 44).
+3. The time zone and stored precision on our install are unknown. The DST fix "sends offset times", which works only if our vmparam is `false`. <other-customer /ws> is `false`; ours has not been read (rows 3, 6, 44).
 4. "McLeod's times equal ours → already_applied" assumes McLeod stores exactly what we send (row 3).
 5. The council does not show where the lease of 300 s comes from. It covers one request (≈164 s), not a claimed batch of five (row 29).
 6. The derivation of the 90 s window ignores settle's 4 × 60 s POST. That is safe only because of C-2, and v2 must say so (row 30).

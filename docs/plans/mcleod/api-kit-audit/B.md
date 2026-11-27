@@ -20,7 +20,7 @@ Worktree `/Users/miroslavjokovic/Projects/FG-mcleod-api` at `22f3f0540`. Newest 
 
 ### B-4 [OK] — §0 row 5: the agent never reads `reference_number`; grant at GRANTS:77
 - Spec says (line 26): "`tools/mcleod-agent/queries.mjs:1078-1172`; `review/SILVICOM-GRANTS.sql:77`".
-- Evidence: `git grep -i reference_number -- tools/mcleod-agent` hits only docs (`LETTER-TO-ALEX.md:96`, `README.md:33`, `REPLY-TO-ALEX-2026-09-25.md:43`) and `SILVICOM-GRANTS.sql:11,77,225`. `GRANTS.sql:77` = `GRANT SELECT ON dbo.reference_number TO silvicom_dispatch_ro;` (Part 1, LME). LOADS-MIRROR-PLAN progress log 2026-09-29 confirms run.
+- Evidence: `git grep -i reference_number -- tools/mcleod-agent` hits only docs (`LETTER-TO-ALEX.md:96`, `README.md:33`, `REPLY-TO-ALEX-2026-09-25.md:43`) and `SILVICOM-GRANTS.sql:11,77,225`. `GRANTS.sql:77` = `GRANT SELECT ON dbo.reference_number TO <read-only SQL login>;` (Part 1, LME). LOADS-MIRROR-PLAN progress log 2026-09-29 confirms run.
 - Line-range correction: the dispatch statements are `queries.mjs:1079-1251` (`DISPATCH_LOADS_SELECT` 1079-1128, `BOARD_WHERE` 1131-1138, `DISPATCH_LOAD_STOPS_SELECT` 1155-1182, `DISPATCH_LOAD_STOPS` 1184-1185, `DELIVERED_WHERE` 1207-1216, `closeReadQueries` 1237-1251). "1078-1172" stops mid-stop-select.
 
 ### B-5 [IMPRECISE] — §3.3 insertion point and `closeReadQueries` line

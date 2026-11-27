@@ -873,9 +873,9 @@ Tables per statement (extracted from the statement text, `queries.mjs`, 2026-11-
 | (new, MK2.3) F3 key lines all modules, F7 | `gl_ledger`, `voucher_hist`, `drs_check`, `gl_summary` |
 
 **Logins and databases.** Today the financial sweep runs from the owner's Mac with `.env.sandbox`
-(`NikiAnalytics` on `lme_analytics`, the restore of 2026-10-09; memory `finance-reports-v2-position`);
-the VM connector runs `silvicom_dispatch_ro` on `lme` with `FINANCE_FEED=off`
-(`tools/mcleod-agent/connector.example.env:39-42`). **Target: the VM connector, `silvicom_dispatch_ro` on
+(`<analytics SQL login>` on `lme_analytics`, the restore of 2026-10-09; memory `finance-reports-v2-position`);
+the VM connector runs `<read-only SQL login>` on `lme` with `FINANCE_FEED=off`
+(`tools/mcleod-agent/connector.example.env:39-42`). **Target: the VM connector, `<read-only SQL login>` on
 `lme`, `FINANCE_FEED=on`, 02:00 Central** (`schedule.mjs`). `.env.sandbox` stops being a feed and stays a
 probe credential.
 
@@ -895,8 +895,8 @@ The file change (a docs/SQL edit, no migration): append to Part 4, after `:174`,
 ```sql
 -- Added <date>, NOT YET RUN: settlement checks (payee per DRS posting key, F3/F4) and McLeod's own
 -- period balances (F7, FINANCE-REPORTS-V2 Q-FR2-4). No personal data beyond a payee id.
-GRANT SELECT ON dbo.drs_check        TO silvicom_dispatch_ro;
-GRANT SELECT ON dbo.gl_summary       TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.drs_check        TO <read-only SQL login>;
+GRANT SELECT ON dbo.gl_summary       TO <read-only SQL login>;
 ```
 add both names to the CHECK block's `IN (...)` list (`:225-230`), and a dated header paragraph
 (`:57-67` style). The same two lines go to Part 2 (`lme_analytics`) **only** for the comparison run in

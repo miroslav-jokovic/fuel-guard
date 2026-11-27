@@ -203,7 +203,7 @@ Legend: **CLOSED-ELSEWHERE** (cite), **CLOSED-NOW** (I checked the repo), **OPEN
 | v1:234-237 | §6 gates: real phone, store, Apple Individual, SMS consent Q-LMR9, Samsara write token | **OPEN** — no spec owns them; D:452-453 depends on "the app's release gate … decides who that is". v2: name the driver-app release step as a prerequisite of C-A2/MK3/MK4-bol rollout, owned by `docs/plans/drivers-app/RELEASE-GATE.md` |
 | SURF:21 | "Token expiry not stated" | CLOSED-ELSEWHERE: C §3.2 rule 3 + U4 (C:161-166, C:779-782) |
 | SURF:46-47 | "No stop ETA write found … `RowStop` type page not yet read … candidate `PUT /stop/update`" | CLOSED-ELSEWHERE: C U12 (C:795) for field names; D MK6.1 step 2 (D:1016-1029) for ETA path |
-| SURF:105-107 | "Still unread on tms-map" list | CLOSED-ELSEWHERE: C §3.5 Phase A step 7 crawls the types pages (C:227-230). `PUT /orders/create` (D-MK4: not used) and `/symphonymcmessages/position` (not used) need no read — v2 should say so |
+| SURF:105-107 | "Still unread on <other-customer /ws>" list | CLOSED-ELSEWHERE: C §3.5 Phase A step 7 crawls the types pages (C:227-230). `PUT /orders/create` (D-MK4: not used) and `/symphonymcmessages/position` (not used) need no read — v2 should say so |
 | HO:134-135 | B-MK10 meeting notes + Ron email "ask the owner for them once" | **OPEN** — no spec closes it. Closes: one line to the owner in v2's ask list; and v2 states no build step depends on B-MK10 (every B-MK1..9 has an MK0 check) |
 | HO:113-115 | PU may be "Previous BOL #" | CLOSED-ELSEWHERE: B V1 outcomes A/B/C (B:416-457) |
 | HO:125-126 | "ETA write waits on DB7 (never recorded as run)" | CLOSED-ELSEWHERE: D MK6.1 step 1 table (D:1002-1009) |

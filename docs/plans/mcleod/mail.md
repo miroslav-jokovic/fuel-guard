@@ -4,7 +4,7 @@ Per our conversation from yesterday we have now updated the analytics database w
  
 We have also created access for you to the main (live) database as follows:
  
-Server: 10.0.1.171
+Server: <LME SQL LAN IP>
 Database: lme
  
 You can run any discovery queries on the live data but when you are ready to publish a routine that will query the live database systematically as we agreed please sent this to us first for a quick review.
@@ -17,7 +17,7 @@ Good morning,
  
 User with the permissions requested is now ready:
  
-silvicom_dispatch_ro
+<read-only SQL login>
 [password removed 2026-09-17 — it lives in tools/mcleod-agent/.env, which is gitignored]
  
  
@@ -37,9 +37,9 @@ Thanks for the letter, the VM notes, and the SQL file. That is the right way to 
 
 I am good with the approach. McLeod stays the system of record. Silvicom 360 can be a read-only mirror. The connector can run on our side as one program, one connection, SELECTs only.
 
-VM We will stand up a small Linux VM. Node.js 22+, outbound to LME on 10.0.1.171:1433 and HTTPS 443 to fleetguardapi-production.up.railway.app, no inbound access. We will own the box. You send the folder and the two secrets separately. We can install together once it is up.
+VM We will stand up a small Linux VM. Node.js 22+, outbound to LME on <LME SQL LAN IP>:1433 and HTTPS 443 to fleetguardapi-production.up.railway.app, no inbound access. We will own the box. You send the folder and the two secrets separately. We can install together once it is up.
 
-Login and grants silvicom_dispatch_ro stays read-only. No insert, update, or delete.
+Login and grants <read-only SQL login> stays read-only. No insert, update, or delete.
 
 I will grant SELECT on:
 
@@ -57,7 +57,7 @@ fuel_detail
 fuel_detail_hist
 equipment_item
 
-Finance stays on the analytics copy first. After we watch one full night and the counts look right, the same grants go on LME. SHOWPLAN only if you still need it after that night; I do not want it left on. Once finance is on this login, NikiAnalytics is no longer needed for this work.
+Finance stays on the analytics copy first. After we watch one full night and the counts look right, the same grants go on LME. SHOWPLAN only if you still need it after that night; I do not want it left on. Once finance is on this login, <analytics SQL login> is no longer needed for this work.
 
 Schedule Do not put it on a timer until we have done these together:
 
@@ -104,7 +104,7 @@ Good morning,
 
 This was published with one note:
 
-GRANT SELECT ON dbo.customer (id, name, city, state) TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.customer (id, name, city, state) TO <read-only SQL login>;
 Msg 4615, Level 16, State 1, Line 27
 Invalid column name 'state'.
 

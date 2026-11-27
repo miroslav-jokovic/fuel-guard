@@ -2,7 +2,7 @@
 
 **Status: CA1–CA5 BUILT 2026-09-24 (CA4 as the hash + close read); CA6 (send) and CA7 (VM cut-over) are the owner's and the carrier's.** Every statement the agent can send to McLeod was
 inventoried from the code and **executed against the server** this session: the dispatch, roster
-and retirement statements on live `lme` through `silvicom_dispatch_ro`, the finance statements on
+and retirement statements on live `lme` through `<read-only SQL login>`, the finance statements on
 `lme_analytics` (the only database the finance login can read — §4.3). Three runs each; `SET
 STATISTICS IO/TIME`; median reported. Decision IDs `D-CA*`.
 
@@ -16,7 +16,7 @@ the carrier provides. It defers to `LOADS-GO-LIVE-PLAN.md` (L5–L10) and `LOADS
 ## 1. The target architecture (D-CA1)
 
 ```
- McLeod SQL Server (APPNEW, lme)
+ McLeod SQL Server (<LME SQL host>, lme)
         │  one read-only login, one held connection, plain SELECTs
         ▼
  Board VM — inside the carrier's network, provided by their IT
@@ -36,7 +36,7 @@ the carrier opens no firewall port and maintains no allow-list. Once the VM is l
   shows `com.silvicom.mcleod-roster`, every 2 minutes, against live `lme`);
 - **ad-hoc probes from our machines stop**; a discovery question is written as a statement, added
   to the review file, and run on the VM by agreement;
-- the **finance login (`NikiAnalytics`, `db_datareader`, reads `driver.social_security_no`) is
+- the **finance login (`<analytics SQL login>`, `db_datareader`, reads `driver.social_security_no`) is
   retired** — the finance tables are granted to the connector's own login on `lme` instead (§4.3).
 
 ---
@@ -134,7 +134,7 @@ single-instance lock so a second copy refuses to start.
 
 ### F5 · The finance sweep reads with the wrong login, from a frozen copy
 
-It uses `NikiAnalytics` (`db_datareader` on everything, including SSNs) against `lme_analytics`,
+It uses `<analytics SQL login>` (`db_datareader` on everything, including SSNs) against `lme_analytics`,
 last restored 2026-09-10 — this is L10/MC5a. Under D-CA1 it moves to the VM and to `lme`, which
 needs SELECT on the finance tables for the connector's login. The request must be **column-scoped
 where the table holds anything personal** and name the tables exactly (§4.3).
@@ -185,7 +185,7 @@ name the `api` service's address. One line of config; recorded so it is not copi
 | finance (13 statements, F2 fixed) | **nightly 02:00 Central**, plus the month-start hardening pass | ~3.7 s | ~4 s |
 | **total** | | | **~55 CPU-seconds a day** |
 
-APPNEW has 42 cores: 3,628,800 core-seconds a day. **55 s is 0.0015%.** Statements: ~4,800 a day
+<LME SQL host> has 42 cores: 3,628,800 core-seconds a day. **55 s is 0.0015%.** Statements: ~4,800 a day
 (1,440 × 3 board + 144 close + 96 × 3 roster + ~13 finance) against a measured baseline of ~138
 batches a second (~11.9 million a day) — **0.04%**.
 
@@ -243,7 +243,7 @@ rule L2 set and this audit keeps.
 2. **Q-CA2 — roster cadence.** 2 minutes today. Recommendation: 15 minutes; a hire lands within a
    quarter hour, which is faster than any office process that depends on it.
 3. **Q-CA3 — a separate finance login, or one login for everything?** Recommendation: one login
-   (`silvicom_dispatch_ro`); two logins double the
+   (`<read-only SQL login>`); two logins double the
    credentials on the VM without narrowing anything, because both would live in the same process.
 
 ---
@@ -265,7 +265,7 @@ Append a dated line per merge. Never edit a status column.
   ones need one backfill. Nothing reads `order_ids` today.
   CA2: `connection.mjs` is the only door — session settings before and `OPTION (MAXDOP 1)` on its own
   line after every statement, `max: 1`, 15 s, a breaker (3 busy signals → 15 min, checked before
-  connecting). **Verified on APPNEW from our own session**: `@@LOCK_TIMEOUT` 5000,
+  connecting). **Verified on <LME SQL host> from our own session**: `@@LOCK_TIMEOUT` 5000,
   `deadlock_priority` −5, isolation 2, program_name "Silvicom 360 connector". `lint:agent-syntax`
   rules (NOLOCK, compat-110 functions, own hints, a pool outside connection.mjs, untyped `.input`)
   each proven by a scratch violation.
@@ -305,7 +305,7 @@ Append a dated line per merge. Never edit a status column.
   McLeod stays the system of record, Silvicom 360 a read-only mirror, one program, one connection,
   SELECTs only. **VM:** a small Linux VM he owns, Node 22+, outbound to LME and to
   `fleetguardapi-production` on 443, no inbound; the folder and the two secrets are sent separately;
-  installed together. **Grants:** `silvicom_dispatch_ro` stays read-only; SELECT coming on
+  installed together. **Grants:** `<read-only SQL login>` stays read-only; SELECT coming on
   `reference_number`, `customer (id, name, city, state)` and the eleven finance tables plus
   `equipment_item` — **on the analytics copy first**, on LME only after one night there reads right;
   SHOWPLAN only if still needed after that night. **Schedule:** no timer until the dry run, the
@@ -337,7 +337,7 @@ Append a dated line per merge. Never edit a status column.
   Per his condition the owner sends him the new file before the connector runs it.
 - 2026-09-28 — **The grants ran, and were checked under the connector's own login.** Alex ran
   `SILVICOM-GRANTS.sql`, correcting `customer (…, state)` to `state_id`. Checked encrypted as
-  `silvicom_dispatch_ro`, statement by statement: on LME everything but finance runs as the routine
+  `<read-only SQL login>`, statement by statement: on LME everything but finance runs as the routine
   prints it; on `lme_analytics` statements 15–18 were refused for want of `movement`, `movement_order`,
   `orders`, `stop` and `users`, and `customer` has no `company_id` to match on. Both corrections are in
   the grant script as lines not yet run; the table above is corrected. Detail in LOADS-MIRROR-PLAN.md

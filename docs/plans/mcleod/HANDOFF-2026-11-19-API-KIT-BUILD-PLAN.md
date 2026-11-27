@@ -58,7 +58,7 @@ Also: **at ~50% context usage, write a handoff** like this one for the next fres
    "go ahead"** — treat every Q-MK recommendation as approved 2026-11-19, but the new plan must show
    them as decisions (D-MK*) the owner will verify, not as questions.
 2. `docs/plans/mcleod/MCLEOD-API-SURFACE-2026-11-19.md` (committed on this branch) — the real `/ws`
-   operations read from McLeod's public docs (`tms-map.mcleodhosted.com/ws/docs/`, another customer's
+   operations read from McLeod's public docs (`<customer-hosted /ws docs>`, another customer's
    install, version unknown). **This changes parts of the first plan:**
    - Truckload stop write = `POST /dispatch/clearStop/{stopId}?arrivalDate&departureDate&hub` (Users
      role). `/dispatch/{stopId}/arrive|depart` are **LTL-only** — do not use.
@@ -110,7 +110,7 @@ Also: **at ~50% context usage, write a handoff** like this one for the next fres
 - Driver app never ran on a real phone, not in either store; Apple account Individual
   (`docs/plans/drivers-app/RELEASE-GATE.md:128-139,184-189`). Driver workflows need GitHub's "Approve and
   run", not an environment.
-- Network: the on-prem agent VM (Alex's, 10.0.1.172) is outbound-only (`mail.md:40`). D-MK1/Q-MK1:
+- Network: the on-prem agent VM (Alex's, <VM LAN IP>) is outbound-only (`mail.md:40`). D-MK1/Q-MK1:
   the agent PULLS write requests from our API and calls `/ws` on the LAN.
 - Office truck/trailer status edits and Retire go **straight from the browser to Supabase**
   (`apps/web/src/composables/useVehicles.ts:81,94`, `useTrailers.ts:82`) with **no audit row**. A McLeod

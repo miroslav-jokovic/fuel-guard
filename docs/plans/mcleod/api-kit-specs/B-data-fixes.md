@@ -205,7 +205,7 @@ Staging: after merge, `select column_name from information_schema.columns where 
 
 ### 3.3 The agent (PR B4)
 
-**Step 0 (before writing the statement), on the Board VM under `silvicom_dispatch_ro`, counts only:**
+**Step 0 (before writing the statement), on the Board VM under `<read-only SQL login>`, counts only:**
 `SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'reference_number'`.
 The statement below assumes `stop_id`, `company_id`, `reference_qual`, `reference_number` (the names the
 2026-09-28 measurement grouped by). If the qualifier or value column is named otherwise, the statement

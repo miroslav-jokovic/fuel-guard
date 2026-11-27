@@ -110,7 +110,7 @@ spec D; audit D.md; WS.md. Every claim below re-read at file:line. (Complete.)
 
 ### OF-5 [WRONG] — tractor sub-status key is NOT settled; W2 used another carrier's install
 - AUDIT W2 / WS.md:68-70 conclude RowTractor has `status` and "no `tractor_status` key … it's `status` on this
-  install". The install read is `tms-map.mcleodhosted.com` (WS.md:245-247) — another McLeod customer, not ours.
+  install". The install read is `<customer-hosted /ws docs>` (WS.md:245-247) — another McLeod customer, not ours.
 - Our SQL reads `t.tractor_status` (`tools/mcleod-agent/queries.mjs:91`) and `t.service_status`
   (:166, :258). Whether RowTractor `status` (2 chars) is the same column as our `dbo.tractor.tractor_status` is unknown.
 - Fix text: keep spec D's MK0 check, made exact: "GET /tractors/{id} (TractorService) for one truck SQL shows with
@@ -220,7 +220,7 @@ spec D; audit D.md; WS.md. Every claim below re-read at file:line. (Complete.)
 - The 11-13 message lets Alex skip Part 2 on the copy (:46-47). If he does, the connector login never reads the copy,
   and spec D MK2.2 step 3 (`--financial --compare=lme_analytics` under one login) cannot run.
 - Fix text: `tools/mcleod-agent/financeCompare.mjs` takes two connection configs — `--live-env connector.env`
-  (`silvicom_dispatch_ro` on `lme`) and `--copy-env .env.sandbox` (`NikiAnalytics` on `lme_analytics`, which reads it
+  (`<read-only SQL login>` on `lme`) and `--copy-env .env.sandbox` (`<analytics SQL login>` on `lme_analytics`, which reads it
   today: F0 relies on it, FINANCE-REPORTS-V2 §5) — and runs on the owner's Mac on the office network, where both
   reach the SQL host. "Closed month" = every month before the open period that F0 recorded from the copy in
   `mcleod_gl_control` (period 8 per FINANCE-REPORTS-V2), read from 360, not from the copy's `gl_control` (the
@@ -358,7 +358,7 @@ Each string lives once in `MCLEOD_WRITE_REASONS` / the shared status table, neve
 | Lumper receipt / revised RC | Office uploads RC to the case (`lumperCases.ts:239`, kind `revised_rc`); dispatcher files RC in McLeod by hand | Upload also files into McLeod RC category after the D-LRC16 already-present check; echo suppressed (OF-9) | Yes with OF-9 |
 | ETA (O-8) | Board ETA is 360's; McLeod `stop.eta` hand-typed (D-DB4) | Nothing written until DB7 passes on the post-B7 window (OF-16); then call-in `new_eta`, `automated=true`, after the side-effect probe (OF-15); fallback RowStop `eta` | Yes if gated; worse if not |
 | Home time | `driver_time_off` in 360 only (D-HT5) | Probe first; H2 writes `next_home_date`/`home_duration` (not `pta_date`, OF-18); H1 via TableRowService `equipstatus` if readable (OF-17) | Yes, measured |
-| Finance | Copy restored 10-09, read by hand under NikiAnalytics; nightly feed off (`connector.example.env:39-42`) | Follow-up to the 11-13 email (+`drs_check`, `gl_summary`); compare with two logins (OF-13); switch; `--allow-copy` guard | Yes |
+| Finance | Copy restored 10-09, read by hand under <analytics SQL login>; nightly feed off (`connector.example.env:39-42`) | Follow-up to the 11-13 email (+`drs_check`, `gl_summary`); compare with two logins (OF-13); switch; `--allow-copy` guard | Yes |
 
 ## Missing tests (exact files)
 - `supabase/tests/reopen-former-driver.test.mjs` (new matrix, RESULT line) — OF-1.

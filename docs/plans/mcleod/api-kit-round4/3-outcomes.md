@@ -34,7 +34,7 @@ text v2 should carry.
 | | no | DEFINED | U17 no + EXT-1: hard stop, no reads either (A1) |
 | | silence | DEFINED | EXT-1 |
 | | **yes with conditions** | **UNDEFINED** | See R4-2. Build: every condition is mapped in v2 to an existing lock or the operation stays `off`: scope limit ("stop clears only", "no driver create") → those operations never get an L2 row other than `off`, recorded as the reason; time window ("business hours only") → `canary_scope`/switch row gains `allowed_hours` and `begin_send` refuses outside it (one rule, tested), not an agent cron; "reads only" → MK1 only, U17 no-branch for writes; "review every new statement/endpoint" → the path allowlist (`WS_PATH_ALLOWLIST`) grows only with a dated Alex OK cited in its comment; "no concurrency with SQL" → EXT-11's no-branch; a condition that maps to no lock → that operation stays off and the condition goes in the plan's open questions. The conditions are filed verbatim beside `MCLEOD-STOP-CLEAR-EFFECTS.md` |
-| | yes, but later withdrawn | **UNDEFINED** | Same as OPS-3 kill list (Alex disables `S360API`); v2 should state that a withdrawal = every L2 row `off` + VM `-Writes off`, and the request backlog is left `queued` (72-h stale rule keeps it from flushing) |
+| | yes, but later withdrawn | **UNDEFINED** | Same as OPS-3 kill list (Alex disables `<integration user>`); v2 should state that a withdrawal = every L2 row `off` + VM `-Writes off`, and the request backlog is left `queued` (72-h stale rule keeps it from flushing) |
 | F4 `clearStop` effects + undo | none beyond times | DEFINED | C-19 rollout as written |
 | | triggers EDI 214 on deliveries only | DEFINED | OPS-1/OPS-18: non-EDI customers first, EDI last |
 | | **triggers EDI 214 on pickups too** | **UNDEFINED** | See R4-4. Every fallback says "pickups first (no billing effect)" and A4 says "if rollout cannot be staged by customer ⇒ only pickups go live" — both assume a pickup clear leaves nothing outside the building. Build: if a pickup clear sends a 214, the canary scope is **non-EDI customers for both stop types**; if Alex cannot list EDI customers, MK3 stays off (no "pickups only" fallback) |
@@ -88,7 +88,7 @@ text v2 should carry.
 | K11 | SSN key present / absent | DEFINED | OPS-15 |
 | K12 | webhooks none / present | DEFINED | U7 (and EXT-17 drops the ask) |
 | K13 | confirmed, audit user = integration | DEFINED | R §2.2 |
-| | **confirmed, but audit user is generic/`system`** | **UNDEFINED** | OPS-1 (3) and OPS-18 rely on dispatchers seeing `S360API` on the stop. Build: if not distinguishable, the help text and Alex item 7 say so, and 360's stop badge is the only marker; Alex is asked whether that is acceptable before deliveries go live |
+| | **confirmed, but audit user is generic/`system`** | **UNDEFINED** | OPS-1 (3) and OPS-18 rely on dispatchers seeing `<integration user>` on the stop. Build: if not distinguishable, the help text and Alex item 7 say so, and 360's stop badge is the only marker; Alex is asked whether that is acceptable before deliveries go live |
 | | times off by whole hours | DEFINED | K6 mode wrong → P2 read-back fails → writes refused |
 | K14 | departure-only 2xx / 4xx | DEFINED | A §6.1, U10 |
 | K15 | refused / overwritten / ignored | DEFINED | precheck; verify read-back catches "ignored" as `conflict` |

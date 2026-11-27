@@ -1,6 +1,6 @@
-# /ws audit against tms-map.mcleodhosted.com/ws/docs (2026-11-20) — COMPLETE
+# /ws audit against <customer-hosted /ws docs> (2026-11-20) — COMPLETE
 
-Base: `https://tms-map.mcleodhosted.com/ws/docs/` (all pages fetched with `?role=-1`, HTTP 200, no 429 so far).
+Base: `<customer-hosted /ws docs>` (all pages fetched with `?role=-1`, HTTP 200, no 429 so far).
 URL shapes: services `services?service=<S>&role=-1`; operation detail `services?service=<S>&operation=<op>&role=-1`;
 types `types?type=<fqcn>&role=-1` e.g. `types?type=com.tms.common.loadmaster.tablerows.RowStop&role=-1`.
 
@@ -45,7 +45,7 @@ CORRECTION batch 1: the index lists **75** services (count of unique `services?s
 ### Date format — `types?type=com.tms.common.lib.Date&role=-1`
 - "the pattern is determined by the `loadmaster.ws.useServerTimezone` vmparam value. When the vmparam is set to `true`,
   the pattern is `yyyyMMddHHmmss` and when it is `false`, the pattern is `yyyyMMddHHmmssZ`. Currently, this vmparam is set to `false`."
-  (Currently = on tms-map's install; OURS must be read on our /ws/docs.) `Z` = RFC 822 zone, e.g. `-0500`.
+  (Currently = on <other-customer /ws>'s install; OURS must be read on our /ws/docs.) `Z` = RFC 822 zone, e.g. `-0500`.
 - Response dates: `"create_date":"20160816170100-0500"`.
 - Request BODY values also accept shortcuts: `n` now, `t` today, `m`, `w`, `q`, `y`, `me`, `we`, `qe`, `ye`; `t+1`, `t-7`;
   time as `t+1 1330`. "Except n (now), by default shortcut patterns use midnight 0000". So `changedAfterDate=t-1` is
@@ -244,7 +244,7 @@ time as `t1 1330` (no `+`).
 
 # VERDICT TABLE — MCLEOD-API-SURFACE-2026-11-19.md
 
-Base `B = https://tms-map.mcleodhosted.com/ws/docs/`
+Base `B = `<customer-hosted /ws docs>`
 
 | # | Claim | Verdict | URL | Quote / note |
 |---|---|---|---|---|
@@ -298,7 +298,7 @@ Base `B = https://tms-map.mcleodhosted.com/ws/docs/`
 | A §6.1 `clearStop?arrivalDate=&departureDate=` one call both dates | CONFIRMED params exist | departure-only acceptance NOT IN DOCS (A:547, C U10) |
 | C: auth / headers / paging / 1000 cap / changedAfter / no webhooks | CONFIRMED | see table above |
 | C §3.2 login answer "string or {token}" | CONFIRMED plausible: result text/plain OR application/json "the access token" | json shape NOT IN DOCS |
-| C E9 / U9–U11 clearStop: date format, TZ, arrival-only, already-cleared, required SF fields | Date format ANSWERED (`yyyyMMddHHmmssZ` when `loadmaster.ws.useServerTimezone=false`, else `yyyyMMddHHmmss`; tms-map = false); rest NOT IN DOCS | no param is marked required; `delayCode` only "if one should be created" |
+| C E9 / U9–U11 clearStop: date format, TZ, arrival-only, already-cleared, required SF fields | Date format ANSWERED (`yyyyMMddHHmmssZ` when `loadmaster.ws.useServerTimezone=false`, else `yyyyMMddHHmmss`; <other-customer /ws> = false); rest NOT IN DOCS | no param is marked required; `delayCode` only "if one should be created" |
 | C step 5 / U12 RowStop key list from one `GET /stops/{id}` | RISK | null fields are OMITTED — a sample stop will lack unset keys; use the type page list instead: `actual_arrival`, `actual_departure`, `status`, `eta` |
 | C step 8 version via `Server` header / docs string | WRONG approach | use `GET /metadata` → `lmeVersion`/`lmeRevision`/`serviceVersion`/`serviceRevision`/`gitRevision` |
 | C allowlist `/dispatch/clearStop/[A-Za-z0-9]+` | OK on paper | stop id String(32) |

@@ -267,7 +267,7 @@ header correction (`:6-10` still describes the deleted `driver-android.yml`) to 
 
 ### V4-12 (ROUND3 §2.12) IMPRECISE — "the four items" and "anything new" are not a rule a gate can run
 - OPS-16's "four already public" are the **company ids** TMS…TMS4 (`3-ops.md:233-234`). Other McLeod facts are
-  already public too: `silvicom_dispatch_ro` in 27 tracked files, `10.0.1.171` in 20, `APPNEW` in 13 (`git grep -l`,
+  already public too: `<read-only SQL login>` in 27 tracked files, `<LME SQL LAN IP>` in 20, `<LME SQL host>` in 13 (`git grep -l`,
   today). A gate that "refuses anything new" by kind is red on main the day it lands (R3-14's point); one that
   allowlists four strings has no pattern to refuse with, since a McLeod company id is any ≤ 10-character string. And
   the test company id cannot be put in a denylist without committing it.

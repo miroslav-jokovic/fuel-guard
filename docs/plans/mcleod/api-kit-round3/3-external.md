@@ -29,7 +29,7 @@ without a workaround.
 | X8 | McLeod | Any `/ws` un-clear | MK3 undo help text | — | Expected "no" → LoadMaster steps (Alex) | Assume none (already the design) | NONE |
 | X9 | McLeod | TableRowService writable fields of stop/driver/tractor/trailer; `stop/update eta` runs dispatch logic? | MK5, MK6 fallback | MK5 code | Yes, K21 per field: non-writable → field dropped by capability row | Test-company read-back decides per field; without test company → as X6 | FEATURE (MK5/MK6) |
 | X10 | McLeod | `drivers/create` mandatory fields; is SSN required | MK5 create | create adapter | Yes, K20/D-59: SSN required → create stays off, office enters in McLeod | Create stays off; C-16 sweep linking keeps hires linked | FEATURE (MK5 create) |
-| X11 | McLeod | Images: stored vs staged; latency; **does `/ws` images land in DocumentPower (MCLEODIMAGING `dta`) on our install, and does it need the "DocumentPower 3rd-party image retrieval" module** | MK4 | MK4 assembly, sends table | Partly: K19 decides stored/staged. **Where it lands and licence: not asked anywhere (EXT-9)** | MK4 stays off | FEATURE (MK4) |
+| X11 | McLeod | Images: stored vs staged; latency; **does `/ws` images land in DocumentPower (<imaging host> `dta`) on our install, and does it need the "DocumentPower 3rd-party image retrieval" module** | MK4 | MK4 assembly, sends table | Partly: K19 decides stored/staged. **Where it lands and licence: not asked anywhere (EXT-9)** | MK4 stays off | FEATURE (MK4) |
 | X12 | McLeod | Audit days-to-keep for movement/stop; `audit_log_tx` purge; `maxresultsize` | MK1 change leg | parity full-read | Yes, U5/U6/K7/K8 | Probes K7/K8 decide; SQL close read never retired if < 7 d | FEATURE (MK1 leg) |
 | X13 | McLeod | Webhooks on 22.1 | — | — | U7: even if present, still polling | Irrelevant | NONE (drop, EXT-17) |
 | X14 | McLeod | Symphony licensed | — | — | U16 "no effect"; Symphony `driverAvailable` is HOS, not home time (handoff §2) | Irrelevant to v2 | NONE (drop or mark informational) |
@@ -40,7 +40,7 @@ without a workaround.
 | A1 | Alex (**Lockwood** for the OK, Tzakov operates — EXT-2) | Written OK to change the 09-24 posture: 360 writes to McLeod through `/ws` (scope list), SQL login stays SELECT-only | MK0 (new LAN destination) and every write | N, S0, dark pipeline, finance SQL | Yes, U17 (yes / no) | **No `/ws` traffic at all**, reads included (the VM may reach only LME + our API under the 09-24 terms). Hard stop, recorded; no fallback exists that is not a workaround (Cloud-Hosted still writes Alex's McLeod) | PROGRAM |
 | A2 | Alex | Firewall: VM → `/ws` host HTTPS (LAN); confirm VM's egress IP to the internet is static | MK0; C-7 egress-IP pin | — | Partly: static IP not asked (EXT-6) | MK0 cannot connect | PROGRAM |
 | A3 | Alex | `clearStop` effects on OUR LoadMaster per stop type / first-last (EDI 214, notifications, ready-to-bill, pay, status, hub, service failure) + exact undo steps + can dispatchers tell an integration clear | MK3 canary (C-19, OPS-1) | MK3 code, test-company P1–P6 | Yes (C-19) | Fallback: McLeod's X7 answer + test-company observation (K18-T) of status/billing after a last-stop clear. If neither ⇒ MK3 stays off | FEATURE (MK3) |
-| A4 | Alex | List of EDI customers; non-EDI, non-billable test customer; driver `S360TEST` excluded from settlements; yard tractor; test order; rehearse undo once by hand | MK3 rollout order and live canary (U8 = none) | — | Yes (OPS-2, OPS-18) | Rollout cannot be staged by customer ⇒ only pickups go live (no billing effect), never deliveries | FEATURE (MK3 deliveries) |
+| A4 | Alex | List of EDI customers; non-EDI, non-billable test customer; driver `<test driver code>` excluded from settlements; yard tractor; test order; rehearse undo once by hand | MK3 rollout order and live canary (U8 = none) | — | Yes (OPS-2, OPS-18) | Rollout cannot be staged by customer ⇒ only pickups go live (no billing effect), never deliveries | FEATURE (MK3 deliveries) |
 | A5 | Alex | Is an un-coded, non-reportable service failure acceptable to dispatchers (O-4/Q-2/RT-7) | MK3 deliveries | — | Yes, Q-2: not acceptable → pickups only until McLeod gives a clear-without-SF way | Pickups only | FEATURE |
 | A6 | Alex | VM facts: who holds admin; NTP; task restart policy (`-Check`); count LoadMaster sessions before/after a login (K23) | MK0 PR-2 / C-21 | — | Yes (OPS-4, OPS-10) | Our RDP account runs `-Check` itself (owner already updates via RDP); NTP checked with `w32tm /query /status` from RDP | NONE (self-serve) |
 | A7 | Alex | Where the McLeod credential lives (`mcleod-ws.env`), who may hold it | MK0 step 2 | — | Yes (OPS-17) | Default = person at hidden prompt, as 10-27 token | NONE |
@@ -101,7 +101,7 @@ without a workaround.
 
 ### EXT-4 [DUPLICATE] 3-ops item 12 re-asks things COUNCIL §2.12 and OF-12/OF-13 dropped
 - "Part 2 re-run on `lme_analytics` for the finance comparison night": OF-13 makes the comparison run under two logins
-  (`NikiAnalytics` already reads the copy) precisely so it does not depend on Part 2; COUNCIL §2.12 "The Part 2 additions
+  (`<analytics SQL login>` already reads the copy) precisely so it does not depend on Part 2; COUNCIL §2.12 "The Part 2 additions
   are dropped". "Part 3": its four tables are inside Part 4 (`SILVICOM-GRANTS.sql:171-174`), so asking both is double.
 - The 11-13 email also asked for a **copy refresh** (item 1). Spec D MK2.1 :909: "no copy refresh is asked: the copy stops
   mattering". The follow-up must WITHDRAW it in words, else Alex still owes it.
@@ -128,7 +128,7 @@ without a workaround.
   Mail.md shows Alex creates SQL logins himself; self-hosted LoadMaster user admin is Alex's (the v1 table: token "made in
   LoadMaster", MCLEOD-SELF-HOSTED-INTEGRATION.md :59-97).
 - Fix: McLeod enables `/ws` and states the steps and whether user security applies to `/ws` (their product question);
-  **Alex** creates the `Users` web user (`S360API`), its security profile and its token in LoadMaster (his install). Each
+  **Alex** creates the `Users` web user (`<integration user>`), its security profile and its token in LoadMaster (his install). Each
   message says who does it. Two parties each expecting the other is the most likely stall in MK0.
 
 ### EXT-8 [GAP] The McLeod list asks nothing commercial; the purchase exists only as a verbal quote
@@ -140,7 +140,7 @@ without a workaround.
 
 ### EXT-9 [GAP] MK4's biggest McLeod unknown is not asked: where a `/ws` image lands on OUR install
 - Evidence: LUMPER plan Q-LRC10 (:293-297): LME's own `image`/`image_type` are empty and `imaging_control` hosts are NULL;
-  documents live in DocumentPower on a separate host `MCLEODIMAGING` (`dta`..`dta6`). WS.md:241 (Symphony card): "The posting
+  documents live in DocumentPower on a separate host `<imaging host>` (`dta`..`dta6`). WS.md:241 (Symphony card): "The posting
   of driver-captured images into LoadMaster (requires DocumentPower 3rd Party image retrieval)". 3-ops McLeod #11 asks only
   stored-vs-staged.
 - Consequence: a 2xx from `POST /images/O/{order}` may land in LME's unconfigured image tables, where billing never looks
@@ -258,7 +258,7 @@ without a workaround.
 
 ### 3.1 ONE message to Alex (To: Alex Tzakov · Cc: Alex Lockwood) — complete
 
-Before sending: run the grants CHECK block under `silvicom_dispatch_ro` on `lme` and `dta`, so items 12–13 name only what
+Before sending: run the grants CHECK block under `<read-only SQL login>` on `lme` and `dta`, so items 12–13 name only what
 is still missing (memory `it-requests-are-one-complete-list`).
 
 1. **(Alex Lockwood) Your written OK for a change to what you approved on 2026-09-24.** Silvicom 360 will also write to
@@ -266,30 +266,30 @@ is still missing (memory `it-requests-are-one-complete-list`).
    POD, lumper receipt and rate confirmation to the order; (c) create a new hire's driver record, reactivate a returning
    driver, and update medical-card expiry, CDL expiry and termination; (d) set a truck or trailer in or out of service;
    (e) write an ETA. Each one is off until it is proven on a test company and switched on alone. The SQL login
-   `silvicom_dispatch_ro` stays SELECT-only. Nothing connects into your network.
+   `<read-only SQL login>` stays SELECT-only. Nothing connects into your network.
 2. **The VM.** It is the Windows Board VM (task "Silvicom 360 connector", runs as SYSTEM), not the Linux VM in the 09-24 note.
    Please tell us: who on your side holds admin on it; that its clock syncs time; and the date of any LoadMaster upgrade
    at least one day before (we switch writes off that night and re-check the API after it).
-3. **Network.** Unchanged: LME `10.0.1.171:1433`. Already changed on 2026-10-27 and working: HTTPS to
+3. **Network.** Unchanged: LME `<LME SQL LAN IP>:1433`. Already changed on 2026-10-27 and working: HTTPS to
    `api.360.silvicominc.com` (it replaced the Railway address — please update your record). New: HTTPS from the VM to the
    McLeod API host on your LAN (McLeod gives the host). Still nothing inbound. Also: is the public address our API sees
    from the VM fixed? We only accept McLeod work from that address; if it changes, tell us the day before.
 4. **The integration user in LoadMaster (you create it, after McLeod enables the API).** Web-user type `Users` only, named
-   `S360API` so dispatchers recognise it on a stop's history; a security profile that denies billing, settlements,
+   `<integration user>` so dispatchers recognise it on a stop's history; a security profile that denies billing, settlements,
    deductions, payroll, wires, order entry and every delete; and an API token for it (we prefer a token to a password
    login). When it exists, please read the LoadMaster user monitor before and after our first login, to see whether it
    takes a licence seat.
 5. **The secret.** The McLeod token is typed by a person at a hidden prompt into its own file `mcleod-ws.env` on the VM
    (SYSTEM and Administrators only), separate from `connector.env`. It never leaves the VM, a log or our repository. You
    may hold it instead of us — your choice.
-6. **How you stop it at once, without us.** (a) Disable `S360API` or delete its token in LoadMaster: every call stops.
+6. **How you stop it at once, without us.** (a) Disable `<integration user>` or delete its token in LoadMaster: every call stops.
    (b) On the VM, `set-mcleod-api.ps1 -Writes off` (writes only), or stop the task (everything). On our side: a switch per
    operation and an API master switch.
 7. **What a stop clear does in your LoadMaster** — needed in writing before the first live write: for a pickup and a
    delivery, first stop and last stop, which of these a clear starts: movement/order status, EDI 214 to the shipper,
    customer notifications, ready-to-bill, driver pay/settlement, tractor location/hub, a service-failure record. Then the
    exact LoadMaster steps to undo a wrong clear, including after a 214 went out and after ready-to-bill; and whether a
-   dispatcher can see that `S360API` made the clear.
+   dispatcher can see that `<integration user>` made the clear.
 8. **Rollout and dispatch.** After go-live a driver's Complete clears the stop; dispatchers can still clear by hand and 360
    never overwrites a time McLeod already has. Order: pickups first, then deliveries for non-EDI customers, then EDI
    customers. Please send the list of customers that are EDI.
@@ -300,7 +300,7 @@ is still missing (memory `it-requests-are-one-complete-list`).
     portal update — for any customer? If yes, we never write the ETA as a call-in.
 11. **Test company.** Is there a test company or test server we may write to, with copies of drivers, tractors and
     customers? If not, for the stop clear only: a test customer with no EDI partner and no notification contacts, not
-    billable; a driver `S360TEST` excluded from settlements; a yard tractor; one test order with two yard stops; and you
+    billable; a driver `<test driver code>` excluded from settlements; a yard tractor; one test order with two yard stops; and you
     rehearse the undo of item 7 by hand once before our first call. Driver records, record updates and files are never
     tried on the live company.
 12. **SQL grants — the SAME request as my 11-13 email, not a new one.** Already done, thank you: Part 5 and

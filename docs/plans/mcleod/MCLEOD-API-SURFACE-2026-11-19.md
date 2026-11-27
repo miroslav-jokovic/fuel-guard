@@ -3,7 +3,7 @@
 **What this is.** The operations the McLeod REST API (`/ws`) documents, read on 2026-11-19 from
 McLeod's public documentation pages, which the owner located:
 
-- `https://tms-map.mcleodhosted.com/ws/docs/` — a **hosted McLeod customer's** `/ws` docs, publicly
+- `<customer-hosted /ws docs>` — a **hosted McLeod customer's** `/ws` docs, publicly
   readable (`?role=-1`). 73 services. ⚠ **Not our install and not our version**: no version string
   appears on any page. Every operation below must be confirmed on OUR `/ws/docs` once it is enabled
   (MK0 discovery, `MCLEOD-API-KIT-PLAN.md`), because our LoadMaster is 22.1.
@@ -102,6 +102,6 @@ Maintenance (equipment create/update + PM messages), Track and Trace, Dispatch O
 (Pre-Release), Order Payables Auditing (Pre-Release), AR Financing (Pre-Release), MPact, Quick-Quote,
 Access Control, Location Matching, Qued, Account Management, DFM.
 
-## Still unread on tms-map (read on our own `/ws/docs` at MK0)
+## Still unread on <other-customer /ws> (read on our own `/ws/docs` at MK0)
 `RowStop`, `RowTrailer`, the types index, detail pages of `PUT /tractors/update`, `PUT /orders/create`,
 `GET /auditTransactions/search`, `PUT /equipStatus/create`, `POST /symphonymcmessages/position`.

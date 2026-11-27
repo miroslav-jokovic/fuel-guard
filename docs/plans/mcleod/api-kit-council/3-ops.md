@@ -1,7 +1,7 @@
 # Council member 3 — OPS / McLeod side / security (round 2), 2026-11-20
 
 Repo read: `/Users/miroslavjokovic/Projects/FG-mcleod-api` @ `4876449c7`. Nothing edited. `/ws` facts re-checked
-live on `https://tms-map.mcleodhosted.com/ws/docs/` (`?role=-1`) for clearStop, AuditTransactionService,
+live on `<customer-hosted /ws docs>` (`?role=-1`) for clearStop, AuditTransactionService,
 MetadataService and Roles, 2026-11-20: all the WS.md quotes I rely on hold verbatim.
 
 Round-1 claims I re-verified and rely on: C-4 (VM is Windows, task "Silvicom 360 connector", Alex's mail said Linux);
@@ -41,7 +41,7 @@ EquipStatus Drivers-only). Round-1 claims I correct: see OPS-3, OPS-5, OPS-12.
   line, and `drivers/create`/image probes on live create permanent rows (driver ids are ≤ 8 chars and consumed;
   images on an order can land in an invoice packet).
 - Fix text: "The live-company canary needs, in Alex's written OK: a test customer with no EDI trading partner and
-  no notification contacts, flagged non-billable; a dedicated McLeod driver `S360TEST` excluded from settlements;
+  no notification contacts, flagged non-billable; a dedicated McLeod driver `<test driver code>` excluded from settlements;
   a yard tractor; the undo steps of OPS-1 rehearsed once by Alex by hand on that order BEFORE our first call. The
   canary covers `stop_clear` only. `drivers/create`, `TableRowService` updates and image upload are NEVER probed on
   the live company — if there is no test company they wait for one (or for McLeod's written answer on required
@@ -221,11 +221,11 @@ EquipStatus Drivers-only). Round-1 claims I correct: see OPS-3, OPS-5, OPS-12.
 ### OPS-16 [RISK] The public repo already carries McLeod network and login facts; the API Kit must add none
 - Found in tracked files (no secret, verified through history — `mail.md` was first committed already redacted,
   `48ed31845`, 2026-09-23; `git log -S` shows no password in `tools/mcleod-agent`):
-  - LME server IP `10.0.1.171` in **18** tracked files (e.g. `tools/mcleod-agent/connector.example.env:15`,
+  - LME server IP `<LME SQL LAN IP>` in **18** tracked files (e.g. `tools/mcleod-agent/connector.example.env:15`,
     `config.example.env`, `connection.mjs`, `review/CONNECTOR-ON-THE-VM.md:21`, `docs/plans/mcleod/mail.md`,
     `MCLEOD-COLLECTOR-PLAN.md`, `LIVE-MAP-PLAN.md`, `FLEET-CENSUS-AND-IDLE-TRUTH-PLAN.md`, api-kit-audit `C.md`);
-  - SQL server name `APPNEW` (10 files incl. `connector.example.env:30`, `connection.mjs`);
-  - database names `lme`, `lme_analytics`; SQL login `silvicom_dispatch_ro` (23 files);
+  - SQL server name `<LME SQL host>` (10 files incl. `connector.example.env:30`, `connection.mjs`);
+  - database names `lme`, `lme_analytics`; SQL login `<read-only SQL login>` (23 files);
   - company ids `TMS…TMS4`; the full grant script `review/SILVICOM-GRANTS.sql` and read routine;
   - Alex's correspondence verbatim (`docs/plans/mcleod/mail.md`).
   RFC 1918 address, not routable from outside, so this is reconnaissance aid, not exposure. But the API Kit adds
@@ -256,7 +256,7 @@ EquipStatus Drivers-only). Round-1 claims I correct: see OPS-3, OPS-5, OPS-12.
 - Fix text: "MK3 goes live per CUSTOMER list and per stop type, not per kind: first pickups only (no billing
   effect), then deliveries for non-EDI customers, then EDI customers after one week of zero `conflict`. A
   dispatcher-visible marker in McLeod: the integration user name on the stop's audit (`entered_by`/audit user) is
-  `S360API` so a dispatcher can see who cleared it; Alex confirms dispatchers know an un-clear path (OPS-1 (2)).
+  `<integration user>` so a dispatcher can see who cleared it; Alex confirms dispatchers know an un-clear path (OPS-1 (2)).
   The office can hold a load from writing (`mcleod_write_holds (load_id)` — or simpler: the existing `conflict`
   path plus a 'do not send' action on the stop badge that settles the queued request `refused office_held`)."
 
@@ -319,7 +319,7 @@ McLeod/Alex. Results go to `mcleod_api_discoveries` / `mcleod_api_capabilities` 
 | K9 | RowStop / RowDriver / RowTractor / RowTrailer / RowCallin keys | R: OUR type pages (`types?type=…RowStop` etc.) — not one sample row (nulls omitted, WS W4) | every key the adapters use is listed | missing key → that adapter/field dropped by the one capability row |
 | K10 | Status-code semantics | R: `GET /stops/NOSUCHID0` (404?), `GET /nosuchpath` (404?), bad token (401) | distinct, documented in capabilities | wire C-29's 403/404 rules to what we saw |
 | K11 | `GET /drivers/new` defaults incl. SSN key | R: `GET /drivers/new` — record KEY NAMES only, values discarded on the VM | key list stored | SSN key present → strip (already designed, OPS-15) |
-| K12 | Webhooks | R: services index; RemoteNotificationService page (500 on tms-map) | none | polling only (C U7) |
+| K12 | Webhooks | R: services index; RemoteNotificationService page (500 on <other-customer /ws>) | none | polling only (C U7) |
 | K13 | `clearStop` both dates on a clean stop; read-back; who is recorded | T: P1 on test company stop; read back `actual_*`, audit row `user_id` | `confirmed`; times equal at minute; audit user = integration user | as R §2.2 |
 | K14 | Departure-only accepted? | T: clean stop, `departureDate` only | 2xx/4xx recorded | 2xx → `arrival_unknown` path may send departure only; 4xx → `refused arrival_unknown` (A §6.1) |
 | K15 | Second call on a cleared stop | T: replay P1 by hand with a different minute | refused / overwritten / ignored | precheck already prevents it; overwritten → precheck is the ONLY guard, stated in help text |
@@ -348,11 +348,11 @@ call the role may be allowed to make.
    McLeod's API (never SQL), it will (a) clear stops when a driver completes them, (b) file papers to the order,
    (c) create a new hire's driver record and update medical-card/CDL expiry, termination/rehire, (d) set truck/
    trailer in/out of service, (e) write an ETA. Each is off until proven on a test company and switched on
-   separately; SQL login `silvicom_dispatch_ro` stays SELECT-only. We ask for your written OK on this scope.
+   separately; SQL login `<read-only SQL login>` stays SELECT-only. We ask for your written OK on this scope.
 2. **The VM, as it really is.** It is the Windows Board VM (task "Silvicom 360 connector", SYSTEM), not the Linux VM
    in your note. Confirm: who on your side holds admin on it; that its clock syncs time (NTP); that the task
    restarts on failure (we send `register-connector-task.ps1 -Check` to read it).
-3. **Network egress, complete list:** LME `10.0.1.171:1433` (unchanged); HTTPS 443 to `api.360.silvicominc.com`
+3. **Network egress, complete list:** LME `<LME SQL LAN IP>:1433` (unchanged); HTTPS 443 to `api.360.silvicominc.com`
    (replaced `fleetguardapi-production.up.railway.app` on 2026-10-27 — please confirm your firewall record); NEW:
    HTTPS to the McLeod `/ws` host on the LAN (host from McLeod). Still nothing inbound.
 4. **Secrets:** the McLeod API credential is typed by a person at a hidden prompt into its own file
@@ -360,7 +360,7 @@ call the role may be allowed to make.
    appears in a log or in our repository. You may hold it instead of us.
 5. **The integration user in LoadMaster** (McLeod creates it, you set its security): web-user type `Users` only;
    security profile that denies billing, settlements, deductions, payroll, wires, order entry and every delete;
-   name it so a dispatcher recognises it on a stop's history (e.g. `S360API`).
+   name it so a dispatcher recognises it on a stop's history (e.g. `<integration user>`).
 6. **How you stop it instantly, without us:** (a) disable that user (or delete its API token) in LoadMaster — every
    call stops at once; (b) on the VM: `set-mcleod-api.ps1 -Writes off` (writes only) or stop the task (everything).
    Our side: per-operation switch (seconds) and the API master switch.
@@ -374,7 +374,7 @@ call the role may be allowed to make.
    still clear by hand; 360 never overwrites a time McLeod already has.
 9. **Test company:** is there a write-capable test company or server with copies of drivers/tractors/customers? If
    not, for the stop write only: a test customer with no EDI partner and no notification contacts, non-billable;
-   a driver `S360TEST` excluded from settlements; a yard tractor; one test order with two yard stops; and you
+   a driver `<test driver code>` excluded from settlements; a yard tractor; one test order with two yard stops; and you
    rehearse the undo once by hand before our first call. Driver create, record updates and image upload are never
    tried on the live company.
 10. **Volume on McLeod's app server:** ≤ 2 calls per second, one at a time; ≈ 230 stop clears/day plus 2–3 reads each;

@@ -761,7 +761,7 @@ section: what is called, how often, the allowlist, the three locks, the log line
 pulls the discovery row (`pnpm mcleod:ws-docs-fixtures <id>`), builds `docsParser.mjs` + tests on those pages
 (PR). (4) §6 step 1 again (new code) → `--api-discover` Phase B → verdict table. (5) Each row below is
 resolved from the report + McLeod's written answers; the resolution is appended to
-`MCLEOD-API-KIT-PLAN.md` §8 with the discovery id. No row is resolved from memory or from tms-map alone.
+`MCLEOD-API-KIT-PLAN.md` §8 with the discovery id. No row is resolved from memory or from <other-customer /ws> alone.
 
 | # | Unknown | Answer | Exact build consequence |
 |---|---|---|---|
@@ -787,7 +787,7 @@ resolved from the report + McLeod's written answers; the resolution is appended 
 | | | a webhook service exists on our install | still polling: a webhook needs McLeod to call into AWS or the VM to listen — not in Alex's terms. Recorded, not built |
 | U8 | Test company (B-MK5) | test company on the same server | switch `test` with `test_company_id`; map entry `TEST=<id>`; proving run P1–P6 below |
 | | | separate test server | second profile: `MCLEOD_WS_TEST_URL`/`_CA_FILE`/`_CERT_SHA256`; `createMcleodApi` per profile, chosen by company; same proving run |
-| | | **none** | **Fallback, requires owner sign-off at that moment (§9 S2), and Alex's written OK:** live company, `mode:"live"` with `canary_targets` = the McLeod stop ids of ONE test order Alex creates: test customer code (non-billable, his choice), one dedicated McLeod driver record `S360TEST` with no pay rate and excluded from settlements, a yard tractor, two stops at the carrier's own yard. `proven_by_request` must then reference a canary request (the constraint is satisfied by a `live`+canary row, mode stays canary-restricted). Steps: P1–P6 on that order only; Alex voids the order before billing and deletes any service-failure record clearStop created; the canary list is cleared (`mode:"off"`) the same day; widening to all stops is a separate switch row after the owner reads the P-report |
+| | | **none** | **Fallback, requires owner sign-off at that moment (§9 S2), and Alex's written OK:** live company, `mode:"live"` with `canary_targets` = the McLeod stop ids of ONE test order Alex creates: test customer code (non-billable, his choice), one dedicated McLeod driver record `<test driver code>` with no pay rate and excluded from settlements, a yard tractor, two stops at the carrier's own yard. `proven_by_request` must then reference a canary request (the constraint is satisfied by a `live`+canary row, mode stays canary-restricted). Steps: P1–P6 on that order only; Alex voids the order before billing and deletes any service-failure record clearStop created; the canary list is cleared (`mode:"off"`) the same day; widening to all stops is a separate switch row after the owner reads the P-report |
 | U9 | `arrivalDate` format / zone | from Phase B param docs + E9 | `fmtMcleodDate(at)` in `writeAdapters.mjs`, Central wall time via `centralTime.mjs`; test pins format; P2 verifies by read-back |
 | U10 | clearStop arrival-only? | arrival alone accepted | two kinds, two requests (as §5.4) |
 | | | both dates required | `stop_arrival` kind is **not built**; arrival stays 360 evidence; `stop_departure` sends both dates, arrival = driver's tap if McLeod's is null, else McLeod's (never overwritten) |

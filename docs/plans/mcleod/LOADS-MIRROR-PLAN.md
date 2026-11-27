@@ -38,7 +38,7 @@ today. §4 has the tables.
 no history** — there is none.
 
 **The live board: 162 movements, 335 stops.** Fill rates, all read through the grant we already
-hold (`silvicom_dispatch_ro`), none of them pulled today:
+hold (`<read-only SQL login>`), none of them pulled today:
 
 | field | column | filled |
 |---|---|---|
@@ -686,7 +686,7 @@ Append a dated line per merge. Never edit a status column.
   their own rows) with no sample row; the roster dry run keeps its masked sample. `CONNECTOR-ON-THE-VM.md`
   step 1 says so. The SQL file is unchanged.
 - 2026-09-28 — **Alex ran `SILVICOM-GRANTS.sql`**, correcting `customer (…, state)` to `state_id` on the
-  way. Then everything was checked under `silvicom_dispatch_ro` itself, encrypted (APPNEW + trust),
+  way. Then everything was checked under `<read-only SQL login>` itself, encrypted (<LME SQL host> + trust),
   `program_name` "Silvicom 360 connector". **LME:** `reference_number` whole table, `customer` id/name/
   city/state_id, no finance table yet, no UPDATE, no SHOWPLAN. The routine's statements 1–8 and 22–24
   run as-is (142 loads, 340 stops, 16 dispatchers, 169/194/223 roster, 1,308/460/172 retired), and so
@@ -754,12 +754,12 @@ Append a dated line per merge. Never edit a status column.
   so it runs whatever commit another chat has checked out (detached `4cbba9d` at the time of the
   audit), with `MCLEOD_SQL_ENCRYPT=false` against Alex's "do not run unencrypted", posting to the web
   service. It is switched off at cut-over (Alex's step 4); until then the owner may set
-  `MCLEOD_SQL_SERVERNAME=APPNEW` and remove `MCLEOD_SQL_ENCRYPT=false` in its `.env`. **The close
+  `MCLEOD_SQL_SERVERNAME=<LME SQL host>` and remove `MCLEOD_SQL_ENCRYPT=false` in its `.env`. **The close
   backlog is 293** (289 D, 4 V of 303 open, 2026-09-28), not ~181; the query that produces the ids
   file is in the connector README.
 - 2026-09-29 — **Alex ran the six remaining grant lines**: `customer (company_id)` on LME, and
   `movement`, `movement_order`, `orders`, `stop`, `users` on `lme_analytics`. Checked the same day
-  under `silvicom_dispatch_ro`, encrypted: LME `customer` column grants id/name/city/state_id/
+  under `<read-only SQL login>`, encrypted: LME `customer` column grants id/name/city/state_id/
   company_id = 1, whole table 0; the company-matched join finds one customer for each of 132 open
   orders. Every routine statement was run: LME 1–8, 16, 22–24 OK; `lme_analytics` 9–21 OK (15–18
   refused yesterday). No write permission. **Q-LMR5's customer name is unblocked**; its PU # half

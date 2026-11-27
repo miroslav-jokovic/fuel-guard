@@ -32,7 +32,7 @@ only the owner can make.
 
 ## 1. McLeod `/ws` facts corrected or newly established (WS.md)
 
-| # | Was | Is (source: McLeod's `/ws/docs` on tms-map, `?role=-1`) |
+| # | Was | Is (source: McLeod's `/ws/docs` on <other-customer /ws>, `?role=-1`) |
 |---|---|---|
 | W1 | Settlement, Deduction and Billing are read-only | All three have writes (`/settlements/create`, `/deductions/create`, `/billing/update`, `/billing/postBills`, …). Finance still stays on SQL, because there is **no GL, AP-voucher or fuel service**. This plan writes nothing to billing or settlement. |
 | W2 | Trailer status = `status` / `service_status` | That is **tractor only** (`status` is 2 characters). RowTrailer has `is_active` (1), `statuscode` (4), `disposition_code` (4), `inservice_date`, `outservice_date`. |

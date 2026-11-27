@@ -61,7 +61,7 @@ The tests pass, but they cover less than COUNCIL §5 says. See R3-1.
 | 37 | The post-restart check is blind to `/ws` failures (`:232`) | `update-connector.ps1:232` | CONFIRMED | regex has no `ws`/`tls` words |
 | 38 | `/api/tms` limiter is 300 per 15 min per IP (`app.ts:340-346`) | `apps/api/src/app.ts:340-347`, `:320` | CONFIRMED | plus `trust proxy 1` at `:320`, whose comment still says "Railway" |
 | 39 | clearStop "creates a service failure record if necessary"; `isReportable` defaults true; text/plain "success or failure" | live `DispatchService&operation=clearStop&role=-1` | CONFIRMED | verbatim |
-| 40 | Date pattern depends on `useServerTimezone`; it has seconds; tms-map is `false` | live `types?type=com.tms.common.lib.Date&role=-1` | CONFIRMED | "Currently, this vmparam is set to false" — a fact about **tms-map**, not ours |
+| 40 | Date pattern depends on `useServerTimezone`; it has seconds; <other-customer /ws> is `false` | live `types?type=com.tms.common.lib.Date&role=-1` | CONFIRMED | "Currently, this vmparam is set to false" — a fact about **<other-customer /ws>**, not ours |
 | 41 | EquipStatusService is Drivers-only | live `services?service=EquipStatusService&role=-1` | CONFIRMED | all 5 operations list role Drivers |
 | 42 | addImage may stage; its result is a batch id OR a record id | live ImagingService addImage | CONFIRMED | verbatim |
 | 43 | The mirror deletes pending stops, then upserts `onConflict: load_id,seq` | `apps/api/src/modules/loads/mirrorLoads.ts:102-128` | CONFIRMED | path is `modules/loads/`, not `modules/mcleod/` |
@@ -73,7 +73,7 @@ The tests pass, but they cover less than COUNCIL §5 says. See R3-1.
 | 49 | The purge cannot delete a former driver (relevant to C-15) | `0380_purge_applicant.sql:18-35` | CONFIRMED | PA010 on hire/termination date or a `compliance.applicant_hired` audit row; PA012 on a McLeod link |
 | 50 | Rehire clears `termination_date` by house precedent (C-15) | `apps/api/src/modules/roster/driverRehire.ts:1-45` | CONFIRMED | `restoreRehiredDriver` sets `status active, archived_at null, termination_date null`, with the old date in the audit row |
 | 51 | The D-RL5 sweep hires applicant rows that match McLeod by licence and name | `apps/api/src/modules/mcleod/rosterApplicantHire.ts:1-80` | CONFIRMED | applies to a reopened row too → R3-11 |
-| 52 | Committed company ids and the SQL login appear widely (OPS-16) | `git grep -l "TMS2\|silvicom_dispatch_ro"` | CONFIRMED | 57 tracked files → R3-14 |
+| 52 | Committed company ids and the SQL login appear widely (OPS-16) | `git grep -l "TMS2\|<read-only SQL login>"` | CONFIRMED | 57 tracked files → R3-14 |
 
 Tally: 52 checked. CONFIRMED 46 (2 with stale or incomplete context). OVERSTATED 1 (#36). WRONG TOOL 1 (#46). MISLEADING 1 (#47). Plus line-drift notes. The council's file:line citations hold. As in round 2, the errors sit in the **reconciliation**: COUNCIL contradicts itself, drops findings, and carries fixes that break on the second run.
 
@@ -194,7 +194,7 @@ Tally: 52 checked. CONFIRMED 46 (2 with stale or incomplete context). OVERSTATED
 
 ### R3-14 [COUNCIL-WRONG] C-8's new gate, as COUNCIL words it, is red on main the day it lands
 - C-8: "A new gate refuses any committed `/ws` host, **company id**, **McLeod user name** or McLeod doc."
-- Company ids `TMS…TMS4` and the SQL login `silvicom_dispatch_ro` are already in 57 tracked files (#52).
+- Company ids `TMS…TMS4` and the SQL login `<read-only SQL login>` are already in 57 tracked files (#52).
 - OPS-16 scoped the gate correctly: no `/ws` URL other than `REPLACE_ME`, no 64-hex `CERT_SHA256`, no `-----BEGIN` outside fixtures, and "company ids **beyond the four already public**". COUNCIL dropped the qualifier.
 - Fix: use OPS-16's exact patterns, and add "the test company id and the integration user name are never committed (they live only in `mcleod-ws.env`)".
 

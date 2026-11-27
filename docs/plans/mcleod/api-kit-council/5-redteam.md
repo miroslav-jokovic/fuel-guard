@@ -2,7 +2,7 @@
 
 Repo `/Users/miroslavjokovic/Projects/FG-mcleod-api` HEAD `4876449c7` (audit ran at `22f3f0540`; the cited
 api/agent files are unchanged between the two). McLeod pages re-fetched 2026-11-20 from
-`https://tms-map.mcleodhosted.com/ws/docs/…&role=-1` with curl; installed libraries read from
+`<customer-hosted /ws docs>` with curl; installed libraries read from
 `/Users/miroslavjokovic/Projects/FuelGuard/node_modules` (same pinned versions: supabase-js/postgrest-js 2.110.0,
 pdf-lib 1.17.1).
 
@@ -38,7 +38,7 @@ pdf-lib 1.17.1).
 | 26 | Image `rowType` letters O/M/C/L/P/D/T/E/U, raw body, no filename, String result ambiguous (W5) | `services?service=ImagingService&operation=addImage&role=-1` | CONFIRMED | verbatim; also "Some providers may simply stage the uploaded image and later pick it up with a batch process" |
 | 27 | Date `yyyyMMddHHmmssZ` when `useServerTimezone=false` (W6) | `types?type=com.tms.common.lib.Date&role=-1` | CONFIRMED | verbatim — the pattern has SECONDS (RT-6) |
 | 28 | Omitted fields not nulled; `"NULL"` to null (W7) | `types?type=null&role=-1` | CONFIRMED | verbatim |
-| 29 | audit_log_tx "keeps one day only" (W8) | `…AuditTransactionService&operation=getAuditLogTransactionsByAdvancedSearch` | OVERSTATED (RT-12) | "only retains one day of transactions **based upon purge settings in the McLeod application**" — tms-map's setting, not ours |
+| 29 | audit_log_tx "keeps one day only" (W8) | `…AuditTransactionService&operation=getAuditLogTransactionsByAdvancedSearch` | OVERSTATED (RT-12) | "only retains one day of transactions **based upon purge settings in the McLeod application**" — <other-customer /ws>'s setting, not ours |
 | 30 | 75 services; RemoteNotification/SysAdmin 500 (W11) | `?role=-1`; both service URLs | CONFIRMED | 75 unique `services?service=` links; both pages HTTP 500 today. WS.md:16 still says "78" before its own correction at :29 |
 | 31 | Settlement/Deduction/Billing have writes (W1) | WS.md:206-211 | CONFIRMED (not re-fetched) | — |
 | 32 | RowTrailer has no `status`/`service_status` (W2) | `types?type=…RowTrailer&role=-1` | CONFIRMED | sample row has `is_active`, `statuscode`, `disposition_code`, in/outservice_date |
@@ -183,12 +183,12 @@ The six reports' file:line citations are overwhelmingly right. The errors are co
   (generic row service; permissions enforced, WS.md:21); (b) RowDriver `next_home_date`/`pta_date`. MK0 probes (a) first;
   (b) only if (a) is refused, and then the office is told the McLeod time-off board will not show it".
 
-### RT-12 [OVERSTATED] — §1 presents tms-map's site settings as facts about our install
-- tms-map is another customer's install (SURFACE doc :5-8). Site-dependent items stated as fact: audit_log_tx "keeps
+### RT-12 [OVERSTATED] — §1 presents <other-customer /ws>'s site settings as facts about our install
+- <other-customer /ws> is another customer's install (SURFACE doc :5-8). Site-dependent items stated as fact: audit_log_tx "keeps
   one day only" (the page says "based upon purge settings"); `useServerTimezone=false` (W6 does say "MK0 reads ours");
   the role lists (Roles page: "the users web user type must be on endpoint" — LoadMaster web-user types, site config);
   `-Dloadmaster.api.maxresultsize`.
-- Fix: §1 gets a column "site setting? (MK0 reads ours)" and W8/W9 are worded "on tms-map".
+- Fix: §1 gets a column "site setting? (MK0 reads ours)" and W8/W9 are worded "on <other-customer /ws>".
 
 ### RT-13 [MISSED] — The 1,000-row PostgREST cap and `.in()` length on the new readers
 - `mcleod_api_capabilities` "one row per operation × field": RowDriver 159 + RowTractor 112 + RowTrailer 84 + RowStop
