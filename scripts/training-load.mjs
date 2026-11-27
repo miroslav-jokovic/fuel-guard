@@ -156,17 +156,18 @@ async function ensureLesson(courseId, f) {
   return id;
 }
 
+/** A film's version to load: a prepared one if there is one, else the newest still in progress. */
 const versionOf = async (lessonId) => {
-  for (const c of await catalogue()) for (const l of c.lessons) if (l.id === lessonId) return l.versions.find((v) => v.state !== "withdrawn" && v.state !== "failed") ?? null;
+  for (const c of await catalogue())
+    for (const l of c.lessons)
+      if (l.id === lessonId) {
+        const live = l.versions.filter((v) => v.state !== "withdrawn" && v.state !== "failed");
+        return live.find((v) => v.state === "ready" || v.state === "published") ?? live[0] ?? null;
+      }
   return null;
 };
 
-async function ensureUpload(lessonId, f) {
-  const have = await versionOf(lessonId);
-  // A draft is an upload that was given a place but never confirmed (a run stopped mid-PUT): confirm it,
-  // and if the bytes never arrived the API refuses and says so.
-  if (have?.state === "draft") await api(`/versions/${have.id}/uploaded`, { method: "POST" });
-  if (have) return have.id;
+async function upload(lessonId, f) {
   const path = join(FILMS_DIR, FILE_OF[f.no]);
   const bytes = readFileSync(path);
   const sha256 = createHash("sha256").update(bytes).digest("hex");
@@ -174,32 +175,54 @@ async function ensureUpload(lessonId, f) {
   const put = await fetch(place.uploadUrl, { method: "PUT", headers: { "content-type": "video/mp4" }, body: bytes });
   if (!put.ok) throw new Error(`${basename(path)} did not upload: ${put.status} ${(await put.text()).slice(0, 200)}`);
   await api(`/versions/${place.versionId}/uploaded`, { method: "POST" });
-  console.log(`  uploaded ${basename(path)} (${(bytes.length / 1e6).toFixed(1)} MB); preparing for phones`);
-  return place.versionId;
+  console.log(`  ${filmTitle(f)}: uploaded ${basename(path)} (${(bytes.length / 1e6).toFixed(1)} MB); preparing for phones`);
 }
 
-/** The worker makes the 360/540/720p copies and the poster (`trainingTranscode`); a film is ~3½ min. */
-async function waitReady(lessonId, versionId) {
-  for (let i = 0; i < 90; i++) {
-    const v = await versionOf(lessonId);
-    if (!v || v.id !== versionId) throw new Error(`version ${versionId} disappeared (failed or withdrawn) — see the Videos tab`);
-    if (v.state === "ready" || v.state === "published") return v;
-    if (v.processError) throw new Error(`preparing failed: ${v.processError}`);
-    await sleep(10_000);
+async function ensureUpload(lessonId, f) {
+  const have = await versionOf(lessonId);
+  // A draft is an upload that was given a place but never confirmed (a run stopped mid-PUT): confirm it,
+  // and if the bytes never arrived the API refuses and says so.
+  if (have?.state === "draft") await api(`/versions/${have.id}/uploaded`, { method: "POST" });
+  else if (!have) await upload(lessonId, f);
+}
+
+/**
+ * Wait until every film has a prepared version (the 360/540/720p copies and the poster, `trainingTranscode`).
+ *
+ * ⚠ Staging only: `/uploaded` queues the film's job and kicks ONE drain in the API process, which claims
+ * the OLDEST queued `training_transcode` row (`claim_next_job` orders by `created_at`). A row a deploy
+ * interrupted is put back in the queue, and only the `general` lane's drain takes it from there, which
+ * staging does not run (`infra/server/staging.env` RUN_SCHEDULERS=false; until 2026-11-27 Railway's
+ * retired `uat` held it at a commit that predates training). A later upload's kick then takes that row
+ * first. So this only WAITS and says what is stuck; re-uploading on a timer was tried on 2026-11-27 and
+ * mistook slow for stuck — five films converting at once on staging's t4g.medium take well over 4
+ * minutes each, and every extra upload added a sixth. Production is unaffected (its worker holds `general`).
+ */
+async function waitAllReady(lessons) {
+  let lastReady = -1;
+  const started = Date.now();
+  for (;;) {
+    const states = await Promise.all(lessons.map(async ({ f, lessonId }) => ({ f, v: await versionOf(lessonId) })));
+    const failed = states.filter((s) => !s.v);
+    if (failed.length) throw new Error(`no live version for ${failed.map((s) => filmTitle(s.f)).join(", ")} (failed?) — see the Videos tab`);
+    const waiting = states.filter((s) => !["ready", "published"].includes(s.v.state));
+    if (!waiting.length) return;
+    const ready = states.length - waiting.length;
+    if (ready !== lastReady) {
+      console.log(`  prepared ${ready} of ${states.length}`);
+      lastReady = ready;
+    }
+    if (Date.now() - started > 45 * 60_000) {
+      throw new Error(`still preparing ${waiting.map((s) => filmTitle(s.f)).join(", ")} after 45 min — check its training_transcode row in \`jobs\`: \`queued\` means no drain will take it on staging; upload that film once more on the page and its kick takes the oldest row`);
+    }
+    await sleep(15_000);
   }
-  // `/uploaded` kicks the job in the API process; a deploy in the middle puts it back in the queue, and
-  // only the `general` lane's drain takes it from there (inprocessDrain.ts `drainKinds`). Measured on
-  // staging 2026-11-27: that lane is held by the retired Railway `uat` service at 70e1592, which predates
-  // `training_transcode`, so a released job sits `queued` for good. Asking `/uploaded` again does not help:
-  // the queued row's dedup key makes it a 500.
-  throw new Error("still preparing after 15 minutes — check `jobs` for its training_transcode row, and who holds the general lane (platform_scheduler_leases)");
 }
 
-async function load(courseId, f) {
+async function load(f, lessonId) {
   console.log(`Film ${filmTitle(f)}`);
-  const lessonId = await ensureLesson(courseId, f);
-  const versionId = await ensureUpload(lessonId, f);
-  const v = await waitReady(lessonId, versionId);
+  const v = await versionOf(lessonId);
+  const versionId = v.id;
   if (v.state === "published") {
     console.log(`  already published (${v.questionCount} questions) — left as it is`);
     return;
@@ -229,9 +252,16 @@ async function load(courseId, f) {
 let failed = 0;
 try {
   const courseId = await ensureCourse();
+  const lessons = [];
   for (const f of chosen) {
+    const lessonId = await ensureLesson(courseId, f);
+    await ensureUpload(lessonId, f);
+    lessons.push({ f, lessonId });
+  }
+  await waitAllReady(lessons);
+  for (const { f, lessonId } of lessons) {
     try {
-      await load(courseId, f);
+      await load(f, lessonId);
     } catch (e) {
       failed++;
       console.error(`  ✗ ${e.message}`);

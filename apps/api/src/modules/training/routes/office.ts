@@ -18,7 +18,7 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
-import { enqueueJob } from "../../../queue/enqueue.js";
+import { pgQueueDriver } from "../../../queue/pgDriver.js";
 import { drainKindNow } from "../../../queue/inprocessDrain.js";
 import { assign, progressRows, reachOf, resend, revoke, type TrainingTexter } from "../assignments.js";
 import { createCourse, createLesson, listCatalogue, updateCourse, updateLesson } from "../catalogue.js";
@@ -113,7 +113,11 @@ export function trainingRouter(deps: { texter: TrainingTexter }): Router {
     const admin = adminOf(req);
     const out = await confirmUpload(admin, org(req), p[0]!);
     if (isRefusal(out)) return void send(res, out);
-    await enqueueJob(admin, "training_transcode", { orgId: org(req), payload: { versionId: p[0] }, dedupKey: `training_transcode:${p[0]}`, requestedBy: user(req) });
+    // The driver answers `{ conflict }` when the film's job is already queued, as metaWebhook.ts reads it. A
+    // second "uploaded" is then the office trying again on a film stuck at "preparing", most often one a
+    // deploy interrupted, which goes back to the queue: a retry to honour, not the 500 that
+    // `enqueueJob`'s throw made of it (measured on staging 2026-11-27). The kick below starts the queue again.
+    await pgQueueDriver(admin).enqueue("training_transcode", { orgId: org(req), payload: { versionId: p[0] }, dedupKey: `training_transcode:${p[0]}`, requestedBy: user(req) });
     // Start it now rather than at the next drain tick; never awaited, so the office's click returns at once.
     void drainKindNow(envOf(req), admin, "training_transcode", 1);
     await audit(req, "video_uploaded", "training_versions", p[0]!);
