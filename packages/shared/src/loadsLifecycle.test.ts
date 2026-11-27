@@ -3,6 +3,7 @@ import {
   acceptanceCopy,
   canTransition,
   DRIVER_VISIBLE_STATUSES,
+  TMS_DRIVER_VISIBLE_STATUSES,
   declineLoadRequestSchema,
   isDriverVisible,
   isTerminal,
@@ -22,6 +23,10 @@ describe("driver visibility — the approval gate's client half", () => {
       "delivered",
       "canceled",
     ]);
+  });
+
+  it("shows a SENT McLeod load at every McLeod status but draft (DF-1, 0655)", () => {
+    expect([...TMS_DRIVER_VISIBLE_STATUSES]).toEqual(["pending_approval", "approved", "in_transit", "delivered", "canceled"]);
   });
 
   it("hides everything before release", () => {
