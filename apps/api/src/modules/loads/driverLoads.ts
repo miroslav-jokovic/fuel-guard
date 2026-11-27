@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DRIVER_VISIBLE_STATUSES,
+  TMS_DRIVER_VISIBLE_STATUSES,
   resolveDriverType,
   type AcceptLoadRequest,
   type AddStopPhotosRequest,
@@ -80,58 +81,77 @@ const unit = (u: UnitJoin): string | null =>
   Array.isArray(u) ? (u[0]?.unit_number ?? null) : (u?.unit_number ?? null);
 
 /**
- * The loads whose CURRENT dispatch names this driver — `auth_dispatched_load_ids()`, 0371's rule,
- * restated for the service role. A load re-sent to somebody else is theirs from that moment, so a row
- * naming this driver counts only while it is the load's latest (newest `sent_at`, then `id`, exactly
- * the helper's order).
+ * The McLeod loads this driver may see — `auth_visible_tms_load_ids()` (0655) restated for the service
+ * role. A load counts while its CURRENT dispatch (newest `sent_at`, then `id`, exactly the helper's
+ * order) names this driver, or names the load's McLeod driver while this driver is the load's McLeod
+ * co-driver (O-3: both seats of a team see the load). A load re-sent to somebody else is theirs from
+ * that moment, for both former seats.
  */
-async function loadsDispatchedTo(admin: SupabaseClient, orgId: string, driverId: string): Promise<string[]> {
-  const { data: mine } = await admin
-    .from("load_dispatches")
-    .select("load_id")
-    .eq("org_id", orgId)
-    .eq("driver_id", driverId);
-  const candidates = [...new Set(((mine ?? []) as { load_id: string }[]).map((r) => r.load_id))];
+async function tmsLoadsVisibleTo(admin: SupabaseClient, orgId: string, driverId: string): Promise<string[]> {
+  const [{ data: mine }, { data: coSeat }] = await Promise.all([
+    admin.from("load_dispatches").select("load_id").eq("org_id", orgId).eq("driver_id", driverId),
+    admin.from("loads").select("id").eq("org_id", orgId).eq("source", "tms").eq("co_driver_id", driverId),
+  ]);
+  const candidates = [
+    ...new Set([
+      ...((mine ?? []) as { load_id: string }[]).map((r) => r.load_id),
+      ...((coSeat ?? []) as { id: string }[]).map((r) => r.id),
+    ]),
+  ];
   if (candidates.length === 0) return [];
 
-  const { data: all } = await admin
-    .from("load_dispatches")
-    .select("load_id, driver_id, sent_at, id")
-    .eq("org_id", orgId)
-    .in("load_id", candidates)
-    .order("sent_at", { ascending: false })
-    .order("id", { ascending: false });
+  const [{ data: all }, { data: seats }] = await Promise.all([
+    admin
+      .from("load_dispatches")
+      .select("load_id, driver_id, sent_at, id")
+      .eq("org_id", orgId)
+      .in("load_id", candidates)
+      .order("sent_at", { ascending: false })
+      .order("id", { ascending: false }),
+    admin.from("loads").select("id, driver_id, co_driver_id").eq("org_id", orgId).in("id", candidates),
+  ]);
   const latest = new Map<string, string>();
   for (const r of (all ?? []) as { load_id: string; driver_id: string }[]) {
     if (!latest.has(r.load_id)) latest.set(r.load_id, r.driver_id);
   }
-  return candidates.filter((id) => latest.get(id) === driverId);
+  const seatOf = new Map(
+    ((seats ?? []) as { id: string; driver_id: string | null; co_driver_id: string | null }[]).map((l) => [l.id, l]),
+  );
+  return candidates.filter((id) => {
+    const current = latest.get(id);
+    if (current === undefined) return false;
+    if (current === driverId) return true;
+    const l = seatOf.get(id);
+    return l !== undefined && current === l.driver_id && l.co_driver_id === driverId;
+  });
 }
 
 /**
  * Every load the driver may see, stops and photos nested — one payload, no waterfall (D29).
  *
- * The status filter is the SAME predicate as `loads_driver_scope` in 0087. It is applied here too,
- * even though RLS would enforce it, because this call uses the service role: the API must not become
- * the one path that leaks an unapproved load.
+ * The filter is the SAME predicate as `loads_driver_scope` (0087, 0371, 0655), applied here too even
+ * though RLS would enforce it, because this call uses the service role: the API must not become the
+ * one path that leaks an unsent or unapproved load.
  */
 export async function getDriverLoads(
   admin: SupabaseClient,
   orgId: string,
   driverId: string,
 ): Promise<Load[]> {
-  const sent = await loadsDispatchedTo(admin, orgId, driverId);
+  const sent = await tmsLoadsVisibleTo(admin, orgId, driverId);
+  // Two branches, one per source:
+  //   · a manual load — 0087's rule: the driver's own, in the five driver statuses;
+  //   · a McLeod load — D-LMR5 + DF-1 + O-3: SENT (above), at any McLeod status but draft. Its
+  //     `driver_id` is McLeod's and is deliberately not required: the office's dispatch decides
+  //     (D-LMR6), and a co-driver is never `driver_id`.
+  // PostgREST refuses an empty `in.()`, hence the McLeod branch only when something was sent.
+  const manual = `and(source.neq.tms,driver_id.eq.${driverId},status.in.(${DRIVER_VISIBLE_STATUSES.join(",")}))`;
+  const mcleod = `and(source.eq.tms,status.in.(${TMS_DRIVER_VISIBLE_STATUSES.join(",")}),id.in.(${sent.join(",")}))`;
   const { data: loads } = await admin
     .from("loads")
     .select(LOAD_COLUMNS)
     .eq("org_id", orgId)
-    .eq("driver_id", driverId)
-    .in("status", [...DRIVER_VISIBLE_STATUSES])
-    // D-LMR5: a McLeod load reaches a driver only once Silvicom has SENT it to them. Its status is
-    // McLeod's and can be driver-visible (in_transit) with nobody having sent it, so the same predicate
-    // as `loads_driver_scope` (0371) applies here — this call is the service role and would otherwise
-    // leak. PostgREST refuses an empty `in.()`, hence the two spellings.
-    .or(sent.length > 0 ? `source.neq.tms,id.in.(${sent.join(",")})` : "source.neq.tms")
+    .or(sent.length > 0 ? `${manual},${mcleod}` : manual)
     .order("created_at", { ascending: false });
 
   const rows = (loads ?? []) as unknown as (Record<string, unknown> & {

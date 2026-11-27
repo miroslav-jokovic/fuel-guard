@@ -247,7 +247,7 @@ describe("the shop group keeps its stored answers through I4's relabel", () => {
       .find((g) => g.label === "Maintenance")
       ?.items.map((i) => `${i.name} ${i.to}`) ?? [];
 
-  it("renders the shop's five doors, Shop first and Shop parts last", () => {
+  it("renders the shop's six doors, Shop first and Shop parts last", () => {
     // Five rows since M7 (Q-MX7, 2026-10-28): Equipment is its own door again and Parts — FleetPal's,
     // a different inventory — goes last; the inspector register is a Settings card (D-MX1). I4's six
     // were Shop, Parts, Assets, Units, Annual inspections, Inspectors — every key is still here.
@@ -256,6 +256,8 @@ describe("the shop group keeps its stored answers through I4's relabel", () => {
       "Trucks & trailers /shop/units",
       "Equipment /shop/assets",
       "Annual inspections /shop/inspections",
+      // The warning desk (WARNING-DESK-PLAN D-WD1), above Shop parts, which stays last.
+      "Follow-ups /shop/follow-ups",
       "Shop parts /shop/inventory",
     ]);
   });

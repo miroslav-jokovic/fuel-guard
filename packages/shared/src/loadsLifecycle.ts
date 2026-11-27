@@ -32,6 +32,22 @@ export function isDriverVisible(status: LoadStatus): boolean {
   return (DRIVER_VISIBLE_STATUSES as readonly LoadStatus[]).includes(status);
 }
 
+/**
+ * The statuses a driver may see on a McLeod (`tms`) load the office has SENT them — the tms branch of
+ * `loads_driver_scope` since 0655. McLeod loads are never `offered` or `accepted`: the projection gives
+ * pending_approval / approved until the first stop departs, and DF-1 (owner, first build 2026-11-23)
+ * is that a sent load shows "as soon as dispatch assigns it", not once the truck is rolling. `draft`
+ * (McLeod `A`, uncovered) is absent: nobody holds it. Whether the load was SENT is the dispatch rule
+ * (D-LMR5), which `driverLoads.ts` and `auth_visible_tms_load_ids()` apply.
+ */
+export const TMS_DRIVER_VISIBLE_STATUSES = [
+  "pending_approval",
+  "approved",
+  "in_transit",
+  "delivered",
+  "canceled",
+] as const satisfies readonly LoadStatus[];
+
 /** Human labels for every state — dispatch reads these, drivers only ever see the visible subset. */
 export const LOAD_STATUS_LABELS: Record<LoadStatus, string> = {
   draft: "Draft",

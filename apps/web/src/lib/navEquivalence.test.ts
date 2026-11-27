@@ -191,6 +191,8 @@ describe("buildNavGroups is unchanged by the surface catalogue (S1)", () => {
       // Trucks & trailers from D-MX1, 2026-10-27, to M7, 2026-10-28; a door again since.)
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
+      // The warning desk (WARNING-DESK-PLAN D-WD1) arrives granted for the same reason Assets did.
+      "Follow-ups → /shop/follow-ups",
       "Shop parts → /shop/inventory",
     ]);
     expect(denied).toMatchSnapshot();

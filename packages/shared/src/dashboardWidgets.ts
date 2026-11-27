@@ -140,7 +140,7 @@ export const DASHBOARD_WIDGETS: readonly DashboardWidget[] = [
   { span: 4 as const, key: "ops.needs-action", label: "Needs action", tab: "ops", gate: section("equipment") },
   { span: 4 as const, key: "ops.road-attention", label: "On the road", tab: "ops", gate: section("dispatch"), module: "dispatch" },
   { span: 4 as const, key: "ops.driver-files", label: "Driver files", tab: "ops", gate: section("roster") },
-  { span: 4 as const, key: "ops.seats", label: "Seats", tab: "ops", gate: section("equipment") },
+  { span: 4 as const, key: "ops.seats", label: "Trucks", tab: "ops", gate: section("equipment") },
   { span: 4 as const, key: "ops.shop", label: "Shop", tab: "ops", gate: section("maintenance") },
   { span: 4 as const, key: "ops.truck-papers", label: "Truck paperwork", tab: "ops", gate: section("equipment") },
   { span: 4 as const, key: "ops.fuel", label: "Fuel", tab: "ops", gate: section("fuel") },

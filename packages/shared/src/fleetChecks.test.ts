@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FileItemState } from "./fileEngine.js";
-import { boardCarriesTruck, isOnDispatchBoard, isUnassignedPool, matchesVehicleCheck, paperStanding, seatedDriverIds, VEHICLE_CHECKS, VEHICLE_CHECK_LABELS } from "./fleetChecks.js";
+import { boardCarriesTruck, fleetGroup, isOnDispatchBoard, isUnassignedPool, matchesVehicleCheck, paperStanding, seatedDriverIds, VEHICLE_CHECKS, VEHICLE_CHECK_LABELS } from "./fleetChecks.js";
 import type { UnitFileCell } from "./unitFileContract.js";
 
 type T = { assigned_driver_id: string | null; status: string; winding_down?: boolean | null; mcleod_fleet_code?: string | null };
@@ -35,17 +35,32 @@ describe("the dispatch board's trucks (D-FM10)", () => {
 });
 
 describe("matchesVehicleCheck", () => {
-  it("asks no_driver only of the board's trucks; everything else in service is off_board", () => {
+  it("puts every truck in service in exactly one group, and ordered or retired in none (D-FM11)", () => {
+    expect(fleetGroup(truck())).toBe("under_dispatch");
+    expect(fleetGroup(truck({ status: "maintenance" }))).toBe("under_dispatch");
+    expect(fleetGroup(truck({ mcleod_fleet_code: "1" }))).toBe("parked");
+    expect(fleetGroup(truck({ status: "maintenance", mcleod_fleet_code: "1" }))).toBe("parked");
+    expect(fleetGroup(truck({ winding_down: true }))).toBe("winding_down");
+    expect(fleetGroup(truck({ winding_down: true, mcleod_fleet_code: "1" }))).toBe("winding_down");
+    expect(fleetGroup(truck({ status: "ordered" }))).toBeNull();
+    expect(fleetGroup(truck({ status: "retired", winding_down: true }))).toBeNull();
+    for (const v of [truck(), truck({ mcleod_fleet_code: "1" }), truck({ winding_down: true }), truck({ status: "retired" })]) {
+      const hits = (["under_dispatch", "parked", "winding_down"] as const).filter((c) => matchesVehicleCheck(v, c, undefined));
+      expect(hits).toEqual(fleetGroup(v) ? [fleetGroup(v)] : []);
+    }
+  });
+
+  it("asks no_driver only of the trucks under dispatch; the pool is parked", () => {
     // 14 of the 17 "trucks without a driver" on 2026-11-26 were parked in fleet '1'.
     const parked = truck({ assigned_driver_id: null, mcleod_fleet_code: "1" });
     expect(matchesVehicleCheck(parked, "no_driver", undefined)).toBe(false);
-    expect(matchesVehicleCheck(parked, "off_board", undefined)).toBe(true);
+    expect(matchesVehicleCheck(parked, "parked", undefined)).toBe(true);
     const shop = truck({ assigned_driver_id: null, status: "maintenance" });
     expect(matchesVehicleCheck(shop, "no_driver", undefined)).toBe(true);
-    expect(matchesVehicleCheck(shop, "off_board", undefined)).toBe(false);
+    expect(matchesVehicleCheck(shop, "under_dispatch", undefined)).toBe(true);
     for (const status of ["ordered", "retired"]) {
       expect(matchesVehicleCheck(truck({ assigned_driver_id: null, status }), "no_driver", undefined)).toBe(false);
-      expect(matchesVehicleCheck(truck({ status }), "off_board", undefined)).toBe(false);
+      expect(matchesVehicleCheck(truck({ status, mcleod_fleet_code: "1" }), "parked", undefined)).toBe(false);
     }
   });
 

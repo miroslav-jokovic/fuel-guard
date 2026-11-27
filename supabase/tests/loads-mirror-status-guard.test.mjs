@@ -197,6 +197,69 @@ await db.query(`update loads set status = 'offered' where id = $1`, [MAN]);
 ok("a manual load the office released is visible to its driver, as before",
   (await asDriver(`select id from loads where id = $1`, [MAN])).length === 1);
 
+
+// ── 4. 0655: a SENT McLeod load reaches its driver at any McLeod status, and its co-driver too ────
+// DF-1 (owner, first build 2026-11-23): "see my load as soon as dispatch assigns it" — a load sent the
+// evening before must not wait for its first stop to depart. O-3 (2026-11-20): both seats see it.
+// D-LMR5 (re-confirmed 2026-11-27): nothing shows before the office presses Send.
+const seat = async (name) => {
+  const u = (await one(`insert into auth.users (email) values ($1) returning id`, [`${name}@carrier.test`])).id;
+  await db.query(`insert into memberships (org_id, user_id, role) values ($1, $2, 'driver')`, [ORG, u]);
+  const d = (await one(
+    `insert into drivers (org_id, full_name, user_id, status) values ($1, $2, $3, 'active') returning id`,
+    [ORG, name, u])).id;
+  return { d, claims: JSON.stringify({ sub: u, org_id: ORG, user_role: "driver" }) };
+};
+const sees = async (who, sql, params) => {
+  await db.exec("begin");
+  try {
+    await db.exec("set local role authenticated");
+    await db.query("select set_config('request.jwt.claims', $1, true)", [who.claims]);
+    return (await db.query(sql, params)).rows.length;
+  } finally { await db.exec("rollback"); }
+};
+const LEAD = await seat("lead");
+const TEAM = await seat("team");
+const RELIEF = await seat("relief");
+const sendTo = async (load, driver) => {
+  await db.query(`select pg_sleep(0.01)`);
+  await db.query(
+    `insert into load_dispatches (org_id, load_id, driver_id, sent_by, channel, outcome, outcome_reason, body)
+     values ($1, $2, $3, $4, 'sms', 'not_sent', 'sms_not_configured', 'Load')`, [ORG, load, driver, APPROVER]);
+};
+const seesLoad = (who, id) => sees(who, `select id from loads where id = $1`, [id]);
+
+const P = await tms("pending_approval", { co_driver_id: TEAM.d });
+await db.query(`update loads set driver_id = $2 where id = $1`, [P, LEAD.d]);
+await db.query(`insert into load_stops (org_id, load_id, seq, kind, name) values ($1, $2, 1, 'pickup', 'Shipper')`, [ORG, P]);
+ok("0655: an UNSENT pending McLeod load stays hidden from its McLeod driver (D-LMR5)", (await seesLoad(LEAD, P)) === 0);
+ok("…and from its McLeod co-driver", (await seesLoad(TEAM, P)) === 0);
+await sendTo(P, LEAD.d);
+ok("0655: once sent, a PENDING McLeod load reaches its driver before the first stop departs (DF-1)",
+  (await seesLoad(LEAD, P)) === 1);
+ok("…with its stops", (await sees(LEAD, `select id from load_stops where load_id = $1`, [P])) === 1);
+ok("0655: a load sent to its McLeod driver reaches the McLeod co-driver too (O-3)", (await seesLoad(TEAM, P)) === 1);
+ok("…stops included", (await sees(TEAM, `select id from load_stops where load_id = $1`, [P])) === 1);
+ok("…and nobody else", (await seesLoad(RELIEF, P)) === 0);
+await db.query(`update loads set status = 'approved' where id = $1`, [P]);
+ok("0655: still visible once McLeod marks it approved", (await seesLoad(LEAD, P)) === 1 && (await seesLoad(TEAM, P)) === 1);
+
+await sendTo(P, RELIEF.d);
+ok("0655: re-sent to a driver McLeod did not name, the load follows the office's dispatch (D-LMR6)",
+  (await seesLoad(RELIEF, P)) === 1);
+ok("…and leaves BOTH former seats at once", (await seesLoad(LEAD, P)) === 0 && (await seesLoad(TEAM, P)) === 0);
+
+const U = await tms("draft");
+await db.query(`update loads set driver_id = $2 where id = $1`, [U, LEAD.d]);
+await sendTo(U, LEAD.d);
+ok("0655: an uncovered McLeod load (draft) is never shown, even with a dispatch row", (await seesLoad(LEAD, U)) === 0);
+
+const MAN2 = (await one(
+  `insert into loads (org_id, ref, status, driver_id, co_driver_id) values ($1, 'MAN-9', 'pending_approval', $2, $3) returning id`,
+  [ORG, LEAD.d, TEAM.d])).id;
+ok("0655: a MANUAL load keeps 0087's rule — not visible while pending approval", (await seesLoad(LEAD, MAN2)) === 0);
+ok("…and never through a co-driver seat", (await seesLoad(TEAM, MAN2)) === 0);
+
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exitCode = fail === 0 ? 0 : 1;

@@ -41,6 +41,29 @@ const columns: DataTableColumn[] = [
   { key: "quote", label: "Pilot quote $/gal", numeric: true, width: "sm" },
   { key: "over", label: "Over the quote", numeric: true, width: "md" },
 ];
+const dayColumns: DataTableColumn[] = [
+  { key: "date", label: "Date", width: "sm", cellClass: "text-ink-secondary" },
+  { key: "units", label: "Gallons", numeric: true, width: "sm" },
+  { key: "amount", label: "Fuel amount", numeric: true, width: "md" },
+  { key: "avg", label: "Avg $/gal", numeric: true, width: "sm" },
+  { key: "invoice", label: "Invoice total", numeric: true, width: "md" },
+  { key: "savings", label: "Savings", numeric: true, width: "md" },
+];
+const gal = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const perGal = (n: number | null) => (n == null ? "—" : `$${n.toFixed(4)}`);
+// The old statement's day blocks: Date Subtotal, Average Cost Per Gallon and Savings SubTotal per day. The average
+// is fuel $ ÷ gallons and can differ from Pilot's printed day figure by up to about a cent (weeklyBillReport.ts).
+const dayRows = computed(() =>
+  (report.value?.byDay ?? []).map((d) => ({
+    id: d.date ?? "undated",
+    date: d.date ? formatDate(d.date) : "No date",
+    units: gal(d.units),
+    amount: usd2(d.amount),
+    avg: perGal(d.avgCostPerGal),
+    invoice: usd2(d.invoiceTotal),
+    savings: usd2(d.savings),
+  })),
+);
 const overRows = computed(() =>
   (report.value?.overQuote ?? []).map((r, i) => ({
     id: `${i}-${r.ticket ?? ""}`,
@@ -121,6 +144,16 @@ const overRows = computed(() =>
             </span>
           </li>
         </ul>
+
+        <div v-if="dayRows.length" class="mt-4" data-test="weekly-bill-days">
+          <h4 class="text-sm font-medium text-ink">By day</h4>
+          <DataTable embedded class="mt-2" :columns="dayColumns" :rows="dayRows" row-key="id" empty-text="No lines." />
+          <p class="mt-2 text-xs text-ink-tertiary">
+            Average cost per gallon for the week: <strong class="text-ink">{{ perGal(report.totals.avgCostPerGal) }}</strong>
+            ({{ gal(report.totals.units) }} gal). Averages are fuel dollars ÷ gallons; Pilot's own printed day average
+            can differ by up to about a cent.
+          </p>
+        </div>
 
         <div v-if="overRows.length" class="mt-4">
           <h4 class="text-sm font-medium text-ink">Billed above Pilot's quote · {{ formatDate(statement.periodStart) }} – {{ formatDate(statement.periodEnd) }}</h4>

@@ -39,6 +39,7 @@ import { auditRouter } from "./modules/org/index.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { dispatchLinksRouter, lumperCasesRouter, lumperReminderSettingsRouter, tmsIngestRouter, tmsRosterMasterRouter } from "./modules/mcleod/index.js";
 import { brokerMailRouter } from "./modules/broker-mail/index.js";
+import { followUpsRouter } from "./modules/followups/index.js";
 import { fuelingRouter } from "./routes/fueling.js";
 import { fuelCardCapabilityRouter } from "./modules/efs/router.js";
 import { fuelCardEchoScanRouter } from "./modules/efs/routes/echoScan.js";
@@ -265,6 +266,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/lumper-cases", lumperCasesRouter()); // every load where we paid a lumper, and whether the revised RC is on file (LUMPER-REVISED-RC LRC3)
   app.use("/api/lumper-reminders/settings", lumperReminderSettingsRouter()); // the daily reminder's switch, on Settings › Notifications (LRC4, D-LRC9)
   app.use("/api/broker-mail", brokerMailRouter()); // the Broker mail page and Settings › Broker mail (BROKER-MAIL-READER-PLAN P2)
+  app.use("/api/follow-ups", followUpsRouter()); // Maintenance › Follow-ups, Loads › Route follow-ups, Settings › Follow-up rules (WARNING-DESK-PLAN WD4)
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
   app.use("/api/card-fraud-incidents", cardFraudIncidentsRouter());

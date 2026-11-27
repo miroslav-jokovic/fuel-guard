@@ -41,7 +41,7 @@ const PROBES = [
   // auditor reaches it, because the endpoint behind it admits one.
   "/live-map",
   // The pairs a specificity regression would break first: a static segment must beat a param.
-  "/loads", "/loads/new", "/loads/ld_1",
+  "/loads", "/loads/new", "/loads/follow-ups", "/loads/ld_1",
   "/dispatch/loads", "/dispatch/loads/new", "/dispatch/loads/ld_1",
   // D-H17 left `/hazmat`, `/hazmat/loads` and `/hazmat/loads/new` as REDIRECTS rather than deleting
   // them: they live in notification links and bookmarks. They still have to resolve.
@@ -86,11 +86,13 @@ const PROBES = [
   "/shop/scan",
   // I10's label screen — a desk screen, unlike the two above it.
   "/shop/labels",
+    // The warning desk (WARNING-DESK-PLAN WD5), and dispatch's Route view of it beside `/loads/:id` above.
+    "/shop/follow-ups",
   "/fuel-reconciliation", "/fuel-exceptions", "/import",
   "/transactions", "/rejections",
   "/fuel-cards", "/fuel-cards/fc_1",
   "/settings/card-control",
-  "/settings/broker-mail",
+  "/settings/broker-mail", "/settings/follow-up-rules",
   "/anomalies", "/fuel-events", "/ask", "/reports",
   "/settings", "/settings/users", "/settings/permissions", "/settings/thresholds", "/settings/driver-performance",
   // Q-APX18 (a): the Ads workspace, and the two addresses the ads left behind as redirects (a notification or a
