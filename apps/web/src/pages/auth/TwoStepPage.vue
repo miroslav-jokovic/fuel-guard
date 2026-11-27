@@ -2,108 +2,77 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { AppButton as BaseButton, AppCallout, AppInput, QueryState } from "@silvicom/ui";
-import { AUTHENTICATOR_ISSUER } from "@silvicom/shared";
-import { supabase } from "@/lib/supabase";
+import { TWO_STEP_CODE_LENGTH, TWO_STEP_DAYS, formatDisplayDateTime, twoStepSendSchema } from "@silvicom/shared";
+import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 
 /**
- * Two-step sign-in (INSTALLED-APP-PLAN IA-S1): set an authenticator app up, enter its code, or see that it
- * is on. One page for the three, because which one a person needs is the server's answer, not theirs:
+ * Two-step sign-in, revision 2 (INSTALLED-APP-PLAN IA-S1; the owner's ruling of 2026-11-27, Q-IA20): a 6-digit code
+ * emailed to the person's sign-in address, after which this browser is not asked again for a week.
  *
- *   challenge  they have an authenticator and this session has not given its code — the router sends them
- *              here and nowhere else until it has (`session.secondFactor`, the API's 403);
- *   enroll     they have none: an admin whose date has passed (sent here), an admin in their 14 days of
- *              notice, or anybody who chose "Two-step sign-in" in the account menu;
- *   on         set up and satisfied — with Turn off, unless the role must keep it.
- *
- * Supabase's own TOTP, as the platform console uses it (`apps/admin/src/pages/MfaPage.vue`): the browser
- * talks to the auth server; our API never sees a secret or a code.
- *
- * ⚠ A LOST PHONE is not solved on this page and it says so: another admin of the company, or Silvicom, removes
- * the old authenticator (Q-IA11) and the person sets a new one up at their next sign-in.
+ * The router holds a device that owes its code on this page and nowhere else (`session.secondFactor`, the API's
+ * 403). Opening it SENDS the code — there is nothing to choose first — and the API mails nothing new if a code
+ * went out in the last minute, so a reload does not fill the inbox. Nothing to set up, nothing to turn off, no lost
+ * phone: revision 1's authenticator app, its QR code and its recovery acts are gone with it.
  */
 const session = useSessionStore();
 const router = useRouter();
 
-type Mode = "loading" | "enroll" | "challenge" | "on";
-const mode = ref<Mode>("loading");
-const factorId = ref<string | null>(null);
-const qr = ref<string | null>(null);
-const secret = ref<string | null>(null);
+type Mode = "sending" | "enter" | "done";
+const mode = ref<Mode>("sending");
 const code = ref("");
 const error = ref<string | null>(null);
-/** Preparing failed: its own state with a Retry, never a code box with nothing behind it. */
-const setupError = ref<unknown>(null);
+/** Sending failed: its own state with a Retry, never a code box with nothing behind it. */
+const sendError = ref<{ message: string } | null>(null);
+const notice = ref<string | null>(null);
 const busy = ref(false);
 
 const status = computed(() => session.secondFactor);
-/** Sent here by the guard: there is nowhere else to go until it is done, so no "Not now". */
-const forced = computed(() => status.value?.required === true && status.value.satisfied === false);
+const owed = computed(() => status.value?.required === true && status.value.satisfied === false);
+const where = computed(() => status.value?.email_hint ?? "your email address");
+const trustedUntil = computed(() => {
+  const iso = status.value?.trusted_until;
+  return iso ? formatDisplayDateTime(iso) : null;
+});
 
-async function prepare() {
-  setupError.value = null;
-  mode.value = "loading";
+async function send(again = false) {
+  sendError.value = null;
+  error.value = null;
+  notice.value = null;
+  if (!again) mode.value = "sending";
+  const res = await apiFetch<unknown>("/api/me/second-factor/code", { method: "POST" });
+  const parsed = res.ok ? twoStepSendSchema.safeParse(res.data) : null;
+  if (!parsed?.success) {
+    if (again) error.value = res.error?.message ?? "Could not send a new code. Try again.";
+    else sendError.value = { message: res.error?.message ?? "Could not send your sign-in code." };
+    return;
+  }
+  mode.value = "enter";
   code.value = "";
-  try {
-    const { data, error: listError } = await supabase.auth.mfa.listFactors();
-    if (listError) throw listError;
-    const verified = (data?.totp ?? []).filter((f) => f.status === "verified");
-    if (verified.length > 0) {
-      factorId.value = verified[0]!.id;
-      const { data: level } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      mode.value = level?.currentLevel === "aal2" ? "on" : "challenge";
-      return;
-    }
-    // An enrolment started and never finished (the page was closed at the QR code) would refuse a new one
-    // under the same name: remove it first. Only ever an UNVERIFIED factor — it protects nothing yet.
-    for (const f of data?.all ?? []) if (f.status !== "verified") await supabase.auth.mfa.unenroll({ factorId: f.id });
-    const { data: enrolled, error: enrollError } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: "Authenticator app", issuer: AUTHENTICATOR_ISSUER });
-    if (enrollError) throw enrollError;
-    factorId.value = enrolled.id;
-    qr.value = enrolled.totp.qr_code;
-    secret.value = enrolled.totp.secret;
-    mode.value = "enroll";
-  } catch (e) {
-    setupError.value = e;
+  if (again) {
+    notice.value =
+      parsed.data.outcome === "recent"
+        ? "A code was sent less than a minute ago. Check your inbox and spam folder for it."
+        : `A new code is on its way to ${where.value}.`;
   }
 }
-onMounted(prepare);
 
-/** The client holds the new token; the store adopts it and asks the API what it now says. */
-async function adopt() {
-  await session.syncFromClient();
-  await session.loadSurfaces();
-}
+onMounted(() => {
+  if (owed.value) void send();
+  else mode.value = "done";
+});
 
 async function verify() {
-  if (!factorId.value) return;
   error.value = null;
   busy.value = true;
   try {
-    const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({ factorId: factorId.value, code: code.value.trim() });
-    if (verifyError) throw verifyError;
-    await adopt();
-    await router.push({ name: "dashboard" });
-  } catch {
-    error.value = "That code was not accepted. Enter the current 6-digit code from your authenticator app.";
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function turnOff() {
-  if (!factorId.value) return;
-  error.value = null;
-  busy.value = true;
-  try {
-    const { error: offError } = await supabase.auth.mfa.unenroll({ factorId: factorId.value });
-    if (offError) throw offError;
-    // A new token, so the session stops saying a second step was taken with a factor that no longer exists.
-    await session.refresh();
+    const res = await apiFetch<unknown>("/api/me/second-factor/verify", { method: "POST", body: { code: code.value } });
+    if (!res.ok) {
+      error.value = res.error?.message ?? "That code was not accepted.";
+      return;
+    }
     await session.loadSurfaces();
     await router.push({ name: "dashboard" });
-  } catch {
-    error.value = "Could not turn two-step sign-in off. Try again.";
   } finally {
     busy.value = false;
   }
@@ -117,61 +86,52 @@ async function signOut() {
 
 <template>
   <div>
-    <h2 class="text-lg font-semibold text-ink">Two-step sign-in</h2>
+    <h2 class="text-lg font-semibold text-ink">Check your email</h2>
     <p class="mt-1 text-sm text-ink-muted" data-testid="two-step-lead">
-      <template v-if="mode === 'enroll'">Scan this with an authenticator app on your phone, then enter the 6-digit code it shows.</template>
-      <template v-else-if="mode === 'challenge'">Enter the 6-digit code from your authenticator app.</template>
-      <template v-else-if="mode === 'on'">Two-step sign-in is on. Each time you sign in you enter a code from your authenticator app.</template>
+      <template v-if="mode === 'done'">
+        This browser has its sign-in code<template v-if="trustedUntil"> until {{ trustedUntil }}</template>.
+      </template>
+      <template v-else>
+        We sent a {{ TWO_STEP_CODE_LENGTH }}-digit sign-in code to <strong class="text-ink-secondary">{{ where }}</strong>. Enter it
+        below. This browser won't ask again for {{ TWO_STEP_DAYS }} days.
+      </template>
     </p>
 
+    <!-- ui-adoption: server-message — the API's sentence says WHICH send failed and what to do: five codes this
+         hour (wait), no email on the account (ask an admin), the mail provider refused (try in a minute). -->
     <QueryState
       class="mt-5"
       compact
-      :loading="mode === 'loading' && !setupError"
-      :error="setupError"
-      error-text="Could not prepare two-step sign-in."
-      loading-text="Preparing two-step sign-in…"
-      @retry="prepare"
+      :loading="mode === 'sending' && !sendError"
+      :error="sendError"
+      :error-text="sendError?.message ?? 'Could not send your sign-in code.'"
+      loading-text="Sending your code…"
+      @retry="send()"
     >
-      <div v-if="mode === 'enroll' && qr" class="mt-4 flex flex-col items-center gap-2">
-        <img :src="qr" alt="QR code for your authenticator app" class="two-step-qr size-44 rounded-control p-2" />
-        <p class="text-xs text-ink-muted">Cannot scan it? Type this key into the app instead:</p>
-        <code v-if="secret" class="break-all rounded-control bg-surface-muted px-2 py-1 text-xs text-ink-secondary" data-testid="two-step-secret">{{ secret }}</code>
-      </div>
-
-      <form v-if="mode === 'enroll' || mode === 'challenge'" class="mt-5 space-y-4" @submit.prevent="verify">
-        <AppInput v-model="code" aria-label="6-digit code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength="6" required />
+      <form v-if="mode === 'enter'" class="mt-4 space-y-4" @submit.prevent="verify">
+        <AppInput
+          v-model="code"
+          aria-label="6-digit code"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          placeholder="123456"
+          :maxlength="TWO_STEP_CODE_LENGTH + 2"
+          required
+        />
         <AppCallout v-if="error" tone="danger" role="alert">{{ error }}</AppCallout>
-        <BaseButton type="submit" variant="primary" block :disabled="busy">{{ busy ? "Checking…" : mode === "enroll" ? "Turn on two-step sign-in" : "Continue" }}</BaseButton>
+        <AppCallout v-else-if="notice" tone="info" role="status">{{ notice }}</AppCallout>
+        <BaseButton type="submit" variant="primary" block :disabled="busy">{{ busy ? "Checking…" : "Continue" }}</BaseButton>
+        <p class="text-xs text-ink-muted">
+          No email? It can take a minute — check spam too.
+          <BaseButton variant="link" class="text-xs" data-testid="two-step-resend" :disabled="busy" @click="send(true)">Send a new code</BaseButton>
+        </p>
       </form>
-
-      <div v-if="mode === 'on'" class="mt-5 space-y-3">
-        <AppCallout v-if="error" tone="danger" role="alert">{{ error }}</AppCallout>
-        <p v-if="status?.must_keep" class="text-sm text-ink-muted" data-testid="two-step-must-keep">Admins are required to use it, so it cannot be turned off.</p>
-        <BaseButton v-else variant="secondary" block :disabled="busy" @click="turnOff">Turn off two-step sign-in</BaseButton>
-      </div>
-
-      <p v-if="mode === 'challenge'" class="mt-4 text-xs text-ink-muted">
-        Lost the phone with your authenticator app? An admin of your company can remove it from Settings, Users, and you
-        set a new one up the next time you sign in.
-      </p>
     </QueryState>
 
     <div class="mt-6 flex items-center justify-between text-sm">
-      <BaseButton v-if="!forced" variant="link" @click="router.push({ name: 'dashboard' })">{{ mode === "on" ? "Back" : "Not now" }}</BaseButton>
+      <BaseButton v-if="!owed" variant="link" @click="router.push({ name: 'dashboard' })">Back</BaseButton>
       <span v-else />
       <BaseButton variant="link" @click="signOut">Sign out</BaseButton>
     </div>
   </div>
 </template>
-
-<style scoped>
-/*
- * The QR code's ground is WHITE in both schemes, and deliberately not a token: every surface token darkens in
- * the dark scheme, and a QR code on a dark ground is one a phone camera cannot read. It is the one thing on
- * the page that is a printed object rather than part of the interface.
- */
-.two-step-qr {
-  background-color: white;
-}
-</style>

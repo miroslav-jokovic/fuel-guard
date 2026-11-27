@@ -1,64 +1,86 @@
 import { describe, expect, it } from "vitest";
-import { USER_ROLES } from "./constants.js";
-import { secondFactorDue, secondFactorRequired, secondFactorStatus, secondFactorStatusSchema } from "./secondFactorContract.js";
+import { OFFICE_ROLES, ROSTER_ISSUED_ROLES } from "./constants.js";
+import {
+  TWO_STEP_DAYS,
+  secondFactorStatus,
+  secondFactorStatusSchema,
+  twoStepRequired,
+  twoStepSatisfied,
+  twoStepTrustedUntil,
+  twoStepVerifyBodySchema,
+} from "./secondFactorContract.js";
+import { renderTwoStepCodeEmail } from "./twoStepEmail.js";
 
 /**
- * Two-step sign-in, the rule (INSTALLED-APP-PLAN IA-S1; Q-IA1 (b), Q-IA12 (b), Q-IA13): required of whoever
- * HAS a factor, and of an admin once their company's date has passed — of the admin role and no other.
+ * Two-step sign-in, revision 2 (INSTALLED-APP-PLAN IA-S1, Q-IA20): every office role is asked for an emailed code,
+ * and a device that gave one is trusted for a week.
  */
 const NOW = new Date("2026-12-01T12:00:00Z");
-const PAST = "2026-11-30T00:00:00Z";
-const AHEAD = "2026-12-10T00:00:00Z";
+const DAY = 86_400_000;
+const ago = (ms: number) => new Date(NOW.getTime() - ms).toISOString();
 
-describe("who must take the second step", () => {
-  it("an admin, from the company's date — to the instant", () => {
-    expect(secondFactorRequired({ role: "admin", hasFactor: false, requiredFrom: PAST }, NOW)).toBe(true);
-    expect(secondFactorRequired({ role: "admin", hasFactor: false, requiredFrom: AHEAD }, NOW)).toBe(false);
-    expect(secondFactorRequired({ role: "admin", hasFactor: false, requiredFrom: NOW.toISOString() }, NOW)).toBe(true);
+describe("who is asked", () => {
+  it("every office role, and no roster-issued one", () => {
+    for (const role of OFFICE_ROLES) expect(twoStepRequired(role), role).toBe(true);
+    for (const role of ROSTER_ISSUED_ROLES) expect(twoStepRequired(role), role).toBe(false);
   });
-
-  it("no other role by the date, whatever the date — the list is the admin role alone", () => {
-    for (const role of USER_ROLES.filter((r) => r !== "admin")) {
-      expect(secondFactorRequired({ role, hasFactor: false, requiredFrom: PAST }, NOW), role).toBe(false);
-    }
-  });
-
-  it("anybody who has a factor, whatever their role and whatever the date", () => {
-    for (const role of USER_ROLES) expect(secondFactorRequired({ role, hasFactor: true, requiredFrom: AHEAD }, NOW), role).toBe(true);
-  });
-
-  it("a date that cannot be read requires nothing by itself — and a factor still does", () => {
-    expect(secondFactorRequired({ role: "admin", hasFactor: false, requiredFrom: null }, NOW)).toBe(false);
-    expect(secondFactorRequired({ role: "admin", hasFactor: false, requiredFrom: "soon" }, NOW)).toBe(false);
-    expect(secondFactorRequired({ role: "admin", hasFactor: true, requiredFrom: null }, NOW)).toBe(true);
-    expect(secondFactorDue({ role: null, requiredFrom: PAST }, NOW)).toBe(false);
+  it("no role is not asked — requireOrg refuses such a token on its own", () => {
+    expect(twoStepRequired(null)).toBe(false);
+    expect(twoStepRequired("")).toBe(false);
   });
 });
 
-describe("what the app is told", () => {
-  it("an admin in their notice period: not required, the date shown, free to turn it off again", () => {
-    expect(secondFactorStatus({ role: "admin", hasFactor: false, requiredFrom: AHEAD }, "aal1", NOW))
-      .toEqual({ required: false, satisfied: false, has_factor: false, due_from: AHEAD, must_keep: false });
+describe("the week", () => {
+  it("a device is trusted for exactly TWO_STEP_DAYS after its code", () => {
+    expect(TWO_STEP_DAYS).toBe(7);
+    expect(twoStepSatisfied(ago(6 * DAY), NOW)).toBe(true);
+    expect(twoStepSatisfied(ago(7 * DAY - 1), NOW)).toBe(true);
+    expect(twoStepSatisfied(ago(7 * DAY), NOW)).toBe(false);
+    expect(twoStepTrustedUntil(ago(DAY))?.toISOString()).toBe(new Date(NOW.getTime() + 6 * DAY).toISOString());
   });
-
-  it("an admin who set it up early is required at once, shown no date, and may still turn it off before the date", () => {
-    expect(secondFactorStatus({ role: "admin", hasFactor: true, requiredFrom: AHEAD }, "aal2", NOW))
-      .toEqual({ required: true, satisfied: true, has_factor: true, due_from: null, must_keep: false });
+  it("never, or an unreadable date, trusts nothing", () => {
+    for (const v of [null, undefined, "", "soon"]) expect(twoStepSatisfied(v, NOW), String(v)).toBe(false);
   });
+});
 
-  it("an admin past the date must keep it", () => {
-    expect(secondFactorStatus({ role: "admin", hasFactor: true, requiredFrom: PAST }, "aal2", NOW).must_keep).toBe(true);
+describe("the status answer", () => {
+  it("an office member who never gave a code: required, not satisfied", () => {
+    expect(secondFactorStatus({ role: "dispatcher", twoStepAt: null }, "ana@silvicom.com", NOW)).toEqual({
+      required: true,
+      satisfied: false,
+      email_hint: "a•••@silvicom.com",
+      trusted_until: null,
+    });
   });
-
-  it("only aal2 is the second step taken", () => {
-    for (const aal of ["aal1", "", null, undefined, "AAL2"]) expect(secondFactorStatus({ role: "admin", hasFactor: true, requiredFrom: PAST }, aal, NOW).satisfied, String(aal)).toBe(false);
+  it("within the week: satisfied, and says when it ends; past it: not", () => {
+    const s = secondFactorStatus({ role: "admin", twoStepAt: ago(DAY) }, "b@x.com", NOW);
+    expect(s.satisfied).toBe(true);
+    expect(s.trusted_until).toBe(new Date(NOW.getTime() + 6 * DAY).toISOString());
+    expect(secondFactorStatus({ role: "admin", twoStepAt: ago(8 * DAY) }, "b@x.com", NOW).satisfied).toBe(false);
   });
-
-  it("the date is shown to no other role", () => {
-    expect(secondFactorStatus({ role: "dispatcher", hasFactor: false, requiredFrom: AHEAD }, "aal1", NOW).due_from).toBeNull();
+  it("a role that is not asked is satisfied without a code", () => {
+    expect(secondFactorStatus({ role: "driver", twoStepAt: null }, null, NOW)).toMatchObject({ required: false, satisfied: true });
   });
+  it("matches its schema", () => {
+    expect(secondFactorStatusSchema.safeParse(secondFactorStatus({ role: "admin", twoStepAt: null }, null, NOW)).success).toBe(true);
+  });
+});
 
-  it("the answer is the contract's shape", () => {
-    expect(secondFactorStatusSchema.safeParse(secondFactorStatus({ role: "admin", hasFactor: false, requiredFrom: AHEAD }, "aal1", NOW)).success).toBe(true);
+describe("small pieces", () => {
+  it("masks the address to its first letter and domain, and says nothing without one", () => {
+    expect(secondFactorStatus({ role: "admin", twoStepAt: null }, "miki@silvicominc.com", NOW).email_hint).toBe("m•••@silvicominc.com");
+    expect(secondFactorStatus({ role: "admin", twoStepAt: null }, null, NOW).email_hint).toBeNull();
+  });
+  it("a code is six digits, spaces forgiven", () => {
+    expect(twoStepVerifyBodySchema.parse({ code: " 123 456 " }).code).toBe("123456");
+    for (const code of ["12345", "1234567", "12a456", ""]) expect(twoStepVerifyBodySchema.safeParse({ code }).success, code).toBe(false);
+  });
+  it("the email carries the code, no link, and the not-me advice", () => {
+    const m = renderTwoStepCodeEmail("042917");
+    expect(m.subject).toContain("042917");
+    expect(m.html).toContain("042917");
+    expect(m.html).not.toMatch(/href=/);
+    expect(m.text).toContain("0 4 2 9 1 7");
+    expect(m.text).toMatch(/didn't just sign in/);
   });
 });

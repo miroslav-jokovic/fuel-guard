@@ -17,7 +17,6 @@ import { accessReviewRouter, invitesRouter, memberPasswordResetRouter, publicInv
 import {
   memberDevicesRouter,
   membersRouter,
-  memberSecondFactorRouter,
   memberSessionsRouter,
   myDevicesRouter,
   mySessionsRouter,
@@ -209,7 +208,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/me/alerts", myAlertsRouter()); // what the caller receives of the routed alerts (HOME-TIME D-HT17)
   app.use("/api/alert-routing", alertRoutingRouter()); // Settings › Notifications: who is told, by which channel (HOME-TIME D-HT15)
   app.use("/api/me/hazmat", meHazmatRouter()); // driver capture surface (M6) — before /api/me so this prefix wins
-  app.use("/api/me/second-factor", secondFactorRouter()); // what two-step sign-in asks of the caller (IA-S1) — the one route a one-step token may call
+  app.use("/api/me/second-factor", secondFactorRouter()); // two-step sign-in by emailed code (IA-S1 rev 2): status, send, enter — the one router a token owing its code may call
   app.use("/api/me/sessions", mySessionsRouter()); // signed-in devices, the caller's own (IA-S3) — before /api/me so this prefix wins
   app.use("/api/me/devices", myDevicesRouter()); // devices remembered past sign-out, the caller's own (IA-S6) — before /api/me so this prefix wins
   app.use("/api/me", meRouter()); // driver self-view: profile, loads, score, shift/duty (sub-paths of /api/me)
@@ -222,8 +221,6 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/members", memberSessionsRouter());
   // Devices remembered for a member, with every address (IA-S6, Q-IA17): admin-only inside the router, read only.
   app.use("/api/members", memberDevicesRouter());
-  // An admin removes a colleague's lost authenticator (IA-S1, Q-IA11): admin-only, step-up gated, audited.
-  app.use("/api/members", memberSecondFactorRouter());
   // The per-org permission overrides (D-PERM1). Admin-only inside the router; every write audits.
   app.use("/api/section-access", sectionAccessRouter());
   app.use("/api/surface-access", surfaceAccessRouter());
