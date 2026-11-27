@@ -8,7 +8,7 @@ import type { RgbImage } from "../enhance/raster";
  * Android scanner's `DocAlignerDecode.kt` is held to it by
  * `apps/driver/modules/capture-native/android/src/test/java/expo/modules/capturenative/DocAlignerDecodeParityTest.kt`
  * over `fixtures/edges/docaligner-decode.json`. That fixture was written from THIS file, and
- * `tests/docalignerDecode.test.ts` re-derives it so it cannot go stale.
+ * `packages/capture-engine/tests/docalignerDecode.test.ts` re-derives it so it cannot go stale.
  *
  * It follows the authors' own `heatmap_reg/infer.py` and their site's `local-onnx.py`:
  *   in: the image STRETCHED to 256 × 256 (no letterbox), bilinear, BGR, ÷ 255;
