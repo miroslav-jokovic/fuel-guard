@@ -10,3 +10,5 @@
 export { evaluateFollowUps, type EvaluateResult, type EvaluatedWarning, type WarningReaders } from "./evaluate.js";
 export { readRuleOverrides, saveRuleOverride, clearRuleOverride } from "./rules.js";
 export { followUpsRouter } from "./routes/index.js";
+// The urgent bell names the follow-ups it rings for (WD6, orchestration/warningDeskBell.ts).
+export { readFollowUpsByIds, type FollowUpRow } from "./lines.js";

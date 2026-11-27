@@ -62,13 +62,19 @@ watch(driverOptions, () => {
 });
 
 const held = computed(() => smsReasonText(preview.data.value?.smsHeldBecause ?? null));
+// S1.1: Send puts the load in the driver's app when they have an app login; otherwise nothing reaches
+// a phone, and the dispatcher is told so before pressing Send, not after.
+const inApp = computed(() => preview.data.value?.inApp === true);
 
 async function send(): Promise<void> {
   const load = props.load;
   if (!load || !driverId.value) return;
   try {
     const result = await dispatch.mutateAsync({ loadId: load.id, driverId: driverId.value });
-    toast.success(`${load.ref} dispatched to ${result.driverName}`, smsReasonText(result.outcomeReason) ?? undefined);
+    toast.success(
+      `${load.ref} dispatched to ${result.driverName}`,
+      result.channel === "app" ? "It is in their app now." : (smsReasonText(result.outcomeReason) ?? undefined),
+    );
     emit("close");
   } catch (e) {
     toast.error("Could not dispatch this load", e instanceof Error ? e.message : undefined);
@@ -103,9 +109,14 @@ async function send(): Promise<void> {
             class="whitespace-pre-wrap break-words rounded-surface bg-surface-muted px-3 py-2 font-sans text-sm text-ink ring-1 ring-inset ring-edge"
             data-testid="dispatch-preview"
           >{{ preview.data.value.body }}</pre>
-          <p v-if="held" class="text-xs text-ink-muted" data-testid="dispatch-held">
-            {{ held }} Dispatching still records who takes the load and when.
+          <p v-if="inApp" class="text-xs text-ink-muted" data-testid="dispatch-in-app">
+            Send puts this load in {{ preview.data.value.driverName }}'s app and notifies them.
           </p>
+          <p v-else class="text-xs text-ink-muted" data-testid="dispatch-no-app">
+            {{ preview.data.value.driverName }} has no app login, so this load won't reach their phone. Dispatching still
+            records who takes the load and when. Set up app access on the driver's page.
+          </p>
+          <p v-if="held && !inApp" class="text-xs text-ink-muted" data-testid="dispatch-held">{{ held }}</p>
         </template>
       </section>
     </div>

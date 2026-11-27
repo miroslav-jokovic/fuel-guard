@@ -71,6 +71,10 @@ function destination(category: string, entityType: string | null, entityId: stri
   // LUMPER-REVISED-RC-PLAN D-LRC5, D-LRC6: the daily lumper reminder names many loads, so it opens the
   // Lumper fees list, which every reminder points to. A reader the screen is turned off for stays.
   if (category.startsWith("lumper_")) return "/lumper-fees";
+  // WARNING-DESK-PLAN D-WD14: an urgent follow-up opens the desk with that line's drawer open (`open=`).
+  if (category === "follow_up_urgent" && entityType === "follow_up" && entityId) {
+    return `/shop/follow-ups?open=${encodeURIComponent(entityId)}`;
+  }
   // A10. The applicant board IS the queue for a stalled application — there is no per-applicant page
   // to land on, and "an alert that cannot deep-link to its queue is half an alert".
   if (category === "application_stalled") return "/recruitment";
