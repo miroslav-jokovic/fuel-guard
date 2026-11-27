@@ -157,3 +157,47 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Deploy this commit to the AWS staging server
         run: bash infra/ssm-deploy.sh staging "${GITHUB_SHA}-staging"
+
+  # The broker-mail gateway's Lambda, staging half (BROKER-MAIL-READER-PLAN.md §6). Not a server image:
+  # one zip per commit in a write-once bucket, deployed by infra/mail-gateway/deploy.sh with the same
+  # role as the server (setup.sh granted it this one function and nothing of production's).
+  #
+  # OFF until the repository variable MAIL_GATEWAY_DEPLOY is `on`. Until then the staging function still
+  # holds the P0 probe (infra/mail-gateway/probe), and the owner's prove.sh needs it for the mailbox
+  # proofs that wait on the Exchange step — deploying the gateway over it would end P0 early. The owner
+  # sets the variable once prove.sh passes; deleting it stops every gateway deploy at once.
+  #
+  # The gateway calls only database functions and treats a missing one as "not ready", so this job does
+  # not wait for migrate-staging (D-BMR3, F10).
+  mail-gateway-staging:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: mail-gateway-staging
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - if: vars.MAIL_GATEWAY_DEPLOY != 'on'
+        run: echo "Mail gateway deploy is OFF (repository variable MAIL_GATEWAY_DEPLOY is not \`on\`) — staging keeps what it has." >> "$GITHUB_STEP_SUMMARY"
+      - if: vars.MAIL_GATEWAY_DEPLOY == 'on'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - if: vars.MAIL_GATEWAY_DEPLOY == 'on'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::891568748437:role/silvicom-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+      - if: vars.MAIL_GATEWAY_DEPLOY == 'on'
+        id: check
+        run: bash infra/mail-gateway/deploy.sh staging "$GITHUB_SHA" check
+      - if: vars.MAIL_GATEWAY_DEPLOY == 'on' && steps.check.outputs.needed == 'true'
+        uses: ./.github/actions/setup
+      - if: vars.MAIL_GATEWAY_DEPLOY == 'on' && steps.check.outputs.needed == 'true'
+        name: Build and deploy the gateway
+        run: |
+          MAILGW_COMMIT="$GITHUB_SHA" pnpm --filter @silvicom/mail-gateway bundle
+          bash infra/mail-gateway/deploy.sh staging "$GITHUB_SHA" apps/mail-gateway/dist/mail-gateway.zip

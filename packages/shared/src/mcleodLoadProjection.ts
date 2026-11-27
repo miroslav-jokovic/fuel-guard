@@ -29,6 +29,14 @@ export interface RawDispatchMovement {
   consignee_refno: string | null;
   move_distance: number | string | null;
   closed_at: string | null;
+  // The order's charges (0638, LOAD-RATES-PLAN D-RATE1). Null until the Board VM's connector reads them.
+  total_charge: number | string | null;
+  freight_charge: number | string | null;
+  otherchargetotal: number | string | null;
+  total_charge_c: string | null;
+  bill_distance: number | string | null;
+  bill_distance_um: string | null;
+  order_loaded_movements: number | null;
 }
 
 export interface RawDispatchStop {
@@ -103,6 +111,52 @@ export interface ProjectedLoad {
   loaded: boolean | null;
   external_closed_at: string | null;
   stops: ProjectedStop[];
+  /** What the load pays (`load_charges`, 0639), or null when it has no price to show (`projectLoadCharge`). */
+  charge: ProjectedCharge | null;
+}
+
+/** One `load_charges` row's figures — McLeod's, verbatim (LOAD-RATES-PLAN D-RATE2). */
+export interface ProjectedCharge {
+  total_charge: number;
+  linehaul: number | null;
+  other_charges: number | null;
+  currency: string | null;
+  /** The ORDER's billed miles, only when McLeod's unit is miles (D-RATE5). */
+  billed_miles: number | null;
+  /** > 1: the order is split over that many loaded trips, each showing the order's whole total (D-RATE4). */
+  order_loaded_movements: number | null;
+}
+
+/**
+ * Whether a McLeod load has a price to show, and what it is (LOAD-RATES-PLAN D-RATE3..5).
+ *
+ *  · LOADED movements only. The price is the ORDER's, and an order's empty movements carry the same
+ *    figure: 3,631 of 4,403 orders in the 90 days to 2026-10-09 had one loaded and one empty movement, so
+ *    pricing the empty one would count the same freight twice. A movement whose `loaded` is not stated
+ *    gets no price either: not knowing is not "loaded".
+ *  · NOT a voided load. All 622 voided loaded movements on orders since 2026-01-01 belong to orders
+ *    McLeod voided too (`orders.status = 'V'` on 622 / 622), so the price was never earned.
+ *  · Only when McLeod states a total. Its parts may be blank and are kept as blank.
+ *  · Billed miles only when McLeod's unit is miles (`MI` on every one of 13,478 rows measured): a number in
+ *    another unit must never be read as miles.
+ *
+ * Nothing is rounded, signed or divided here: the figures are McLeod's, and McLeod records negative other
+ * charges (10 orders since 2026-01-01). Rate per mile is worked out where it is shown, never stored.
+ */
+export function projectLoadCharge(m: RawDispatchMovement, status: LoadStatus): ProjectedCharge | null {
+  if (status === "canceled") return null;
+  if (m.loaded !== "L") return null;
+  const total = num(m.total_charge);
+  if (total == null) return null;
+  const currency = (m.total_charge_c ?? "").trim();
+  return {
+    total_charge: total,
+    linehaul: num(m.freight_charge),
+    other_charges: num(m.otherchargetotal),
+    currency: currency || null,
+    billed_miles: (m.bill_distance_um ?? "").trim().toUpperCase() === "MI" ? num(m.bill_distance) : null,
+    order_loaded_movements: m.order_loaded_movements ?? null,
+  };
 }
 
 export type ProjectionOutcome =
@@ -259,6 +313,7 @@ export function projectMcleodMovement(m: RawDispatchMovement, stops: RawDispatch
       loaded: m.loaded === "L" ? true : m.loaded === "E" ? false : null,
       external_closed_at: m.closed_at,
       stops: projected,
+      charge: projectLoadCharge(m, status),
     },
   };
 }

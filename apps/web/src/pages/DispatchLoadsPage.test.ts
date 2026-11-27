@@ -68,6 +68,7 @@ vi.mock("@/features/dispatch/useDispatchBoard", () => ({
   useDispatchBoardQuery: () => ({ data: computed(() => board.value) }),
 }));
 import DispatchLoadsPage from "./DispatchLoadsPage.vue";
+import { useSessionStore } from "@/stores/session";
 
 const response = (linked: boolean): DispatchBoardResponse => ({
   generatedAt: "2026-10-10T15:00:00Z",
@@ -596,3 +597,33 @@ describe("Delivered by driver and truck, and Activity (LOADS-ACTIVITY-PLAN)", ()
   });
 });
 
+
+/**
+ * Load rates on the Loads list (LOAD-RATES-PLAN D-RATE8): Rate and Per mile, before Dispatch, for a reader
+ * holding `dispatch.load_rates` only — for anyone else the columns do not exist. The cells are
+ * `LoadRateCell`'s (`features/dispatch/loadRates.test.ts`); here, that the page asks the switch.
+ */
+describe("the Loads list's rate columns", () => {
+  const CHARGES = { total_charge: 4580, linehaul: 4200, other_charges: 380, currency: "USD", billed_miles: 1982, order_loaded_movements: 1 };
+  const headers = (w: Awaited<ReturnType<typeof mountPage>>) => w.findAll("thead th").map((th) => th.text());
+  beforeEach(() => {
+    LOADS[0] = { ...LOADS[0]!, charges: CHARGES } as (typeof LOADS)[number];
+    board.value = response(false);
+  });
+
+  it("do not exist for a reader the carrier has not switched on", async () => {
+    useSessionStore().permissions = { "dispatch.load_rates": false } as never;
+    const w = await mountPage();
+    expect(headers(w).some((h) => h.startsWith("Rate") || h.startsWith("Per mile"))).toBe(false);
+    expect(w.text()).not.toContain("$4,580.00");
+  });
+
+  it("show a holder each load's rate with its rate per mile under it, before Dispatch", async () => {
+    useSessionStore().permissions = { "dispatch.load_rates": true } as never;
+    const w = await mountPage();
+    // Q-RATE1 (b): one Rate column, the per mile on its second line; Per mile itself starts hidden.
+    expect(headers(w).filter((h) => /^(Rate|Per mile)/.test(h))).toEqual([expect.stringMatching(/^Rate/)]);
+    expect(w.text()).toContain("$4,580.00");
+    expect(w.text()).toContain("$2.31 / mi");
+  });
+});

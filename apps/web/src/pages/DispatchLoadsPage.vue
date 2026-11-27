@@ -68,6 +68,9 @@ import { AppCallout, AppSegmentedControl, AppTabs, AppButton as BaseButton, Data
 import { SORT_DIRECTIONS, TablePagination, sortRows, useQueryState, useUrlSort } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
+import LoadDriverCell from "@/features/dispatch/LoadDriverCell.vue";
+import HomeTimeDrawer from "@/components/homeTime/HomeTimeDrawer.vue";
+import { useHomeTimeVisible, useLiveHomeTimes } from "@/components/homeTime/useHomeTime";
 import { useTableColumns } from "@/composables/useTableColumns";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
@@ -86,7 +89,8 @@ import DispatchLoadDrawer from "@/features/dispatch/DispatchLoadDrawer.vue";
 import LoadExceptionsTable from "@/features/dispatch/LoadExceptionsTable.vue";
 import LoadActivityView from "@/features/dispatch/LoadActivityView.vue";
 import { deliveredCell, driverOptions, matchesUnits, truckOptions, useDeliveredWindow, windowWords } from "@/features/dispatch/loadListFilters";
-import { DELIVERED_COLUMN, LOAD_COLUMNS, loadSortValue } from "@/features/dispatch/loadListColumns";
+import { LOAD_SORT_KEYS, RATE_DEFAULT_HIDDEN, RATE_KEYS, loadColumns, loadSortValue } from "@/features/dispatch/loadListColumns";
+import LoadRateCell from "@/features/dispatch/LoadRateCell.vue";
 import { listSort } from "@/features/dispatch/loadListOrder";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import { dispatchHeadline } from "@/features/dispatch/useLoadDispatch";
@@ -98,7 +102,7 @@ import { loadStopName } from "@/features/dispatch/dispatchBoardView";
 import LoadStopCell from "@/features/dispatch/LoadStopCell.vue";
 import { TYPE_OPTIONS, TYPE_VALUES, hazmatChipLabel, hazmatTone, matchesType } from "@/features/dispatch/loadType";
 import { BADGE_BASE, onTimeBadge, toneClass } from "@/lib/badges";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatDateTimeWrapping } from "@/lib/format";
 
 const PAGE_SIZE = 20;
 
@@ -106,6 +110,9 @@ const session = useSessionStore();
 const router = useRouter();
 const qs = useQueryState();
 const { zone } = useOrgTimezone();
+// Home time beside each driver (HOME-TIME-VISIBILITY-PLAN D-HT24), for a reader of Dispatch; the badge opens the drawer below.
+const homeVisible = useHomeTimeVisible();
+const { byDriver: homeTimes } = useLiveHomeTimes(homeVisible);
 
 // Loads or Activity (D-LA8): one page, so the Dispatcher / fleet choice carries across.
 const view = qs.param("view", ["loads", "activity"], "loads");
@@ -279,14 +286,14 @@ const moreChips = computed(() => [
  */
 const tableColumns = useTableColumns(
   "dispatch.loads",
-  () => (windowed.value ? [...LOAD_COLUMNS.slice(0, 5), DELIVERED_COLUMN, ...LOAD_COLUMNS.slice(5)] : LOAD_COLUMNS),
-  { defaultHidden: ["dispatch"] },
+  () => loadColumns(windowed.value, session.hasPermission("dispatch.load_rates")),
+  { defaultHidden: ["dispatch", ...RATE_DEFAULT_HIDDEN] },
 );
 const nowMs = Date.now();
 const sortValue = (load: DispatchLoad, key: string): unknown => loadSortValue(load, key, nowMs);
 
 const { sort: urlSort, onSort } = useUrlSort(
-  qs.param("sort", [...LOAD_COLUMNS, DELIVERED_COLUMN].filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("sort", LOAD_SORT_KEYS),
   qs.param("dir", SORT_DIRECTIONS),
 );
 // Each tab opens by its row's own event time until a header is clicked (D-DLC4, `loadListOrder.ts`).
@@ -430,18 +437,7 @@ function openDetail(load: DispatchLoad) {
           <p class="truncate text-xs text-ink-muted" :class="row.customer_name ? '' : 'mt-1'" title="Dispatcher in McLeod">{{ row.dispatcher_name ?? "No dispatcher" }}</p>
         </template>
         <template #cell-driver_name="{ row }">
-          <p :class="row.driver_name ? 'text-ink' : 'text-ink-tertiary'">{{ row.driver_name ?? "No driver" }}</p>
-          <!-- D-LA2: a team's second seat, as McLeod names it. -->
-          <p v-if="row.co_driver_name" class="text-xs text-ink-secondary" title="Team driver">+ {{ row.co_driver_name }}</p>
-          <p class="text-xs tabular-nums text-ink-muted" title="Truck / trailer">
-            <!-- D-DB6 point 4: the truck opens on the Dispatch board, its drawer open; HOS and GPS live there. -->
-            <BaseButton
-              v-if="row.vehicle_unit"
-              variant="link"
-              :to="{ name: 'assignments', query: { truck: row.vehicle_unit } }"
-              @click.stop
-            >{{ row.vehicle_unit }}</BaseButton><template v-else>No truck</template> / {{ row.trailer_unit ?? "no trailer" }}
-          </p>
+          <LoadDriverCell :row="row" :home-times="homeVisible ? homeTimes : undefined" :zone="zone" />
         </template>
         <template v-for="end in ['pickup', 'delivery'] as const" :key="end" #[`cell-${end}`]="{ row }">
           <LoadStopCell
@@ -472,9 +468,11 @@ function openDetail(load: DispatchLoad) {
           </div>
         </template>
         <template #cell-delivered="{ row }">
-          <span :class="deliveredCell(row, nowMs).at ? 'tabular-nums' : 'text-ink-tertiary'">{{ at(deliveredCell(row, nowMs).at) }}</span>
+          <!-- Breaks between date and time only: a third of a phone card (owner, 2026-11-22). -->
+          <span :class="deliveredCell(row, nowMs).at ? 'tabular-nums' : 'text-ink-tertiary'">{{ formatDateTimeWrapping(deliveredCell(row, nowMs).at, "—", zone) }}</span>
           <p v-if="deliveredCell(row, nowMs).ahead" class="text-xs text-warning-700" title="McLeod has this time later than now: it was entered ahead.">Entered ahead in McLeod</p>
         </template>
+        <template v-for="k in RATE_KEYS" :key="k" #[`cell-${k}`]="{ row }"><LoadRateCell :charges="row.charges" :figure="k" :per-mile-line="k === 'rate'" /></template>
         <template #cell-dispatch="{ row }">
           <span :class="row.last_dispatch ? 'text-ink-secondary' : 'text-ink-tertiary'">{{ dispatchHeadline(row.last_dispatch) }}</span>
         </template>
@@ -492,5 +490,6 @@ function openDetail(load: DispatchLoad) {
     </template>
 
     <DispatchLoadDrawer :load="dispatching" @close="dispatching = null" />
+    <HomeTimeDrawer v-if="homeVisible" :zone="zone" />
   </div>
 </template>

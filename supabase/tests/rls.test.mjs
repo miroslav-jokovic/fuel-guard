@@ -95,6 +95,17 @@ async function asAnon(sql, params = []) {
 }
 
 // ── ads seeds (0537): the chain a campaign needs — a settings version, a connection, the campaign ────
+// 0648: a course, a film and a draft version of it — what a training question, progress row or quiz hangs off.
+const trainingVersionSeed = (org) =>
+  `with c as (insert into training_courses (org_id, title, created_by) values ('${org}', 'rls', gen_random_uuid()) returning id), ` +
+  `l as (insert into training_lessons (org_id, course_id, title, created_by) select '${org}', id, 'rls', gen_random_uuid() from c returning id) ` +
+  `insert into training_versions (org_id, lesson_id, version_no, created_by) select '${org}', id, 1, gen_random_uuid() from l;`;
+// 0648: a driver sent the newest course, under a well-formed (random) sha256 link hash.
+const trainingAssignmentSeed = (org) =>
+  `with d as (insert into drivers (org_id, full_name) values ('${org}', 'rls ' || gen_random_uuid()) returning id), ` +
+  `c as (insert into training_courses (org_id, title, created_by) values ('${org}', 'rls', gen_random_uuid()) returning id) ` +
+  `insert into training_assignments (org_id, driver_id, course_id, token_hash, link_expires_at, created_by) ` +
+  `select '${org}', d.id, c.id, md5(gen_random_uuid()::text) || md5(gen_random_uuid()::text), now() + interval '28 days', gen_random_uuid() from d, c;`;
 const adsLatest = (table, org) => `(select id from ${table} where org_id = '${org}' order by created_at desc limit 1)`;
 const adsCampaignSeed = (org) =>
   `insert into ads_settings_versions (org_id, version, settings, created_by, created_by_name) ` +
@@ -2359,6 +2370,10 @@ async function main() {
         `select '${org}', ${adsLatest("ads_campaigns", org)}, 1, '{}', '[]', 'agent', ` +
         // ad_generations has no created_at (its clock is started_at), so `adsLatest` cannot order it.
         `(select id from ad_generations where org_id = '${org}' order by started_at desc limit 1);`,
+      // 0652: a file past `failed` must carry its kept copy (hash + storage path) — a two-column CHECK.
+      pilot_sftp_files: (org) =>
+        `insert into pilot_sftp_files (org_id, remote_path, remote_size, remote_mtime, kind, state, file_sha256, storage_path)
+         values ('${org}', '/pq-139445-11272026.xlsx', 100, now(), 'price_quote', 'held', '${"a".repeat(64)}', '${org}/kept.xlsx')`,
       // 0539 (HW8a): a video's link is https-checked, and an attestation or an open must name this
       // driver's own invitation and a live video of this carrier (OV023/OV024) — a chain the seeder,
       // which makes every parent independently, cannot build.
@@ -2431,6 +2446,28 @@ async function main() {
         `insert into application_ask_agains (org_id, invitation_id, path, question) ` +
         `select '${org}', i.id, '["experience"]'::jsonb, 'rls' from i`,
       // 0604 (U2): a remembered device hangs on an invitation the same way; the hash is 64 hex characters.
+      // 0643 (broker mail, D-BMR6): a cursor belongs to a mailbox row by the composite (org_id, mailbox)
+      // FK, which the column-by-column seeder cannot satisfy. The mailbox row first, then its cursor.
+      // 0648 (driver safety training): the question's choices and an assignment's sha256 link hash are
+      // shape-checked, and progress and attempts hang off an assignment — chains the column-by-column
+      // seeder cannot build. Each builds its own course → lesson → version (→ assignment) inline.
+      training_questions: (org) => trainingVersionSeed(org) +
+        `insert into training_questions (org_id, version_id, prompt, choices, answer, why, created_by) ` +
+        `select '${org}', id, 'rls question', '[{"id":"a","text":"x"},{"id":"b","text":"y"}]', 'a', 'rls why', gen_random_uuid() ` +
+        `from training_versions where org_id = '${org}' order by created_at desc limit 1;`,
+      training_assignments: (org) => trainingAssignmentSeed(org),
+      training_progress: (org) => trainingVersionSeed(org) + trainingAssignmentSeed(org) +
+        `insert into training_progress (assignment_id, version_id, org_id) ` +
+        `select (select id from training_assignments where org_id = '${org}' order by created_at desc limit 1), ` +
+        `(select id from training_versions where org_id = '${org}' order by created_at desc limit 1), '${org}';`,
+      training_attempts: (org) => trainingVersionSeed(org) + trainingAssignmentSeed(org) +
+        `insert into training_attempts (org_id, assignment_id, version_id, served) ` +
+        `select '${org}', (select id from training_assignments where org_id = '${org}' order by created_at desc limit 1), ` +
+        `(select id from training_versions where org_id = '${org}' order by created_at desc limit 1), '[{"questionId":"q","order":["a","b"]}]';`,
+      mail_gateway_cursors: (org) =>
+        `insert into mail_gateway_mailboxes (org_id, mailbox) values ('${org}', 'rls@example.com') on conflict do nothing;` +
+        `insert into mail_gateway_cursors (org_id, mailbox, folder_id, folder_role, delta_link) ` +
+        `values ('${org}', 'rls@example.com', 'rls-folder', 'inbox', 'https://graph.microsoft.com/rls');`,
       application_trusted_devices: (org) =>
         `with d as (insert into drivers (org_id, full_name) values ('${org}', 'rls ' || gen_random_uuid()) returning id), ` +
         `i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at) ` +

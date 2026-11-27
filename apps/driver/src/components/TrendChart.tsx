@@ -113,7 +113,7 @@ export function TrendChart({ values, weekLabel }: { values: readonly number[]; w
               style={{ left: callout.x, top: callout.y }}
               pointerEvents="none"
             >
-              <AppText variant="supporting" className="font-ui-sb">{last.value}</AppText>
+              <AppText weight="semibold" variant="supporting" >{last.value}</AppText>
               <AppText variant="caption" tone="muted">{weekLabel ?? 'This week'}</AppText>
             </View>
           ) : null}

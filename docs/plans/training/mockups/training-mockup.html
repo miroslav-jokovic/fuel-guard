@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Safety training: mockup (Silvicom 360)</title>
+<!-- MOCKUP ONLY (SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS-2026-11-24.md). Fake drivers, no network, nothing is sent.
+     Colours and type are 360's own tokens (tokens.css, copied from the broker-mail mockup).
+     media/ is gitignored: the films are company material and this repository is public. -->
+<link rel="stylesheet" href="tokens.css">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--font-sans);font-size:14px;color:var(--color-ink);background:var(--color-surface-subtle)}
+  button,input,select,textarea{font:inherit}
+  button{cursor:pointer}
+  .switch{position:sticky;top:0;z-index:5;display:flex;gap:6px;align-items:center;padding:8px 16px;background:var(--color-ink);color:#fff;font-size:12px}
+  .switch b{margin-right:8px}
+  .switch button{border:1px solid #fff4;background:none;color:#fff;border-radius:999px;padding:4px 12px}
+  .switch button.on{background:#fff;color:var(--color-ink)}
+  .app{display:grid;grid-template-columns:220px 1fr;min-height:calc(100vh - 38px)}
+  .side{background:var(--color-surface-navigation);border-right:1px solid var(--color-edge);padding:14px 10px}
+  .brand{font-weight:700;font-size:16px;padding:6px 10px 14px}
+  .grp{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--color-ink-muted);padding:12px 10px 4px}
+  .nav{display:block;width:100%;padding:7px 10px;border-radius:var(--radius-control);border:0;background:none;text-align:left;color:var(--color-ink-secondary)}
+  .nav.on{background:var(--color-selected-surface);color:var(--color-ink);font-weight:600}
+  main{padding:22px 28px;max-width:1200px}
+  h1{font-size:22px;margin:0 0 4px} h2{font-size:16px;margin:0 0 10px}
+  .sub{color:var(--color-ink-muted);margin:0 0 18px}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--color-edge);margin-bottom:16px}
+  .tab{border:0;background:none;padding:9px 12px;color:var(--color-ink-muted);border-bottom:2px solid transparent}
+  .tab.on{color:var(--color-ink);border-color:var(--color-brand-600);font-weight:600}
+  .card{background:var(--color-surface);border:1px solid var(--color-edge);border-radius:var(--radius-surface);box-shadow:var(--shadow-card)}
+  .pad{padding:16px}
+  table{width:100%;border-collapse:collapse}
+  th{font-size:12px;text-align:left;color:var(--color-ink-muted);font-weight:600;padding:9px 12px;border-bottom:1px solid var(--color-edge)}
+  td{padding:10px 12px;border-bottom:1px solid var(--color-edge);vertical-align:middle}
+  tr:last-child td{border-bottom:0}
+  .btn{border:1px solid var(--color-edge-control);background:var(--color-surface);border-radius:var(--radius-control);padding:7px 12px}
+  .btn.primary{background:var(--color-brand-600);border-color:var(--color-brand-600);color:#fff;font-weight:600}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;background:var(--color-surface-muted);color:var(--color-ink-secondary)}
+  .pill.ok{background:var(--color-success-100,#dcf3e4);color:var(--color-success-700,#166534)}
+  .pill.warn{background:var(--color-warning-100,#fdf0d5);color:var(--color-warning-700,#8a5300)}
+  .pill.bad{background:var(--color-danger-100,#fde2e2);color:var(--color-danger-700,#a01818)}
+  .muted{color:var(--color-ink-muted)} .small{font-size:12px}
+  .row{display:flex;gap:12px;align-items:center}
+  .grid2{display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:start}
+  .thumb{width:96px;height:54px;border-radius:6px;object-fit:cover;border:1px solid var(--color-edge)}
+  .callout{border:1px solid var(--color-warning-300,#f3c77a);background:var(--color-warning-50,#fffaf0);border-radius:var(--radius-surface);padding:10px 14px;margin-bottom:14px}
+  .timeline{position:relative;height:44px;background:var(--color-surface-muted);border-radius:6px;margin:10px 0 4px}
+  .chap{position:absolute;top:0;bottom:0;border-left:2px solid var(--color-brand-600);padding:8px 10px;font-size:11px;font-weight:600;white-space:nowrap}
+  .steps{list-style:none;margin:0;padding:0}
+  .steps li{padding:6px 0;display:flex;gap:8px}
+  input[type=search],input[type=date],select,textarea{border:1px solid var(--color-edge-control);border-radius:var(--radius-control);padding:7px 10px;background:var(--color-surface)}
+  .sms{background:var(--color-surface-muted);border-radius:14px;padding:10px 12px;font-size:13px;line-height:1.4}
+  .cell{font-size:12px;font-weight:600}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--color-ink);color:#fff;padding:10px 16px;border-radius:8px;display:none}
+
+  /* ── the driver's phone ── system fonts on purpose: the real portal sends no web font (low signal) */
+  .stage{display:flex;gap:28px;justify-content:center;padding:26px;flex-wrap:wrap}
+  .notes{max-width:330px}
+  .notes li{margin-bottom:8px}
+  .phone{width:390px;height:780px;border:10px solid #111;border-radius:44px;background:#fff;overflow:hidden;display:flex;flex-direction:column;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px}
+  .ptop{padding:14px 18px 10px;border-bottom:1px solid #e6e8eb;display:flex;justify-content:space-between;align-items:center}
+  .ptop .co{font-weight:700}
+  .sig{font-size:12px;border-radius:999px;padding:3px 9px;background:#eef2f6}
+  .sig.weak{background:#fff3d6;color:#7a4b00} .sig.off{background:#fde2e2;color:#a01818}
+  .pbody{flex:1;overflow:auto;padding:16px 18px}
+  .big{width:100%;min-height:56px;border:0;border-radius:14px;background:#1f4e8c;color:#fff;font-size:18px;font-weight:700}
+  .big.ghost{background:#eef2f6;color:#14213d}
+  .lesson{display:flex;gap:12px;align-items:center;padding:10px;border:1px solid #e6e8eb;border-radius:14px;margin-bottom:10px;width:100%;background:#fff;text-align:left}
+  .lesson img{width:92px;height:52px;border-radius:8px;object-fit:cover}
+  .lesson .t{font-weight:700} .lesson .m{font-size:13px;color:#5b6573}
+  .lesson.locked{opacity:.5}
+  .bar{height:8px;background:#eef2f6;border-radius:99px;overflow:hidden} .bar i{display:block;height:100%;background:#1f8a4c}
+  video{width:100%;border-radius:12px;background:#000;display:block}
+  .chips{display:flex;gap:6px;margin:10px 0}
+  .chips button{flex:1;border:1px solid #d5dae0;background:#fff;border-radius:10px;padding:8px 10px;font-size:13px;text-align:left}
+  .chips button.on{border-color:#1f4e8c;background:#eaf1fb}
+  .chips button.done{border-color:#1f8a4c}
+  .q{font-size:19px;font-weight:700;line-height:1.3;margin:6px 0 14px}
+  .ans{display:block;width:100%;text-align:left;min-height:54px;margin-bottom:10px;border:2px solid #d5dae0;background:#fff;border-radius:14px;padding:12px 14px;font-size:16px}
+  .ans:disabled{color:#14213d;cursor:default}
+  .ans.sel{border-color:#1f4e8c;background:#eaf1fb}
+  .ans.right{border-color:#1f8a4c;background:#e8f6ee} .ans.wrong{border-color:#c0392b;background:#fdecea}
+  .why{background:#f4f6f8;border-radius:12px;padding:12px;font-size:15px;margin-bottom:12px}
+  .dots{display:flex;gap:6px;margin-bottom:6px} .dots i{flex:1;height:6px;border-radius:9px;background:#e6e8eb} .dots i.on{background:#1f4e8c}
+  .score{font-size:44px;font-weight:800;text-align:center;margin:20px 0 4px}
+</style>
+</head>
+<body>
+<div class="switch"><b>MOCKUP</b>
+  <button data-v="library" class="on">Office · Videos</button>
+  <button data-v="send">Office · Send to drivers</button>
+  <button data-v="progress">Office · Progress</button>
+  <button data-v="phone">Driver's phone</button>
+</div>
+
+<!-- ═══════════════ OFFICE ═══════════════ -->
+<div class="app" id="office">
+  <aside class="side">
+    <div class="brand">Silvicom 360</div>
+    <div class="grp">Safety</div>
+    <button class="nav">Inspections</button>
+    <button class="nav">Driver scores</button>
+    <button class="nav on">Training</button>
+    <div class="grp">Drivers</div>
+    <button class="nav">Drivers</button>
+    <button class="nav">Hiring</button>
+  </aside>
+  <main>
+    <h1>Training</h1>
+    <p class="sub">Safety videos with a short quiz after each one. Drivers watch on their phone from a text link; no app or login needed.</p>
+    <div class="tabs">
+      <button class="tab" data-t="library">Videos</button>
+      <button class="tab" data-t="send">Send to drivers</button>
+      <button class="tab" data-t="progress">Progress</button>
+    </div>
+
+    <!-- Videos library -->
+    <section id="t-library">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <div><b>Defensive driving · Act I: The principles</b> <span class="muted">· 5 videos · 17 min · pass 4 of 5 on each quiz</span></div>
+        <div class="row"><button class="btn">+ New course</button><button class="btn primary" onclick="openAdd()">+ Add video</button></div>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th></th><th>Video</th><th>Length</th><th>Chapters</th><th>Questions</th><th>Version</th><th>State</th><th></th></tr></thead>
+          <tbody id="libRows"></tbody>
+        </table>
+      </div>
+
+      <div class="card pad" id="addVideo" style="margin-top:18px;display:none">
+        <h2>Add a video: 06 Crossings</h2>
+        <div class="grid2">
+          <div>
+            <div class="small muted">1 · Upload the finished film (MP4). It goes to our storage, the same place as driver documents, and is never public.</div>
+            <div class="row" style="margin:8px 0 16px"><span class="pill ok">FILM-06-CROSSINGS-v3.mp4 · 10.3 MB · 3:17</span></div>
+            <div class="small muted">2 · Chapters: click on the film to put a mark. The quiz sends a driver back to the chapter they missed.</div>
+            <div class="timeline">
+              <span class="chap" style="left:4%">The rule</span>
+              <span class="chap" style="left:35%">Turns</span>
+              <span class="chap" style="left:67%">Rail and the habit</span>
+            </div>
+            <div class="small muted" style="margin-bottom:16px">0:08 · 1:09 · 2:30 &nbsp; <button class="btn small">+ Mark at 0:00</button></div>
+            <div class="small muted">3 · Questions (5 are drawn for each driver from this list; answers are shuffled)</div>
+            <table style="margin-top:6px">
+              <tr><td>When does the left turn start, with traffic coming?</td><td class="small muted">Turns</td><td><button class="btn small">Edit</button></td></tr>
+              <tr><td>Before a railroad crossing, what does the rule require?</td><td class="small muted">Rail</td><td><button class="btn small">Edit</button></td></tr>
+              <tr><td colspan="3"><button class="btn">+ Add question</button> <span class="small muted">One right answer, 2–3 wrong ones, a one-line "why", and the chapter it comes from.</span></td></tr>
+            </table>
+          </div>
+          <div style="border-left:1px solid var(--color-edge);padding:4px 0 4px 18px">
+            <b>Getting it ready for phones</b>
+            <ul class="steps small" style="margin-top:8px">
+              <li>✅ Uploaded and checked (h264, has sound)</li>
+              <li>✅ Small version 360p: 2.0 MB, for weak signal</li>
+              <li>✅ 540p: 2.9 MB · 720p: 4.3 MB</li>
+              <li>✅ Picture for the list (9 KB)</li>
+              <li>⏳ Captions: written from the sound, check them before publishing</li>
+            </ul>
+            <div class="callout small" style="margin:12px 0 0">Publishing makes <b>version 3</b>. Drivers who passed version 2 keep their record; it names the version they watched.</div>
+            <button class="btn primary" style="margin-top:12px;width:100%" disabled>Publish (waiting for captions)</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Send -->
+    <section id="t-send" style="display:none">
+      <div class="callout small"><b>Texting company drivers is not switched on yet.</b> Our texting number is approved for job applicants only, and drivers have not agreed to receive texts. Until that is set up (Q-TR9), the link goes by <b>email</b> or you <b>copy it</b> to send yourself. Applicants can be texted today.</div>
+      <div class="grid2">
+        <div>
+          <div class="row" style="margin-bottom:10px">
+            <input type="search" id="q" placeholder="Search name, unit or phone" style="flex:1" oninput="drawDrivers()">
+            <select id="who" onchange="drawDrivers()"><option value="active">Active drivers</option><option value="applicant">Applicants</option><option value="all">Everyone</option></select>
+          </div>
+          <div class="card">
+            <table>
+              <thead><tr><th><input type="checkbox" onclick="pickAll(this)"></th><th>Driver</th><th>Unit</th><th>Phone</th><th>Can we text?</th><th>Last training</th></tr></thead>
+              <tbody id="drvRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card pad">
+          <h2>Send training</h2>
+          <div class="small muted">What to watch</div>
+          <label class="row small" style="margin:6px 0"><input type="checkbox" checked> Whole course: Act I (5 videos, 17 min)</label>
+          <div class="small muted" style="margin:2px 0 10px 22px">or pick single videos for retraining after an event</div>
+          <div class="small muted">Finish by</div>
+          <input type="date" value="2026-12-08" style="width:100%;margin:6px 0 12px">
+          <div class="small muted">The text they get</div>
+          <div class="sms" style="margin:6px 0 12px">Silvicom Inc: Your safety videos are ready, 5 videos, about 17 min. Watch them when parked: 360.silvicominc.com/t/7KQ2mX Reply STOP to opt out.</div>
+          <div id="sendSum" class="small" style="margin-bottom:10px">No driver picked.</div>
+          <button class="btn primary" style="width:100%" id="sendBtn" disabled onclick="doSend()">Send</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Progress -->
+    <section id="t-progress" style="display:none">
+      <div class="row" style="margin-bottom:12px"><span class="pill">12 sent</span><span class="pill ok">5 finished</span><span class="pill warn">4 in progress</span><span class="pill bad">1 overdue</span><span class="pill">2 not opened</span></div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Driver</th><th>Sent</th><th>01 Following</th><th>02 Eyes up</th><th>03 Boxed in</th><th>04 Four times</th><th>05 Plain sight</th><th>Due</th><th></th></tr></thead>
+          <tbody id="progRows"></tbody>
+        </table>
+      </div>
+      <p class="small muted">Clicking a cell shows the attempt: which questions they got, what they answered, how much they watched and when. That record never changes and is kept.</p>
+    </section>
+  </main>
+</div>
+
+<!-- ═══════════════ DRIVER'S PHONE ═══════════════ -->
+<div id="phoneView" style="display:none">
+  <div class="stage">
+    <div class="notes small">
+      <h2>The driver's link</h2>
+      <p class="muted">What a driver sees after tapping the text. Try the signal switch:</p>
+      <div class="row" style="margin-bottom:14px">
+        <button class="btn" onclick="setSig('good')">Good signal</button>
+        <button class="btn" onclick="setSig('weak')">Weak</button>
+        <button class="btn" onclick="setSig('off')">No signal</button>
+      </div>
+      <ul>
+        <li><b>Target: the page opens in about 2 seconds on 3G.</b> It has no web font and nothing to install, and the budget is under 100 KB before the video starts. This is a target, not yet measured.</li>
+        <li><b>Each video comes in three sizes.</b> On weak signal it plays the 360p one: 2.1 MB for a whole 3½ minute film, measured on film 01. The writing stays readable.</li>
+        <li><b>The next chapter downloads while this one plays</b>, so a dead spot does not stop the picture.</li>
+        <li><b>It remembers where they stopped.</b> Tap the link again tomorrow and it starts at the same second.</li>
+        <li><b>Answers are kept on the phone with no signal</b> and sent when signal comes back.</li>
+        <li>No skipping ahead on the first watch. After that, any chapter can be watched again.</li>
+      </ul>
+    </div>
+    <div class="phone">
+      <div class="ptop"><span class="co">Silvicom Inc</span><span class="sig" id="sig">● Good signal</span></div>
+      <div class="pbody" id="pbody"></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const FILMS=[
+ {n:"01",t:"Following Too Close",len:"3:24",ch:3,q:10,v:"v13"},
+ {n:"02",t:"Eyes Up",len:"3:13",ch:4,q:10,v:"v3"},
+ {n:"03",t:"Boxed In",len:"3:16",ch:3,q:10,v:"v2"},
+ {n:"04",t:"Four Times",len:"3:34",ch:3,q:10,v:"v4"},
+ {n:"05",t:"Plain Sight",len:"3:37",ch:3,q:10,v:"v10"}];
+document.getElementById("libRows").innerHTML=FILMS.map(f=>`<tr><td><img class="thumb" src="media/poster-${f.n}.jpg" alt=""></td><td><b>${f.n} · ${f.t}</b></td><td>${f.len}</td><td>${f.ch}</td><td>${f.q}</td><td class="muted">${f.v}</td><td><span class="pill ok">Published</span></td><td><button class="btn small">Open</button></td></tr>`).join("")
+ +`<tr><td><div class="thumb" style="display:grid;place-items:center" >06</div></td><td><b>06 · Crossings</b></td><td>3:17</td><td>3</td><td>2</td><td class="muted">draft</td><td><span class="pill warn">Not published</span></td><td><button class="btn small" onclick="openAdd()">Continue</button></td></tr>`;
+function openAdd(){const a=document.getElementById("addVideo");a.style.display="block";a.scrollIntoView({behavior:"smooth"})}
+
+const DRIVERS=[
+ {n:"Marko Petrović",u:"512",p:"(312) 555-0141",s:"active",text:"no",last:"—"},
+ {n:"James Walker",u:"488",p:"(773) 555-0199",s:"active",text:"no",last:"Act I · passed 10/02"},
+ {n:"Luis Hernández",u:"530",p:"(630) 555-0112",s:"active",text:"no",last:"—"},
+ {n:"Dragan Ilić",u:"477",p:"(708) 555-0176",s:"active",text:"no",last:"02 Eyes up · 11/12"},
+ {n:"Kevin Brooks",u:"—",p:"(815) 555-0133",s:"applicant",text:"yes",last:"—"},
+ {n:"Ana Morales",u:"—",p:"(312) 555-0188",s:"applicant",text:"stopped",last:"—"},
+ {n:"Peter Novak",u:"501",p:"",s:"active",text:"nophone",last:"—"}];
+const picked=new Set();
+function textCell(d){return d.text==="yes"?'<span class="pill ok">Yes</span>':d.text==="stopped"?'<span class="pill bad">Replied STOP</span>':d.text==="nophone"?'<span class="pill bad">No phone on file</span>':'<span class="pill warn">Email or copy link</span>'}
+function drawDrivers(){const q=document.getElementById("q").value.toLowerCase(),w=document.getElementById("who").value;
+ document.getElementById("drvRows").innerHTML=DRIVERS.map((d,i)=>({d,i})).filter(({d})=>(w==="all"||d.s===w)&&(d.n+d.u+d.p).toLowerCase().includes(q)).map(({d,i})=>`<tr><td><input type="checkbox" ${picked.has(i)?"checked":""} onchange="pick(${i},this.checked)"></td><td><b>${d.n}</b>${d.s==="applicant"?' <span class="pill">Applicant</span>':""}</td><td>${d.u}</td><td>${d.p||'<span class="muted">—</span>'}</td><td>${textCell(d)}</td><td class="small muted">${d.last}</td></tr>`).join("");sum()}
+function pick(i,on){on?picked.add(i):picked.delete(i);sum()}
+function pickAll(b){DRIVERS.forEach((d,i)=>b.checked?picked.add(i):picked.delete(i));drawDrivers()}
+function sum(){const ds=[...picked].map(i=>DRIVERS[i]);const t=ds.filter(d=>d.text==="yes").length,e=ds.filter(d=>d.text==="no").length,x=ds.length-t-e;
+ document.getElementById("sendSum").innerHTML=ds.length?`<b>${ds.length} picked:</b> ${t} by text · ${e} by email or copied link${x?` · <span style="color:var(--color-danger-600)">${x} cannot be reached by text (STOP or no phone)</span>`:""}`:"No driver picked.";
+ document.getElementById("sendBtn").disabled=!ds.length}
+function doSend(){toast(`Sent to ${picked.size}. Each driver has their own link; it works until Dec 22.`);picked.clear();drawDrivers()}
+drawDrivers();
+
+const P=[["Marko Petrović","11/20","p5","p4","w","-","-","12/04",""],["James Walker","11/20","p5","p5","p4","p5","p5","12/04",""],["Luis Hernández","11/20","f2","-","-","-","-","12/04",""],["Dragan Ilić","11/10","p4","p4","-","-","-","11/24","late"],["Kevin Brooks","11/22","o","-","-","-","-","12/06",""]];
+const C={p5:'<span class="pill ok">✓ 5/5</span>',p4:'<span class="pill ok">✓ 4/5</span>',f2:'<span class="pill bad">2/5 · rewatching</span>',w:'<span class="pill warn">▶ 1:40 of 3:16</span>',o:'<span class="pill">Opened</span>',"-":'<span class="muted">—</span>'};
+document.getElementById("progRows").innerHTML=P.map(r=>`<tr><td><b>${r[0]}</b></td><td class="small muted">${r[1]}</td>${r.slice(2,7).map(c=>`<td class="cell">${C[c]}</td>`).join("")}<td>${r[8]==="late"?'<span class="pill bad">'+r[7]+'</span>':'<span class="small muted">'+r[7]+'</span>'}</td><td><button class="btn small">Remind</button></td></tr>`).join("");
+
+/* ── view switching ── */
+function view(v){document.querySelectorAll(".switch button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+ const ph=v==="phone";document.getElementById("office").style.display=ph?"none":"grid";document.getElementById("phoneView").style.display=ph?"block":"none";
+ if(!ph){["library","send","progress"].forEach(t=>{document.getElementById("t-"+t).style.display=t===v?"block":"none"});document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.t===v))}}
+document.querySelectorAll(".switch button").forEach(b=>b.onclick=()=>view(b.dataset.v));
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>view(b.dataset.t));
+function toast(m){const t=document.getElementById("toast");t.textContent=m;t.style.display="block";setTimeout(()=>t.style.display="none",3200)}
+
+/* ═══ the phone ═══ */
+let sig="good",queued=0;
+function setSig(s){sig=s;const e=document.getElementById("sig");e.className="sig"+(s==="good"?"":s==="weak"?" weak":" off");
+ e.textContent=s==="good"?"● Good signal":s==="weak"?"● Weak signal · small video":"● No signal · saved on phone";
+ if(s!=="off"&&queued){toast(`Signal is back: ${queued} saved answer${queued>1?"s":""} sent.`);queued=0}
+ const q=document.getElementById("qual");if(q)q.textContent=qualText()}
+function qualText(){return sig==="good"?"Playing 540p · 2.9 MB for the whole video":"Playing 360p · 2.1 MB for the whole video"}
+const pb=document.getElementById("pbody");
+const CH=[{t:"Why space",a:8,b:86},{t:"Count it",a:86,b:145},{t:"What it costs",a:145,b:204}];
+const Q=[
+ {q:"Loaded truck, dry road, 55 mph. How much road do you need from seeing a hazard to stopped?",a:["About 200 feet","About 300 feet","About 419 feet","About 600 feet"],r:2,c:0,w:"Seeing it takes about 142 ft, moving your foot 61 ft, and braking 216 ft. That makes 419 ft at the minimum."},
+ {q:"You're running empty. Compared with loaded, your stop is…",a:["Shorter, the truck is lighter","Longer, less weight means less traction","The same"],r:1,c:0,w:"Less weight means less traction and a longer stop. Empty is not safer."},
+ {q:"The car ahead passes a sign. You count to 6 before your bumper reaches it. What do you do?",a:["Keep going, 6 is enough","Ease off until you count 8","Change lanes"],r:1,c:1,w:"If you reach 8 before your bumper reaches the mark, you have your cushion. If not, ease off until you do."},
+ {q:"Keeping 8 seconds back on an 11-hour day costs you…",a:["About an hour","About 8 seconds","Nothing at all, you go faster"],r:1,c:2,w:"Same speed, same road. You arrive 8 seconds later. Your arrival time comes from your average speed, not from the gap."},
+ {q:"A car cuts into your gap. You…",a:["Close up so it doesn't happen again","Flash your lights","Ease off and rebuild the space"],r:2,c:2,w:"Someone will take that gap. You don't fight for it, you rebuild it."}];
+let qi=0,ans=[],picked1=null;
+
+function home(){pb.innerHTML=`<div style="font-size:22px;font-weight:800;margin-bottom:4px">Hi Marko 👋</div>
+ <div style="color:#5b6573;margin-bottom:14px">5 safety videos, about 17 minutes. A short quiz follows each one.<br><b>Finish by Dec 8.</b> Only watch when you're parked.</div>
+ <div class="bar" style="margin-bottom:6px"><i style="width:0%"></i></div><div style="font-size:13px;color:#5b6573;margin-bottom:16px">0 of 5 done</div>
+ ${FILMS.map((f,i)=>`<button class="lesson ${i?"locked":""}" ${i?"disabled":'onclick="player()"'}><img src="media/poster-${f.n}.jpg" alt=""><span><span class="t">${f.n} · ${f.t}</span><br><span class="m">${f.len} · ${i?"🔒 after video "+FILMS[i-1].n:"▶ Start"}</span></span></button>`).join("")}`}
+
+function player(){pb.innerHTML=`<div style="font-weight:800;font-size:18px;margin-bottom:8px">01 · Following Too Close</div>
+ <video id="vid" src="media/film-01-360.mp4" poster="media/poster-01.jpg" controls controlslist="nodownload noplaybackrate" disablepictureinpicture playsinline preload="metadata"></video>
+ <div style="font-size:12px;color:#5b6573;margin-top:6px" id="qual">${qualText()}</div>
+ <div class="chips">${CH.map((c,i)=>`<button id="ch${i}" onclick="seek(${c.a})"><b>${i+1}</b> ${c.t}<br><span style="color:#5b6573">${fmt(c.a)}</span></button>`).join("")}</div>
+ <button class="big ghost" onclick="startQuiz()">Skip to the quiz (mockup only)</button>`;
+ const v=document.getElementById("vid");v.addEventListener("timeupdate",()=>{CH.forEach((c,i)=>{const e=document.getElementById("ch"+i);if(!e)return;e.classList.toggle("on",v.currentTime>=c.a&&v.currentTime<c.b);e.classList.toggle("done",v.currentTime>=c.b)})});
+ v.addEventListener("ended",startQuiz)}
+function seek(s){const v=document.getElementById("vid");if(v){v.currentTime=s;v.play()}}
+const fmt=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+
+function startQuiz(){qi=0;ans=[];quiz()}
+function quiz(){picked1=null;const x=Q[qi];
+ pb.innerHTML=`<div class="dots">${Q.map((_,i)=>`<i class="${i<=qi?"on":""}"></i>`).join("")}</div><div style="font-size:13px;color:#5b6573">Question ${qi+1} of ${Q.length}</div>
+ <div class="q">${x.q}</div>${x.a.map((a,i)=>`<button class="ans" id="a${i}" onclick="sel(${i})">${a}</button>`).join("")}
+ <div id="fb"></div><button class="big" id="go" disabled onclick="check()">Check answer</button>`}
+function sel(i){picked1=i;Q[qi].a.forEach((_,j)=>document.getElementById("a"+j).classList.toggle("sel",j===i));document.getElementById("go").disabled=false}
+function check(){const x=Q[qi],ok=picked1===x.r;ans.push(ok);if(sig==="off")queued++;
+ x.a.forEach((_,j)=>{const e=document.getElementById("a"+j);e.disabled=true;e.classList.remove("sel");if(j===x.r)e.classList.add("right");else if(j===picked1)e.classList.add("wrong")});
+ document.getElementById("fb").innerHTML=`<div class="why"><b>${ok?"✓ Right.":"✗ Not quite."}</b> ${x.w}<br><span style="font-size:13px;color:#5b6573">From chapter ${x.c+1}, "${CH[x.c].t}" (${fmt(CH[x.c].a)})</span>${sig==="off"?'<br><span style="font-size:13px;color:#7a4b00">Saved on this phone. It sends when signal comes back.</span>':""}</div>`;
+ const g=document.getElementById("go");g.textContent=qi<Q.length-1?"Next question":"See my result";g.onclick=()=>{qi++;qi<Q.length?quiz():result()}}
+function result(){const n=ans.filter(Boolean).length,pass=n>=4,miss=[...new Set(Q.map((x,i)=>ans[i]?null:x.c).filter(c=>c!==null))];
+ pb.innerHTML=`<div class="score" style="color:${pass?"#1f8a4c":"#c0392b"}">${n} / ${Q.length}</div>
+ <div style="text-align:center;font-size:18px;font-weight:700;margin-bottom:16px">${pass?"Passed. Video 02 is open.":"Not yet. You need 4 of 5."}</div>
+ ${pass?`<button class="big" onclick="toast('Video 02 would start here');home()">Next: 02 · Eyes Up</button>`:
+ `<div class="why">Watch ${miss.length>1?"these chapters":"this chapter"} again, then take the quiz again. You get new questions.</div>
+ ${miss.map(c=>`<button class="lesson" onclick="player();setTimeout(()=>seek(${CH[c].a}),50)"><span><span class="t">Chapter ${c+1} · ${CH[c].t}</span><br><span class="m">${fmt(CH[c].a)}–${fmt(CH[c].b)} · about ${Math.round((CH[c].b-CH[c].a)/60)} min</span></span></button>`).join("")}`}
+ <button class="big ghost" style="margin-top:10px" onclick="home()">Back to my videos</button>`}
+home();
+view("library");
+</script>
+</body>
+</html>

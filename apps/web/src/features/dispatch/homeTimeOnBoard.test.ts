@@ -189,6 +189,21 @@ describe("the row", () => {
     expect(chips("900")).toEqual([]);
   });
 
+  it("says each home seat in the Driver cell whether or not the truck is held, and the badge opens his home time (HOME-TIME-VISIBILITY-PLAN D-HT24/25)", async () => {
+    await render();
+    const badges = (unit: string) => [...rowOf(unit).querySelectorAll("[data-home-time-badge]")].map(text);
+    expect(badges("773")).toEqual(["Home until 11/18"]);
+    // The team truck is not held — Sam still drives it — and Ben's overdue home time is still said.
+    expect(badges("848")).toEqual(["Overdue since 11/12"]);
+    expect(text(rowOf("848").querySelectorAll("td")[cells(rowOf("848")).findIndex((c) => c.startsWith("Sam Pool"))]!)).toContain("and Ben Cole");
+    expect(badges("900")).toEqual([]);
+    (rowOf("848").querySelector("[data-home-time-badge]") as HTMLButtonElement).click();
+    await flushPromises();
+    expect(router.currentRoute.value.query.homeTime).toBe(BEN);
+    // One click: the badge does not also open the truck's drawer under it.
+    expect(router.currentRoute.value.query.truck).toBeUndefined();
+  });
+
   it("marks the overdue row as needing attention, and counts it in that tab", async () => {
     await render();
     expect(rowOf("848").querySelector("[aria-label='Needs attention']")).not.toBeNull();

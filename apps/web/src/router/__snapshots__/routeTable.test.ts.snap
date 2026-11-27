@@ -27,6 +27,21 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/apply/tok_123/videos",
   },
   {
+    "name": "careers",
+    "params": {
+      "handle": "silvicom",
+    },
+    "url": "/careers/silvicom",
+  },
+  {
+    "name": "careers-job",
+    "params": {
+      "handle": "silvicom",
+      "openingId": "op_1",
+    },
+    "url": "/careers/silvicom/jobs/op_1",
+  },
+  {
     "name": "accept-invite",
     "params": {},
     "url": "/accept-invite",
@@ -211,6 +226,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/lumper-fees",
   },
   {
+    "name": "broker-mail",
+    "params": {},
+    "url": "/broker-mail",
+  },
+  {
     "name": "idling",
     "params": {},
     "url": "/idling",
@@ -219,6 +239,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "name": "drug-alcohol",
     "params": {},
     "url": "/drug-alcohol",
+  },
+  {
+    "name": "training",
+    "params": {},
+    "url": "/training",
   },
   {
     "name": "roadside-inspections",
@@ -537,6 +562,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "name": "card-control-settings",
     "params": {},
     "url": "/settings/card-control",
+  },
+  {
+    "name": "broker-mail-settings",
+    "params": {},
+    "url": "/settings/broker-mail",
   },
   {
     "name": "anomalies",
@@ -891,6 +921,35 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "billing",
     "path": "/billing",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Broker mail",
+    },
+    "name": "broker-mail",
+    "path": "/broker-mail",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "apply",
+      "public": true,
+      "title": "Careers",
+    },
+    "name": "careers",
+    "path": "/careers/:handle",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "apply",
+      "public": true,
+      "title": "Job",
+    },
+    "name": "careers-job",
+    "path": "/careers/:handle/jobs/:openingId",
     "redirect": null,
   },
   {
@@ -1515,6 +1574,16 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "parent": "/settings",
+      "requiresAuth": true,
+      "title": "Broker mail",
+    },
+    "name": "broker-mail-settings",
+    "path": "/settings/broker-mail",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
       "requiresAdmin": true,
       "requiresAuth": true,
       "title": "Card control",
@@ -1959,6 +2028,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "trailer-detail",
     "path": "/trailers/:id",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Training",
+    },
+    "name": "training",
+    "path": "/training",
     "redirect": null,
   },
   {

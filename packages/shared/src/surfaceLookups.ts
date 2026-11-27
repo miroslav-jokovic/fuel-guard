@@ -1,4 +1,4 @@
-import type { Surface } from "./surfaces.js";
+import { isEditableSurface, type Surface } from "./surfaces.js";
 import { SURFACES } from "./surfaceCatalogue.js";
 
 /**
@@ -6,7 +6,8 @@ import { SURFACES } from "./surfaceCatalogue.js";
  * and what is derived at load (the nav, the grantable set, the admin-only set), and it sits at the
  * 500-line budget. These read it and need nothing else. Split out when office chat's entry
  * (OFFICE-CHAT-PLAN CH2) took the catalogue past the budget; the admin-only set followed when the
- * Printers & scanners screen did (PRINTERS-AND-SCANNERS-PLAN.md PS4).
+ * Printers & scanners screen did (PRINTERS-AND-SCANNERS-PLAN.md PS4), and the sidebar list and the
+ * grantable set when Broker mail's two screens did (BROKER-MAIL-READER-PLAN P2).
  */
 
 /** The screens a directory surface links to, in catalogue order — `/settings`'s cards (SP1). */
@@ -25,3 +26,16 @@ export function surfaceForPath(path: string): Surface | undefined {
  * four keys, so a fifth `ADMIN` gate is a decision somebody has to make on purpose.
  */
 export const ADMIN_ONLY_SURFACES: readonly Surface[] = SURFACES.filter((s) => s.gate.kind === "admin");
+
+/**
+ * The surfaces that render in the sidebar — everything except the detail routes (D-SURF8) and the
+ * screens a directory links to instead (`reachedFrom`, SP1).
+ */
+export const NAV_SURFACES: readonly Surface[] = SURFACES.filter((s) => s.parent === undefined && s.reachedFrom === undefined);
+
+/**
+ * The screens an organisation may answer for, per role and per person: a section gate (Q-SURF3 —
+ * `isEditableSurface`) and a grant of its own (not a `parent`, D-SURF8). The Permissions page's
+ * rows, the API's accepted keys and the stored-row filter all read this one list.
+ */
+export const GRANTABLE_SURFACES: readonly Surface[] = SURFACES.filter((s) => isEditableSurface(s) && s.parent === undefined);

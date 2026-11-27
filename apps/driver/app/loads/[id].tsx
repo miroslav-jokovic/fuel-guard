@@ -1,29 +1,26 @@
 import { useState, type ReactNode } from 'react';
-import { View } from 'react-native';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   equipmentRequiresTrailer,
   nextStop,
-  stopProgress,
   type DeclineReason,
 } from '@silvicom/shared';
 import {
   ActionBar,
   AppText,
-  Badge,
   Banner,
   Button,
-  Card,
   ChoiceSheet,
   ConfirmSheet,
+  GroupedList,
   ListRow,
-  Progress,
   Screen,
   ScreenHeader,
   Section,
   Skeleton,
 } from '@/components';
-import { Itinerary } from '@/features/loads/Itinerary';
+import { Timeline } from '@/features/loads/Timeline';
+import { routeLine } from '@/features/loads/loadsListModel';
 import { declineChoices } from '@/features/loads/OfferDeck';
 import { LOAD_STATUS, driverLoadStatus } from '@/features/loads/loadStatus';
 import {
@@ -80,7 +77,6 @@ export default function LoadDetail() {
   }
 
   const next = nextStop(load);
-  const progress = stopProgress(load);
   const status = LOAD_STATUS[driverLoadStatus(load.status)];
   const working = load.status === 'in_transit';
   const trailerGap = duty.onDuty && equipmentRequiresTrailer(load.equipment) && !duty.hasTrailer;
@@ -161,19 +157,24 @@ export default function LoadDetail() {
 
   return (
     <Screen padTop={false} flow="sections" footer={footer}>
+      {/* Visual 2026 V6 (mock screen 5): the load's number is the title, in the display face, and the
+          status is a word at the head of the line under it rather than a pill (D-DV14). */}
       <ScreenHeader
-        title={load.ref}
+        display
+        title={`Load ${load.ref}`}
         subtitle={[
+          status.label,
           load.equipment,
+          load.trailer_unit ? `trailer ${load.trailer_unit}` : null,
           load.total_miles == null ? null : `${Math.round(load.total_miles).toLocaleString()} mi`,
-          load.vehicle_unit ? `Unit ${load.vehicle_unit}` : null,
+          load.commodity,
         ].filter(Boolean).join(' · ')}
         onBack={() => router.back()}
-        right={<Badge label={status.label} tone={status.tone} />}
+        right={load.vehicle_unit ? <AppText variant="supporting" tone="secondary">{`Unit ${load.vehicle_unit}`}</AppText> : undefined}
       />
 
-      <Section first>
-        {attention ? (
+      {attention ? (
+        <Section>
           <Banner
             tone={attention.tone}
             icon={attention.icon}
@@ -181,45 +182,32 @@ export default function LoadDetail() {
             actionLabel={'label' in attention ? attention.label : undefined}
             onAction={'action' in attention ? attention.action : undefined}
           />
-        ) : null}
-        <View className="flex-row items-baseline gap-2">
-          <AppText variant="numericInline">{progress.current}</AppText>
-          <AppText variant="supporting" tone="muted" className="flex-1">of {progress.total} stops</AppText>
-        </View>
-        <Progress value={progress.total > 0 ? (progress.current - 1) / progress.total : 0} tone="action" />
+        </Section>
+      ) : null}
+
+      <Section title={routeLine(load, false) || 'Stops'}>
+        <Timeline load={load} onOpenStop={openStop} />
       </Section>
 
-      <Section title="Itinerary">
-        <Itinerary load={load} onOpenStop={openStop} />
-      </Section>
+      {load.notes ? (
+        <Section title="Notes from dispatch">
+          <AppText variant="body" tone="secondary">{load.notes}</AppText>
+        </Section>
+      ) : null}
 
-      <Section title="This load">
-        <Card>
-          <View className="flex-row gap-4">
-            <Fact label="Commodity" value={load.commodity ?? '—'} />
-            <Fact label="Trailer" value={load.trailer_unit ?? '—'} />
-            <Fact label="Stops" value={String(load.stops.length)} />
-          </View>
-          {load.notes ? (
-            <>
-              <View className="h-px bg-edge-subtle" />
-              <ListRow icon="info" disc="neutral" title="Notes from dispatch" subtitle={load.notes} />
-            </>
-          ) : null}
-          {load.hazmat ? (
-            <>
-              <View className="h-px bg-edge-subtle" />
-              <ListRow
-                icon="local_fire_department"
-                disc="danger"
-                title="Hazmat load"
-                subtitle="Placarding and the BOL check apply to this run."
-                onPress={() => router.push('/documents')}
-              />
-            </>
-          ) : null}
-        </Card>
-      </Section>
+      {load.hazmat ? (
+        <Section title="Hazmat">
+          <GroupedList>
+            <ListRow
+              icon="local_fire_department"
+              disc="danger"
+              title="Hazmat load"
+              subtitle="Placarding and the BOL check apply to this run."
+              onPress={() => router.push('/documents')}
+            />
+          </GroupedList>
+        </Section>
+      ) : null}
 
       <ChoiceSheet<DeclineReason>
         visible={declining && reason === null}
@@ -249,14 +237,5 @@ export default function LoadDetail() {
         onCancel={() => setReason(null)}
       />
     </Screen>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <View className="flex-1 gap-0.5">
-      <AppText variant="caption" tone="muted">{label}</AppText>
-      <AppText variant="supporting" className="font-ui-md" numberOfLines={2}>{value}</AppText>
-    </View>
   );
 }

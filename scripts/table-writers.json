@@ -111,6 +111,15 @@
     "apps/admin-api/src/lib/impersonation.ts",
     "apps/api/src/lib/audit.ts"
   ],
+  "broker_mail_backups": [
+    "apps/api/src/modules/broker-mail/brokerMailBackups.ts"
+  ],
+  "broker_mail_messages": [
+    "apps/api/src/modules/broker-mail/brokerMailTexts.ts"
+  ],
+  "broker_mail_settings": [
+    "apps/api/src/modules/broker-mail/brokerMailAdmin.ts"
+  ],
   "card_fraud_incidents": [
     "apps/api/src/modules/anomalies/assignAnomalies.ts",
     "apps/api/src/modules/anomalies/transitionCardFraudIncident.ts"
@@ -295,6 +304,12 @@
   "fmcsa_fetch_runs": [
     "apps/api/src/modules/inspections/feed/store.ts"
   ],
+  "follow_up_rules": [
+    "apps/api/src/modules/followups/rules.ts"
+  ],
+  "follow_ups": [
+    "apps/api/src/modules/followups/evaluate.ts"
+  ],
   "fuel_cards": [
     "apps/api/src/modules/fuel/cardAssignments.ts"
   ],
@@ -473,6 +488,9 @@
   "lead_match_verdicts": [
     "apps/api/src/modules/recruiting/leads/verdicts.ts"
   ],
+  "load_charges": [
+    "apps/api/src/modules/loads/mirrorLoads.ts"
+  ],
   "load_dispatches": [
     "apps/api/src/modules/loads/dispatchToDriver.ts"
   ],
@@ -643,6 +661,12 @@
   "phone_lookups": [
     "apps/api/src/modules/recruiting/leads/phoneLookup.ts"
   ],
+  "pilot_sftp_files": [
+    "apps/api/src/modules/posted-prices/pilotSftpFeed.ts"
+  ],
+  "pilot_bill_mails": [
+    "apps/api/src/modules/fuel-spend/pilotBillMail.ts"
+  ],
   "pilot_price_mails": [
     "apps/api/src/modules/posted-prices/pilotPriceMail.ts"
   ],
@@ -731,6 +755,9 @@
   "samsara_odometer_readings": [
     "apps/api/src/modules/samsara/samsaraOdometerSync.ts"
   ],
+  "samsara_warnings": [
+    "apps/api/src/modules/samsara/warnings/syncWarnings.ts"
+  ],
   "saved_views": [
     "apps/api/src/modules/org/routes/savedViews.ts"
   ],
@@ -745,7 +772,8 @@
   ],
   "sms_consents": [
     "apps/api/src/modules/recruiting/applicationInviteText.ts",
-    "apps/api/src/modules/recruiting/applicationSms.ts"
+    "apps/api/src/modules/recruiting/applicationSms.ts",
+    "apps/api/src/modules/recruiting/careers/applySubmit.ts"
   ],
   "sms_outbox": [
     "apps/api/src/modules/recruiting/smsOutbox.ts"
@@ -764,6 +792,18 @@
   ],
   "support_impersonation_grants": [
     "apps/admin-api/src/lib/impersonation.ts"
+  ],
+  "recruiting_careers_pages": [
+    "apps/api/src/modules/recruiting/careers/careersPage.ts"
+  ],
+  "tenstreet_connections": [
+    "apps/api/src/modules/recruiting/tenstreet/connection.ts",
+    "apps/api/src/modules/recruiting/tenstreet/receive.ts"
+  ],
+  "tenstreet_posts": [
+    "apps/api/src/modules/recruiting/tenstreet/leadPost.ts",
+    "apps/api/src/modules/recruiting/tenstreet/processPost.ts",
+    "apps/api/src/modules/recruiting/tenstreet/receive.ts"
   ],
   "thread_participants": [
     "apps/api/src/modules/messaging/messages.ts"
@@ -796,6 +836,29 @@
     "apps/api/src/modules/roster/trailerPairing.ts",
     "apps/api/src/modules/samsara/samsaraTrailerSync.ts",
     "apps/web/src/composables/useTrailers.ts"
+  ],
+  "training_assignments": [
+    "apps/api/src/modules/training/assignments.ts",
+    "apps/api/src/modules/training/portal.ts"
+  ],
+  "training_attempts": [
+    "apps/api/src/modules/training/portal.ts"
+  ],
+  "training_courses": [
+    "apps/api/src/modules/training/catalogue.ts"
+  ],
+  "training_lessons": [
+    "apps/api/src/modules/training/catalogue.ts"
+  ],
+  "training_progress": [
+    "apps/api/src/modules/training/portal.ts"
+  ],
+  "training_questions": [
+    "apps/api/src/modules/training/versions.ts"
+  ],
+  "training_versions": [
+    "apps/api/src/modules/training/transcode.ts",
+    "apps/api/src/modules/training/versions.ts"
   ],
   "unit_notes": [
     "apps/api/src/modules/roster/notes/unitNotes.ts"

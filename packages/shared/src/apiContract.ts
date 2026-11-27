@@ -2,7 +2,8 @@ import { z } from "zod";
 import { recordId } from "./recordId.js";
 import { newPasswordSchema } from "./passwordResetContract.js";
 import { USER_ROLES } from "./constants.js";
-import { GRANTABLE_SURFACES, SURFACES } from "./surfaceCatalogue.js";
+import { SURFACES } from "./surfaceCatalogue.js";
+import { GRANTABLE_SURFACES } from "./surfaceLookups.js";
 import { isEditableRole, isEditableSection } from "./auth.js";
 
 /**

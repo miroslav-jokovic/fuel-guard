@@ -26,7 +26,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DEFAULT_TOLERANCES,
   parsePilotFuelReport,
-  parsePilotStatement,
+  parsePilotWeeklyBill,
   pilotExportTieOut,
   readPivotGrandTotalGallons,
   reconcileFuelReport,
@@ -122,8 +122,8 @@ interface ParsedReport {
 /** Re-parse and gate. Returns the refusal rather than throwing, so the route can answer with reasons. */
 function parseAndGate(input: ReconRunInput): ParsedReport | { error: string; failures: string[] } {
   if (Array.isArray(input.words) && input.words.length > 0) {
-    const p = parsePilotStatement(input.words);
-    if (!p.headerFound) return { error: "That PDF isn't a Pilot statement — no transaction table was found.", failures: [] };
+    const p = parsePilotWeeklyBill(input.words);
+    if (!p.headerFound) return { error: "That PDF isn't a Pilot weekly statement or invoice — no transaction table was found.", failures: [] };
     if (!p.tieOut.ok) return { error: "The statement didn't add up.", failures: p.tieOut.failures };
     return {
       kind: "weekly_statement",

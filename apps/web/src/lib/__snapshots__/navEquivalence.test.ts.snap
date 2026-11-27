@@ -272,6 +272,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
       "Fuel planning → /fuel-planning",
       "Truck stops → /truck-stops",
       "Lumper fees → /lumper-fees",
+      "Broker mail → /broker-mail",
     ],
   },
   {
@@ -293,6 +294,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
+      "Training → /training",
       "Placard calculator → /hazmat/calculator",
       "Hazmat review → /hazmat/review",
     ],
@@ -364,6 +366,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
       "Fuel planning → /fuel-planning",
       "Truck stops → /truck-stops",
       "Lumper fees → /lumper-fees",
+      "Broker mail → /broker-mail",
     ],
   },
   {
@@ -560,6 +563,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
+      "Training → /training",
     ],
   },
   {
@@ -782,6 +786,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
       "Fuel planning → /fuel-planning",
       "Truck stops → /truck-stops",
       "Lumper fees → /lumper-fees",
+      "Broker mail → /broker-mail",
     ],
   },
   {
@@ -803,6 +808,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
+      "Training → /training",
       "Placard calculator → /hazmat/calculator",
       "Hazmat review → /hazmat/review [4]",
     ],
@@ -1052,6 +1058,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
+      "Training → /training",
     ],
   },
   {
@@ -1371,6 +1378,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
+      "Training → /training",
     ],
   },
   {
@@ -1679,6 +1687,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
+      "Training → /training",
     ],
   },
   {

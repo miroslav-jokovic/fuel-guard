@@ -78,6 +78,30 @@ export const NOTES_MANAGE_ALL_PERMISSION = "notes.manage_all";
  */
 export const HOME_TIME_PERMISSION = "roster.home_time";
 
+/**
+ * Who sees what each load pays — the McLeod order's total, linehaul, other charges and rate per mile — on
+ * Loads, the Dispatch board and a load's page (LOAD-RATES-PLAN D-RATE6, owner 2026-11-19: "admins always
+ * see it; every other role starts off and is switched on in Settings"). The figures are WITHHELD by the
+ * server, never hidden by the screen (D-RATE7): a reader without this switch is not sent them at all, which
+ * is why the price lives in `load_charges` (deny-all) rather than on `loads`, whose columns every org
+ * member reads. No regulation names the reader, so it is the carrier's switch, here.
+ */
+export const LOAD_RATES_PERMISSION = "dispatch.load_rates";
+
+/**
+ * Who sees EVERY dispatcher's broker mail on the Broker mail page, not only the emails in their own
+ * Outlook (BROKER-MAIL-READER-PLAN P2; Q-BM9, owner 2026-11-24: "admins only"). A broker email belongs
+ * to the dispatcher whose mailbox received it, and a dispatcher never sees a colleague's — the API
+ * withholds the rows, the screen does not hide them.
+ *
+ * ⚠ A named switch, not the surface `dispatch.broker-mail.all` the plan drew: a surface is a SCREEN with
+ * its own route, and this is a question about which rows one screen is sent — `dispatch.load_rates`'s
+ * shape. And not `dispatch: manage`, which the dispatcher role already holds (auth.ts), so it would hand
+ * every dispatcher every colleague's mail. Per role, like every named permission; Q-BM9's "per person"
+ * would need per-person named grants, which nothing has yet.
+ */
+export const BROKER_MAIL_ALL_PERMISSION = "dispatch.broker_mail_all";
+
 export const EDITABLE_PERMISSIONS = [
   {
     key: IDENTITY_NUMBER_IMAGES_PERMISSION,
@@ -118,6 +142,22 @@ export const EDITABLE_PERMISSIONS = [
       "Record that a driver is going home and when he is due back, change the return, and mark him back. Without it a person sees who is home on the Dispatch board and cannot change it.",
     // D-HT7: whoever manages Dispatch (the admin holds every permission and is not an editable role).
     shippedRoles: rolesThatManage("dispatch").filter(isEditableRole),
+  },
+  {
+    key: LOAD_RATES_PERMISSION,
+    label: "See load rates",
+    description:
+      "See what each load pays — total, linehaul, other charges and rate per mile — on Loads, the Dispatch board and a load's page. Without it those figures are not sent to this person at all.",
+    // Owner, 2026-11-19 (D-RATE6): admin only to start — the admin holds every permission.
+    shippedRoles: [],
+  },
+  {
+    key: BROKER_MAIL_ALL_PERMISSION,
+    label: "See every dispatcher's broker mail",
+    description:
+      "On Broker mail, see the broker emails in every dispatcher's Outlook, not only your own. Without it a person sees only the emails their own mailbox received.",
+    // Owner, Q-BM9 (2026-11-24): admins only — the admin holds every permission.
+    shippedRoles: [],
   },
 ] as const satisfies readonly EditablePermission[];
 

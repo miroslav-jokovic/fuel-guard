@@ -60,6 +60,44 @@ export function chunks<T>(items: readonly T[], size = IN_LIST_CHUNK): T[][] {
 }
 
 /**
+ * How many chunk reads `mapChunks` keeps in flight at once. Measured on the Loads page 2026-11-23: its
+ * read sent 114 chunk queries ONE AFTER ANOTHER, each ~150 ms of round trip for ~10 ms of database
+ * work, and took 17–20 s. The time is latency, not load, so overlapping a few of them is what buys it
+ * back — but production is a Micro instance (2 CPUs), so a handful, never the whole list at once.
+ */
+export const CHUNK_CONCURRENCY = 6;
+
+/**
+ * `fn` over every `IN_LIST_CHUNK` of `items`, at most `concurrency` at a time, results in CHUNK ORDER
+ * (so a reader that relied on the sequential loop's order — each chunk newest-first, say — keeps it).
+ * The first failure rejects the whole read, as the sequential loop's throw did; no new chunk starts
+ * after it. No items, no call.
+ */
+export async function mapChunks<T, R>(
+  items: readonly T[],
+  fn: (chunk: T[]) => Promise<R>,
+  concurrency = CHUNK_CONCURRENCY,
+): Promise<R[]> {
+  const parts = chunks(items);
+  const out: R[] = new Array(parts.length);
+  let next = 0;
+  let failed = false;
+  const worker = async () => {
+    while (!failed && next < parts.length) {
+      const i = next++;
+      try {
+        out[i] = await fn(parts[i]!);
+      } catch (e) {
+        failed = true;
+        throw e;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, concurrency), parts.length) }, worker));
+  return out;
+}
+
+/**
  * Every row for every id — `fetchAllPaged` run once per `IN_LIST_CHUNK` of `ids`, in order.
  *
  * The two ceilings above are independent, and a reader that pages but passes the whole id list in

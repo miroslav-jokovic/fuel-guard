@@ -58,6 +58,7 @@
     "ppu-paddle-ocr": "6.6.1",
     "sharp": "^0.35.5",
     "soap": "1.9.3",
+    "ssh2": "1.17.0",
     "zod": "4.6.7",
     "zxing-wasm": "3.1.4"
   },
@@ -68,6 +69,7 @@
     "@types/express": "5.0.6",
     "@types/node": "26.0.1",
     "@types/pdfkit": "0.17.6",
+    "@types/ssh2": "1.15.5",
     "tsx": "4.22.4",
     "typescript": "6.0.3",
     "vitest": "4.1.9"

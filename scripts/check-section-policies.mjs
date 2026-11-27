@@ -85,6 +85,8 @@ const MODULE_SECTIONS = {
   accounting: "accounting", // P5.1 harness — no tables yet; the first one lands checked
   billing: "billing",       // P5.2 harness — same
   maintenance: "maintenance", // P5.3 harness — same
+  // WARNING-DESK-PLAN (0653): the desk sits in Maintenance (D-WD1). Its tables carry no client policy.
+  followups: "maintenance",
   messaging: null,
   "driver-app": null,
   recruiting: "recruitment",
@@ -97,6 +99,15 @@ const MODULE_SECTIONS = {
   // brief's consumer (recruitment, for openings) plus the named admin capabilities `ads.connection`
   // and `ads.spend` (A5); a role-named policy on its tables would be a door around both.
   ads: null,
+  // broker-mail (0643, BROKER-MAIL-READER-PLAN D-BMR3): deny-all to every client. The mail gateway
+  // reaches its tables only through mailgw_* functions as its own login; the API reads them with
+  // the service role from P2 and gates on dispatch.broker-mail / dispatch.broker-mail.all, so a
+  // role-named policy on these tables would be a door around both.
+  "broker-mail": null,
+  // training (0648, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS D-TR3): deny-all client. The office reads and writes
+  // through the API gated on `safety` and the `training` module; the driver reaches it through a link that
+  // is not a login. A role-named policy on these tables would be a door around both.
+  training: null,
   // Ask AI's meter (0584, F21 R2): deny-all to every client, written and read only by the API. The
   // assistant's endpoint gates on the `ask-ai` surface and, per tool, on the section matrix (F21 R5,
   // D-AI1), so a role-named policy on its ledger would be a door around both.

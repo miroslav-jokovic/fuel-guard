@@ -592,3 +592,84 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
 - **When (a) comes back:** once drivers check in through the app, End shift goes in the truck drawer,
   shown only when that driver has an open session, calling 0151 by session id as L5 required.
 
+### 2026-11-24 — DB7 run: the board's ETA, measured (from the driver app's Q-DV4)
+
+Run read-only against production with the query above: 119,922 predictions on 2,102 loads, recorded
+since the #1578 fix.
+
+| Hours out | n | Median error (min) | p90 abs error (min) | Rest added |
+|---|---|---|---|---|
+| 0–4 | 7,087 | +7 | 689 | 19% |
+| 4–8 | 7,063 | +8 | 649 | 38% |
+| 8–12 | 6,959 | −56 | 653 | 56% |
+| 12–16 | 6,903 | +84 | 826 | 57% |
+| 16–20 | 6,523 | +212 | 1,012 | 56% |
+| 20–24 | 5,706 | +285 | 1,206 | 58% |
+| >24 | 50,434 | +1,402 | 2,940 | 81% |
+
+The verdict within 4 hours of arrival, against `window_closes_at`:
+
+| Verdict | Stops | Actually late |
+|---|---|---|
+| on time | 4,421 | 3% |
+| at risk | 603 | 18% |
+| late | 2,063 | 34% |
+
+- The middle is good and the tail is not. "On time" is right 97% of the time. "At risk" and "late"
+  are mostly false alarms.
+- Before Q-DB4 is decided, find whether the hours-wide tail is the estimate or the arrival
+  (`actual_arrival_at` from McLeod may be entered late).
+- The driver app's "Tight" (Q-DV9 in DRIVER-APP-VISUAL-2026-PLAN) waits on this. It will read the
+  board's verdict, not make its own estimate.
+
+
+### 2026-11-25 — DB7's tail diagnosed: the estimate's reset rule, and a ground truth that cannot be late
+
+The 2026-11-24 entry left one question before Q-DB4: is the hours-wide tail the estimate, or a late-typed
+McLeod `actual_arrival_at`? It is both, in two different places. Every figure below comes from read-only
+production queries over the same predictions, under 4 hours out (7,178 predictions).
+
+**1 — The error tail is the estimate: a full 10-hour reset added to a driver who is already resting.**
+`boardEtaAlong` (`packages/shared/src/dispatchBoard.ts`) adds `BOARD_RESET_MS` from *now* whenever the drive
+is longer than `legalDriveMs`. It never asks how long the driver has already been off. When the predictions
+that added a reset are joined to the load driver's `hos_duty_segments` row at `predicted_at`:
+
+| Duty status at prediction | Predictions | Median error (min) | Median time already in that status |
+|---|---|---|---|
+| sleeper | 510 | −686 | 7.0 h |
+| off duty | 503 | −601 | 8.2 h |
+| driving | 203 | −1,151 | 1.4 h |
+| team (any status) | 68 | −1,051 to −1,291 | — |
+
+76% of the false resets are drivers seven or eight hours into a ten-hour reset. The truck arrives roughly
+ten hours before the board said. Without a reset, the estimate is sound: median +25 to +41 min, p90 179–233
+min. Crediting the time already rested (eta − min(time in sleeper/off duty, 10 h)) brings the 0–4 h p90 from
+**689 to 403 min**, and "late" from 34% to 41% actually late. The driving-but-out-of-clock rows (203) and the
+teams (68; the board reads one driver's clocks, while `combineTeamLegalDriveMs` already exists) are the rest
+of the tail. They are smaller, and they are not diagnosed yet.
+
+**2 — The verdict's "false alarms" are mostly the ground truth.** 30% of McLeod `actual_arrival_at` values
+in the last 60 days (6,449 stops with an appointment) are *exactly* `appointment_start` or `appointment_end`,
+to the minute. A stop whose arrival is its own appointment can never score late. That is a typed placeholder,
+not a measurement. When those stops are split out:
+
+| Verdict | Arrival = appointment | Other arrivals |
+|---|---|---|
+| on time | 0% late (1,371) | 3% late (2,907) |
+| at risk | 0% late (296) | **33%** late (263) |
+| late | 7% late (890) | **52%** late (1,078) |
+
+So "at risk was late only 18% of the time" was half an artefact. Against arrivals that were actually
+recorded, at risk is late a third of the time and late is late half the time, before the reset fix.
+
+**What this changes:**
+
+- **Q-DB4 gains an option ahead of the three it lists.** Recommend: first fix the reset rule. It needs the
+  driver's current duty status and when it began, both in `hos_duty_segments` already. Give teams the
+  combined clock. Then re-run DB7 on predictions recorded after the fix, before deciding whether to retune
+  `BOARD_ROAD_FACTOR` / `BOARD_PLANNING_MPH` or to buy HERE's matrix. The distance estimate is not where
+  the tail comes from.
+- **Every DB7 re-run must exclude arrival = appointment stops** (or score them separately). Otherwise it
+  measures McLeod's data entry.
+- **Q-DV9 (the driver app's "Tight"):** the board's verdict is a usable source once the reset fix ships.
+  The phone should still read the board's verdict and not make its own estimate.

@@ -264,3 +264,9 @@ Append dated lines here; never edit a table row above to record progress.
   token at send time, queued for the strict all-US window when the recruiter is early. The drawer says what became
   of it under the link. The number also goes on the applicant's row. Verification sample set (§6.3) gains the
   message; counsel memo Q12 carries the attestation question.
+- 2026-11-22 — **Two more ways to agree exist, and the pages now say so** (APPLY-PAGE-PLAN §5, F-AP2): the careers
+  page's box (`SMS_APPLY_PAGE_CONSENT`, a consent on a LEAD, 0641) and the recruiter's attestation (D-SMS11). `/sms-terms`
+  and `/privacy#text-messages` name all three; `LEGAL_VERSION` 1.3. A STOP now revokes by number, so a lead's consent is
+  reached too (#2607). ⚠ §6.4's `optInWorkflow` and `useCaseSummary` above describe the application page only, and so
+  does the live verification record; the update and when to send it are APPLY-PAGE-PLAN Q-AP5. Production has 6
+  consents, all `application`, so nothing has been sent under an unregistered opt-in yet.

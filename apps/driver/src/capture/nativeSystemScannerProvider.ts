@@ -10,6 +10,8 @@ import {
   getCaptureNativeModule,
   type CaptureNativeModule,
   type NativeImageMetrics,
+  type NativeScanOptions,
+  type NativeScanResult,
   type NativeScannedPage,
 } from "../../modules/capture-native";
 import {
@@ -19,6 +21,8 @@ import {
   measurementTarget,
   rejectionFromThrown,
   supportFromNative,
+  SYSTEM_SCANNER,
+  type CaptureSource,
 } from "./nativeScanOutcome";
 
 /**
@@ -63,9 +67,23 @@ async function measurePage(
   }
 }
 
+/**
+ * Where the pages come from. The default is the OS scanner (`native.scan`). Our own camera (D-LED6)
+ * supplies a different `acquire` — its screen, then `native.processPages` — and everything after it is
+ * this one provider: the same measurement, assembly and §5 gate for every document, whichever camera
+ * took it (owner, 2026-11-23: one scanner for all documents).
+ */
+export interface PageSource {
+  source: CaptureSource;
+  acquire(native: CaptureNativeModule, options: NativeScanOptions): Promise<NativeScanResult>;
+}
+
+const OS_SCANNER: PageSource = { source: SYSTEM_SCANNER, acquire: (native, options) => native.scan(options) };
+
 export function createNativeSystemScannerProvider(
   config: CaptureConfig,
   platform: "ios" | "android",
+  from: PageSource = OS_SCANNER,
 ): CaptureProvider | null {
   const native = getCaptureNativeModule();
   if (!native) return null;
@@ -90,7 +108,7 @@ export function createNativeSystemScannerProvider(
     return deviceClass;
   };
   return {
-    id: "capture.native.system_scanner",
+    id: from.source.providerId,
     version: "0.1.0",
     async isSupported(): Promise<SupportResult> {
       return supportFromNative(await native.isSupported());
@@ -102,7 +120,7 @@ export function createNativeSystemScannerProvider(
       // is the question Step 5.2 will be asking.
       const startedAt = Date.now();
       try {
-        const res = await native.scan({
+        const res = await from.acquire(native, {
           maxPages: options?.maxPages ?? 10,
           ocrMode: config.ocrLegibility.ocrMode,
           enhanceLongEdgePx: config.enhance.modelFacing.longEdgePx,
@@ -128,6 +146,7 @@ export function createNativeSystemScannerProvider(
             captureMs,
             processingMs: Date.now() - measureStartedAt,
             ...device,
+            source: from.source,
           }));
         }
         return { ok: true, pages };

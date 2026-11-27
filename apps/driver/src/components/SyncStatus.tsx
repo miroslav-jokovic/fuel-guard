@@ -1,53 +1,39 @@
 import { View } from 'react-native';
 import { AppText } from './AppText';
-import { Badge } from './Badge';
 import { Icon } from './Icon';
 import { ListRow } from './ListRow';
 import { useIsOnline } from '@/lib/connectivity';
 import { runSync, useSyncState } from '@/data/sync';
-
-function relativeTime(ts: number | null): string {
-  if (!ts) return 'not yet';
-  const secs = Math.max(0, Math.round((Date.now() - ts) / 1000));
-  if (secs < 60) return 'just now';
-  const mins = Math.round(secs / 60);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
-}
+import { syncSubtitle } from './syncStatusModel';
 
 export function PendingBadge() {
   const { pending, needsAttention } = useSyncState();
+  // A status is a word in its colour, never a pill (Visual 2026 D-DV14, V8).
   if (needsAttention > 0) {
-    return <Badge label={`${needsAttention} needs attention`} tone="danger" icon="sync_problem" />;
+    return <AppText variant="supporting" weight="semibold" tone="danger" tabular>{`${needsAttention} need attention`}</AppText>;
   }
-  if (pending > 0) return <Badge label={`${pending} pending`} tone="info" />;
+  if (pending > 0) return <AppText variant="supporting" weight="semibold" tone="warning" tabular>{`${pending} waiting`}</AppText>;
   return null;
 }
 
 export function SyncStatus() {
   const online = useIsOnline();
   const { pending, needsAttention, running, lastSyncAt } = useSyncState();
-  const subtitle = running
-    ? 'Syncing now…'
-    : !online
-      ? `Offline · last synced ${relativeTime(lastSyncAt)}`
-      : pending > 0
-        ? `${pending} waiting · last synced ${relativeTime(lastSyncAt)}`
-        : `All synced · ${relativeTime(lastSyncAt)}`;
+  const subtitle = syncSubtitle({ running, online, pending, needsAttention, lastSyncAt, now: Date.now() });
 
   return (
     <ListRow
       icon={running ? 'sync' : needsAttention > 0 ? 'sync_problem' : online ? 'cloud_done' : 'cloud_off'}
-      title="Sync"
+      // A verb: the row runs a sync, and its section is already labelled "Sync" (V9 critique).
+      title="Sync now"
       subtitle={subtitle}
       disabled={running}
       onPress={() => { void runSync(); }}
       right={
         needsAttention > 0 ? (
-          <Badge label={String(needsAttention)} tone="danger" />
+          <AppText variant="supporting" weight="semibold" tone="danger" tabular>{`${needsAttention} failed`}</AppText>
         ) : pending > 0 ? (
-          <Badge label={String(pending)} tone="info" />
+          <AppText variant="supporting" weight="semibold" tone="warning" tabular>{`${pending} waiting`}</AppText>
         ) : (
           <Icon name="refresh" size={20} className="text-ink-secondary" />
         )

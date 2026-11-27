@@ -1,5 +1,5 @@
-import { Pressable, View } from 'react-native';
-import { AppText, Icon } from '@/components';
+import { Pressable } from 'react-native';
+import { CountBadge, Icon } from '@/components';
 import { haptics } from '@/lib/haptics';
 
 /**
@@ -8,7 +8,6 @@ import { haptics } from '@/lib/haptics';
  * avatar. Screen-reader label carries the count, since the badge itself is decorative to VoiceOver.
  */
 export function NotificationBell({ unread, onPress, onHero = false }: { unread: number; onPress: () => void; onHero?: boolean }) {
-  const capped = unread > 9 ? '9+' : String(unread);
   return (
     <Pressable
       accessibilityRole="button"
@@ -21,18 +20,7 @@ export function NotificationBell({ unread, onPress, onHero = false }: { unread: 
       hitSlop={4}
     >
       <Icon name={unread > 0 ? 'notifications_active' : 'notifications'} size={22} className={onHero ? 'text-on-hero' : 'text-ink'} />
-      {unread > 0 ? (
-        <View className="absolute right-0.5 top-0.5 min-w-5 items-center justify-center rounded-full bg-action px-1 py-1">
-          <AppText
-            variant="caption"
-            tone="onAction"
-            allowFontScaling={false}
-            style={{ fontVariant: ['tabular-nums'] }}
-          >
-            {capped}
-          </AppText>
-        </View>
-      ) : null}
+      <CountBadge count={unread} />
     </Pressable>
   );
 }

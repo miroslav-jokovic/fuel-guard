@@ -22,11 +22,18 @@
  *                 traffic stays in one lane, and one process.
  *   · `general` — everything else: Samsara, scoring, digests, reconciles, rollups, FleetPal, Med-Stop,
  *                 SMS, push, sweeps. Runs on the worker service, away from the people.
+ *   · `mail`    — broker mail's texts (BROKER-MAIL-READER-PLAN P3, B-1 (c)): the minute tick that texts a
+ *                 dispatcher about an unanswered broker email, and the drain of those texts. Its own lane
+ *                 so that staging can run it ALONE — staging runs no other lane, so no feed starts there —
+ *                 and the text road is proven against the test mailboxes before production. In
+ *                 production it rides on the api containers beside `egress` (`infra/server/*.env`
+ *                 `API_LANES`). A lane no process holds reads `missing` on /api/version, so the lane and
+ *                 the hosts' lane lists ship in one commit.
  *
  * A single-service deploy (local, tests, or before the worker exists) runs both lanes in one process,
  * exactly as before — `SCHEDULER_LANES` defaults to every lane.
  */
-export const SCHEDULER_LANES = ["egress", "general"] as const;
+export const SCHEDULER_LANES = ["egress", "general", "mail"] as const;
 export type SchedulerLane = (typeof SCHEDULER_LANES)[number];
 
 export function isSchedulerLane(value: string): value is SchedulerLane {

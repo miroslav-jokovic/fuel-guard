@@ -3,6 +3,7 @@ import {
   DRIVER_VISIBLE_STATUSES,
   resolveDriverType,
   type AcceptLoadRequest,
+  type AddStopPhotosRequest,
   type CompleteStopRequest,
   type DeclineLoadRequest,
   type DriverType,
@@ -42,6 +43,8 @@ const PG_TO_API: Record<string, { status: 404 | 409 | 422; code: string; message
   DL003: { status: 409, code: "wrong_state", message: "This load has moved on — pull to refresh" },
   DL005: { status: 404, code: "stop_not_found", message: "That stop is not on this load" },
   DL006: { status: 422, code: "reason_required", message: "Add a note before finishing this" },
+  // 0645: a late photo for a stop finished more than 14 days ago. The words are the driver's (D-DV26).
+  DL007: { status: 422, code: "late_photo_window_closed", message: "This stop finished too long ago to add a photo. Send it to the office" },
   DL010: { status: 409, code: "illegal_transition", message: "That is not a step this load can take" },
   DL011: { status: 422, code: "not_ready", message: "This load is not ready for that yet" },
 };
@@ -294,6 +297,28 @@ export function completeStop(
     p_stop: stopId,
     p_status: input.status,
     p_skip_reason: input.skip_reason ?? null,
+    p_photos: input.photos,
+    p_actor_user: actorUserId,
+    p_occurred_at: input.occurred_at ?? null,
+  });
+}
+
+/**
+ * A late photo for a stop the driver already finished (D-DV30, migration 0645). The function adds
+ * photos and nothing else; the finished stop is not changed. Idempotent on the client photo UUIDs like
+ * `completeStop`, so an outbox replay adds nothing and writes no second "Late photo received" event.
+ */
+export function addStopPhotos(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string,
+  loadId: string,
+  stopId: string,
+  actorUserId: string,
+  input: AddStopPhotosRequest,
+): Promise<LoadResult> {
+  return runRpc(admin, orgId, driverId, loadId, "driver_add_stop_photos", {
+    p_stop: stopId,
     p_photos: input.photos,
     p_actor_user: actorUserId,
     p_occurred_at: input.occurred_at ?? null,

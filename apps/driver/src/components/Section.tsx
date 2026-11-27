@@ -10,6 +10,10 @@ import { layout } from '@/theme/tokens';
  * it, nothing implicit.
  *
  * `first` drops the top gap for the section that opens a sheet, which already has its own padding.
+ *
+ * The heading is the mock's section label (Visual 2026): 13pt semibold in the muted ink, sentence case,
+ * so a group is named without competing with the rows under it. The action beside it is amber, because
+ * it is something the driver does.
  */
 export function Section({
   title,
@@ -27,9 +31,9 @@ export function Section({
       {title ? (
         <View
           className="min-h-11 flex-row items-center justify-between gap-3"
-          style={{ paddingBottom: 12 }}
+          style={{ paddingBottom: 4 }}
         >
-          <AppText variant="navigationTitle" accessibilityRole="header">{title}</AppText>
+          <AppText variant="label" tone="muted" accessibilityRole="header">{title}</AppText>
           {action ? (
             <Pressable
               accessibilityRole="button"
@@ -37,7 +41,7 @@ export function Section({
               className="min-h-11 justify-center"
               hitSlop={8}
             >
-              <AppText variant="supporting" tone="action" className="font-ui-md">{action.label}</AppText>
+              <AppText weight="medium" variant="supporting" tone="action" >{action.label}</AppText>
             </Pressable>
           ) : null}
         </View>

@@ -143,3 +143,61 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Deploy the release to the AWS production server
         run: bash infra/ssm-deploy.sh production "${{ needs.released.outputs.sha }}-production"
+
+  # The broker-mail gateway's Lambda, production half (BROKER-MAIL-READER-PLAN.md §6). release.yml calls
+  # this workflow after the release's migrations, so the gateway never runs ahead of its database door.
+  # The zip is normally the one staging stored for this commit (write-once bucket), so production runs
+  # the bytes staging ran; a hotfix commit staging never built is built here and stored the same way.
+  # A rollback to a release from before the gateway existed (no apps/mail-gateway at that commit) leaves
+  # the function as it is, and says so. OFF until MAIL_GATEWAY_DEPLOY is `on`, like its staging twin.
+  mail-gateway:
+    needs: released
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: aws-production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      SHA: ${{ needs.released.outputs.sha }}
+    steps:
+      - if: vars.MAIL_GATEWAY_DEPLOY != 'on'
+        run: echo "Mail gateway deploy is OFF (repository variable MAIL_GATEWAY_DEPLOY is not \`on\`) — production keeps what it has." >> "$GITHUB_STEP_SUMMARY"
+      # This workflow's own commit holds deploy.sh, kept aside: a hotfix checks the RELEASE out over it.
+      - if: vars.MAIL_GATEWAY_DEPLOY == 'on'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - if: vars.MAIL_GATEWAY_DEPLOY == 'on'
+        id: exists
+        run: |
+          cp infra/mail-gateway/deploy.sh "$RUNNER_TEMP/mailgw-deploy.sh"
+          if git cat-file -e "${SHA}:apps/mail-gateway/package.json" 2>/dev/null; then echo "present=true" >> "$GITHUB_OUTPUT"
+          else echo "Release ${SHA::7} predates the mail gateway — the function is left as it is." >> "$GITHUB_STEP_SUMMARY"; fi
+      - if: vars.MAIL_GATEWAY_DEPLOY == 'on' && steps.exists.outputs.present == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::891568748437:role/silvicom-github-release
+          aws-region: ${{ env.AWS_REGION }}
+      - if: vars.MAIL_GATEWAY_DEPLOY == 'on' && steps.exists.outputs.present == 'true'
+        id: check
+        run: bash "$RUNNER_TEMP/mailgw-deploy.sh" production "$SHA" check
+      - if: vars.MAIL_GATEWAY_DEPLOY == 'on' && steps.check.outputs.needed == 'true'
+        id: stored
+        run: |
+          if aws s3api head-object --bucket silvicom360-mailgw-artifacts-891568748437 --key "mail-gateway/${SHA}.zip" >/dev/null 2>&1; then
+            echo "stored=true" >> "$GITHUB_OUTPUT"; fi
+      # Only a commit staging never stored is built here (a hotfix): the release itself, set up the way
+      # every CI job sets up (Node, pnpm, the frozen lockfile), then bundled with its commit.
+      - if: vars.MAIL_GATEWAY_DEPLOY == 'on' && steps.check.outputs.needed == 'true' && steps.stored.outputs.stored != 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - if: vars.MAIL_GATEWAY_DEPLOY == 'on' && steps.check.outputs.needed == 'true' && steps.stored.outputs.stored != 'true'
+        uses: ./.github/actions/setup
+      - if: vars.MAIL_GATEWAY_DEPLOY == 'on' && steps.check.outputs.needed == 'true' && steps.stored.outputs.stored != 'true'
+        name: Build the release's gateway (hotfix path)
+        run: MAILGW_COMMIT="$SHA" pnpm --filter @silvicom/mail-gateway bundle
+      - if: vars.MAIL_GATEWAY_DEPLOY == 'on' && steps.check.outputs.needed == 'true'
+        name: Deploy the release's gateway
+        run: bash "$RUNNER_TEMP/mailgw-deploy.sh" production "$SHA" apps/mail-gateway/dist/mail-gateway.zip

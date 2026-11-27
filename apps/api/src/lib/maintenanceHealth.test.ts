@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   schedulers: vi.fn(),
   storageBackup: vi.fn(),
   realtime: vi.fn(),
+  mailGateway: vi.fn(),
 }));
 vi.mock("./schemaVersion.js", () => ({ getSchemaStatus: mocks.schema }));
 vi.mock("./maintenanceHealth.js", async (importOriginal) => ({
@@ -35,6 +36,13 @@ vi.mock("../modules/messaging/realtimeHealth.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../modules/messaging/realtimeHealth.js")>()),
   getRealtimeHealth: mocks.realtime,
 }));
+// The seventh (modules/broker-mail/gatewayHealth.ts, BROKER-MAIL-READER-PLAN §6): the mail gateway's
+// heartbeat. `off` — nobody switched it on — unless a case says otherwise.
+vi.mock("../modules/broker-mail/gatewayHealth.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../modules/broker-mail/gatewayHealth.js")>()),
+  getGatewayHealth: mocks.mailGateway,
+}));
+const GATEWAY_OFF = { state: "off", commit: null, lastCycleAt: null };
 const BACKUP_OFF = { state: "off", lastSucceededAt: null };
 const REALTIME_PENDING = { state: "pending", lastProbeAt: null, latencyMs: null, sendFailures24h: null };
 const LANES_HELD = [
@@ -116,6 +124,7 @@ describe("GET /api/version folds maintenance into ok", () => {
     mocks.schedulers.mockResolvedValue(LANES_HELD);
     mocks.storageBackup.mockResolvedValue(BACKUP_OFF);
     mocks.realtime.mockResolvedValue(REALTIME_PENDING);
+    mocks.mailGateway.mockResolvedValue(GATEWAY_OFF);
   });
 
   const read = async () => (await (await fetch(`${baseUrl}/api/version`)).json()) as {
@@ -162,6 +171,16 @@ describe("GET /api/version folds maintenance into ok", () => {
     expect(body.storageBackup.state).toBe("failing");
   });
 
+  it("is NOT ok when the mail gateway's heartbeat stopped or the canary switched it off, and stays ok while it is off or running", async () => {
+    mocks.maintenance.mockResolvedValue(health("ok"));
+    for (const [state, ok] of [["off", true], ["ok", true], ["stale", false], ["stopped", false], ["unknown", false]] as const) {
+      mocks.mailGateway.mockResolvedValue({ state, commit: "abc1234", lastCycleAt: null });
+      const body = (await (await fetch(`${baseUrl}/api/version`)).json()) as { ok: boolean; mailGateway: { state: string } };
+      expect([state, body.ok]).toEqual([state, ok]);
+      expect(body.mailGateway.state).toBe(state);
+    }
+  });
+
   it("is NOT ok when the Realtime probe's broadcast did not arrive or the probe stopped, and stays ok while degraded (CHA4)", async () => {
     mocks.maintenance.mockResolvedValue(health("ok"));
     const probe = (state: string) => ({ state, lastProbeAt: "2026-10-24T10:00:00Z", latencyMs: state === "failing" ? null : 120, sendFailures24h: 3 });
@@ -201,6 +220,7 @@ describe("GET /api/version/ready — the same verdict as a status code, for an e
     mocks.schedulers.mockResolvedValue(LANES_HELD);
     mocks.storageBackup.mockResolvedValue(BACKUP_OFF);
     mocks.realtime.mockResolvedValue(REALTIME_PENDING);
+    mocks.mailGateway.mockResolvedValue(GATEWAY_OFF);
   });
 
   it("answers 200 and names every input when everything is healthy", async () => {
@@ -248,6 +268,7 @@ describe("GET /api/version folds step-up readiness into ok (Q-AD41 (b))", () => 
     mocks.schedulers.mockResolvedValue(LANES_HELD);
     mocks.storageBackup.mockResolvedValue(BACKUP_OFF);
     mocks.realtime.mockResolvedValue(REALTIME_PENDING);
+    mocks.mailGateway.mockResolvedValue(GATEWAY_OFF);
   });
 
   it("is NOT ok when step-up cannot work, names the setting, and /ready answers 503", async () => {

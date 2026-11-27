@@ -59,6 +59,8 @@ module.exports = {
           DEFAULT: c('on-hero'),
           secondary: c('on-hero-secondary'),
           muted: c('on-hero-muted'),
+          live: c('on-hero-live'),
+          act: c('on-hero-act'),
         },
         // D-DB2: safety amber is the only action colour; lavender is the soft secondary.
         action: {
@@ -85,27 +87,10 @@ module.exports = {
           failed: c('sync-failed'),
         },
       },
-      fontFamily: {
-        ui: ['Lexend_400Regular'],
-        'ui-md': ['Lexend_500Medium'],
-        'ui-sb': ['Lexend_600SemiBold'],
-        'ui-bold': ['Lexend_700Bold'],
-      },
-      // Names are exactly the AppText variant names (Direction B §2.3) so a class and a variant
-      // cannot drift apart.
-      fontSize: {
-        caption: ['12px', { lineHeight: '16px' }],
-        label: ['12px', { lineHeight: '16px', letterSpacing: '0.96px' }],
-        supporting: ['14px', { lineHeight: '20px' }],
-        body: ['16px', { lineHeight: '22px' }],
-        rowTitle: ['16px', { lineHeight: '22px' }],
-        action: ['17px', { lineHeight: '22px' }],
-        navigationTitle: ['18px', { lineHeight: '24px' }],
-        screenTitle: ['28px', { lineHeight: '32px' }],
-        numericInline: ['22px', { lineHeight: '28px' }],
-        numericCompact: ['24px', { lineHeight: '28px' }],
-        numericHero: ['40px', { lineHeight: '44px' }],
-      },
+      // No fontFamily and no fontSize here, on purpose (Visual 2026 D-DV8, 2026-11-20). Type is a
+      // STYLE from src/theme/typography.ts, reached through AppText's `variant` and `weight`, so there
+      // is exactly one place a face or a size is decided. Until then the scale lived twice — here as
+      // classes and in tokens.ts — and `text-action` meant both a font size and the amber colour.
       // 52 and 72 are real measurements in this design — the row/tab content target and the
       // separator inset that clears a 44pt disc plus its 12pt gap. They are absent from Tailwind's
       // default scale, which is the only reason `min-h-[52px]` and `ml-[72px]` existed.

@@ -6,18 +6,19 @@ import { startRebuildOnBoot } from "./modules/anomalies/index.js";
 import { startDigestScheduler } from "./modules/org/index.js";
 import { startDqAlertScheduler } from "./modules/evidence/index.js";
 import { startNightlyReconcileScheduler } from "./orchestration/nightlyReconcile.js";
+import { startWarningDeskScheduler } from "./orchestration/warningDesk.js";
 import { startEfsIngestScheduler } from "./modules/efs/services/efsIngestScheduler.js";
 import { startEfsCardSyncScheduler } from "./modules/efs/services/efsCardSyncScheduler.js";
 import { startEfsSoapPoller } from "./modules/efs/services/efsSoapPoller.js";
 import { startEfsProcessingScheduler } from "./modules/efs/services/efsProcessingScheduler.js";
 import { startEfsSoapCertExpiryWatcher } from "./modules/efs/services/efsSoapCertExpiry.js";
-import { startPostedPriceScheduler, startPilotPriceMailScheduler } from "./modules/posted-prices/index.js";
+import { startPostedPriceScheduler, startPilotPriceMailScheduler, startPilotSftpScheduler } from "./modules/posted-prices/index.js";
 import { startDutySessionSweeper } from "./modules/driver-app/index.js";
 import { startStorageReconcileScheduler, startStorageBackupScheduler, storageBackupTarget, surfaceHolders } from "./modules/org/index.js";
 import { startNotificationPushScheduler, startChatLedgerVerifyScheduler, startRealtimeProbeScheduler, startChatExportSweeper } from "./modules/messaging/index.js";
 import { startDqExportSweeper } from "./modules/evidence/index.js";
 import { startPatternSweepScheduler } from "./modules/anomalies/index.js";
-import { startFuelSpendRollupScheduler } from "./modules/fuel-spend/index.js";
+import { startFuelSpendRollupScheduler, startPilotBillMailScheduler } from "./modules/fuel-spend/index.js";
 import { startFinancialProjectionScheduler, startFinancialFreshnessScheduler } from "./modules/financial/index.js";
 import { startFleetpalScheduler } from "./modules/fleetpal/index.js";
 import { startMedstopScheduler } from "./modules/medstop/index.js";
@@ -27,6 +28,7 @@ import { startFmcsaFeedScheduler } from "./modules/inspections/index.js";
 import { startTollGpsScheduler } from "./modules/tolls/index.js";
 import { startLumperReminderScheduler, startMcleodRelinkScheduler } from "./modules/mcleod/index.js";
 import { startAdsDailyBrief, startAdsInsights, startAdsLeadsBackfill, startAdsOrchestrator, startAdsOutcomeFeed, startAdsReconcile } from "./modules/ads/index.js";
+import { startBrokerMailTextScheduler } from "./modules/broker-mail/index.js";
 import { startInprocessJobDrain } from "./queue/inprocessDrain.js";
 import type { SchedulerLane } from "./schedulerLanes.js";
 import {
@@ -54,6 +56,7 @@ export interface ScheduledTask {
 
 export const SCHEDULERS: readonly ScheduledTask[] = [
   { name: "samsara", lane: "general", start: startSamsaraScheduler }, // background auto-refresh of Samsara data
+  { name: "warning-desk", lane: "general", start: startWarningDeskScheduler }, // WARNING-DESK-PLAN WD2/WD3: Samsara warnings → follow-ups every 5m
   { name: "rebuild-on-boot", lane: "general", start: startRebuildOnBoot }, // one-time anomaly rebuild with current rules (rules-only, idempotent)
   { name: "digest", lane: "general", start: startDigestScheduler }, // weekly AI theft digest email
   { name: "dq-alerts", lane: "general", start: startDqAlertScheduler }, // DQ expiry threshold alerts: ledger rows + one office email per run (C3)
@@ -71,6 +74,8 @@ export const SCHEDULERS: readonly ScheduledTask[] = [
   { name: "efs-card-sync", lane: "egress", start: startEfsCardSyncScheduler },
   { name: "posted-prices", lane: "general", start: startPostedPriceScheduler }, // global posted-price refresh from Pilot's public table
   { name: "pilot-price-mail", lane: "general", start: startPilotPriceMailScheduler }, // PILOT-PRICE-MAIL-PLAN: every 20 min, load the emailed Pilot "Better Of" quote (48 h link) into fuel_prices; OFF without EFS_GRAPH_* + EFS_INGEST_ORG_ID
+  { name: "pilot-bill-mail", lane: "general", start: startPilotBillMailScheduler }, // PILOT-INVOICE-FORMAT-ANALYSIS §4: hourly, record each weekly Pilot bill PDF from the Pilot-Bills folder and check it; OFF without EFS_GRAPH_* + EFS_INGEST_ORG_ID
+  { name: "pilot-sftp", lane: "general", start: startPilotSftpScheduler }, // PILOT-SFTP-FEED-PLAN: every 30 min, keep each new file from Pilot's SFTP drop and load Price Quotes into fuel_prices (Transaction files held until their reader); OFF without PILOT_SFTP_* + EFS_INGEST_ORG_ID
   { name: "duty-session-sweeper", lane: "general", start: startDutySessionSweeper }, // close abandoned driver shifts so their truck is released (D44.5)
   { name: "storage-reconcile", lane: "general", start: startStorageReconcileScheduler }, // §13.5/M11 + DQF B7: nightly orphan sweep of every evidence bucket
   { name: "storage-backup", lane: "general", start: startStorageBackupScheduler }, // D13: nightly copy of every evidence bucket to the off-provider S3 bucket; OFF unless STORAGE_BACKUP_* set
@@ -81,6 +86,7 @@ export const SCHEDULERS: readonly ScheduledTask[] = [
   { name: "financial-projection", lane: "general", start: startFinancialProjectionScheduler }, // P3.4: nightly projection of staging into financial_entries
   { name: "fleetpal", lane: "general", start: startFleetpalScheduler }, // hourly per-org FleetPal sweep (F8); OFF unless FLEETPAL_SYNC_ENABLED
   { name: "medstop", lane: "general", start: startMedstopScheduler }, // hourly Med-Stop roster/pool/selection mirror (MEDSTOP MS1); OFF unless MEDSTOP_SYNC_ENABLED
+  { name: "broker-mail-texts", lane: "mail", start: startBrokerMailTextScheduler }, // BROKER-MAIL-READER-PLAN P3: minute tick + its own text drain; texts OFF until an admin switches them on
   { name: "sms-outbox", lane: "general", start: startSmsOutboxScheduler }, // A-11/C2d: five-minutely drain of texts queued for their recipient's civil hours
   { name: "board-eta-recorder", lane: "general", start: startBoardEtaRecorder }, // DB7: hourly sample of the dispatch board's ETAs, scored later against arrivals
   { name: "home-time", lane: "general", start: startHomeTimeScheduler }, // HOME-TIME D-HT13: every 15 min, ends finished home time and sends its three alerts

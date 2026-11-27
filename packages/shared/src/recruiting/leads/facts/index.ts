@@ -15,6 +15,7 @@ export * from "./tenstreet.js";
  *
  * What each channel stores in `recruiting_leads.answers`:
  *   meta / simulator  Meta's field names → values (`platformLeadFromMeta`)
+ *   apply_page        the same catalogue keys, asked by `openingFormQuestions` on our own page (APPLY-PAGE-PLAN D-AP3)
  *   indeed            screener question id → answer (the Indeed Apply listener)
  *   tenstreet         ONE key, `projection`: the SSN-free `TenstreetProjection` as JSON (TS2's parser); the raw
  *                     XML is sealed elsewhere (D-TS2) and never in `answers`
@@ -27,6 +28,7 @@ export function factsFor(channel: string, answers: Record<string, string>, asOf:
   switch (channel) {
     case "meta":
     case "simulator":
+    case "apply_page":
       return metaFacts(answers);
     case "indeed":
       return indeedFacts(answers).facts;

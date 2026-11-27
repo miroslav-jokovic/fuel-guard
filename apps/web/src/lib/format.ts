@@ -57,6 +57,25 @@ export const formatDateTime = formatDisplayDateTime;
 export const formatDateRange = formatDisplayDateRange;
 
 /**
+ * `formatDateTime` for a cell that may be narrower than the whole stamp — a phone card's figure, a
+ * card's details: the line may break between the date and the time, and nowhere else.
+ *
+ * Two ways a stamp went wrong in a 390 px card (owner, 2026-11-22, Loads and Dispatch board in the
+ * installed app). Held on one line with `whitespace-nowrap`, the board's Available badge ran 9 px
+ * past the card's edge at 390 px and 33 px at 320 px, scrolling the whole page sideways. Left to
+ * wrap freely, Loads broke "10/26/2026 8:45 AM" before its "AM". One no-break space, between the
+ * minutes and the meridiem, leaves the space after the date as the one ordinary break, so the stamp
+ * is one line where it fits and "10/26/2026 / 8:45 AM" where it does not. A date is never split
+ * either way (a slash between digits is no break), except by a card's own `overflow-wrap: anywhere`,
+ * the last resort for a column narrower than one date.
+ *
+ * Derived from `formatDateTime`, never a second format: the string is the same one, with one space
+ * swapped. Pinned by "breaks between the date and the time, and nowhere else".
+ */
+export const formatDateTimeWrapping = (...args: Parameters<typeof formatDisplayDateTime>): string =>
+  formatDisplayDateTime(...args).replace(/ (AM|PM)$/, "\u00a0$1");
+
+/**
  * What a driver edit turned out to mean, as a sentence — or null when it meant only itself (R6a).
  *
  * The two flags `resolveDriverUpdate` returns are not confirmations that a save worked; they are

@@ -1,6 +1,6 @@
 import { EDITABLE_ROLES } from "./auth.js";
 import type { UserRole } from "./constants.js";
-import { GRANTABLE_SURFACES } from "./surfaceCatalogue.js";
+import { GRANTABLE_SURFACES } from "./surfaceLookups.js";
 import type { SurfaceClaim, SurfaceOverrides } from "./surfaces.js";
 
 /**

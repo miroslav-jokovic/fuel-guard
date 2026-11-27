@@ -93,6 +93,10 @@ describe("filterBoard — where and when a truck is free (D-DBV3)", () => {
     expect(units(filterBoard(rows, scope, { ...all, search: "33801" }, NOW))).toEqual(["fl-now", "fl-day", "ga-week", "shop"]);
     expect(units(filterBoard([row("1", { fleetCode: "KANE" })], scope, { ...all, search: "kane" }, NOW))).toEqual(["1"]);
   });
+  it("finds a team truck by its second driver's name", () => {
+    const team = row("2", { driver: { id: "d1", name: "ANA FIRST" }, coDriver: { id: "d2", name: "BOB SECOND" } });
+    expect(units(filterBoard([team], scope, { ...all, search: "bob" }, NOW))).toEqual(["2"]);
+  });
 });
 
 describe("the dispatchers' numbers and colours", () => {

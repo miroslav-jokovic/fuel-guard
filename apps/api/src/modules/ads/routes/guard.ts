@@ -15,6 +15,7 @@ import { mountCampaignRoutes, type CampaignRouteDeps } from "./campaigns.js";
 import { mountPlanRoutes } from "./plans.js";
 import { mountSwipeRoutes } from "./swipe.js";
 import { mountReportRoutes } from "./report.js";
+import { mountConversionLeadsRoutes } from "./conversionLeads.js";
 import { adsHealthView } from "../health/healthView.js";
 import { adsOverviewView } from "../overview/overviewView.js";
 import { adsSpendView } from "../spend/spendView.js";
@@ -172,6 +173,7 @@ export function adsRouter(deps: AdsRouterDeps): Router {
   mountPlanRoutes(router, { section: BRIEF_SECTION, actorOf });
   mountSwipeRoutes(router, { section: BRIEF_SECTION, actorOf });
   mountReportRoutes(router, { section: BRIEF_SECTION, leadSourcesFor: deps.leadSourcesFor });
+  mountConversionLeadsRoutes(router, { section: BRIEF_SECTION, leadSourcesFor: deps.leadSourcesFor });
   return router;
 }
 

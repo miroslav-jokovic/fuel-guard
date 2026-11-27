@@ -80,12 +80,13 @@ describe("the simulator runs the outcome feed only where the simulator gate allo
     const w = world({ outcomes: [simLead(1), outcome(2, { contacted: recently(5) }, { arrived_at: recently(72) })], provider: "simulator", settings: [on(SIMULATOR_DATASET_ID)] });
     const deps = { admin: w.rec.client, env: testEnv(), now: () => new Date(), outcomes: w.outcomes, targets: settingsFeedTargets(w.rec.client, STAGING), processEnv: STAGING };
     const r = await runOutcomeFeed(deps, ORG, CONN);
-    expect(r).toMatchObject({ ran: true, sent: 1, failures: [] });
+    // V7e: the lead itself and its stage — two events, both the simulator lead's; the Meta lead's none.
+    expect(r).toMatchObject({ ran: true, sent: 2, failures: [] });
     const fake = await simulatorFakeForTests();
-    expect(fake.datasets.accepted(SIMULATOR_DATASET_ID).map((e) => [e.event_id, e.user_data.lead_id])).toEqual([[`${lead(1)}:contacted`, "990000000001"]]);
-    expect(w.events.map((e) => [e.provider, e.status])).toEqual([["simulator", "sent"]]);
+    expect(fake.datasets.accepted(SIMULATOR_DATASET_ID).map((e) => [e.event_id, e.user_data.lead_id])).toEqual([[`${lead(1)}:lead`, "990000000001"], [`${lead(1)}:contacted`, "990000000001"]]);
+    expect(w.events.map((e) => [e.provider, e.status])).toEqual([["simulator", "sent"], ["simulator", "sent"]]);
     await runOutcomeFeed(deps, ORG, CONN);
-    expect(fake.datasets.accepted(SIMULATOR_DATASET_ID)).toHaveLength(1);
+    expect(fake.datasets.accepted(SIMULATOR_DATASET_ID)).toHaveLength(2);
   });
 
   it("a run speaks only for its own platform: a Meta row due on the ledger is never sent to the simulator", async () => {
@@ -94,7 +95,7 @@ describe("the simulator runs the outcome feed only where the simulator gate allo
       source_event_ref: `${lead(9)}:contacted`, status: "queued", attempts: 0, response: null, sent_at: null, campaign_id: null, created_at: "2026-11-01T00:00:00Z" });
     await runOutcomeFeed({ admin: w.rec.client, env: testEnv(), now: () => new Date(), outcomes: w.outcomes, targets: settingsFeedTargets(w.rec.client, STAGING), processEnv: STAGING }, ORG, CONN);
     const fake = await simulatorFakeForTests();
-    expect(fake.datasets.accepted(SIMULATOR_DATASET_ID).map((e) => e.event_id)).toEqual([`${lead(1)}:contacted`]);
+    expect(fake.datasets.accepted(SIMULATOR_DATASET_ID).map((e) => e.event_id)).toEqual([`${lead(1)}:lead`, `${lead(1)}:contacted`]);
     expect(w.events.find((e) => e.id === "oe-meta")).toMatchObject({ status: "queued", attempts: 0 });
   });
 

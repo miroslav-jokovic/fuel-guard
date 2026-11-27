@@ -42,19 +42,11 @@ export function heroTopPadding(insetTop: number): number {
 /**
  * Content ends one real section after the safe area; task footers own their own safe-area inset.
  *
- * `tabBarHeight` is the measured height of the floating shell, or 0 when there is no tab bar. Since
- * the shell stopped being an opaque band the scene ends above and became a bar the scene passes
- * UNDER (owner ruling 2026-09-08), that height is the difference between a list whose last row can
- * be read and one that is permanently behind a capsule. It is measured rather than derived from
- * `shell` so a change to the capsule's geometry cannot leave this behind: React Navigation reports
- * the real laid-out height through `BottomTabBarHeightContext`.
+ * Inside a native tab (Visual 2026 V3) the bottom inset already includes the system tab bar, so one
+ * rule serves tab screens and pushed screens alike. Until V3 the custom JS shell floated over the
+ * scene with no inset of its own, and this took its measured height as a third argument.
  */
-export function screenBottomPadding(
-  insetBottom: number,
-  hasFooter: boolean,
-  tabBarHeight = 0,
-): number {
+export function screenBottomPadding(insetBottom: number, hasFooter: boolean): number {
   if (hasFooter) return layout.screenInset;
-  const inTab = tabBarHeight > 0;
-  return (inTab ? tabBarHeight : insetBottom) + layout.sectionGap;
+  return insetBottom + layout.sectionGap;
 }

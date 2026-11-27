@@ -8,7 +8,7 @@ import {
 } from "@silvicom/ui";
 import { loadBoardState, movedByOther, needsAttention, warningIsUrgent, type DispatchBoardRow, type LoadStatus } from "@silvicom/shared";
 import { BADGE_BASE, hosStatusBadge, onTimeBadge, toneClass } from "@/lib/badges";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTimeWrapping } from "@/lib/format";
 import {
   availablePlace,
   availableTone,
@@ -27,8 +27,10 @@ import { BOARD_HOS_LOW_MS } from "@silvicom/shared";
 import { computed } from "vue";
 import { useUnitNoteSummaries } from "@/components/notes/useUnitNotes";
 import BoardNotesCell from "./BoardNotesCell.vue";
+import LoadRateCell from "./LoadRateCell.vue";
 import BoardNoteChips from "./BoardNoteChips.vue";
 import BoardHomeTimeChips from "./BoardHomeTimeChips.vue";
+import HomeTimeBadge from "@/components/homeTime/HomeTimeBadge.vue";
 import { boardNoteSummary, boardNoteTargets } from "./boardNotes";
 
 /**
@@ -65,7 +67,18 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ retry: []; open: [row: DispatchBoardRow]; sort: [key: string]; "update:page": [page: number] }>();
 
-const at = (iso: string | null | undefined) => formatDateTime(iso, "—", props.zone);
+/**
+ * Every stamp on the board may break between its date and its time (`formatDateTimeWrapping`): on a
+ * phone the truck's card gives Available a third of 390 px, and the stamp held on one line ran past the
+ * card's edge — 9 px at 390, 33 px at 320, scrolling the page sideways (owner, 2026-11-22).
+ *
+ * From `md` up the stamps stay on one line (`NOWRAP_AT_DESK`), as they did: the table has the room, and
+ * a wrapped badge only made every row taller (1440 px, same day). `md` is not a free choice: it is
+ * the width at which `DataTable` swaps its cards for the table (`isWide`, `(min-width: 768px)`), so
+ * one line is kept exactly where there is a table to keep it in.
+ */
+const NOWRAP_AT_DESK = "md:whitespace-nowrap";
+const at = (iso: string | null | undefined) => formatDateTimeWrapping(iso, "—", props.zone);
 
 /**
  * The Notes column's counts (UNIT-NOTES-PLAN D-UN12, §6 UN6): the three kinds in ONE call for the
@@ -140,10 +153,10 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
            until the return passes, then red like any truck that should already be free. -->
       <template v-else-if="row.available?.basis === 'home_time'">
         <span :class="[BADGE_BASE, toneClass(availableTone(row, now))]" data-testid="available-home-time">Home time</span>
-        <div class="text-xs text-ink-muted">until <span class="whitespace-nowrap">{{ at(row.available.at) }}</span></div>
+        <div class="text-xs text-ink-muted">until <span :class="NOWRAP_AT_DESK">{{ at(row.available.at) }}</span></div>
       </template>
       <template v-else-if="row.available?.at">
-        <span :class="[BADGE_BASE, toneClass(availableTone(row, now)), 'whitespace-nowrap']">
+        <span :class="[BADGE_BASE, toneClass(availableTone(row, now)), NOWRAP_AT_DESK]">
           {{ row.current ? at(row.available.at) : "Now" }}
         </span>
         <div v-if="row.available.basis === 'eta'" class="text-xs text-ink-muted">by our ETA, after the appointment</div>
@@ -214,7 +227,15 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
     </template>
 
     <template #cell-driver="{ row }">
-      {{ row.driver?.name ?? row.current?.driverName ?? "—" }}
+      <div>{{ row.driver?.name ?? row.current?.driverName ?? "—" }}</div>
+      <!-- The second seat, which the board's search finds (HOME-TIME-VISIBILITY-PLAN D-HT22). -->
+      <div v-if="row.coDriver" class="text-xs text-ink-muted">and {{ row.coDriver.name }}</div>
+      <!-- Each seat on home time, whether or not the truck is held (D-HT24: a seat home on a truck that
+           still carries a load said it nowhere but a Warnings chip). The badge opens that driver's home
+           time — change, end, cancel — in one click (D-HT25). -->
+      <div v-for="h in row.homeTimes ?? []" :key="h.periodId" class="mt-0.5">
+        <HomeTimeBadge :period="h" :zone="zone" />
+      </div>
     </template>
 
     <template #cell-hos="{ row }">
@@ -256,10 +277,15 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
         <div>{{ stopPlace(row.current.nextStop) }}</div>
         <div class="text-xs text-ink-muted">
           {{ row.current.nextStop.kind === "pickup" ? "Pickup" : "Delivery" }} by
-          <span class="whitespace-nowrap">{{ at(row.current.nextStop.appointmentEnd ?? row.current.nextStop.appointmentStart) }}</span>
+          <span :class="NOWRAP_AT_DESK">{{ at(row.current.nextStop.appointmentEnd ?? row.current.nextStop.appointmentStart) }}</span>
         </div>
       </template>
       <span v-else class="text-ink-tertiary">—</span>
+    </template>
+
+    <!-- LOAD-RATES-PLAN D-RATE8: what the current load pays; only a column for a `dispatch.load_rates` holder. -->
+    <template #cell-rate="{ row }">
+      <LoadRateCell :charges="row.current?.charges" figure="rate" />
     </template>
 
     <template #cell-next="{ row }">

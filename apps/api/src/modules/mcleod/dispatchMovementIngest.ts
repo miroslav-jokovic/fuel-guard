@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { TmsDispatchMovement } from "@silvicom/shared";
+import { carriesOrderCharges, type TmsDispatchMovement } from "@silvicom/shared";
 
 /**
  * The dispatch board, as McLeod states it → `mcleod_dispatch_movements` / `mcleod_dispatch_stops`
@@ -106,6 +106,11 @@ export async function ingestDispatchMovements(
     for (const r of (data ?? []) as { movement_id: string; closed_at: string | null }[]) closedBefore.set(r.movement_id, r.closed_at);
   }
 
+  // The order's charges (0638, LOAD-RATES-PLAN D-RATE9) are in the row only when this connector sends
+  // them. The route has refused a batch that sends them for some movements and not others, so it is one
+  // answer for the whole batch. Absent, the columns are not named in the upsert at all, so a stored
+  // figure is never overwritten by a connector that never read it; on insert they start null.
+  const withCharges = carriesOrderCharges(movements[0]!);
   let closed = 0;
   const movementRows = movements.map((m) => {
     const isClosed = MOVEMENT_CLOSED.has(m.movement_status ?? "");
@@ -140,6 +145,17 @@ export async function ingestDispatchMovements(
         : closedBefore.has(m.movement_id)
           ? (closedBefore.get(m.movement_id) ?? syncedAt)
           : firstSightingCloseAt(m.stops, syncedAt),
+      ...(withCharges
+        ? {
+            total_charge: m.total_charge ?? null,
+            freight_charge: m.freight_charge ?? null,
+            otherchargetotal: m.otherchargetotal ?? null,
+            total_charge_c: m.total_charge_c ?? null,
+            bill_distance: m.bill_distance ?? null,
+            bill_distance_um: m.bill_distance_um ?? null,
+            order_loaded_movements: m.order_loaded_movements ?? null,
+          }
+        : {}),
     };
   });
   for (const part of chunk(movementRows, WRITE_CHUNK)) {

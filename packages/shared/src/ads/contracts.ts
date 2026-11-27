@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { recordId } from "../recordId.js";
-import { LEAD_OUTCOME_STAGES, type LeadOutcomeStage } from "./leadOutcomes.js";
+import { LEAD_OUTCOME_STAGES } from "./leadOutcomes.js";
 
 /**
  * The ads module's contracts (ADS-AGENT-BUILD-WORKFLOW.md A3; D-AD16, D-AD17).
@@ -59,13 +59,21 @@ export const ACTION_KINDS = [
 export type ActionKind = (typeof ACTION_KINDS)[number];
 
 /**
- * The stages the outcome feed may send and `ads_outcome_events.stage` may hold: exactly the stages a row
- * records (Q-AD37), DERIVED from `LEAD_OUTCOME_STAGES` and never restated (Q-AD39, migration 0570). A stage
+ * The stages the outcome feed may send and `ads_outcome_events.stage` may hold: `lead`, then exactly the stages a
+ * row records (Q-AD37), DERIVED from `LEAD_OUTCOME_STAGES` and never restated (Q-AD39, migration 0570). A stage
  * with no writer (`UNRECORDED_LEAD_STAGES`) is never sent, so it is not here. `adsSchemaParity.test.ts` holds
- * this list and the newest CHECK together.
+ * this list and the newest CHECK together (0637).
+ *
+ * `lead` (V7e, 0637) is the lead itself, sent at the time it arrived. Meta's Conversion Leads pages ask for it in
+ * so many words — "upload the raw lead event that represents all leads generated on Meta", and their example of
+ * 100 leads expects 100 raw lead events before any later stage — and they grant the qualified-lead goal only at a
+ * "Lead Coverage" of 60 %, "the percentage of leads that have matching events uploaded to Meta" (CRM integration,
+ * steps 3 and 4, read 2026-11-20). Without it a lead nobody has called yet has no event at all. It is a feed
+ * event, not a stage a lead REACHES, so it is not in `LEAD_OUTCOME_STAGES`: the brief's cohorts and the
+ * report count arrivals already.
  */
-export const OUTCOME_STAGES = LEAD_OUTCOME_STAGES;
-export type OutcomeStage = LeadOutcomeStage;
+export const OUTCOME_STAGES = ["lead", ...LEAD_OUTCOME_STAGES] as const;
+export type OutcomeStage = (typeof OUTCOME_STAGES)[number];
 
 /**
  * The five workers that ask a model (ADS-AGENT-PLAN §2c's worker table: "five of the eleven workers

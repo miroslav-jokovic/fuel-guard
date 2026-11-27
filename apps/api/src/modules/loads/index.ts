@@ -23,6 +23,9 @@ export {
   type LoadForRoute,
   type LoadRouteStop,
 } from "./liveLoadReads.js";
+// What each load pays (`load_charges`, LOAD-RATES-PLAN D-RATE7), for a reader the CALLER has already
+// asked `dispatch.load_rates` of — the board adds it per reader after its org-wide row cache.
+export { readLoadCharges } from "./loadCharges.js";
 // Each truck's current and next load, for the dispatch board (DISPATCH-BOARD-PLAN DB4).
 export { readTruckLoadPlans, type TruckLoadPlan } from "./truckLoadPlanReads.js";
 // Pickups that actually happened since an instant, with who was on the load: the evidence that a
@@ -33,6 +36,7 @@ export { readDriverPickupsSince, type DriverPickup } from "./driverPickups.js";
 export { recordStopEtaPredictions, type StopEtaPrediction } from "./etaPredictions.js";
 export {
   acceptLoad,
+  addStopPhotos,
   completeStop,
   declineLoad,
   getDriverLoads,

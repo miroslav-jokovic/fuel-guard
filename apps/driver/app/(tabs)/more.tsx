@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { AppText, Avatar, Banner, Card, ConfirmSheet, Icon, ListRow, Screen, ScreenHeader, Section } from '@/components';
+import { AppText, Banner, ConfirmSheet, GroupedList, Icon, ListRow, Screen, ScreenHeader, Section } from '@/components';
+import { useThreads } from '@/features/messages/useMessages';
+import { homeScoreSummary } from '@/features/score/scoreModel';
+import { useDriverScore } from '@/features/score/useDriverScore';
 import { useFeatures } from '@/session/useFeatures';
 import { useSession } from '@/session/SessionProvider';
 import { useDriverContext } from '@/session/useDriverContext';
@@ -21,6 +24,12 @@ import { useToast } from '@/components/ToastHost';
  * which screen is telling the truth (B6.4). Documents is a tab and has no row here for the same
  * reason. Notifications keeps a durable entry, because a bell that only exists on Today is
  * unreachable the moment a driver is on any other tab.
+ *
+ * Visual 2026 V8 (the V1 mock's screen 8): grouped rows on the canvas, like the phone's Settings app.
+ * No avatar circle, no cards, no tinted icon discs; a row's glyph is neutral, and only a state is
+ * coloured (D-DV5): "3 new" in cyan, Sign out in red. The mock also lists End shift and Change truck
+ * here; the owner's rule that duty lives on Today only (D-DB17) outranks the mock, and Today carries
+ * both as rows since V5.
  */
 export default function More() {
   const router = useRouter();
@@ -41,6 +50,11 @@ export default function More() {
   }
 
   const name = driver.data?.driver.full_name ?? email ?? 'Signed in';
+  // The live counts at the end of the Work rows (mock screen 8): what is new, and this week's score.
+  const threads = useThreads(messagesEnabled);
+  const week = homeScoreSummary(useDriverScore(scoreEnabled).data);
+  const newCount = (n: number | undefined) =>
+    n && n > 0 ? <AppText variant="supporting" weight="semibold" tone="accent" tabular>{`${n} new`}</AppText> : undefined;
 
   /**
    * Closing the account (P4.3). The sign-out runs whether the request succeeded or not — the server
@@ -71,127 +85,67 @@ export default function More() {
     <Screen flow="sections">
       <ScreenHeader title="More" />
 
-      <Section first>
-        {shift.isError && !shift.data ? (
+      {shift.isError && !shift.data ? (
+        <Section>
           <Banner
             tone="danger"
             message="Could not verify your current shift."
             actionLabel="Retry"
             onAction={() => void shift.refetch()}
           />
-        ) : null}
-        <Card padded={false}>
-          <View className="flex-row items-center gap-3 px-4 py-4">
-            <Avatar name={name} size={48} />
-            <View className="flex-1 gap-0.5">
-              <AppText variant="rowTitle" numberOfLines={1}>{name}</AppText>
-              <AppText variant="supporting" tone="muted" numberOfLines={1}>
-                {[email, role ? `Role: ${role}` : null].filter(Boolean).join(' · ')}
-              </AppText>
-            </View>
-          </View>
-          <View className="ml-4 h-px bg-edge-subtle" />
-          <ListRow
-            icon="badge"
-            disc="neutral"
-            title="Company-issued login"
-            subtitle="Your fleet manages this account. Ask your fleet manager to change or close it."
-          />
-          <View className="ml-18 h-px bg-edge-subtle" />
-          <ListRow
-            icon="logout"
-            disc="danger"
-            title="Sign out"
-            destructive
-            onPress={() => { void signOutWithRevoke(); }}
-          />
-          {/*
-            Close my account (P4.3, Apple 5.1.1(ix)). Below Sign out and visually identical to it in
-            weight, which is deliberate: this is not a feature to advertise, and a driver who wants
-            it will look here. The confirm sheet does the work of making the consequence plain.
-          */}
-          <View className="ml-18 h-px bg-edge-subtle" />
-          <ListRow
-            icon="dangerous"
-            disc="danger"
-            title="Close my account"
-            subtitle="Your login stops working right away"
-            destructive
-            onPress={() => setConfirmingClose(true)}
-          />
-        </Card>
+        </Section>
+      ) : null}
+
+      {/* Who is signed in, as a plain row (mock screen 8): the name, then what the login is. */}
+      <Section>
+        <View className="gap-0.5">
+          <AppText variant="navigationTitle" accessibilityRole="header">{name}</AppText>
+          <AppText variant="supporting" tone="secondary">
+            {[role === 'driver' ? 'Driver' : role, email !== name ? email : null].filter(Boolean).join(' · ')}
+          </AppText>
+        </View>
       </Section>
 
-      {scoreEnabled || messagesEnabled || notificationsEnabled ? (
+      {scoreEnabled || messagesEnabled ? (
         <Section title="Work">
-          <Card padded={false}>
+          <GroupedList>
+            {messagesEnabled ? (
+              <ListRow title="Messages" icon="mail" right={newCount(threads.data?.unread_total)} onPress={() => router.push('/messages')} />
+            ) : null}
             {scoreEnabled ? (
               <ListRow
                 title="Driver score"
-                subtitle="Your week, what made the grade, and the next opportunity"
                 icon="speed"
-                disc="success"
+                right={week ? (
+                  <AppText variant="supporting" tone="secondary" tabular>
+                    {[week.scoreValue, week.rankValue !== '—' ? week.rankValue : null].filter(Boolean).join(' · ')}
+                  </AppText>
+                ) : undefined}
                 onPress={() => router.push('/score')}
               />
             ) : null}
-            {scoreEnabled && messagesEnabled ? <View className="ml-18 h-px bg-edge-subtle" /> : null}
-            {messagesEnabled ? (
-              <ListRow
-                title="Messages"
-                subtitle="You and dispatch"
-                icon="mail"
-                disc="info"
-                onPress={() => router.push('/messages')}
-              />
-            ) : null}
-            {(scoreEnabled || messagesEnabled) && notificationsEnabled ? <View className="ml-18 h-px bg-edge-subtle" /> : null}
-            {notificationsEnabled ? (
-              <ListRow
-                title="Notifications"
-                subtitle="Everything dispatch has sent you"
-                icon="notifications"
-                disc="neutral"
-                onPress={() => router.push('/notifications')}
-              />
-            ) : null}
-          </Card>
+          </GroupedList>
         </Section>
       ) : null}
 
       <Section title="Settings">
-        <Card padded={false}>
-          <ListRow
-            title="System settings"
-            subtitle="Appearance, contrast, sync and build"
-            icon="settings"
-            disc="neutral"
-            onPress={() => router.push('/settings')}
-          />
+        <GroupedList>
+          <ListRow title="Appearance and sync" subtitle="Theme, contrast, failed syncs, app version" icon="settings" onPress={() => router.push('/settings')} />
+          {/* Notification switches live under Settings, not beside Messages (Q-DF-7, 2026-11-23):
+              the inbox itself is the Today bell. See notification-settings.tsx. */}
+          {notificationsEnabled ? (
+            <ListRow title="Notifications" subtitle="Which alerts reach this phone" icon="notifications" onPress={() => router.push('/notification-settings')} />
+          ) : null}
           {hazmatEnabled ? (
-            <>
-              <View className="ml-18 h-px bg-edge-subtle" />
-              <ListRow
-                title="Scanner settings"
-                subtitle="How documents are captured on this phone"
-                icon="qr_code_scanner"
-                disc="action"
-                onPress={() => router.push('/scanner-settings')}
-              />
-            </>
+            <ListRow title="Scanner" subtitle="How documents are captured on this phone" icon="qr_code_scanner" onPress={() => router.push('/scanner-settings')} />
           ) : null}
           {__DEV__ ? (
-            <>
-              <View className="ml-18 h-px bg-edge-subtle" />
-              <ListRow
-                title="Design system"
-                subtitle="Component gallery · development builds"
-                icon="explore"
-                disc="neutral"
-                onPress={() => router.push('/gallery')}
-              />
-            </>
+            <ListRow title="Design system" subtitle="Component gallery · development builds" icon="explore" onPress={() => router.push('/gallery')} />
           ) : null}
-        </Card>
+          {__DEV__ ? (
+            <ListRow title="Live edge prototype" subtitle="Scanner outline, step L0 · development builds" icon="photo_camera" onPress={() => router.push('/live-edge')} />
+          ) : null}
+        </GroupedList>
       </Section>
 
       {/*
@@ -204,34 +158,24 @@ export default function More() {
         stale the day the policy changes. `legalLinks.ts` derives the address from the API base.
       */}
       <Section title="About">
-        <Card padded={false}>
-          <ListRow
-            title="Privacy policy"
-            subtitle="What the app collects, and what it does not"
-            icon="shield"
-            disc="neutral"
-            right={<Icon name="open_in_new" size={18} className="text-ink-subtle" />}
-            onPress={() => { void openLegalDocument('privacy'); }}
-          />
-          <View className="ml-18 h-px bg-edge-subtle" />
-          <ListRow
-            title="Terms of use"
-            subtitle="The rules for using this app"
-            icon="task_alt"
-            disc="neutral"
-            right={<Icon name="open_in_new" size={18} className="text-ink-subtle" />}
-            onPress={() => { void openLegalDocument('terms'); }}
-          />
-          <View className="ml-18 h-px bg-edge-subtle" />
-          <ListRow
-            title="Support"
-            subtitle="What to try first, and who to ask"
-            icon="help"
-            disc="neutral"
-            right={<Icon name="open_in_new" size={18} className="text-ink-subtle" />}
-            onPress={() => { void openLegalDocument('support'); }}
-          />
-        </Card>
+        <GroupedList>
+          <ListRow title="Help and contact" icon="help" right={<Icon name="open_in_new" size={18} className="text-ink-subtle" />} onPress={() => { void openLegalDocument('support'); }} />
+          <ListRow title="Privacy policy" icon="shield" right={<Icon name="open_in_new" size={18} className="text-ink-subtle" />} onPress={() => { void openLegalDocument('privacy'); }} />
+          <ListRow title="Terms of use" icon="task_alt" right={<Icon name="open_in_new" size={18} className="text-ink-subtle" />} onPress={() => { void openLegalDocument('terms'); }} />
+        </GroupedList>
+      </Section>
+
+      {/*
+        Sign out stays one tap from the tab (B6): a driver handing a shared cab phone over should not
+        hunt for it. Close my account (P4.3, Apple 5.1.1(ix)) sits under it at the same weight on
+        purpose: it is not a feature to advertise, and the confirm sheet makes the consequence plain.
+      */}
+      <Section title="Account">
+        <GroupedList>
+          <ListRow icon="badge" title="Company-issued login" subtitle="Your fleet manages this account. Ask your fleet manager to change it." />
+          <ListRow icon="logout" title="Sign out" destructive onPress={() => { void signOutWithRevoke(); }} />
+          <ListRow icon="dangerous" title="Close my account" subtitle="Your login stops working right away" destructive onPress={() => setConfirmingClose(true)} />
+        </GroupedList>
       </Section>
 
       {/*

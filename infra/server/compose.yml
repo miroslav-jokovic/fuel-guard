@@ -91,16 +91,21 @@ services:
       SERVICE_NAME: api
       DEPLOY_ENVIRONMENT: ${ENV_NAME}
       DEPLOY_REGION: us-west-2
-      # Until this server's cutover (AWS10 staging, AWS11 production) Railway keeps the scheduler
-      # lanes: an AWS container that won the `egress` lease would poll WEX from an IP WEX has not
-      # allowlisted yet. The lease would keep it to one poller either way (D-AWS8); this keeps it
-      # on the host that works. <env>.env sets RUN_SCHEDULERS=true at cutover.
-      RUN_SCHEDULERS_IN_PROCESS: ${RUN_SCHEDULERS:?}
-      # D-RLY2's production shape: the api containers take only `egress` (the EFS work) and the
-      # worker below takes `general`, so the HTTP processes carry no general scheduler work. On one
-      # server every container leaves from the same Elastic IP, so WEX and Med-Stop (D-MS3) see one
-      # address whichever container runs a lane — the split here is about load, not about IPs.
-      SCHEDULER_LANES: egress
+      # D-AP9: the careers pages' origin, from the same <env>.env line Caddy routes on — the link the Settings card
+      # shows and the hostname the robot check must report (applyChecks.ts `careersOrigin`). The api only: nothing
+      # the worker runs builds a careers link.
+      CAREERS_URL: https://${CAREERS_HOST:?}
+      # The api containers always compete for the lanes <env>.env lists in API_LANES, and only those.
+      # D-RLY2's production shape: they take `egress` (the EFS work) and the worker below takes `general`,
+      # so the HTTP processes carry no general scheduler work. On one server every container leaves from
+      # the same Elastic IP, so WEX and Med-Stop (D-MS3) see one address whichever container runs a lane —
+      # the split is about load, not about IPs. BROKER-MAIL-READER-PLAN P3 (B-1 (c)) adds `mail`, broker
+      # mail's minute tick and its text drain: production `egress,mail`; staging `mail` ALONE, so staging
+      # proves the broker-mail texts while every feed (egress, general) stays off there (RUN_SCHEDULERS=false
+      # still keeps the worker at zero). Until 2026-11-25 this was `${RUN_SCHEDULERS}` and a fixed `egress`.
+      # ⚠ A lane no process holds reads `missing` on /api/version, so the lane list and schedulerLanes.ts ship together.
+      RUN_SCHEDULERS_IN_PROCESS: "true"
+      SCHEDULER_LANES: ${API_LANES:?API_LANES must be set in <env>.env}
     deploy:
       replicas: ${API_REPLICAS:?}
 
@@ -235,6 +240,7 @@ services:
       WEB_HOST: ${WEB_HOST:?}
       API_HOST: ${API_HOST:?}
       CONSOLE_HOST: ${CONSOLE_HOST:?}
+      CAREERS_HOST: ${CAREERS_HOST:?}
       ACME_EMAIL: ${ACME_EMAIL:?}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

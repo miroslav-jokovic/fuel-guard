@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { EDITABLE_ROLES } from "./auth.js";
 import { surfaceAllowed } from "./surfaces.js";
-import { NAV_SURFACES, SURFACES } from "./surfaceCatalogue.js";
+import { SURFACES } from "./surfaceCatalogue.js";
+import { NAV_SURFACES } from "./surfaceLookups.js";
 
 /**
  * Tier C is hidden until each screen has a named first user (Q-PR2, owner's ruling 2026-10-06:

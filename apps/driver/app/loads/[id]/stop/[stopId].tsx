@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Linking, Platform, View, useWindowDimensions } from 'react-native';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { photoSlotLabel } from '@silvicom/shared';
 import {
@@ -8,6 +8,7 @@ import {
   Banner,
   Button,
   Card,
+  GroupedList,
   Icon,
   Input,
   ListRow,
@@ -17,14 +18,16 @@ import {
   Skeleton,
   useToast,
 } from '@/components';
-import { StopHero } from '@/features/loads/StopHero';
-import { PhotoGrid } from '@/features/loads/PhotoGrid';
-import { photoCount, windowVerdict } from '@/features/loads/itineraryModel';
-import { useCompleteStop, useLoad } from '@/features/loads/useLoads';
+import { MapStrip } from '@/features/loads/MapStrip';
+import { PhotoRows } from '@/features/loads/PhotoRows';
+import { mapsUrl, verdictTone, windowText, windowVerdict } from '@/features/loads/itineraryModel';
+import { layout } from '@/theme/tokens';
+import { useAddStopPhotos, useCompleteStop, useLoad } from '@/features/loads/useLoads';
 import { capturePhotoForSlot } from '@/features/loads/stopCapture';
 import {
   outstandingSlots,
   reasonRequiredToComplete,
+  stopFooter,
   type SessionCapture,
 } from '@/features/loads/stopCaptureModel';
 import { messagePreview, sortThreads } from '@silvicom/shared';
@@ -47,6 +50,7 @@ export default function StopCapture() {
   const load = useLoad(id, loadsEnabled);
   const stop = load?.stops.find((s) => s.id === stopId) ?? null;
   const complete = useCompleteStop();
+  const addLate = useAddStopPhotos();
   // The thread lookup lives HERE rather than inside a `features/loads` component: a route may
   // compose across features, a feature may not reach into a sibling (`lint:boundaries`).
   const threads = useThreads(messagesEnabled);
@@ -56,6 +60,7 @@ export default function StopCapture() {
   const [error, setError] = useState<string | null>(null);
   const [reasonMode, setReasonMode] = useState<'completed' | 'skipped' | null>(null);
   const [reason, setReason] = useState('');
+  const { fontScale } = useWindowDimensions();
 
   if (features.isLoaded && !loadsEnabled) return <Redirect href="/home" />;
   if (!features.isLoaded) {
@@ -77,8 +82,12 @@ export default function StopCapture() {
   }
 
   const outstanding = outstandingSlots(stop, captures);
-  const photos = photoCount(stop, captures);
   const verdict = windowVerdict(stop);
+  const window = windowText(stop);
+  // The stop's OWN place in the run. `stopProgress` counts finished stops, so it said "stop 1 of 2"
+  // on a delivery opened before its pickup was done.
+  const position = [...load.stops].sort((x, y) => x.seq - y.seq).findIndex((x) => x.id === stop.id) + 1;
+  const navigateTo = mapsUrl(stop, Platform.OS === 'ios' ? 'ios' : 'android');
   // Q-DB5: a thread belongs to this stop only by the load it references. There is no stop-level
   // linkage in the contract, so no row appears when nothing carries the ref.
   const thread = sortThreads(threads.data?.threads ?? []).find((t) => t.load_ref === load.ref) ?? null;
@@ -142,51 +151,84 @@ export default function StopCapture() {
       ? 'Why are you skipping this stop?'
       : `Missing ${outstanding.map(photoSlotLabel).join(', ')} — why?`;
 
+  // ONE amber action, one thing at a time (D-DV5, D-DV27): arrive, then take what is missing, then
+  // complete. What it says is `stopFooter`, which is tested; completing anyway stays a quiet button.
+  const footer = stopFooter(stop, captures);
+  const primary = footer.primary;
+  // A late photo for a finished stop (D-DV30): queued like any capture, and the stop is not moved.
+  const sendLate = async () => {
+    setError(null);
+    const queued = captures.length;
+    try {
+      await addLate.mutateAsync({ loadId: load.id, stopId: stop.id, captures });
+      haptics.success();
+      toast.show(`${queued === 1 ? 'Photo' : `${queued} photos`} for ${stop.name} queued · the office sees ${queued === 1 ? 'it' : 'them'} once sent`);
+      router.back();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save. Your photo is on this phone and will retry.');
+    }
+  };
+  const onPrimary = () => {
+    if (!primary) return;
+    if (primary.kind === 'arrive') void submit('arrived');
+    else if (primary.kind === 'take') void takePhoto(primary.slot);
+    else if (primary.kind === 'send') void sendLate();
+    else onComplete();
+  };
+  const onQuiet = (kind: 'complete' | 'skip' | 'send') => {
+    if (kind === 'send') {
+      void sendLate();
+      return;
+    }
+    if (kind === 'complete') {
+      onComplete();
+      return;
+    }
+    setReason('');
+    setReasonMode('skipped');
+  };
+
   return (
     <Screen
-      padTop={false}
       flow="sections"
-      hero={<StopHero load={load} stop={stop} onBack={() => router.back()} />}
-      // The primary action is pinned so "Complete stop" is reachable without scrolling past the
-      // photo grid. Hidden while the reason card is up, where its own confirm is the one decision.
+      media={<MapStrip stop={stop} onBack={() => router.back()} />}
+      // Pinned, so the primary action is under the thumb without scrolling past the photos (D-DV10).
+      // Hidden while the reason card is up, where its own confirm is the one decision.
       footer={
         reasonMode ? undefined : (
           <ActionBar>
-            <Button
-              label={outstanding.length === 0
-                ? 'Complete stop'
-                : `Complete stop · ${outstanding.length} ${outstanding.length === 1 ? 'photo' : 'photos'} missing`}
-              size="lg"
-              variant="primary"
-              icon="check_circle"
-              haptic="success"
-              loading={complete.isPending}
-              onPress={onComplete}
-            />
-            <View className="flex-row gap-2">
-              {stop.status === 'pending' ? (
-                <View className="flex-1">
+            <View className={fontScale >= layout.largeTextBreakpoint ? 'gap-2' : 'flex-row gap-2'}>
+              {navigateTo ? (
+                <View className={fontScale >= layout.largeTextBreakpoint ? '' : 'flex-1'}>
+                  {/* No icon: at a third of the width an icon pushed the word onto two lines. */}
                   <Button
-                    label="Mark arrived"
+                    label="Navigate"
                     variant="secondary"
-                    size="sm"
-                    icon="pin_drop"
-                    loading={complete.isPending}
-                    onPress={() => void submit('arrived')}
+                    size="lg"
+                    onPress={() => void Linking.openURL(navigateTo)}
                   />
                 </View>
               ) : null}
-              <View className="flex-1">
-                <Button
-                  label="Skip stop"
-                  variant="ghost"
-                  size="sm"
-                  onPress={() => {
-                    setReason('');
-                    setReasonMode('skipped');
-                  }}
-                />
-              </View>
+              {primary ? (
+                <View className={fontScale >= layout.largeTextBreakpoint ? '' : 'flex-[1.4]'}>
+                  <Button
+                    label={primary.label}
+                    size="lg"
+                    variant="primary"
+                    icon={primary.kind === 'take' ? 'photo_camera' : primary.kind === 'complete' ? 'check_circle' : primary.kind === 'send' ? 'cloud_sync' : undefined}
+                    haptic={primary.kind === 'take' ? undefined : 'success'}
+                    loading={primary.kind === 'take' ? busySlot === primary.slot : primary.kind === 'send' ? addLate.isPending : complete.isPending}
+                    onPress={onPrimary}
+                  />
+                </View>
+              ) : null}
+            </View>
+            <View className={fontScale >= layout.largeTextBreakpoint ? 'gap-1' : 'flex-row gap-2'}>
+              {footer.quiet.map((action) => (
+                <View key={action.kind} className={fontScale >= layout.largeTextBreakpoint ? '' : 'flex-1'}>
+                  <Button label={action.label} variant="ghost" size="sm" onPress={() => onQuiet(action.kind)} />
+                </View>
+              ))}
             </View>
             <View className="flex-row items-center justify-center gap-1 pb-1">
               <Icon name="cloud_sync" size={14} className="text-ink-subtle" />
@@ -196,14 +238,41 @@ export default function StopCapture() {
         )
       }
     >
+      {/* Visual 2026 V6 (mock screen 6): what the stop is, its name in the display face, where it is,
+          and the window as the figure, with its verdict in its state colour. No ETA (D-DV13). */}
+      <View className="gap-1">
+        <AppText variant="label" tone="muted">
+          {`${stop.kind === 'pickup' ? 'Pickup' : 'Delivery'} · stop ${position} of ${load.stops.length} · Load ${load.ref}`}
+        </AppText>
+        <AppText variant="screenTitle" accessibilityRole="header">{stop.name}</AppText>
+        {stop.address_line || stop.city ? (
+          <AppText variant="supporting" tone="secondary">
+            {[stop.address_line, [stop.city, stop.state].filter(Boolean).join(', ')].filter(Boolean).join(', ')}
+          </AppText>
+        ) : null}
+        {window ? (
+          <View className="flex-row flex-wrap items-baseline pt-2" style={{ columnGap: 8 }}>
+            <AppText variant="numericCompact">{window}</AppText>
+            {verdict ? (
+              <AppText variant="supporting" weight="semibold" tone={VERDICT_TONE[verdictTone(verdict)]}>
+                {verdict.title}
+              </AppText>
+            ) : null}
+          </View>
+        ) : null}
+        {stop.arrived_at ? (
+          <AppText variant="supporting" tone="success">{`Arrived ${clockOf(stop.arrived_at)}`}</AppText>
+        ) : null}
+      </View>
+
       {error ? (
-        <Section first>
+        <Section>
           <Banner tone="danger" icon="warning" message={error} />
         </Section>
       ) : null}
 
       {reasonMode ? (
-        <Section first={!error}>
+        <Section>
           <Card>
             <AppText variant="navigationTitle">{reasonTitle}</AppText>
             <AppText variant="supporting" tone="muted">Dispatch will see this note with the stop record.</AppText>
@@ -231,43 +300,19 @@ export default function StopCapture() {
         </Section>
       ) : (
         <>
-          {verdict ? (
-            <Section first={!error}>
-              <Card padded={false}>
-                <ListRow
-                  icon="schedule"
-                  disc={verdict.tone === 'warning' ? 'caution' : verdict.tone === 'success' ? 'success' : 'neutral'}
-                  title={verdict.title}
-                  subtitle={verdict.detail}
-                />
-              </Card>
-            </Section>
-          ) : null}
-
-          {stop.required_photos.length > 0 ? (
-            <Section title="Photos for this stop">
-              <View className="flex-row items-center justify-between">
-                <AppText variant="caption" tone="muted">Tap a tile to capture it</AppText>
-                <AppText variant="caption" tone={photos.have === photos.total ? 'success' : 'muted'} tabular>
-                  {photos.have} of {photos.total}
-                </AppText>
-              </View>
-              <PhotoGrid stop={stop} captures={captures} busySlot={busySlot} onCapture={(slot) => void takePhoto(slot)} />
-            </Section>
-          ) : (
-            <Section title="Photos for this stop">
-              <Card>
-                <AppText variant="rowTitle">No photos required</AppText>
-                <AppText variant="supporting" tone="muted">Mark this stop complete when you are done here.</AppText>
-              </Card>
-            </Section>
-          )}
+          <Section title="Photos for this stop">
+            {stop.required_photos.length > 0 ? (
+              <PhotoRows stop={stop} captures={captures} busySlot={busySlot} onCapture={(slot) => void takePhoto(slot)} />
+            ) : (
+              <AppText variant="supporting" tone="secondary">No photos are needed here. Complete the stop when you are done.</AppText>
+            )}
+          </Section>
 
           {stop.notes || thread ? (
             <Section title="At this stop">
-              <Card padded={false}>
+              <GroupedList>
                 {stop.notes ? (
-                  <ListRow icon="info" disc="neutral" title="Notes from dispatch" subtitle={stop.notes} />
+                  <ListRow icon="info" title="Notes from dispatch" subtitle={stop.notes} />
                 ) : null}
                 {thread ? (
                   <ListRow
@@ -278,7 +323,7 @@ export default function StopCapture() {
                     onPress={() => router.push(`/messages/${thread.id}` as never)}
                   />
                 ) : null}
-              </Card>
+              </GroupedList>
             </Section>
           ) : null}
         </>
@@ -286,6 +331,8 @@ export default function StopCapture() {
     </Screen>
   );
 }
+
+const VERDICT_TONE = { live: 'accent', act: 'action', done: 'success' } as const;
 
 /** Multi-line reason field — kept tiny and local; the only free-text entry on this screen. */
 function ReasonInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {

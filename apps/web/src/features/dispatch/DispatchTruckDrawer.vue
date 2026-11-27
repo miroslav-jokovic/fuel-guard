@@ -12,6 +12,7 @@ import { useCanMarkHomeTime } from "@/components/homeTime/useHomeTime";
 import { useHomeTimeDrawer } from "@/components/homeTime/useHomeTimeDrawer";
 import { dispatcherLabel, durationWords, legalDriveLeft, stopPlace } from "./dispatchBoardView";
 import { useLoadDetailQuery, type DispatchStopDetail } from "./useDispatchLoads";
+import LoadRateFacts from "./LoadRateFacts.vue";
 
 /**
  * One truck's detail, opened from its board row (DISPATCH-BOARD-PLAN DB6, D-DB2 research item 7: "the
@@ -193,6 +194,9 @@ const description = computed(() => {
           </p>
         </template>
       </section>
+
+      <!-- LOAD-RATES-PLAN D-RATE8: the current load's price, from the board row (a holder's only). -->
+      <LoadRateFacts v-if="row.current" :charges="row.current.charges" />
 
       <section v-if="row.current" aria-labelledby="truck-stops-heading" class="space-y-2">
         <h3 id="truck-stops-heading" class="text-sm font-semibold text-ink">Stops</h3>

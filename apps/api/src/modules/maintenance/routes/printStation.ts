@@ -94,6 +94,12 @@ export function printStationRouter(options: { longPollMs?: number; pollEveryMs?:
       const header = req.header("authorization") ?? "";
       const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
       const station = token ? await stationForToken(getSupabaseAdmin(getAppLocals(req).env), token) : null;
+      // A lookup that FAILED is not a refusal: 503, which the station backs off and retries. A 401
+      // here once stopped the office station for five days after a database outage (stations.ts).
+      if (isServiceError(station)) {
+        res.status(503).json(apiError(station.code, station.error));
+        return;
+      }
       if (!station) {
         res.status(401).json(apiError("unauthorized", "Invalid print station token"));
         return;

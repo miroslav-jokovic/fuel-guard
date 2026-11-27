@@ -11,6 +11,7 @@ import type { Tone } from '@/components';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 import { CATEGORY_ICON } from '@/features/notifications/categoryIcon';
 import type { DutyView } from '@/features/duty/useDuty';
+import { durationWords } from '@/lib/duration';
 
 /**
  * What Today IS, as a function of the day rather than a fixed template.
@@ -272,10 +273,9 @@ export function countdownLabel(
 
   const minutes = Math.round((start - now) / 60_000);
   if (minutes >= 60) {
-    const h = Math.floor(minutes / 60);
-    return { text: `Opens in ${h} h ${minutes % 60} min`, tone: 'neutral' };
+    return { text: `Window opens in ${durationWords(minutes)}`, tone: 'neutral' };
   }
-  if (minutes >= 1) return { text: `Opens in ${minutes} min`, tone: 'neutral' };
+  if (minutes >= 1) return { text: `Window opens in ${minutes} min`, tone: 'neutral' };
   if (Number.isFinite(end) && now > end) return { text: 'Window closed', tone: 'warning' };
   return { text: 'Window open now', tone: 'neutral' };
 }

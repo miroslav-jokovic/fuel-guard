@@ -214,6 +214,27 @@ describe("the sink looks the number up after the store and the ring, and never f
 });
 
 describe("the sweep's retry", () => {
+  /**
+   * APPLY-PAGE-PLAN D-AP5: a careers-page submission a robot check flagged is not paid for while nobody has worked it
+   * — a bot can type a stranger's number. Once a recruiter moves it past `new` it is looked up like any lead, and a
+   * number that also sits on a clean lead is looked up regardless. Through the select's JSON path, as PostgREST reads it.
+   */
+  it("skips a flagged lead nobody has worked, and looks up a worked one and any number a clean lead shares", async () => {
+    const flags = (f: string[]) => ({ checks: { flags: f } });
+    const leads = [
+      { org_id: ORG, id: "a", status: "new", phone_e164: "+17085550001", raw: flags(["too_fast"]), received_at: "2026-11-19T00:00:00Z" },
+      { org_id: ORG, id: "b", status: "contacted", phone_e164: "+17085550002", raw: flags(["too_fast"]), received_at: "2026-11-19T00:00:00Z" },
+      { org_id: ORG, id: "c", status: "new", phone_e164: "+17085550003", raw: flags([]), received_at: "2026-11-19T00:00:00Z" },
+      { org_id: ORG, id: "d", status: "new", phone_e164: "+17085550003", raw: flags(["honeypot_filled"]), received_at: "2026-11-19T00:00:00Z" },
+    ];
+    const rec = createSupabaseRecorder({ tables: { recruiting_leads: postgrestFixture(leads), phone_lookups: lookups([]) } });
+    const run = await lookUpMissingPhones(rec.client as never, ORG, deps(10_000), NOW);
+    expect(run.asked).toBe(2);
+    const asked = writes(rec).map((q) => (q.write!.payload as { phone_e164: string }).phone_e164).sort();
+    expect(asked).toEqual(["+17085550002", "+17085550003"]);
+    expectOrgScoped(rec, ORG);
+  });
+
   it("asks only the recent numbers with no fresh row, at most LOOKUP_RETRY_MAX", async () => {
     const leads = Array.from({ length: LOOKUP_RETRY_MAX + 5 }, (_, i) => ({ phone_e164: `+1708556${String(i).padStart(4, "0")}` }));
     const freshOne = { org_id: ORG, id: "x", phone_e164: leads[0]!.phone_e164, line_type: "mobile", valid: true, carrier: null, looked_up_at: "2026-11-18T00:00:00Z" };

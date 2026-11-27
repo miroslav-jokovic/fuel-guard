@@ -42,6 +42,7 @@ export const JOB_KIND_CATALOGUE = {
   sync_idle: { label: "Syncing idling from Samsara", area: "telematics" },
   idle_event_twins: { label: "Cleaning up doubled idle events", area: "telematics" },
   sync_ifta: { label: "Syncing IFTA miles from Samsara", area: "telematics" },
+  warning_desk: { label: "Collecting Samsara warnings for follow-up", area: "telematics" },
   sync_documents: { label: "Syncing driver documents from Samsara", area: "documents" },
   sync_odometer: { label: "Syncing odometer readings from Samsara", area: "telematics" },
   idle_engine: { label: "Working out idle hours and stops", area: "telematics" },
@@ -62,6 +63,7 @@ export const JOB_KIND_CATALOGUE = {
   hazmat_analyze: { label: "Checking a hazmat load", area: "compliance" },
   document_read: { label: "Reading a document", area: "documents" },
   document_intake: { label: "Filing a scanned document", area: "documents" },
+  training_transcode: { label: "Preparing a safety video for phones", area: "documents" },
   pattern_sweep: { label: "Looking for fuel patterns across cases", area: "fuel" },
   data_retention: { label: "Removing data past its keep date", area: "platform" },
   dq_binder: { label: "Building a driver-file binder", area: "compliance" },
@@ -104,6 +106,10 @@ export const JOB_KIND_CATALOGUE = {
   },
   ads_daily_brief: { label: "Writing the morning ads brief", area: "ads", hint: "The brief did not arrive this morning. Spend and leads are still recorded; tomorrow's brief covers its own day." },
   lead_uncontacted: { label: "Finding leads nobody has called yet", area: "recruiting" },
+  tenstreet_post_process: {
+    label: "Making a lead from a Tenstreet application", area: "recruiting", item: { key: "postId", noun: "Tenstreet post" },
+    hint: "The application is kept as Tenstreet sent it (without the SSN or the equal-opportunity answers); the job is retried and the lead appears once it runs.",
+  },
   ads_render: {
     label: "Drawing an ad picture", area: "ads", item: { key: "creativeId", noun: "Ad" },
     hint: "The picture service failed or this month's picture credits ran out (Settings › Ads control, AI and pictures). The ad can be regenerated.",

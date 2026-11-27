@@ -65,6 +65,7 @@ vi.mock("@/components/notes/useUnitNotes", async () => ({
 }));
 vi.mock("@/components/notes/NotesDrawer.vue", async () => (await import("@/components/notes/notesTesting")).notesStub());
 import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
+import { useSessionStore } from "@/stores/session";
 import AssignmentsPage from "./AssignmentsPage.vue";
 
 const response = (linked: boolean): DispatchBoardResponse => ({
@@ -335,5 +336,47 @@ describe("the dispatch board page", () => {
       expect(w.router.currentRoute.value.query).toEqual({ page: "2" });
       expect(units(w)[0]).toBe("1021");
     });
+  });
+});
+
+/**
+ * Load rates on the board (LOAD-RATES-PLAN D-RATE8): one Rate column, after Miles left, for a reader
+ * holding `dispatch.load_rates` only — the switch as `/api/me` answers it. The cell is `LoadRateCell`'s
+ * (`features/dispatch/loadRates.test.ts`); here, that the page asks the switch.
+ */
+describe("the board's Rate column", () => {
+  const CHARGES = { total_charge: 3620, linehaul: 3400, other_charges: 220, currency: "USD", billed_miles: 836, order_loaded_movements: 1 };
+  const priced = (): DispatchBoardResponse => {
+    const r = response(false);
+    const current = { loadId: "L-1", ref: "0132143", status: "in_transit", source: "tms", externalStatus: "P", customerName: null, dispatcherId: null, driverName: null, trailerUnit: null, nextStop: null, lastStop: null, stopsLeft: 1, charges: CHARGES };
+    return { ...r, rows: r.rows.map((x) => (x.unitNumber === "773" ? { ...x, current } : x)) };
+  };
+  const headers = (w: Awaited<ReturnType<typeof mountPage>>) => w.findAll("thead th").map((th) => th.text());
+
+  it("does not exist for a reader the carrier has not switched on", async () => {
+    useSessionStore().permissions = { ...useSessionStore().permissions, "dispatch.load_rates": false } as never;
+    board.value = priced();
+    const w = await mountPage();
+    expect(headers(w).some((h) => h.startsWith("Rate"))).toBe(false);
+    expect(w.text()).not.toContain("$3,620.00");
+  });
+
+  it("starts hidden for a holder, one tick away in Columns (Q-RATE1 (c))", async () => {
+    useSessionStore().permissions = { "dispatch.load_rates": true } as never;
+    board.value = priced();
+    const w = await mountPage();
+    expect(headers(w).some((h) => h.startsWith("Rate"))).toBe(false);
+    // The five Live columns and Rate.
+    expect(w.findAll("button").find((b) => b.text().startsWith("Columns"))!.text()).toContain("6 hidden");
+  });
+
+  it("shows a holder who turns it on the current load's rate, right after Miles left", async () => {
+    useSessionStore().permissions = { "dispatch.load_rates": true } as never;
+    board.value = priced();
+    // A hidden-list that leaves Rate out is a reader who turned it on (`useTableColumns`).
+    const w = await mountPage("/assignments?hide=hos");
+    const h = headers(w);
+    expect(h[h.findIndex((x) => x.startsWith("Miles left")) + 1]).toMatch(/^Rate/);
+    expect(w.text()).toContain("$3,620.00");
   });
 });

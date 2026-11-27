@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
-import { AppText, Banner, Card } from '@/components';
+import { AppText, Banner } from '@/components';
 import { env } from '@/lib/env';
 import { useDriverContext } from '@/session/useDriverContext';
 
@@ -23,6 +23,11 @@ interface ApiVersion {
   commitShort: string | null;
   branch: string | null;
   env: string;
+  /**
+   * The deployment's own name ("production", "uat", "staging"); absent from servers older than
+   * 2026-11-25. Preferred over `env`, which is NODE_ENV and says "production" on staging too.
+   */
+  environment?: string | null;
   schema: { expected: string | null; applied: string | null; state: string };
   ok: boolean;
 }
@@ -31,7 +36,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <View className="min-h-11 flex-row items-start justify-between gap-4 px-4 py-3">
       <AppText variant="supporting" tone="secondary">{label}</AppText>
-      <AppText variant="supporting" className="flex-1 text-right font-ui-md" selectable>{value}</AppText>
+      <AppText weight="medium" variant="supporting" className="flex-1 text-right" selectable>{value}</AppText>
     </View>
   );
 }
@@ -72,14 +77,15 @@ export function BuildInfoCard() {
 
   return (
     <>
-      <Card padded={false}>
+      {/* Rows on the canvas since Visual 2026 V8 (D-DV7), aligned to the screen inset like a GroupedList. */}
+      <View className="-mx-4">
         <Row label="App version" value={String(Constants.expoConfig?.version ?? 'unknown')} />
         <Row label="Runtime" value={String(Updates.runtimeVersion ?? 'unknown')} />
         <Row label="JavaScript" value={bundle} />
         <Row label="Update channel" value={String(Updates.channel ?? 'none')} />
-        <Row label="Server" value={api ? `${api.version ?? api.commitShort ?? 'unknown'} · ${api.env}` : (apiError ?? 'checking…')} />
+        <Row label="Server" value={api ? `${api.version ?? api.commitShort ?? 'unknown'} · ${api.environment ?? api.env}` : (apiError ?? 'checking…')} />
         <Row label="Database" value={api ? `${api.schema.applied ?? 'unknown'} (${api.schema.state})` : '—'} />
-      </Card>
+      </View>
       <AppText variant="caption" tone="muted">
         Quote these values when reporting a problem—they identify the exact build on this device.
       </AppText>

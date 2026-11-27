@@ -19,6 +19,7 @@ import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { useSavedViewMenu } from "@/composables/useSavedViewMenu";
 import { useTableColumns } from "@/composables/useTableColumns";
+import { useSessionStore } from "@/stores/session";
 import { formatDateTime } from "@/lib/format";
 import AssignmentHistory from "@/features/dispatch/AssignmentHistory.vue";
 import DispatchBoardTable from "@/features/dispatch/DispatchBoardTable.vue";
@@ -38,12 +39,13 @@ import {
   BOARD_COLUMNS,
   BOARD_COLUMNS_ID,
   BOARD_DEFAULT_SORT,
-  BOARD_LIVE_COLUMNS,
+  BOARD_DEFAULT_HIDDEN,
   BOARD_QUEUES,
   BOARD_SORT_KEYS,
   BOARD_TABLE,
   BOARD_TABS,
   boardSortValue,
+  withRateColumn,
   filterBoard,
   rowsBeforeScope,
   stateCounts,
@@ -138,8 +140,14 @@ const { sort, onSort } = useUrlSort(qs.param("sort", BOARD_SORT_KEYS, BOARD_DEFA
  */
 // Notes (UNIT-NOTES-PLAN D-UN12): one column for the truck, its drivers and its trailer, after Warnings,
 // shown by default — and absent from the table AND the picker for a viewer without `notes` (D-UN14).
+// Rate (LOAD-RATES-PLAN D-RATE8) after Miles left, likewise only for a `dispatch.load_rates` holder.
 const notesOn = useNotesAccess();
-const boardColumns = useTableColumns(BOARD_COLUMNS_ID, () => withNotesColumn(BOARD_COLUMNS, notesOn.value, "warnings"), { defaultHidden: BOARD_LIVE_COLUMNS });
+const session = useSessionStore();
+const boardColumns = useTableColumns(
+  BOARD_COLUMNS_ID,
+  () => withNotesColumn(withRateColumn(BOARD_COLUMNS, session.hasPermission("dispatch.load_rates")), notesOn.value, "warnings"),
+  { defaultHidden: BOARD_DEFAULT_HIDDEN },
+);
 /**
  * Saved views: a name and this page's URL — queue, scope, fleet, dispatcher, search, sort and hidden
  * columns — so "late trucks in VINNIEV, by appointment" is one click. Applying one is a navigation,

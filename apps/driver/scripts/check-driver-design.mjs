@@ -9,12 +9,16 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const SCAN = ['app', 'src'];
 const forbidden = [
-  { pattern: /\b(?:Inter|Arial|Helvetica|Open Sans|Poppins|Hanken|HankenGrotesk)\b/i, message: 'Lexend through AppText only' },
-  { pattern: /font-sans(?:-|\b)/, message: 'use semantic AppText variants instead of legacy font aliases' },
-  // Direction B D-DB3: weight is the FAMILY for a loaded custom face, so a Tailwind weight utility
-  // is silently inert — it looked like emphasis and rendered as none. Seventeen call sites were in
-  // exactly that state the moment Lexend replaced the platform face; use font-ui-md|sb|bold.
-  { pattern: /(?<![\w-])font-(?:thin|extralight|light|normal|medium|semibold|bold|extrabold|black)(?![\w-])/, message: 'weight is the family: use font-ui, font-ui-md, font-ui-sb or font-ui-bold' },
+  { pattern: /\b(?:Inter|Arial|Helvetica|Open Sans|Poppins|Hanken|HankenGrotesk|Lexend)\b/i, message: 'faces come from src/theme/typography.ts through AppText only', allow: ['src/theme/typography.ts'] },
+  // Visual 2026 D-DV8 (2026-11-20): type is a STYLE from src/theme/typography.ts, reached through
+  // AppText's `variant` and `weight` props. Any font class — a family, a weight or a size — is a
+  // second source of type, and a second class setting the same property is settled by stylesheet
+  // order, not by what the call site wrote. Seventeen `font-ui-*` overrides were replaced by `weight`.
+  { pattern: /(?<![\w-])font-(?:sans|serif|mono|ui|ui-md|ui-sb|ui-bold|display|thin|extralight|light|normal|medium|semibold|bold|extrabold|black)(?![\w-])/, message: 'type comes from AppText variant/weight (src/theme/typography.ts), never a font class' },
+  { pattern: /(?<![\w-])(?:uppercase|lowercase|capitalize|tracking-\w+)(?![\w-])/, message: 'case and tracking belong to a typography variant; a tracked small-caps kicker is banned (D-DV14)', allow: ['src/theme/typography.ts'] },
+  // D-DV2: glass is the operating system's (native tabs, headers). Content never carries it. The one
+  // place we add our own is the floating back button over the stop map (V9), and only that file.
+  { pattern: /from\s+['"](?:expo-glass-effect|expo-blur|@callstack\/liquid-glass|expo-linear-gradient)['"]/, message: 'no glass, blur or gradient modules on content (D-DV2, D-DV14); native chrome provides glass', allow: ['src/features/loads/MapStrip.tsx'] },
   { pattern: /<Text(?:\s|>)/, message: 'use AppText instead of raw React Native Text' },
   { pattern: /\bAlert\.alert\s*\(/, message: 'use ConfirmSheet or an intentional Banner instead of native Alert' },
   { pattern: /from\s+['"]@\/theme\/ramps['"]/, message: 'screens and components must use semantic color roles, not primitive ramps' },
@@ -40,6 +44,14 @@ const forbidden = [
 // style object is the easy way back to a neutral drop shadow, so the role is reserved to the theme.
 const forbiddenOutsideTheme = [
   { pattern: /\bshadowColor\b/, message: 'shadows come from src/theme/elevation.ts only' },
+  // D-DV8: a style object is the other way around the type system. `textStyle()` is the one door.
+  { pattern: /\b(?:fontFamily|fontWeight|fontSize|lineHeight|letterSpacing)\s*:/, message: 'type comes from textStyle() in src/theme/typography.ts' },
+  // D-DV14: emoji as icons are a generic-AI tell. Icons come from the Icon component.
+  { pattern: /\p{Extended_Pictographic}/u, message: 'no emoji in the UI (D-DV14); use the Icon component' },
+  // D-DV26 (2026-11-24): a status number is not a sentence. "HTTP 404" reached drivers' banners
+  // through api.ts's fallback (V9 critique, Q-DV8 g). errorWords.ts keeps it in `detail` only; the
+  // build card shows the version endpoint's status to support, which is the one other reader.
+  { pattern: /HTTP \$\{/, message: 'a failure reaches a driver as a sentence from src/lib/errorWords.ts, never "HTTP <status>" (D-DV26)', allow: ['src/lib/errorWords.ts', 'src/lib/api.ts', 'src/features/support/BuildInfoCard.tsx'] },
 ];
 
 const files = [];
@@ -52,14 +64,36 @@ function walk(dir) {
 }
 for (const directory of SCAN) walk(join(ROOT, directory));
 
+// Visual 2026 V9: `@expo/ui` renders SwiftUI and Jetpack Compose, and its `Text` is the platform's
+// text view, not React Native's. A file that imports it from there draws native text on purpose.
+const NATIVE_TEXT = /import\s*\{[^}]*\bText\b[^}]*\}\s*from\s*['"]@expo\/ui\/(?:swift-ui|jetpack-compose)['"]/;
+// A `'widget'` layout runs in the widget extension's own runtime, where `textStyle()` cannot be
+// called; it receives the type scale's sizes as props instead (glanceModel.ts GLANCE_TYPE). So there a
+// type property may READ a value, and only a literal (a second source of type) is refused.
+const WIDGET_DIRECTIVE = /^\s*['"]widget['"];?\s*$/m;
+const TYPE_PROPERTY = /\b(?:fontFamily|fontWeight|fontSize|lineHeight|letterSpacing)\s*:/;
+const TYPE_LITERAL = /\b(?:fontFamily|fontWeight|fontSize|lineHeight|letterSpacing)\s*:\s*['"\d]/;
+
 const failures = [];
 for (const path of files) {
-  const lines = readFileSync(path, 'utf8').split('\n');
+  const source = readFileSync(path, 'utf8');
+  const lines = source.split('\n');
   const insideTheme = path.includes('/src/theme/');
+  const nativeText = NATIVE_TEXT.test(source);
+  const widget = WIDGET_DIRECTIVE.test(source);
   const rules = insideTheme ? forbidden : [...forbidden, ...forbiddenOutsideTheme];
   lines.forEach((line, index) => {
+    // The rules judge code, not prose: a comment may name a banned face or carry a ⚠ (2026-11-20).
+    if (/^\s*(?:\/\/|\*|\/\*)/.test(line)) return;
     for (const rule of rules) {
-      if (path.endsWith('src/components/AppText.tsx') && rule.pattern.source === '<Text(?:\\s|>)') continue;
+      if (rule.allow?.some((allowed) => path.endsWith(allowed))) continue;
+      // AppText is the text primitive; Icon draws a font glyph, which is not text (V8, iconFont.ts).
+      if ((path.endsWith('src/components/AppText.tsx') || path.endsWith('src/components/Icon.tsx') || nativeText)
+        && rule.pattern.source === '<Text(?:\\s|>)') continue;
+      if (widget && rule.pattern.source === TYPE_PROPERTY.source) {
+        if (TYPE_LITERAL.test(line)) failures.push(`${path}:${index + 1} a widget layout takes its sizes from props.type (glanceModel.ts GLANCE_TYPE), never a literal`);
+        continue;
+      }
       if (rule.pattern.test(line)) failures.push(`${path}:${index + 1} ${rule.message}`);
     }
   });
@@ -109,25 +143,6 @@ for (const path of files) {
       `${path}:${line} AppText takes a colour as tone="…", not className="${colour[0]}" — a second colour class is resolved by stylesheet order, not by the className string`,
     );
   }
-}
-
-/**
- * The auth mast's texture (D-DB21) is capped at 80 rather than the band's 52, and that is only
- * honest while the mast carries nothing dimmer than `on-hero-secondary`. `on-hero-muted` tolerates a
- * background of grey 52 and no more, so a single muted caption added to a login screen would fail
- * WCAG against artwork that is otherwise correct — silently, because the pixels come from a `.webp`
- * that no assertion can read. The looser ceiling buys the sunset; this is what it costs.
- */
-const AUTH_SURFACES = ['/app/(auth)/', '/src/features/auth/'];
-for (const path of files) {
-  if (!AUTH_SURFACES.some((surface) => path.includes(surface))) continue;
-  readFileSync(path, 'utf8').split('\n').forEach((line, index) => {
-    if (/onHeroMuted|text-on-hero-muted/.test(line)) {
-      failures.push(
-        `${path}:${index + 1} the auth hero texture is capped for on-hero-secondary, so on-hero-muted may not appear on an auth surface (src/theme/heroTexture.ts)`,
-      );
-    }
-  });
 }
 
 if (failures.length) {

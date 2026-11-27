@@ -75,14 +75,18 @@ export const AREAS = [
     api: ["efs", "fuel", "fuel-spend", "idle", "posted-prices", "anomalies", "routing"],
     web: ["fuel", "fuelCards", "fueling", "idle", "anomalies", "reconcile", "import"], plans: ["fuel"] },
   { id: "maintenance", title: "Maintenance and inventory",
-    api: ["maintenance", "fleetpal"], web: ["maintenance", "inventory", "devices"], packages: ["qr"], plans: ["maintenance"] },
+    api: ["maintenance", "fleetpal", "followups"], web: ["maintenance", "inventory", "devices"], packages: ["qr"], plans: ["maintenance"] },
   { id: "drivers", title: "Drivers, hiring and compliance",
-    api: ["recruiting", "ads", "evidence", "psp", "roster", "hazmat", "performance", "document-reading", "inspections", "medstop"],
-    web: ["apply", "recruitment", "ads", "compliance", "drivers", "roster", "hazmat", "legal", "drugAlcohol", "roadside"],
+    api: ["recruiting", "ads", "evidence", "psp", "roster", "hazmat", "performance", "document-reading", "inspections", "medstop", "training"],
+    web: ["apply", "careers", "recruitment", "ads", "compliance", "drivers", "roster", "hazmat", "legal", "drugAlcohol", "roadside", "training"],
     packages: ["ads-golden", "hazmat-data", "hazmat-engine", "hazmat-golden", "hazmat-placards", "sms-engine"],
-    plans: ["recruitment", "roster", "notes", "safety-dqf", "hazmat-consolidation", "document-reading"] },
+    // "training" is the driver safety films and their quizzes (SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS).
+    plans: ["recruitment", "roster", "notes", "safety-dqf", "hazmat-consolidation", "document-reading", "training"] },
   { id: "dispatch", title: "Dispatch and live map",
-    api: ["loads", "livemap", "samsara", "messaging"], web: ["dispatch", "livemap", "lumper", "messages", "chat"],
+    // "broker-mail" + the mail-gateway app: the broker-mail reader (BROKER-MAIL-READER-PLAN.md), a
+    // dispatcher feature whose plan sits in dispatch-loads.
+    api: ["loads", "livemap", "samsara", "messaging", "broker-mail"], web: ["dispatch", "livemap", "lumper", "messages", "chat", "brokerMail"],
+    apps: ["mail-gateway"],
     // "messaging" is the office chat plan (OFFICE-CHAT-PLAN.md): it extends the `messaging` api module
     // this area already holds, so its plan folder goes with it.
     plans: ["dispatch-loads", "livemap", "loads-detail", "messaging", "samsara", "sms"] },

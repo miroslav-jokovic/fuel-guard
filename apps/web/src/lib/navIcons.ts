@@ -1,6 +1,7 @@
 import {
   AdsIcon,
   ArchiveBoxIcon,
+  AtIcon,
   BeakerIcon,
   MicroscopeIcon,
   CurrencyDollarIcon,
@@ -44,6 +45,7 @@ import {
   WrenchIcon,
   UsersIcon,
   VehicleIcon,
+  TrainingIcon,
   type Icon,
 } from "@silvicom/ui/icons";
 
@@ -82,6 +84,7 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   "dispatch.fuel-planning": MapIcon,
   "dispatch.truck-stops": TruckStopIcon,
   "dispatch.lumper-cases": ArchiveBoxIcon, // freight coming off the trailer; no other item uses the box
+  "dispatch.broker-mail": AtIcon, // an email address: the broker mail in a dispatcher's Outlook; no other item uses the @
 
   "safety.alerts": ExclamationTriangleIcon,
   "safety.driver-performance": TrophyIcon,
@@ -91,6 +94,7 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   // sidebar — the argument "they never sit side by side in one group" did not survive being looked at.
   "safety.drug-alcohol": MicroscopeIcon,
   "safety.roadside-inspections": RoadIcon,
+  "safety.training": TrainingIcon,
   "safety.placard-calculator": HazmatPlacardIcon,
   "safety.hazmat-review": ShieldExclamationIcon,
 

@@ -17,6 +17,9 @@
 export { recruitmentRouter } from "./routes/index.js";
 export { mvrReportReadGate } from "./mvrReadGate.js";
 export { publicApplicationRouter } from "./routes/publicApplication.js";
+// The public careers page and its apply form (APPLY-PAGE-PLAN AP2); its Turnstile boot line beside Tenstreet's.
+export { publicCareersRouter } from "./routes/publicCareers.js";
+export { turnstileBootWarning } from "./careers/applyChecks.js";
 export { runApplicationNudgesOnce } from "./applicationNudgeSweep.js";
 export { loadScreeningReadiness } from "./screeningReadiness.js";
 export { dobCsvTemplate, importDriverDob } from "./dobImport.js";
@@ -27,6 +30,9 @@ export { returnToDutyBlocked, returnToDutyStanding } from "./returnToDuty.js";
 export { partOneFactsForMedstop } from "./medstopApplicantFacts.js";
 // The LeadSink every platform lead enters by (D-AD17): the ads module's intake (B4) is handed this, never a table.
 export { recruitingLeadSink } from "./leads/leadSink.js";
+export { processTenstreetPost } from "./tenstreet/processPost.js";
+export { tenstreetBootWarning } from "./tenstreet/receive.js";
+export { TENSTREET_WEBHOOK_PATH, tenstreetWebhookRouter } from "./routes/tenstreetWebhook.js";
 export { lookUpMissingPhones, phoneLookupFor } from "./leads/phoneLookup.js";
 // S1b (D-AD17): an open opening as an ad brief; the composition root hands it to the ads router.
 export { recruitingBriefSource } from "./leads/adBriefSource.js";
@@ -40,3 +46,5 @@ export { recordOrderedDrugTest, releaseOrderedDrugTest } from "./applicantDrugTe
 export { recordHireFromTms } from "./hireApplicant.js";
 // Ask AI's `recruiting_counts` (F21 R6b): the Applicants board's queues, statuses only (D-AI7).
 export { assistantRecruiting, RECRUITING_WAITING } from "./assistantRecruiting.js";
+// The applicant half of sending the safety-training link (D-TR11): handed to the training router by app.ts.
+export { applicantTrainingTexter, type ApplicantTexter } from "./trainingLinkText.js";

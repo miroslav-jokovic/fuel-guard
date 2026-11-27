@@ -1,11 +1,10 @@
-import { Pressable, View } from 'react-native';
-import { AppText, Icon } from '@/components';
+import { Pressable } from 'react-native';
+import { CountBadge, Icon } from '@/components';
 import { haptics } from '@/lib/haptics';
 
 /** Home top-bar messages entry (D51/Phase 7) — the bell's sibling: 44pt target, numeric unread
  *  badge capped at 9+, count carried in the screen-reader label. */
 export function MessagesButton({ unread, onPress, onHero = false }: { unread: number; onPress: () => void; onHero?: boolean }) {
-  const capped = unread > 9 ? '9+' : String(unread);
   return (
     <Pressable
       accessibilityRole="button"
@@ -18,13 +17,7 @@ export function MessagesButton({ unread, onPress, onHero = false }: { unread: nu
       hitSlop={4}
     >
       <Icon name="mail" size={22} fill={unread > 0} className={onHero ? 'text-on-hero' : 'text-ink'} />
-      {unread > 0 ? (
-        <View className="absolute right-0.5 top-0.5 min-w-5 items-center justify-center rounded-full bg-action px-1 py-1">
-          <AppText variant="caption" tone="onAction" allowFontScaling={false} tabular>
-            {capped}
-          </AppText>
-        </View>
-      ) : null}
+      <CountBadge count={unread} />
     </Pressable>
   );
 }

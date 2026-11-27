@@ -33,7 +33,7 @@ import { router } from "./index";
 
 /** Every URL worth pinning: one per declared route, with the ambiguous pairs written out. */
 const PROBES = [
-  "/login", "/placard-calculator", "/apply/tok_123", "/apply/tok_123/videos", "/accept-invite", "/two-step", "/too-many-devices", "/pending", "/use-the-app",
+  "/login", "/placard-calculator", "/apply/tok_123", "/apply/tok_123/videos", "/careers/silvicom", "/careers/silvicom/jobs/op_1", "/accept-invite", "/two-step", "/too-many-devices", "/pending", "/use-the-app",
   "/forgot-password", "/reset-password",
   "/",
   "/assignments",
@@ -50,7 +50,7 @@ const PROBES = [
   "/hazmat/review", "/hazmat/settings/equipment",
   "/vehicles", "/vehicles/v_1",
   "/odometer", "/coverage", "/recall-audit", "/trailers", "/trailers/tr_1", "/reefer-coverage",
-  "/fuel-planning", "/truck-stops", "/lumper-fees", "/idling", "/drug-alcohol", "/roadside-inspections", "/roadside-inspections/ri_1",
+  "/fuel-planning", "/truck-stops", "/lumper-fees", "/broker-mail", "/idling", "/drug-alcohol", "/training", "/roadside-inspections", "/roadside-inspections/ri_1",
   "/drivers", "/drivers/dr_1", "/drivers/paper-intake",
   "/compliance", "/compliance/dr_1",
   // R7 added `/recruitment/:id`, which makes these (five since E4b) another specificity pair: the two static
@@ -90,6 +90,7 @@ const PROBES = [
   "/transactions", "/rejections",
   "/fuel-cards", "/fuel-cards/fc_1",
   "/settings/card-control",
+  "/settings/broker-mail",
   "/anomalies", "/fuel-events", "/ask", "/reports",
   "/settings", "/settings/users", "/settings/permissions", "/settings/thresholds", "/settings/driver-performance",
   // Q-APX18 (a): the Ads workspace, and the two addresses the ads left behind as redirects (a notification or a
@@ -219,6 +220,10 @@ describe("the route table survives being split by area", () => {
       "/accept-invite", // redeems the invitation's own token via /api/public/invites; membership written server-side
       "/apply/:token", // H5b — the applicant's form; the token IS the access control
       "/apply/:token/videos", // HW8a — the orientation videos on the same token
+      // APPLY-PAGE-PLAN D-AP1 — a carrier's published openings and one job's form, read by anyone, Google and Indeed;
+      // deliberately indexable. Served on careers.silvicominc.com too (D-AP9).
+      "/careers/:handle",
+      "/careers/:handle/jobs/:openingId",
       "/error",
       "/forgot-password", // 0363 — asks for a reset link; the API answers one sentence for every address
       "/login",

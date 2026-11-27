@@ -21,6 +21,7 @@ export { ingestPostedPrices } from "./postedPriceIngest.js";
 export { ingestPilotPrices } from "./pilotPriceIngest.js";
 export { ingestPilotLocations } from "./pilotLocationsIngest.js";
 export { startPilotPriceMailScheduler } from "./pilotPriceMailScheduler.js";
+export { startPilotSftpScheduler } from "./pilotSftpScheduler.js";
 export { runKwikTripSync } from "./kwikTripIngest.js";
 export { runRoadRangerFetch } from "./roadRangerIngest.js";
 export { ingestLovesExport, upsertLoves } from "./lovesIngest.js";
@@ -32,3 +33,5 @@ export { registerNetworkRoutes } from "./routes/networks.js";
  * (raw-layer, sealed to this module by check-table-access.mjs).
  */
 export { readRecentDieselMedian, DIESEL_MEDIAN_TTL_MS, __resetDieselMedianCache } from "./dieselMedian.js";
+/** Pilot's quote per station-day, for the weekly bill's rebuilt old columns (fuel-spend). */
+export { readPilotQuotes } from "./pilotQuotes.js";

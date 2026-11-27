@@ -24,6 +24,10 @@ const state = vi.hoisted(() => ({
   settings: null as null | { invite_ttl_days: number; reminders_enabled: boolean; reminder_after_hours: number; handbook_blocks_hire?: boolean; videos_block_hire?: boolean },
   /** HW8a: the carrier's orientation videos. */
   videos: [] as unknown[],
+  /** TS4: reads of the Tenstreet card's route — a caller who may not manage recruiting must cause none. */
+  tenstreetReads: 0,
+  /** AP1: reads of the careers page card's route, by the same rule. */
+  careersReads: 0,
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -50,6 +54,14 @@ vi.mock("@/lib/api", () => ({
       return state.settings
         ? { ok: true, data: { settings: state.settings, isDefault: false, updatedAt: "2026-09-27T09:00:00Z" } }
         : { ok: true, data: { settings: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48, handbook_blocks_hire: false, videos_block_hire: false }, isDefault: true, updatedAt: null } };
+    }
+    if (url.endsWith("/careers-page")) {
+      state.careersReads++;
+      return { ok: true, data: { configured: false, handle: null, enabled: false, accommodationEmail: null, accommodationPhone: null, publicUrl: null, robotCheckReady: true, openings: [] } };
+    }
+    if (url.endsWith("/tenstreet/connection")) {
+      state.tenstreetReads++;
+      return { ok: true, data: { configured: false, companyId: null, mode: "test", enabled: false, keyHint: null, rotatedAt: null, lastPostAt: null, endpointMasked: null, receiverReady: true, last7Days: { accepted: 0, rejected: 0, failed: 0 }, lastProblem: null } };
     }
     if (url.endsWith("/drug-alcohol-policy")) return { ok: true, data: { policy: { name: "Drug and alcohol abuse policy", version: "dap-0123456789abcdef" } } };
     throw new Error(`unexpected GET ${url}`);
@@ -95,6 +107,8 @@ beforeEach(() => {
   state.refuse = null;
   state.settings = null;
   state.videos = [];
+  state.tenstreetReads = 0;
+  state.careersReads = 0;
   state.reps = [{ id: REP, full_name: "Miroslav Jokovic", title: "Owner", created_at: "2026-09-01T12:00:00Z" }];
   state.examiners = [{ id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "2026-09-02T12:00:00Z" }];
   asked = answerConfirm(true);
@@ -158,6 +172,40 @@ describe("who may change the register", () => {
     expect(section(ro, "Representatives").find("input").exists()).toBe(false);
     expect(section(ro, "Road-test examiners").find("input").exists()).toBe(false);
     expect(section(ro, "Road-test examiners").text()).toContain("No examiner is on file yet");
+  });
+});
+
+describe("the Tenstreet card (TENSTREET-INTAKE-PLAN TS4)", () => {
+  // Its API door is `recruitment` manage; the card follows the matrix, so a viewer never sees buttons the server refuses.
+  it("shows the card to a caller who manages recruiting, and reads its route", async () => {
+    asRole("recruiter");
+    const w = await page();
+    expect(section(w, "Tenstreet").text()).toContain("Tenstreet Company ID");
+    expect(state.tenstreetReads).toBe(1);
+  });
+
+  it("shows an auditor no card, and never asks its route", async () => {
+    expect(sectionAccess("auditor", "recruitment")).toBe("view");
+    asRole("auditor");
+    const w = await page();
+    expect(w.findAll("section").some((sec) => sec.find("h2").text() === "Tenstreet")).toBe(false);
+    expect(state.tenstreetReads).toBe(0);
+  });
+});
+
+describe("the careers page card (APPLY-PAGE-PLAN AP1)", () => {
+  it("shows the card to a caller who manages recruiting, and reads its route", async () => {
+    asRole("recruiter");
+    const w = await page();
+    expect(section(w, "Careers page").text()).toContain("Page address");
+    expect(state.careersReads).toBe(1);
+  });
+
+  it("shows an auditor no card, and never asks its route", async () => {
+    asRole("auditor");
+    const w = await page();
+    expect(w.findAll("section").some((sec) => sec.find("h2").text() === "Careers page")).toBe(false);
+    expect(state.careersReads).toBe(0);
   });
 });
 

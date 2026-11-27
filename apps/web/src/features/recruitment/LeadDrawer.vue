@@ -34,6 +34,7 @@ import { useToastStore } from "@/stores/toast";
 import LeadCloseForm from "./LeadCloseForm.vue";
 import LeadContactForm from "./LeadContactForm.vue";
 import LeadConvertForm from "./LeadConvertForm.vue";
+import LeadTenstreetSection from "./LeadTenstreetSection.vue";
 import { NEW_APPLICANT, useLeadActions, type LeadHoldAnswer, type LeadPurgeAnswer } from "./useLeadActions";
 import { useLeadClosuresQuery, useLeadContactsQuery, useLeadQuery } from "./useLeads";
 
@@ -81,7 +82,7 @@ const facts = computed(() => [
   ...(lead.value?.phone_e164 ? [{ key: "line", label: "Line", value: phoneLineText(lead.value.phone_line) }] : []),
   { key: "email", label: "Email", value: lead.value?.email_lower },
 ]);
-const answers = computed(() => leadAnswerRows(lead.value?.answers ?? {}));
+const answers = computed(() => leadAnswerRows(lead.value?.answers ?? {}, lead.value?.channel));
 // V7b: the same standing and reasons the queue row shows (shared `leadStanding`).
 const standing = computed(() => (lead.value ? leadStanding(lead.value) : null));
 const linkTo = (leadId: string) => ({ query: { ...route.query, lead: leadId } });
@@ -355,6 +356,8 @@ const runPurge = (): Promise<void> =>
           </li>
         </ul>
       </section>
+
+      <LeadTenstreetSection v-if="lead.channel === 'tenstreet' && !lead.purged_at" :lead-id="lead.id" />
 
       <section v-if="lead.verdicts.length > 0" aria-labelledby="lead-match-heading">
         <h3 id="lead-match-heading" class="text-sm font-semibold text-ink">Against the opening</h3>

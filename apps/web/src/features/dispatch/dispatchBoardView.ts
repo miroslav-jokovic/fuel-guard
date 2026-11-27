@@ -1,6 +1,7 @@
 import {
   availableNear,
   homeTimeChipUrgent,
+  isUnassignedPool,
   legalDriveMs,
   needsAttention,
   warningIsUrgent,
@@ -11,7 +12,7 @@ import {
 } from "@silvicom/shared";
 import { type DataTableColumn } from "@silvicom/ui";
 import { formatDate } from "@/lib/format";
-import { POOL_FLEET, POOL_OPTION, admitsScope, type ScopeFilter } from "./dispatchScope";
+import { POOL_OPTION, admitsScope, type ScopeFilter } from "./dispatchScope";
 
 export { NO_FLEET_OPTION, POOL_FLEET, POOL_OPTION, dispatcherLabel } from "./dispatchScope";
 
@@ -78,13 +79,13 @@ export function filterBoard(
     if (!admitsScope(r, scope, f)) return false;
     // "All" still leaves the parked pool out unless it is asked for by name. A board rule, not a scope
     // rule: a truck parked in the shop is not work, but a load on the Loads page is a record and stays.
-    if (!f.mine && !f.fleet && r.fleetCode === POOL_FLEET) return false;
+    if (!f.mine && !f.fleet && isUnassignedPool(r.fleetCode)) return false;
     if (!queue.test(r)) return false;
     // A truck in the shop is not available anywhere, whatever its last position says.
     if ((a.states.length || a.near || by) && (r.inShop || !availableNear(r.available, { states: a.states, near: a.near, by }))) return false;
     if (!term) return true;
     return [
-      r.unitNumber, r.fleetCode, r.driver?.name, r.current?.ref, r.current?.customerName, r.current?.trailerUnit,
+      r.unitNumber, r.fleetCode, r.driver?.name, r.coDriver?.name, r.current?.ref, r.current?.customerName, r.current?.trailerUnit,
       r.position?.place, r.current?.nextStop?.city, r.available?.city, r.available?.state, r.available?.postalCode, r.next?.ref,
     ]
       .filter((v): v is string => Boolean(v))
@@ -184,6 +185,23 @@ export const BOARD_COLUMNS: DataTableColumn[] = [
 export const BOARD_LIVE_COLUMNS = ["hos", "now", "load", "nextStop", "next"] as const;
 
 /**
+ * What the current load pays (LOAD-RATES-PLAN D-RATE8), after Miles left: the two figures a dispatcher
+ * weighs a truck's run by. Only for a reader holding `dispatch.load_rates` (`withRateColumn`) — for anyone
+ * else it does not exist, so the picker does not list it, and the API sends them no `charges` (D-RATE7).
+ * HIDDEN by default, one click away in Columns (`BOARD_DEFAULT_HIDDEN`) — owner, 2026-11-20, Q-RATE1 (c):
+ * at 1440 px every visible option pushed Notes off the board, and the price is in the truck drawer.
+ * `sm` because a figure up to "$11,000.00" fits, and its split note wraps.
+ */
+export const BOARD_RATE_COLUMN: DataTableColumn = { key: "rate", label: "Rate", width: "sm", sortable: true, numeric: true };
+/** What a reader who never chose columns starts without: the Live columns (D-DBV1) and Rate (Q-RATE1). */
+export const BOARD_DEFAULT_HIDDEN = [...BOARD_LIVE_COLUMNS, BOARD_RATE_COLUMN.key];
+export function withRateColumn(columns: DataTableColumn[], seesRates: boolean): DataTableColumn[] {
+  if (!seesRates) return columns;
+  const at = columns.findIndex((c) => c.key === "milesLeft") + 1;
+  return [...columns.slice(0, at), BOARD_RATE_COLUMN, ...columns.slice(at)];
+}
+
+/**
  * The board's table id, from the one place it is spelled (`SAVED_VIEW_TABLES`): the column picker's
  * storage key (`fg.cols.dispatch.board`) and the saved views' `table_id` (admitted by migration 0452),
  * so the two agree about what "the board" is called by construction.
@@ -197,7 +215,7 @@ export const BOARD_TABLE: SavedViewTable = "dispatch.board";
 export const BOARD_COLUMNS_ID = `${BOARD_TABLE}.v2`;
 
 /** The column keys a `?sort=` link may name — derived, so a new sortable column cannot be forgotten. */
-export const BOARD_SORT_KEYS = BOARD_COLUMNS.filter((c) => c.sortable).map((c) => c.key);
+export const BOARD_SORT_KEYS = [...BOARD_COLUMNS, BOARD_RATE_COLUMN].filter((c) => c.sortable).map((c) => c.key);
 /** The board opens soonest-free first, as the dispatchers' own board does. */
 export const BOARD_DEFAULT_SORT = "available";
 
@@ -245,6 +263,8 @@ export function boardSortValue(r: DispatchBoardRow, key: string): unknown {
       return r.current?.nextStop?.appointmentEnd ?? r.current?.nextStop?.appointmentStart ?? null;
     case "next":
       return r.next?.ref ?? null;
+    case "rate":
+      return r.current?.charges?.total_charge ?? null;
     default:
       return null;
   }

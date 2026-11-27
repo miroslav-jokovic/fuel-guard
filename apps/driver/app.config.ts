@@ -323,6 +323,34 @@ const config: ExpoConfig = {
     // MapLibre native map SDK (NAV NP0) — free/open vector tiles, no access token. The map hero in
     // B4.4 is a picture, not navigation: it needs no location permission, and both are blocked above.
     '@maplibre/maplibre-react-native',
+    /**
+     * Visual 2026 V9 (D-DV25): the glance surfaces. One widget, `StopWidget`, is the Lock Screen's
+     * accessoryRectangular on iOS and a home-screen widget on Android; the Live Activity
+     * (`StopActivity`) registers itself at runtime and is deliberately NOT listed here (the library's
+     * rule). Layouts: `src/features/glance/`.
+     *
+     * No push: the app updates its own activity while it runs, and the system timer carries the
+     * countdown while it sleeps. Push-to-update would need an APNs key on the server and a token
+     * table, a feature-plan decision, not a visual one. The widget extension needs the App Group
+     * `group.com.silvicom.fuelguard.driver` registered for the Apple team before a DEVICE build signs.
+     */
+    [
+      'expo-widgets',
+      {
+        bundleIdentifier: 'com.silvicom.fuelguard.driver.ExpoWidgetsTarget',
+        groupIdentifier: 'group.com.silvicom.fuelguard.driver',
+        enableAndroid: true,
+        widgets: [
+          {
+            name: 'StopWidget',
+            displayName: 'Next stop',
+            description: 'The stop you are driving to and its appointment window.',
+            ios: { supportedFamilies: ['accessoryRectangular'] },
+            android: { targetCellWidth: 3, targetCellHeight: 2, resizeMode: 'horizontal' },
+          },
+        ],
+      },
+    ],
     // The small icon Android draws in the status bar is a SILHOUETTE — only the alpha channel is
     // used and the system tints it, which is why `color` matters and the asset is white-on-transparent.
     [
@@ -349,10 +377,14 @@ const config: ExpoConfig = {
       },
     ],
     /**
-     * PINNED SDK levels (§6.0). React Native 0.86's version catalogue already resolves 36/36/24
-     * today; pinning them means an RN bump cannot move them without this line moving, which is the
-     * difference between "targets Android 16" and "happens to target Android 16". Play requires 36
-     * for new apps and updates from 2026-08-31.
+     * PINNED SDK levels (§6.0). Pinning them means a React Native bump cannot move them without this
+     * line moving: the difference between "targets Android 16" and "happens to target Android 16". Play
+     * requires 36 for new apps and updates from 2026-08-31.
+     *
+     * SDK 58 (Visual 2026 V3b, D-DV24): React Native 0.88's catalogue and Expo's autolinking default
+     * moved compile to 37 and build tools to 37.0.0, so this line moves them on purpose. Compile is
+     * build-time only (the APIs the code may reference). Target stays 36, because target is the one
+     * that changes how Android treats the app at runtime; it moves in its own change.
      *
      * `minSdkVersion: 24` is React Native's floor, not a choice. `buildToolsVersion` is pinned with
      * the SDK for the same reason.
@@ -364,14 +396,15 @@ const config: ExpoConfig = {
       'expo-build-properties',
       {
         android: {
-          compileSdkVersion: 36,
+          compileSdkVersion: 37,
           targetSdkVersion: 36,
           minSdkVersion: 24,
-          buildToolsVersion: '36.0.0',
+          buildToolsVersion: '37.0.0',
           enableMinifyInReleaseBuilds: true,
           enableShrinkResourcesInReleaseBuilds: true,
         },
-        // Expo SDK 57's floor. Raising it drops iOS 15 devices; there is no reason to.
+        // Expo SDK 58's floor, unchanged from 57 (Sentry 8 needs 15.0, below it). Raising it drops
+        // iOS 15 devices; there is no reason to.
         ios: { deploymentTarget: '16.4' },
       },
     ],

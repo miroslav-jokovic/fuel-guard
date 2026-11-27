@@ -1,47 +1,32 @@
-import { useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { useState } from 'react';
 import { Redirect, useRouter } from 'expo-router';
 import type { DeclineReason, Load } from '@silvicom/shared';
 import {
-  AppText,
   Banner,
-  Card,
   ChoiceSheet,
   ConfirmSheet,
   EmptyState,
   OfflineBanner,
   Screen,
+  ScreenHeader,
   Section,
-  SegmentedControl,
-  Skeleton,
+  SkeletonRows,
 } from '@/components';
 import { OfferDeck, declineChoices } from '@/features/loads/OfferDeck';
-import { CurrentLoadRow, HistoryRow, UpcomingRow } from '@/features/loads/loadRows';
-import {
-  acceptedUpcoming,
-  defaultChip,
-  headerSentence,
-  orderOffers,
-  type LoadChip,
-} from '@/features/loads/offerDeckModel';
-import { bucketLoads } from '@/features/loads/loadViewModel';
+import { LoadRows } from '@/features/loads/LoadRows';
+import { loadsListView } from '@/features/loads/loadsListModel';
 import { useAcceptLoad, useAcceptance, useDeclineLoad, useLoads } from '@/features/loads/useLoads';
 import { useFeatures } from '@/session/useFeatures';
-
-const EMPTY: Record<LoadChip, { title: string; subtitle: string }> = {
-  offered: { title: 'No offers right now', subtitle: 'Dispatch sends new work here first.' },
-  current: { title: 'Nothing in transit', subtitle: 'Accept an upcoming load and start it to see it here.' },
-  upcoming: { title: 'No upcoming loads', subtitle: 'New assignments appear here once dispatch releases them.' },
-  history: { title: 'No finished loads yet', subtitle: 'Delivered runs stay here for your records.' },
-};
 
 /**
  * Loads (D51 — the tab reads "Loads", the page reads Assignments). Only loads dispatch approved and
  * released ever reach this list; the server applies the same predicate the RLS policy does, so there
  * is no client-side idea of a hidden load to get wrong (D45).
  *
- * There is no filter control. The canvas had one and there is nothing behind it — a control that
- * does nothing is worse than no control (D-DB8).
+ * Visual 2026 V6 (the V1 mock's screen 4): the title, the offers (the one thing here somebody is
+ * waiting on), then every other load grouped by TIME (Now, Next, Delivered this week, Earlier) as
+ * rows on the canvas. Direction B grouped by status behind four chips over a navy hero, so a driver
+ * had to know which chip a load was filed under to find it. The grouping is `loadsListModel`.
  */
 export default function Loads() {
   const router = useRouter();
@@ -51,59 +36,30 @@ export default function Loads() {
   const { copy } = useAcceptance(enabled);
   const accept = useAcceptLoad();
   const decline = useDeclineLoad(enabled);
-
-  const buckets = bucketLoads(data?.loads ?? []);
-  const offers = useMemo(() => orderOffers(buckets.upcoming), [buckets.upcoming]);
-  const assigned = useMemo(() => acceptedUpcoming(buckets.upcoming), [buckets.upcoming]);
-  const counts = { offered: offers.length, current: buckets.current.length, upcoming: assigned.length };
-
-  const [chosen, setChosen] = useState<LoadChip | null>(null);
-  const chip = chosen ?? defaultChip(counts);
   const [decliningLoad, setDecliningLoad] = useState<Load | null>(null);
   const [reason, setReason] = useState<DeclineReason | null>(null);
-
-  const showSkeletons = isPending && !data;
+  const [refreshing, setRefreshing] = useState(false);
 
   if (features.isLoaded && !enabled) return <Redirect href="/home" />;
 
-  const hero = (
-    <View className="gap-4">
-      <View className="gap-1">
-        <AppText variant="screenTitle" tone="onHero" accessibilityRole="header">Loads</AppText>
-        <AppText variant="supporting" tone="onHeroSecondary">{headerSentence(counts)}</AppText>
-      </View>
-      <SegmentedControl<LoadChip>
-        variant="chips"
-        onHero
-        value={chip}
-        onChange={setChosen}
-        options={[
-          { label: 'Offered', value: 'offered', ...(counts.offered > 0 ? { count: counts.offered } : {}) },
-          { label: 'Current', value: 'current' },
-          { label: 'Upcoming', value: 'upcoming', ...(counts.upcoming > 0 ? { count: counts.upcoming } : {}) },
-          { label: 'History', value: 'history' },
-        ]}
-      />
-      {chip === 'offered' && offers.length > 0 ? (
-        <OfferDeck
-          offers={offers}
-          copy={copy}
-          accepting={accept.isPending}
-          onAccept={(load) => void accept.mutateAsync(load.id)}
-          onDecline={(load) => setDecliningLoad(load)}
-          onOpen={(load) => router.push(`/loads/${load.id}` as never)}
-          onHazmat={() => router.push('/documents')}
-        />
-      ) : null}
-    </View>
-  );
+  const view = loadsListView(data?.loads ?? []);
+  const open = (id: string) => router.push(`/loads/${id}` as never);
+  const nothing = view.offers.length === 0 && view.groups.length === 0;
 
   return (
-    <Screen hero={hero} flow="sections">
+    <Screen
+      flow="sections"
+      refreshing={refreshing}
+      onRefresh={() => {
+        setRefreshing(true);
+        void refetch().finally(() => setRefreshing(false));
+      }}
+    >
+      <ScreenHeader title="Loads" />
       <OfflineBanner />
 
       {isError && !data ? (
-        <Section first>
+        <Section>
           <Banner
             tone="danger"
             message={error.message || 'Could not load your assignments.'}
@@ -113,23 +69,41 @@ export default function Loads() {
         </Section>
       ) : null}
 
-      <Section first={!isError || Boolean(data)} title={SECTION_TITLE[chip]}>
-        {showSkeletons ? (
-          <>
-            <Skeleton className="w-full rounded-xl" style={{ height: 72 }} />
-            <Skeleton className="w-full rounded-xl" style={{ height: 72 }} />
-          </>
-        ) : (
-          <LoadList
-            chip={chip}
-            offers={offers}
-            assigned={assigned}
-            current={buckets.current}
-            previous={buckets.previous}
-            onOpen={(id) => router.push(`/loads/${id}` as never)}
+      {isPending && !data ? (
+        <Section>
+          <SkeletonRows count={2} />
+        </Section>
+      ) : null}
+
+      {view.offers.length > 0 ? (
+        <Section title={view.offers.length === 1 ? 'Offered to you' : `Offered to you · ${view.offers.length}`}>
+          <OfferDeck
+            offers={view.offers}
+            copy={copy}
+            accepting={accept.isPending}
+            onAccept={(load) => void accept.mutateAsync(load.id)}
+            onDecline={(load) => setDecliningLoad(load)}
+            onOpen={(load) => open(load.id)}
+            onHazmat={() => router.push('/documents')}
           />
-        )}
-      </Section>
+        </Section>
+      ) : null}
+
+      {view.groups.map((group) => (
+        <Section key={group.key} title={group.title}>
+          <LoadRows rows={group.rows} onOpen={open} />
+        </Section>
+      ))}
+
+      {data && nothing ? (
+        <Section>
+          <EmptyState
+            icon="local_shipping"
+            title="No loads yet"
+            subtitle="Released loads from dispatch appear here, and delivered ones stay for your records."
+          />
+        </Section>
+      ) : null}
 
       <ChoiceSheet<DeclineReason>
         visible={decliningLoad !== null && reason === null}
@@ -160,56 +134,5 @@ export default function Loads() {
         onCancel={() => setReason(null)}
       />
     </Screen>
-  );
-}
-
-const SECTION_TITLE: Record<LoadChip, string> = {
-  offered: 'Offered to you',
-  current: 'In transit',
-  upcoming: 'Assigned to you',
-  history: 'Finished',
-};
-
-function LoadList({
-  chip,
-  offers,
-  assigned,
-  current,
-  previous,
-  onOpen,
-}: {
-  chip: LoadChip;
-  offers: readonly Load[];
-  assigned: readonly Load[];
-  current: readonly Load[];
-  previous: readonly Load[];
-  onOpen: (id: string) => void;
-}) {
-  const rows = { offered: offers, current, upcoming: assigned, history: previous }[chip];
-  if (rows.length === 0) {
-    return (
-      <Card padded={false}>
-        <EmptyState icon="local_shipping" title={EMPTY[chip].title} subtitle={EMPTY[chip].subtitle} />
-      </Card>
-    );
-  }
-  if (chip === 'current') {
-    return (
-      <Card padded={false}>
-        {current.map((load) => <CurrentLoadRow key={load.id} load={load} onPress={() => onOpen(load.id)} />)}
-      </Card>
-    );
-  }
-  if (chip === 'history') {
-    return (
-      <Card padded={false}>
-        {previous.map((load) => <HistoryRow key={load.id} load={load} onPress={() => onOpen(load.id)} />)}
-      </Card>
-    );
-  }
-  return (
-    <>
-      {rows.map((load) => <UpcomingRow key={load.id} load={load} onPress={() => onOpen(load.id)} />)}
-    </>
   );
 }

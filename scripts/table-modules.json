@@ -1179,6 +1179,28 @@
         "why": "raw posted-price feed. Measured 888/day. Retention unruled \u2014 L9."
       }
     },
+    "pilot_sftp_files": {
+      "module": "posted-prices",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "new in 0652 (2026-11-26, PILOT-SFTP-FEED-PLAN): one row per file taken from Pilot's SFTP drop, updated in place on a retry or a re-read; Pilot sends a daily Price Quote and a daily Transaction file, so about 700 rows a year. A work record, not evidence \u2014 a quote's prices are in fuel_prices, the bytes in the pilot-sftp bucket."
+      }
+    },
+    "pilot_bill_mails": {
+      "module": "fuel-spend",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "new in 0644 (2026-11-24, PILOT-INVOICE-FORMAT-ANALYSIS step 3): one row per Pilot weekly bill email read from the Pilot-Bills folder, updated in place on a retry; one bill a week, forwarded by up to two people, so about 100 rows a year. A work record, not evidence \u2014 the bill is in fuel_statements."
+      }
+    },
     "pilot_price_mails": {
       "module": "posted-prices",
       "layer": "infra",
@@ -1925,6 +1947,17 @@
         "partition": null,
         "budget_rows_per_day": 30,
         "why": "no rows yet (HB0 is schema only). Six rows per hired driver (five driver places, one countersignature). Signature evidence, append-only like application_packet_marks; retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
+    },
+    "load_charges": {
+      "module": "loads",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 150,
+        "why": "no rows yet (LOAD-RATES-PLAN R1 is schema only). One row per LOADED McLeod load; budget derived from lme_analytics 2026-11-20: 4,248 loaded movements in the 90 days to 2026-10-09 = 47/day, x3 headroom. The history read (VM guide Part C) adds one row per delivered loaded load already in the mirror, once (8,683 delivered loads were held on 2026-10-21, plus every one delivered since). Rebuilt from the raw mirror; goes with its load; retention unruled — DATA-LIFECYCLE-PLAN L9."
       }
     },
     "load_dispatches": {
@@ -3049,6 +3082,39 @@
         "why": "daily page-view count per (org, day, screen, role), product readiness X1 (0435). Ceiling is 72 screens x 9 roles = 648 rows per org per day; one office reads far fewer. No window yet: the usage history is the evidence the keep/hide rulings rest on."
       }
     },
+    "recruiting_careers_pages": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "static",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0641 (2026-11-20, APPLY-PAGE-PLAN AP1); one row per carrier (unique org_id); never grows past the carrier count."
+      }
+    },
+    "tenstreet_connections": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "static",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0640 (2026-11-20, Tenstreet TS1); one row per carrier (unique org_id); never grows past the carrier count."
+      }
+    },
+    "tenstreet_posts": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "new in 0640 (2026-11-20, Tenstreet TS1); one row per Tenstreet post (the guide's one-year log), on subject update plus a nightly run; pruned at 400 days from received_at (Q-TS9 (a): a year plus margin)."
+      }
+    },
     "thread_participants": {
       "module": "messaging",
       "layer": "core",
@@ -3806,6 +3872,204 @@
         "partition": null,
         "budget_rows_per_day": 1,
         "why": "LUMPER-REVISED-RC-PLAN D-LRC6 (0624): one row per org per weekday the reminder runs, about 260 a year per carrier. The record that a morning's reminder went and to how many, so no window."
+      }
+    },
+    "broker_mail_messages": {
+      "module": "broker-mail",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 90,
+        "partition": null,
+        "budget_rows_per_day": 3000,
+        "why": "new in 0643 (2026-11-24, P1): one row per external Inbox message in a derived dispatcher mailbox; 14 mailboxes x ~150 external a day ~ 2,100, budgeted 3,000. Pruned at 90 days from received_at (Q-BMR6)."
+      }
+    },
+    "mail_gateway_cycles": {
+      "module": "broker-mail",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 14,
+        "partition": null,
+        "budget_rows_per_day": 1440,
+        "why": "new in 0643 (2026-11-24, P1): one row per gateway run, one run a minute = 1,440 a day; the heartbeat and the measure week's counts. Pruned at 14 days from started_at."
+      }
+    },
+    "mail_gateway_mailboxes": {
+      "module": "broker-mail",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0643 (2026-11-24, P1): one row per mailbox the derived list has held; grows with the dispatch office (14 today), never with time."
+      }
+    },
+    "mail_gateway_cursors": {
+      "module": "broker-mail",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0643 (2026-11-24, P1): one Graph delta position per read folder of a derived mailbox (Inbox, its subfolders, Sent); rewritten in place, never appended."
+      }
+    },
+    "mail_gateway_config": {
+      "module": "broker-mail",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "static",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0643 (2026-11-24, P1): exactly one row (unique index on a constant): the org the gateway serves and its switches (D-BMR3, D-BMR12)."
+      }
+    },
+    "training_courses": {
+      "module": "training",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0648 (2026-11-24, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8-§9): one row per course the office makes (an act of the films); a handful per carrier, never with time."
+      }
+    },
+    "training_lessons": {
+      "module": "training",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0648 (2026-11-24, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8-§9): one row per film in a course; 5 today, 14 planned (SEGMENT-PLAN), never with time."
+      }
+    },
+    "training_versions": {
+      "module": "training",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0648 (2026-11-24, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8-§9): one row per uploaded cut of a film; a published one is frozen and kept, since records name it. Grows with remasters, not time."
+      }
+    },
+    "training_questions": {
+      "module": "training",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0648 (2026-11-24, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8-§9): about 10 per film version, frozen once published; grows with versions, not time."
+      }
+    },
+    "training_assignments": {
+      "module": "training",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "new in 0648 (2026-11-24, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8-§9): one row per driver per course sent; at most ~20 drivers a week, budgeted 50 a day. The record of what was sent: never pruned (RETENTION_FORBIDDEN)."
+      }
+    },
+    "training_progress": {
+      "module": "training",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 250,
+        "why": "new in 0648 (2026-11-24, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8-§9): one row per assignment per film watched (~5 per assignment); heartbeats rewrite it, so it grows with assignments, not plays. Budgeted 250 a day."
+      }
+    },
+    "training_attempts": {
+      "module": "training",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 400,
+        "why": "new in 0648 (2026-11-24, SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS §8-§9): one row per quiz taken (~1.5 per film per driver); the completion record, append-only once submitted, never pruned (RETENTION_FORBIDDEN). Budgeted 400 a day."
+      }
+    },
+    "broker_mail_settings": {
+      "module": "broker-mail",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "static",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0649 (2026-11-25, P2): one row per org, the company's broker-mail setting written from Settings › Broker mail; never grows with time."
+      }
+    },
+    "broker_mail_backups": {
+      "module": "broker-mail",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0651 (2026-11-25, P3): one row per dispatcher and backup the admin chose (Q-BM10); grows with the dispatch office (14 dispatchers, a few backups each), never with time."
+      }
+    },
+    "samsara_warnings": {
+      "module": "samsara",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 90,
+        "partition": null,
+        "budget_rows_per_day": 400,
+        "why": "new in 0653 (WARNING-DESK-PLAN D-WD4): one row per Samsara warning the desk counts \u2014 measured 2026-11-26 at ~150/day after idling is excluded (alerts ~95, safety ~44, ATIS episodes before merging ~150, HOS ~25, defects ~1.5); refreshed in place; RETENTION_RULES 90 days."
+      }
+    },
+    "follow_up_rules": {
+      "module": "followups",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new in 0653 (D-WD10): one row per rule an admin changed from its default; bounded by the number of rules (about 25), never grows with time."
+      }
+    },
+    "follow_ups": {
+      "module": "followups",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 30,
+        "why": "new in 0653 (D-WD6): one row per problem a person follows up \u2014 about 22 per working day at the measured defaults (plan \u00a71.6). Kept: the record of what the desk handled."
+      }
+    },
+    "follow_up_actions": {
+      "module": "followups",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 100,
+        "why": "new in 0653 (D-WD9): append-only, one row per action on a follow-up (call, no answer, shop, close); a few per follow-up. Kept: who told which driver what."
       }
     }
   }

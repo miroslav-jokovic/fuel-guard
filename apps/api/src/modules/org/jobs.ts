@@ -30,11 +30,10 @@ export type JobKind =
    */
   | "idle_event_twins"
   | "sync_ifta" // Samsara IFTA jurisdiction miles, monthly grain (0255, SAMSARA-IFTA-MILEAGE-PLAN S1)
-  | "sync_documents" // Samsara driver documents — BOL, delivery copies, call forms (0445, DOCUMENT-READER-PLAN 0.1)
+  | "warning_desk" | "sync_documents" // Samsara driver documents — BOL, delivery copies, call forms (0445, DOCUMENT-READER-PLAN 0.1)
   | "sync_odometer" // Samsara cumulative odometer readings, one per truck per day per counter (0311, W3b)
   | "idle_engine" // our own idle engine's hour/stop/day rows, hourly + a nightly 2-day recompute (0404, IE2)
-  | "sync_hos"
-  | "sync_stats"
+  | "sync_hos" | "sync_stats"
   | "sync_drivers"
   | "nightly_reconcile"
   | "efs_ingest"
@@ -50,6 +49,7 @@ export type JobKind =
   | "hazmat_analyze"
   | "document_read" // one document read: pages → model → document_read_transition (DOCUMENT-READER-PLAN Step 1.6)
   | "document_intake" // one uploaded file → canonical pages → document_sources + document_pages (Step 1.6b)
+  | "training_transcode" // an uploaded safety film → phone-sized MP4s + a poster (SAFETY-VIDEOS §8.2)
   | "pattern_sweep" // entity-intelligence Phase 2: read-only retrospective analysis of a flagged case
   | "data_retention" // daily retention-policy enforcement (services/dataRetention.ts)
   | "dq_binder" // assemble an auditor's sample of §391.51 files into one PDF (DQ-BINDER-PLAN)
@@ -104,14 +104,14 @@ export type JobKind =
    * duplicate delivery while one is queued is the ledger's own "already on it".
    */
   | "ads_lead_fetch"
+  | "tenstreet_post_process" // one kept Tenstreet post → a lead (TS3); dedup `tenstreet_post_process:<post id>`
   | "ads_insights" // one connection's hourly insights pull + auto-pause checks (B5a/b); dedup `ads_insights:<connection>`
   // One connection's daily reconcile → `external_change` rows (B5c); dedup `ads_reconcile:<connection>`.
   | "ads_reconcile"
   // One carrier's morning brief (F1b): yesterday's fold, the analyst's narration, the `ads_brief` bell; dedup `ads_daily_brief:<org>`.
   | "ads_daily_brief"
   | "ads_outcome_feed" // one Meta connection's daily outcome feed (B6) → Conversions API; dedup `ads_outcome_feed:<connection>`
-  // One carrier's sweep for leads nobody has contacted (D2c); dedup `lead_uncontacted:<org>`.
-  | "lead_uncontacted"
+  | "lead_uncontacted" // one carrier's sweep for leads nobody has contacted (D2c); dedup `lead_uncontacted:<org>`
   | "ads_render" // one Higgsfield render, one step (C3); polled by retry; dedup `ads_render:<creative>:<attempt>`
   | "ads_swipe_read" // one swipe-file entry read (V2r); dedup `ads_swipe_read:<entry>:<attempt>`
   // One org's nightly copy of its Storage objects to the off-provider bucket (storageBackup.ts). A kind so a

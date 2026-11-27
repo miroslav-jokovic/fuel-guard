@@ -17,7 +17,8 @@ export function isContrastMode(value: string | null): value is ContrastMode {
 
 export function resolveThemeKey(
   mode: ThemeMode,
-  systemColorScheme: ColorSchemeName,
+  // RN 0.88's useColorScheme() returns `| null` when the OS reports no scheme; that reads as light.
+  systemColorScheme: ColorSchemeName | null,
   contrastMode: ContrastMode,
   systemHighContrast: boolean,
 ): ThemeKey {

@@ -29,6 +29,9 @@ import ExportHistory from "@/features/compliance/ExportHistory.vue";
 import { DRIVER_ROSTER_COLUMNS } from "@/features/roster/driverRosterColumns";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import NotesDrawer from "@/components/notes/NotesDrawer.vue";
+import HomeTimeDrawer from "@/components/homeTime/HomeTimeDrawer.vue";
+import { useRosterHomeTime } from "@/features/roster/useRosterHomeTime";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { withNotesColumn } from "@/components/notes/notesColumn";
 import { useNotesAccess } from "@/components/notes/useUnitNotes";
 import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
@@ -43,6 +46,7 @@ import {
   canManageDriverIdentity,
   DQ_EXPORT_MAX_DRIVERS,
   seatedDriverIds,
+  unitsByDriver,
   dqDueFilterOptions,
   fileFilterOptions,
   type FileFilterKind,
@@ -141,11 +145,12 @@ const rosterColumns = useTableColumns(ROSTER_TABLE, () => withNotesColumn(DRIVER
  * not erase the person from records they appear in.
  */
 const {
-  search, status: statusFilter, defaultStatus, dqDue, dqRequirement, file: fileFilter, seat,
+  search, status: statusFilter, defaultStatus, dqDue, dqRequirement, file: fileFilter, seat, home,
   view, showArchived, sort, onSort, page, reset,
 } = useRosterFilters();
 const { data: vehicles } = useVehiclesQuery();
 const seated = computed(() => seatedDriverIds(vehicles.value ?? []));
+const units = computed(() => unitsByDriver(vehicles.value ?? []));
 
 /**
  * How many controls narrow the roster, for FilterBar's one "Clear filters" — a count where
@@ -156,7 +161,7 @@ const seated = computed(() => seatedDriverIds(vehicles.value ?? []));
  */
 const activeFilterCount = computed(
   () =>
-    [search.value, dqDue.value, dqRequirement.value, fileFilter.value, seat.value].filter(Boolean).length +
+    [search.value, dqDue.value, dqRequirement.value, fileFilter.value, seat.value, home.value].filter(Boolean).length +
     (statusFilter.value !== defaultStatus.value ? 1 : 0) +
     (showArchived.value ? 1 : 0),
 );
@@ -236,15 +241,21 @@ const overviewRows = computed(
 );
 
 /** What the toolbar asks for, in the shape `rosterRows` reads (DQ-INTO-DRIVERS-PLAN DD1). */
+// Home time (HOME-TIME-VISIBILITY-PLAN D-HT23/24): the Status badge and a filter under More.
+const { zone } = useOrgTimezone();
+const homeTime = useRosterHomeTime(home);
+const homeOptions = homeTime.options(computed(() => drivers.value ?? []), overviewRows, computed(() => rowFilters.value));
 const rowFilters = computed<RosterRowFilters>(() => ({
   term: search.value,
   status: statusFilter.value,
   showArchived: showArchived.value,
   seat: seat.value,
   seated: seated.value,
+  units: units.value,
   file: fileFilter.value,
   due: dqDue.value,
   req: dqRequirement.value,
+  home: homeTime.filter.value, homeStates: homeTime.states.value,
 }));
 const filtered = computed(() => filterRoster(drivers.value ?? [], overviewRows.value, rowFilters.value));
 
@@ -335,10 +346,13 @@ async function onSubmit(input: DriverInput) {
     <FilterBar
       v-model:search="search"
       embedded
-      search-placeholder="Search name, driver ID, employee ID, phone…"
+      search-placeholder="Search name, truck, driver ID, phone…"
       :count="filtered.length"
       count-label="drivers"
       :active-count="activeFilterCount"
+      :more-count="homeTime.chips.value.length"
+      :chips="homeTime.chips.value"
+      @remove="home = ''"
       @clear-all="reset"
     >
       <template #filters>
@@ -351,6 +365,9 @@ async function onSubmit(input: DriverInput) {
              toolbar within its four controls (`lint:ui-adoption`). -->
         <FilterSelect v-model="fileFilter" label="File" :options="fileOptions" />
         <FilterSelect v-model="dqDue" label="Due" :options="DQ_DUE_OPTIONS" />
+      </template>
+      <template v-if="homeTime.visible.value" #more>
+        <FilterSelect v-model="home" label="Home time" :options="homeOptions" block />
       </template>
       <template #actions>
         <SavedViewMenu
@@ -376,7 +393,6 @@ async function onSubmit(input: DriverInput) {
     <DriverRosterTable
       :selectable="canBuildBinder"
       :selected="selected"
-      @update:selected="select"
       :rows="pageRows"
       :columns="rosterColumns.visible.value"
       :loading="isLoading"
@@ -389,6 +405,8 @@ async function onSubmit(input: DriverInput) {
       :page="page"
       :page-size="ROSTER_PAGE_SIZE"
       :total="filtered.length"
+      :home-times="homeTime.visible.value ? homeTime.byDriver.value : undefined" :zone="zone"
+      @update:selected="select"
       @sort="onSort"
       @retry="refetch"
       @update:page="page = $event"
@@ -408,6 +426,7 @@ async function onSubmit(input: DriverInput) {
     </SlideOver>
 
     <NotesDrawer />
+    <HomeTimeDrawer v-if="homeTime.visible.value" :zone="zone" />
     <DriverReconcilePanel :open="reconcileOpen" :drivers="drivers ?? []" @close="reconcileOpen = false" />
 
     <SlideOver

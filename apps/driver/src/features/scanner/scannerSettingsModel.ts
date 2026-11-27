@@ -22,6 +22,11 @@ export interface ScannerFacts {
   config: Pick<CaptureConfig, 'configVersion' | 'analysis' | 'gates'> | null;
   /** Outbox records still to send, which includes originals waiting for Wi-Fi (D-SCAN11). */
   pendingUploads: number;
+  /**
+   * The app's own scanner camera is in this binary (iPhone, runtime 1.5.0+, D-LED6) — the scanner every
+   * document goes through when it is. Optional: absent reads as no.
+   */
+  ownCamera?: boolean;
 }
 
 export interface SettingsRow {
@@ -48,7 +53,16 @@ export function describeScanner(facts: ScannerFacts): ScannerSettingsView {
   const { support, config, platform } = facts;
   const scanner: SettingsRow[] = [];
 
-  if (!support) {
+  if (support && facts.ownCamera) {
+    scanner.push({
+      key: 'scanner',
+      title: 'Silvicom scanner',
+      subtitle:
+        'Point the camera at the page. When the whole page is in view and the phone is still, the outline traces the page edges and the scan is taken.',
+      icon: 'qr_code_scanner',
+      tone: 'success',
+    });
+  } else if (!support) {
     scanner.push({
       key: 'scanner',
       title: 'Built-in camera',

@@ -5,15 +5,13 @@ import { View } from 'react-native';
  * Where a separator starts, from what the row LEADS with — the row inset (`ui.listRow` px-4) plus
  * the leading element and its 12pt gap.
  *
- * Exported and prop-shaped rather than element-shaped because `AttentionQueue` draws its own
- * separators inside a `Card` rather than a `GroupedList`, and had hardcoded `ml-18`. That constant
- * is correct only while every row carries both a disc and a glyph — true today, and silently wrong
- * the first time one does not, in the one list a driver reads when something has already gone wrong.
- * One rule, two callers.
+ * Prop-shaped because `AttentionQueue` once drew its own separators inside a `Card` with a hardcoded
+ * `ml-18`, correct only while every row carried both a disc and a glyph. Since V5 it renders through
+ * `GroupedList` like every other group, so this rule has one caller and one place to be wrong.
  */
-export function separatorInsetFor(row: { disc?: unknown; icon?: unknown }): string {
-  if (row.disc && row.icon) return 'ml-18'; // 16 + 44 disc + 12 gap
-  if (row.icon) return 'ml-13'; //             16 + 24 glyph box + 12 gap
+function separatorInsetFor(row: { disc?: unknown; icon?: unknown }): string {
+  // Since V4 a `disc` row leads with the same 24pt glyph box as an `icon` row (no 44pt circle).
+  if (row.icon) return 'ml-13'; // 16 + 24 glyph box + 12 gap
   return 'ml-4';
 }
 
@@ -24,25 +22,26 @@ function separatorInset(row: ReactNode): string {
 }
 
 /**
- * One contained information group with internal separators. This replaces the generic pattern of
- * rendering every setting, notification, or metadata row as its own floating card.
+ * One information group: rows on the canvas, with no card around them (Visual 2026 D-DV7). Separation
+ * comes from the section label above and the space around the group. A hairline between rows starts
+ * where the row's TEXT starts, so it reads as a divider between two labels and not a line through the
+ * icon column.
  *
- * The separator starts where the row's TEXT starts, so it reads as a divider between two labels
- * rather than a line drawn through the icon column. That inset is derived from each row's own props
- * because a group mixes disc rows, glyph rows and bare rows — a single constant is wrong for two of
- * the three, and the wrongness only shows up on a device.
+ * `-mx-4` cancels the row's own 16pt inset, so a row's text aligns with the screen inset (20pt) and
+ * its pressed highlight runs into the gutter, the way the system's grouped lists behave. Until V4 the
+ * group was a white rounded card, which is the "stack of white cards" look on D-DV14's banned list.
  */
 export function GroupedList({ children }: { children: ReactNode }) {
   const rows = Children.toArray(children);
   if (rows.length === 0) return null;
 
   return (
-    <View className="overflow-hidden rounded-xl bg-surface">
+    <View className="-mx-4">
       {rows.map((row, index) => (
         <View key={index}>
           {row}
           {index < rows.length - 1 ? (
-            <View className={`${separatorInset(row)} h-px bg-edge-subtle`} />
+            <View className={`${separatorInset(row)} mr-4 h-px bg-edge-subtle`} />
           ) : null}
         </View>
       ))}

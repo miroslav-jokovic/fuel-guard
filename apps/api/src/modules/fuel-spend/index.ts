@@ -19,6 +19,8 @@ export { registerExceptionRoutes } from "./routes/exceptions.js";
 export { registerOpportunityRoutes } from "./routes/opportunities.js";
 export { registerStatementRoutes } from "./routes/statements.js";
 export { startFuelSpendRollupScheduler } from "./fuelSpendRollupScheduler.js";
+export { startPilotBillMailScheduler } from "./pilotBillMailScheduler.js";
+export { readPilotBillMails, type PilotBillMail } from "./pilotBillMail.js";
 export { runFuelReconciliation } from "./fuelReconRun.js";
 export { getFleetMpg, getFleetMpgSeries, type FleetMpgResult, type FleetMpgSeries } from "./fleetMpg.js";
 export { assistantFuelReport, MAX_REPORT_UNITS, REPORT_PERIODS } from "./assistantFuelReport.js";

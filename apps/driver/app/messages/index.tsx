@@ -5,10 +5,9 @@ import { messagePreview, sortThreads, threadTitle } from '@silvicom/shared';
 import {
   ActionBar,
   AppText,
-  Badge,
   Banner,
   Button,
-  Card,
+  GroupedList,
   EmptyState,
   IconButton,
   Input,
@@ -18,8 +17,9 @@ import {
   ScreenHeader,
   Section,
   Skeleton,
+  SkeletonRows,
 } from '@/components';
-import { useMessagesRealtime, useStartThread, useThreads } from '@/features/messages/useMessages';
+import { useMarkThreadRead, useMessagesRealtime, useStartThread, useThreads } from '@/features/messages/useMessages';
 import { useFeatures } from '@/session/useFeatures';
 import { useSession } from '@/session/SessionProvider';
 
@@ -34,6 +34,7 @@ export default function MessagesInbox() {
   const features = useFeatures();
   const { userId } = useSession();
   const threads = useThreads(features.enabled('messages'));
+  const markRead = useMarkThreadRead();
   const startThread = useStartThread();
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -99,55 +100,53 @@ export default function MessagesInbox() {
         )
       }
     >
-      <ScreenHeader title="Messages" subtitle="You and dispatch" onClose={() => router.back()} />
+      <ScreenHeader display title="Messages" subtitle="You and dispatch" onClose={() => router.back()} />
       <OfflineBanner />
 
       {threads.isError && !threads.data ? (
-        <Banner
-          tone="danger"
-          message={threads.error.message || 'Could not load messages.'}
-          actionLabel="Retry"
-          onAction={() => void threads.refetch()}
-        />
+        <Section>
+          <Banner
+            tone="danger"
+            message={threads.error.message || 'Could not load messages.'}
+            actionLabel="Retry"
+            onAction={() => void threads.refetch()}
+          />
+        </Section>
       ) : null}
 
       <Section title="Conversations">
         {showSkeletons ? (
-          <>
-            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
-            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
-          </>
-        ) : rows.length === 0 ? (
-          <Card padded={false}>
+          <SkeletonRows count={2} />
+        ) : rows.length === 0 && !(threads.isError && !threads.data) ? (
             <EmptyState
               icon="mail"
               title="No messages yet"
               subtitle="Start a conversation below — dispatch sees it on their dashboard."
             />
-          </Card>
         ) : (
-          <Card padded={false}>
-            {rows.map((t, index) => (
-              <View key={t.id}>
+          <GroupedList>
+            {rows.map((t) => (
                 <ListRow
+                  key={t.id}
                   icon="mail"
                   iconFill={t.unread > 0}
-                  disc="info"
+                  disc={t.unread > 0 ? 'info' : undefined}
                   // The sender is who a driver is looking for; the thread title is the fallback.
                   title={t.last_message?.sender_name ?? threadTitle(t, userId ?? '')}
                   subtitle={messagePreview(t.last_message)}
                   onPress={() => router.push(`/messages/${t.id}` as never)}
+                // Swipe-to-act (V8 plan): opening a conversation already marks it read; this does it without opening.
+                swipeAction={t.unread > 0 ? { label: 'Mark read', icon: 'done', onAction: () => markRead.mutate(t.id) } : undefined}
                   right={
                     <View className="items-end gap-1">
                       <AppText variant="caption" tone="subtle" tabular>{shortTime(t.last_message_at)}</AppText>
-                      {t.unread > 0 ? <Badge label={String(t.unread)} tone="brand" /> : null}
+                      {/* A count in the live cyan, never a pill (Visual 2026 D-DV14, V8). */}
+                      {t.unread > 0 ? <AppText variant="caption" weight="semibold" tone="accent" tabular>{`${t.unread} new`}</AppText> : null}
                     </View>
                   }
                 />
-                {index < rows.length - 1 ? <View className="ml-18 h-px bg-edge-subtle" /> : null}
-              </View>
             ))}
-          </Card>
+          </GroupedList>
         )}
       </Section>
       {composing ? (

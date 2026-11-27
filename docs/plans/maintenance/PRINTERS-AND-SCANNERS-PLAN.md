@@ -211,6 +211,18 @@ What Settings honestly adds, so the owner's "set it up once" holds for scanners 
   a label already in hand is still printed and reported. On Windows the scheduled task's *End* kills
   the process outright, so this mattered for macOS, Linux and Ctrl-C.
 
+- **2026-11-20 — the office station was down five days; two causes, both designed out.** Reported as
+  "the label printer is not connecting". The printer and its CUPS queue were fine; the station was not
+  running. (1) On 2026-11-15 at 17:43Z, during the database outage, `stationForToken` turned a FAILED
+  lookup into `null`, the route answered 401 "Invalid print station token" to a valid token, and the
+  1.1.0 station read that as a revocation and exited. (2) The LaunchAgent ran the program from the
+  `FuelGuard-print` worktree, which was later deleted in a disk cleanup, so launchd could not restart
+  it (5,990 attempts). Fixes: a failed lookup is now a 503 the station backs off on; station 1.2.0
+  never exits on a refusal, it asks again every five minutes and re-reads its config; and
+  `install-mac.sh` copies the program to `~/.silvicom-print-station/app`, as the Windows installer
+  already did to Program Files, so no checkout can be pulled out from under it. The office Mac was
+  reinstalled with it the same day and printed the three labels queued since.
+
 ## Sources
 
 - MUNBYN RW403B: https://munbyn.com/products/munbyn-rw403b-bluetooth-thermal-label-printer

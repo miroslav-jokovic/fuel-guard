@@ -62,6 +62,8 @@ function nativeColors(theme: ThemeKey) {
     onHero: rgb(roles['on-hero']),
     onHeroSecondary: rgb(roles['on-hero-secondary']),
     onHeroMuted: rgb(roles['on-hero-muted']),
+    onHeroLive: rgb(roles['on-hero-live']),
+    onHeroAct: rgb(roles['on-hero-act']),
     action: rgb(roles.action),
     actionPressed: rgb(roles['action-pressed']),
     actionFg: rgb(roles['action-fg']),

@@ -30,7 +30,7 @@ import { fetchSettlements } from "./settlements.mjs";
 import { fetchExpenses } from "./expenses.mjs";
 import { fetchMovementFacts } from "./movements.mjs";
 import { fetchDispatchLoads, fetchClosedLoads, fetchDeliveredLoads, loadHash } from "./loads.mjs";
-import { describeDryRun, describeMirrorDryRun } from "./dryRun.mjs";
+import { describeDryRun, describeMirrorDryRun, describeRateCoverage } from "./dryRun.mjs";
 import { holdConnection, releaseConnection, breakerState } from "./connection.mjs";
 import { dueJobs, serviceJobs } from "./schedule.mjs";
 import {
@@ -674,7 +674,7 @@ function describeMirror(movements) {
   const types = {};
   let stops = 0;
   for (const m of movements) for (const s of m.stops) { stops++; types[s.stop_type ?? "?"] = (types[s.stop_type ?? "?"] ?? 0) + 1; }
-  return `${movements.length} movement(s), ${stops} stop(s) ${JSON.stringify(types)}`;
+  return `${movements.length} movement(s), ${stops} stop(s) ${JSON.stringify(types)}, ${describeRateCoverage(movements)}`;
 }
 
 /** POST mirror movements in batches of 500 (the contract's cap); returns the summed ingest result. */

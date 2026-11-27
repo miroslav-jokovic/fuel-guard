@@ -101,6 +101,8 @@ const KIND_CAPS: Record<string, number> = {
   // One at a time: each is one Graph read with a Page token, and a burst of leads is a burst of reads
   // against that Page's rate; the backfill is the net, so a short queue costs nothing (B4b).
   ads_lead_fetch: 1,
+  // One at a time: each is one unseal and one lead store; a burst of posts is a short queue (TS3).
+  tenstreet_post_process: 1,
   // One at a time: a pull pages every campaign's hourly insights with one account token, and the window is
   // re-read whole next hour, so two at once would only spend the account's Insights rate twice (B5a).
   ads_insights: 1,

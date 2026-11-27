@@ -3,7 +3,7 @@
  *
  * ── THE PARSE IS RE-RUN HERE, NOT TRUSTED FROM THE CLIENT ────────────────────────────────────────
  * The browser decodes the PDF (only it has pdfjs) but it sends WORDS, not conclusions: this service
- * calls `parsePilotStatement` itself and refuses anything whose totals do not reproduce the vendor's
+ * calls `parsePilotWeeklyBill` itself and refuses anything whose totals do not reproduce the vendor's
  * own printed `** Customer Total` / `Retail Total` / `Savings Total` to the cent (D-FR3). A statement
  * asserted by a browser is a number nobody can stand behind, and these rows are what a discount
  * conversation with Pilot would rest on.
@@ -20,7 +20,7 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  parsePilotStatement,
+  parsePilotWeeklyBill,
   PILOT_FAMILY_BRANDS,
   type StatementLine,
   type StatementWord,
@@ -149,9 +149,10 @@ export async function ingestFuelStatement(
   uploadedBy: string | null,
   input: StatementIngestInput,
 ): Promise<StatementIngestResult> {
-  const parsed = parsePilotStatement(input.words);
+  // Either layout — the old `StatementDBS_US` statement or the 2026-11 invoice (`pilotInvoice.ts`).
+  const parsed = parsePilotWeeklyBill(input.words);
   if (!parsed.headerFound) {
-    return { ok: false, error: "That PDF isn't a Pilot statement — no transaction table was found." };
+    return { ok: false, error: "That PDF isn't a Pilot weekly statement or invoice — no transaction table was found." };
   }
   if (!parsed.tieOut.ok) {
     return { ok: false, error: "The statement didn't add up.", tieOutFailures: parsed.tieOut.failures };
@@ -201,6 +202,9 @@ export async function ingestFuelStatement(
       sales_tax: l.salesTax,
       invoice_total: l.invoiceTotal,
       retail_total: l.retailAmount,
+      // Pilot's pump-prompt values, as printed — only the 2026-11 invoice layout has them (0642).
+      pilot_vehicle_id: l.vehicleId ?? null,
+      pilot_driver_id: l.driverId ?? null,
     };
   });
   for (let i = 0; i < rows.length; i += 500) {

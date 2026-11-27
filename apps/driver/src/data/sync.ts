@@ -11,7 +11,6 @@ import {
   retryNow,
 } from './outbox';
 import { discardStagedFiles, sweepOrphans } from './fileStaging';
-import { isNotADbError, recoverCorruptDb } from './db';
 import { countNeedsAttention, countPending, outcomeAfterDeferral, outcomeAfterFailure, outcomeWhileDeviceLimited, type OutboxRecord } from './policy';
 import { onEnqueued } from './outboxSignal';
 import { isDeviceLimited } from '../lib/deviceLimit';
@@ -194,24 +193,13 @@ export async function runSync(): Promise<void> {
     updateState({ lastSyncAt: Date.now() });
   } catch (e) {
     // A storage-layer fault must not surface as an unhandled rejection from a fire-and-forget
-    // trigger. A stale SQLCipher/plaintext DB is recoverable, even when native SQLite defers the
-    // failure until claimNext() prepares its first statement.
+    // trigger. It is recorded and the run stops; the queue is NEVER deleted from here. getDb() has
+    // already proven the file readable with our key (db.ts openOnce), so a fault after that is a bug
+    // in this code, and deleting the file is what turned the 2026-07-28 claim bug into four months
+    // of silently erased work (CLAIM_NEXT_SQL in outbox.ts). A stale file is handled at open only.
     const message = e instanceof Error ? e.message : 'Sync failed';
-    if (isNotADbError(message)) {
-      try {
-        await recoverCorruptDb();
-        await refreshCounters();
-        updateState({ lastError: null });
-        console.warn('[sync] repaired an unreadable offline queue; new work can sync normally');
-      } catch (recoveryError) {
-        const recoveryMessage = recoveryError instanceof Error ? recoveryError.message : message;
-        console.warn('[sync] offline queue recovery failed:', recoveryMessage);
-        updateState({ lastError: recoveryMessage });
-      }
-    } else {
-      console.warn('[sync] run aborted:', message);
-      updateState({ lastError: message });
-    }
+    console.warn('[sync] run aborted:', message);
+    updateState({ lastError: message });
   } finally {
     running = false;
     updateState({ running: false });

@@ -73,6 +73,10 @@ async function introspect(db) {
      order by c.relname, a.attnum`)
   ).rows;
 
+  // A single-column key, or the same-org pair `(org_id, X) references parent (org_id, id)`: its parent
+  // is X's, and the seeder already gives the parent the child's org, so the pair holds by construction.
+  // 0640's `tenstreet_posts.connection_id` is the first NOT NULL column whose ONLY key is the pair (the
+  // earlier pairs ride on a nullable column, or beside a single-column key), and was "cannot seed".
   const fks = (
     await db.query(`
     select con.conrelid::regclass::text as tbl,
@@ -80,9 +84,16 @@ async function introspect(db) {
            con.confrelid::regclass::text as ftbl,
            af.attname as fcol
       from pg_constraint con
-      join pg_attribute a  on a.attrelid  = con.conrelid  and a.attnum  = con.conkey[1]
-      join pg_attribute af on af.attrelid = con.confrelid and af.attnum = con.confkey[1]
-     where con.contype = 'f' and array_length(con.conkey, 1) = 1`)
+      cross join lateral unnest(con.conkey, con.confkey) as k(ck, fk)
+      join pg_attribute a  on a.attrelid  = con.conrelid  and a.attnum  = k.ck
+      join pg_attribute af on af.attrelid = con.confrelid and af.attnum = k.fk
+     where con.contype = 'f'
+       and (array_length(con.conkey, 1) = 1
+            or (array_length(con.conkey, 1) = 2 and a.attname <> 'org_id'
+                and exists (select 1 from unnest(con.conkey, con.confkey) as o(ck, fk)
+                              join pg_attribute oa  on oa.attrelid  = con.conrelid  and oa.attnum  = o.ck
+                              join pg_attribute ofa on ofa.attrelid = con.confrelid and ofa.attnum = o.fk
+                             where oa.attname = 'org_id' and ofa.attname = 'org_id')))`)
   ).rows;
 
   const pks = (
@@ -101,6 +112,21 @@ async function introspect(db) {
       join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public' and con.contype = 'c'`)
   ).rows;
+
+  // Tables that hold at most one row per org (`org_id` alone unique, as 0640's Tenstreet connection): as a
+  // PARENT the org's existing row is reused, because seeding a second one is refused by that very key.
+  const orgUnique = new Set(
+    (
+      await db.query(`
+      select c.relname as tbl
+        from pg_constraint con
+        join pg_class c on c.oid = con.conrelid
+        join pg_namespace n on n.oid = c.relnamespace
+        join pg_attribute a on a.attrelid = con.conrelid and a.attnum = con.conkey[1]
+       where n.nspname = 'public' and con.contype in ('u', 'p') and array_length(con.conkey, 1) = 1
+         and a.attname = 'org_id'`)
+    ).rows.map((r) => r.tbl),
+  );
 
   const enums = (
     await db.query(`
@@ -139,7 +165,7 @@ async function introspect(db) {
     if (!enumOf.has(e.typname)) enumOf.set(e.typname, []);
     enumOf.get(e.typname).push(e.enumlabel);
   }
-  return { byTable, fkOf, pkOf, checkOf, enumOf, tables };
+  return { byTable, fkOf, pkOf, checkOf, enumOf, tables, orgUnique };
 }
 
 /**
@@ -283,7 +309,24 @@ const FORMAT_PINNED = {
   "web_push_subscriptions.origin": "'https://360.silvicominc.com'", // check (origin ~ '^https?://[^/]+$')
   // A page entry (kind's first literal) must carry its https address, a nullable column (0632): seeded because it is pinned.
   "ads_swipe_entries.url": "'https://jobs.example.com/seed'",
+  // 0640: a Company ID is digits and unique across carriers (the receiver's second check), so it is random
+  // digits per row, not a constant; the seeded post is a refused one, which by its check carries no body.
+  "tenstreet_connections.company_id": "(floor(random() * 1e15)::bigint)::text",
+  "tenstreet_posts.body_sha256": "repeat('a', 64)", // check (body_sha256 ~ '^[0-9a-f]{64}$')
+  "tenstreet_posts.reply_status": "'REJECTED'",
+  "tenstreet_posts.reply_reason": "'seed'", // check (reply_reason ~ '^[a-z_]{1,40}$')
+  // 0641: the public careers page's handle is a typed path segment (3–40 lower-case letters, digits, inner hyphens)
+  // and unique across carriers, so it is random per row.
+  "recruiting_careers_pages.handle": "('p' || substr(md5(gen_random_uuid()::text), 1, 12))",
 };
+
+/**
+ * Nullable foreign keys seeded as if NOT NULL, because a CHECK demands one of a set be present and the seeder
+ * otherwise leaves every nullable column empty. Seeded through the foreign key, so the parent is a real row of
+ * the same org. 0641's `sms_consents_one_subject` (exactly one of driver_id, lead_id) is the first; the driver is
+ * the subject every row before 0641 had.
+ */
+const SEEDED_NULLABLE_FKS = new Set(["sms_consents.driver_id"]);
 
 /**
  * Polymorphic subjects: a `<kind>` + `<id>` pair with no foreign key, whose insert guard checks the id
@@ -350,7 +393,7 @@ async function seed(db, meta, table, orgId, inProgress = new Set()) {
       const isPk = c.col === pk;
       // A pinned column is seeded even when nullable: a CHECK can tie a nullable column to another (0632's swipe
       // entry is a page only WITH its address), and leaving it null would read as "cannot seed".
-      const pinned = FORMAT_PINNED[`${table}.${c.col}`] !== undefined;
+      const pinned = FORMAT_PINNED[`${table}.${c.col}`] !== undefined || SEEDED_NULLABLE_FKS.has(`${table}.${c.col}`);
       if (!required && !pinned && !(isPk && !c.has_default && !c.is_identity)) continue;
       if (c.is_generated) continue;
 
@@ -379,7 +422,11 @@ async function seed(db, meta, table, orgId, inProgress = new Set()) {
         } else if (parent.includes(".")) {
           continue; // a non-public, non-auth parent we do not model; let the insert speak
         } else {
-          parentId = await seed(db, meta, parent, orgId, inProgress);
+          const pk = meta.pkOf.get(parent);
+          const held = meta.orgUnique.has(parent) && pk
+            ? (await db.query(`select ${q(pk)} as id from public.${q(parent)} where org_id = $1`, [orgId])).rows[0]?.id
+            : undefined;
+          parentId = held ?? (await seed(db, meta, parent, orgId, inProgress));
           if (parentId === null) return null;
         }
         names.push(q(c.col));

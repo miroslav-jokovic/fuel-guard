@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { MANUAL_LEAD_CHANNELS } from "@silvicom/shared";
+import { APPLY_FLAGS_SELECT, MANUAL_LEAD_CHANNELS, isFlaggedLead } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
@@ -37,7 +37,11 @@ import { readLeadVerdicts } from "./verdicts.js";
 const PAGE = 100;
 const SKIPPED_CHANNELS: readonly string[] = MANUAL_LEAD_CHANNELS;
 
-export interface UncontactedSweep { overdue: number; rung: number; contacted: number; held: number; disqualified_by_answer: number; no_contact_detail: number }
+export interface UncontactedSweep {
+  overdue: number; rung: number; contacted: number; held: number; disqualified_by_answer: number; no_contact_detail: number;
+  /** Careers-page submissions a robot check flagged (APPLY-PAGE-PLAN D-AP5): listed for a person to judge, never rung. */
+  flagged: number;
+}
 
 export async function sweepUncontactedLeads(
   admin: SupabaseClient,
@@ -46,11 +50,11 @@ export async function sweepUncontactedLeads(
   deps: { minutes: number; configured: ConfiguredRecipients },
 ): Promise<UncontactedSweep> {
   const cutoff = new Date(now.getTime() - deps.minutes * 60_000).toISOString();
-  const result: UncontactedSweep = { overdue: 0, rung: 0, contacted: 0, held: 0, disqualified_by_answer: 0, no_contact_detail: 0 };
+  const result: UncontactedSweep = { overdue: 0, rung: 0, contacted: 0, held: 0, disqualified_by_answer: 0, no_contact_detail: 0, flagged: 0 };
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await admin
       .from("recruiting_leads")
-      .select("id, channel, phone_e164, email_lower")
+      .select(`id, channel, phone_e164, email_lower, ${APPLY_FLAGS_SELECT}`)
       .eq("org_id", orgId)
       .eq("status", "new")
       .lte("received_at", cutoff)
@@ -58,8 +62,13 @@ export async function sweepUncontactedLeads(
       .order("id")
       .range(from, from + PAGE - 1);
     if (error) throw new Error(`Could not read the uncontacted leads: ${error.message}`);
-    const rows = (data ?? []) as Array<{ id: string; channel: string; phone_e164: string | null; email_lower: string | null }>;
-    await sweepPage(admin, orgId, rows.filter((l) => !SKIPPED_CHANNELS.includes(l.channel)), deps.configured, result);
+    const rows = (data ?? []) as Array<{ id: string; channel: string; phone_e164: string | null; email_lower: string | null; apply_flags?: unknown }>;
+    const watched = rows.filter((l) => !SKIPPED_CHANNELS.includes(l.channel));
+    // A flagged careers-page submission was not rung on arrival (D-AP5); ringing it an hour later would undo that.
+    // Counted, not rung — before `overdue`, so `overdue` keeps meaning "a lead somebody should have called".
+    const flagged = watched.filter(isFlaggedLead);
+    result.flagged += flagged.length;
+    await sweepPage(admin, orgId, watched.filter((l) => !isFlaggedLead(l)), deps.configured, result);
     if (rows.length < PAGE) return result;
   }
 }

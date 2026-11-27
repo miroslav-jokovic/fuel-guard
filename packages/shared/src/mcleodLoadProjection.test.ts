@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  projectLoadCharge,
   projectMcleodMovement,
   projectMcleodStatus,
   projectWeightLbs,
@@ -12,8 +13,17 @@ const movement = (over: Partial<RawDispatchMovement> = {}): RawDispatchMovement 
   dispatcher_user_id: "romann", driver_codes: ["DKELLY"], tractor_id: "702", trailer_id: "536686",
   trailer_type: "R", commodity: "paints", customer_id: "BATTSOL",
   customer_name: "BATTERY SOLUTIONS LLC", weight: "42000.0", weight_um: "LB",
-  pieces: 24, consignee_refno: "PO-77", move_distance: "812.0", closed_at: null, ...over,
+  pieces: 24, consignee_refno: "PO-77", move_distance: "812.0", closed_at: null,
+  // As the Board VM's current connector leaves them: never asked, so null (0638).
+  total_charge: null, freight_charge: null, otherchargetotal: null, total_charge_c: null,
+  bill_distance: null, bill_distance_um: null, order_loaded_movements: null, ...over,
 });
+// One order as McLeod states it (order 0132143, measured 2026-11-20): $3,620 over 836 billed miles, split
+// over two loaded trips. PostgREST returns numeric columns as numbers; strings are accepted too.
+const priced: Partial<RawDispatchMovement> = {
+  total_charge: 3620, freight_charge: 3500, otherchargetotal: 120, total_charge_c: "USD",
+  bill_distance: "836.0", bill_distance_um: "MI", order_loaded_movements: 2,
+};
 const stop = (over: Partial<RawDispatchStop> = {}): RawDispatchStop => ({
   stop_id: "s1", movement_sequence: 1, stop_type: "PU", status: "A", location_id: "BATTSOL1",
   location_name: "BATTERY SOLUTIONS", address: "1 Dock Rd", city_name: "Howell", state: "MI", zip_code: "48843",
@@ -129,5 +139,55 @@ describe("stops", () => {
   it("coordinates arrive as numbers", () => {
     const s = ok(movement(), [stop()]).stops[0]!;
     expect([s.lat, s.lon]).toEqual([42.6, -83.93]);
+  });
+});
+
+describe("what a load pays (LOAD-RATES-PLAN D-RATE3..5)", () => {
+  it("a loaded load carries McLeod's figures verbatim: total, linehaul, other, currency, billed miles, legs", () => {
+    expect(ok(movement(priced), [stop()]).charge).toEqual({
+      total_charge: 3620, linehaul: 3500, other_charges: 120, currency: "USD", billed_miles: 836, order_loaded_movements: 2,
+    });
+  });
+  it("a connector that never read charges leaves the load unpriced, never priced at 0", () => {
+    expect(ok(movement(), [stop()]).charge).toBeNull();
+  });
+  it("an EMPTY movement is never priced — it repeats its order's charge, which would count the freight twice", () => {
+    expect(ok(movement({ ...priced, loaded: "E" }), [stop()]).charge).toBeNull();
+  });
+  it("a movement whose loaded flag McLeod did not state is not priced either", () => {
+    expect(ok(movement({ ...priced, loaded: null }), [stop()]).charge).toBeNull();
+  });
+  it("a VOIDED load is never priced — its order was voided too (622 of 622 measured)", () => {
+    expect(ok(movement({ ...priced, movement_status: "V" }), [stop()]).charge).toBeNull();
+  });
+  it.each(["A", "D"])("an uncovered or delivered loaded load (McLeod %s) is priced", (status) => {
+    expect(ok(movement({ ...priced, movement_status: status }), [stop()]).charge?.total_charge).toBe(3620);
+  });
+  it("a dispatched load in transit is priced", () => {
+    expect(ok(movement(priced), [stop({ status: "D" })]).status).toBe("in_transit");
+    expect(ok(movement(priced), [stop({ status: "D" })]).charge?.total_charge).toBe(3620);
+  });
+  it("no total from McLeod, no price — even when its parts are stated", () => {
+    expect(ok(movement({ ...priced, total_charge: null }), [stop()]).charge).toBeNull();
+  });
+  it("a $0 total McLeod stated is kept as $0 (10 orders measured), not read as missing", () => {
+    expect(ok(movement({ ...priced, total_charge: 0 }), [stop()]).charge?.total_charge).toBe(0);
+  });
+  it("a negative other charge is kept as McLeod recorded it (as low as −$1,000 measured)", () => {
+    const c = ok(movement({ ...priced, total_charge: 2000, freight_charge: 3000, otherchargetotal: -1000 }), [stop()]).charge!;
+    expect([c.total_charge, c.linehaul, c.other_charges]).toEqual([2000, 3000, -1000]);
+  });
+  it("blank parts stay blank; a blank or space-padded currency is trimmed, an empty one is null", () => {
+    const c = ok(movement({ ...priced, freight_charge: null, otherchargetotal: null, total_charge_c: "   " }), [stop()]).charge!;
+    expect([c.linehaul, c.other_charges, c.currency]).toEqual([null, null, null]);
+    expect(ok(movement({ ...priced, total_charge_c: "USD " }), [stop()]).charge!.currency).toBe("USD");
+  });
+  it("billed miles only when McLeod's unit is miles — a number in another unit is never read as miles", () => {
+    expect(ok(movement({ ...priced, bill_distance_um: "KM" }), [stop()]).charge!.billed_miles).toBeNull();
+    expect(ok(movement({ ...priced, bill_distance_um: null }), [stop()]).charge!.billed_miles).toBeNull();
+    expect(ok(movement({ ...priced, bill_distance_um: "mi " }), [stop()]).charge!.billed_miles).toBe(836);
+  });
+  it("money is never rounded, signed or divided here", () => {
+    expect(projectLoadCharge(movement({ ...priced, total_charge: "4580.39" }), "approved")!.total_charge).toBe(4580.39);
   });
 });

@@ -94,20 +94,30 @@ export async function listUnfinished(): Promise<OutboxRecord[]> {
  */
 export async function claimNext(now = Date.now()): Promise<OutboxRecord | null> {
   const db = await getDb();
-  let claimed: OutboxRecord | null = null;
-  await db.withExclusiveTransactionAsync(async (tx) => {
-    const row = await tx.getFirstAsync<Row>(
-      `select * from outbox
-        where status in ('pending', 'failed') and next_attempt_at <= ?
-        order by created_at asc limit 1;`,
-      now,
-    );
-    if (!row) return;
-    await tx.runAsync(`update outbox set status = 'in_flight' where id = ?;`, row.id);
-    claimed = toRecord({ ...row, status: 'in_flight' });
-  });
-  return claimed;
+  const row = await db.getFirstAsync<Row>(CLAIM_NEXT_SQL, now);
+  return row ? toRecord(row) : null;
 }
+
+/**
+ * The claim is ONE statement on the keyed connection, never a transaction helper. expo-sqlite's
+ * `withExclusiveTransactionAsync` runs its task on a NEW native connection (it sets `useNewConnection`
+ * in expo-sqlite 58's `Transaction.createAsync`), and that connection never receives `PRAGMA key` —
+ * so against the SQLCipher outbox every claim failed with "Error code 26: file is not a database".
+ * From 2026-07-28 until 2026-11-25 that was misread as a stale file and "repaired" by deleting the
+ * outbox on every sync run: no queued work ever left a phone, and each attempt erased it (found on a
+ * Galaxy Tab A9; sync.ts no longer deletes anything after a verified open).
+ *
+ * A single UPDATE … RETURNING is atomic in SQLite by itself, so two overlapping runs still cannot
+ * claim the same record. RETURNING needs SQLite ≥ 3.35; the SQLCipher expo-sqlite 58 vendors is 3.53.
+ * Exported so apps/driver/tests/outbox-claim.test.ts runs it against real SQLite.
+ */
+export const CLAIM_NEXT_SQL = `update outbox set status = 'in_flight'
+  where id = (
+    select id from outbox
+     where status in ('pending', 'failed') and next_attempt_at <= ?
+     order by created_at asc limit 1
+  )
+  returning *;`;
 
 /** Mark a record delivered. Kept (not deleted) briefly so the UI can show "All synced". */
 export async function markDone(id: string): Promise<void> {

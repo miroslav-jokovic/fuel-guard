@@ -2,7 +2,8 @@
 import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { MapIcon, XMarkIcon } from "@silvicom/ui/icons";
-import type { LiveMapBoard, LiveMapVehicle, VehicleMapState } from "@silvicom/shared";
+import type { HomeTimePeriod, LiveMapBoard, LiveMapVehicle, VehicleMapState } from "@silvicom/shared";
+import HomeTimeBadge from "@/components/homeTime/HomeTimeBadge.vue";
 import { AppSearchField as SearchInput } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
@@ -66,6 +67,12 @@ const props = defineProps<{
   pollSeconds: number;
   /** Whether the list and the census are scoped to what the map is showing (D-LM23, item 7). */
   viewportOnly: boolean;
+  /**
+   * Each driver's live home time, read once by the workspace (HOME-TIME-VISIBILITY-PLAN D-HT24) — absent
+   * for a reader who cannot read it — and the carrier's clock for its badge.
+   */
+  homeTimes?: ReadonlyMap<string, HomeTimePeriod>;
+  zone?: string;
 }>();
 
 const emit = defineEmits<{
@@ -300,8 +307,9 @@ function toggleState(state: VehicleMapState): void {
                   :class="metric.kind === 'speed' ? 'text-ink-secondary' : 'text-ink-tertiary'"
                 >{{ metric.text }}</span>
               </span>
-              <span class="truncate text-xs" :class="v.driver ? 'text-ink-secondary' : 'text-ink-muted'">
-                {{ v.driver?.name ?? "Unassigned" }}
+              <span class="flex min-w-0 items-center gap-1.5 text-xs" :class="v.driver ? 'text-ink-secondary' : 'text-ink-muted'">
+                <span class="truncate">{{ v.driver?.name ?? "Unassigned" }}</span>
+                <HomeTimeBadge v-if="v.driver && zone && homeTimes?.get(v.driver.id)" :period="homeTimes.get(v.driver.id)!" :zone="zone" />
               </span>
               <span class="truncate text-xs text-ink-muted">
                 {{ v.position.formattedLocation ?? "Location not resolved" }}

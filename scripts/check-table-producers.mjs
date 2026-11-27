@@ -127,6 +127,12 @@ const WAIVERS = new Map([
   // held and the Settings page saves them.
   // phone_lookups (0583, LQ8a) left on 2026-11-19 in V7a / LQ8b: recruiting/leads/phoneLookup.ts writes it after a
   // lead is stored, and the uncontacted sweep retries the numbers it missed.
+  // load_charges (0639, LOAD-RATES-PLAN.md R1) left on 2026-11-20 in R2: loads/mirrorLoads.ts writes it from the
+  // mirror projection. Pinned for the schema-only R1 only.
+  // broker_mail_settings (0649, BROKER-MAIL-READER-PLAN P2-a) left on 2026-11-25 in P2-b:
+  // broker-mail/brokerMailAdmin.ts writes it from Settings › Broker mail. Pinned for the schema-only P2-a only.
+  // broker_mail_backups (0651, BROKER-MAIL-READER-PLAN P3-a) left on 2026-11-25 in P3-b:
+  // broker-mail/brokerMailBackups.ts writes it from Settings › Broker mail. Pinned for the schema-only P3-a only.
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

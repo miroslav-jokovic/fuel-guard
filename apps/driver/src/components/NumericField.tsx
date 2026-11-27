@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { TextInput, View } from 'react-native';
+import { useTheme } from '@/theme/ThemeProvider';
+import { textStyle } from '@/theme/typography';
 import { AppText } from './AppText';
 import { useFieldAccessibility } from './Field';
 
-// Big numeric entry (plan §22.4): large tabular value + unit suffix, native decimal-pad, visible
+// Big numeric entry (plan §22.4): large tabular value (`textStyle('numericCompact')`) + unit suffix, native decimal-pad, visible
 // focus state. `items-center` (not baseline — unreliable with a TextInput) keeps the unit aligned.
 export function NumericField({
   value,
@@ -21,6 +23,7 @@ export function NumericField({
   accessibilityLabel?: string;
 }) {
   const field = useFieldAccessibility();
+  const { boldText } = useTheme();
   const [focused, setFocused] = useState(false);
   const isInvalid = invalid || Boolean(field?.error);
   const border = isInvalid ? 'border-danger' : focused ? 'border-2 border-edge-focus' : 'border-transparent';
@@ -39,9 +42,11 @@ export function NumericField({
         aria-invalid={isInvalid || undefined}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        className="flex-1 font-ui-sb text-numericHero text-ink placeholder:text-ink-subtle"
+        className="flex-1 text-ink placeholder:text-ink-subtle"
+        // An entered figure is compared digit by digit as it is typed, so it is the tabular platform
+        // face (D-DV15), not the display face that sets a lone hero figure.
         style={{
-          fontVariant: ['tabular-nums'],
+          ...textStyle('numericCompact', { boldText }),
           paddingVertical: 8,
           includeFontPadding: false,
           textAlignVertical: 'center',

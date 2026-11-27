@@ -9,10 +9,11 @@ import {
 } from '@/components';
 import { AttentionQueue } from '@/screens/today/AttentionQueue';
 import { Leaderboard } from '@/screens/today/Leaderboard';
+import { PatternSamples } from '@/screens/gallery/PatternSamples';
 import { buildLeaderboardView } from '@/features/score/leaderboardModel';
 import type { AttentionRow, TodayState } from '@/screens/today/todayModel';
 import { OfferDeck, declineChoices } from '@/features/loads/OfferDeck';
-import { StopHero } from '@/features/loads/StopHero';
+import { MapStrip } from '@/features/loads/MapStrip';
 import { SAMPLE_STOP_LOAD } from '@/features/loads/sampleOffers';
 import { SAMPLE_OFFERS } from '@/features/loads/sampleOffers';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -110,27 +111,32 @@ export default function Gallery() {
         }
       />
 
-      <Section first title="Fleet leaderboard — the Home card (D-DB18)">
+      <PatternSamples />
+
+      <Section title="Fleet leaderboard — the Home card (D-DB18)">
         <Leaderboard view={buildLeaderboardView(SAMPLE_LEADERBOARD)} />
         <Leaderboard view={buildLeaderboardView(undefined)} />
       </Section>
 
-      {/* Direction B B0.4 done-when: every variant, so a missing Lexend weight is visible rather
-          than silently falling back to the platform face. `label` and `numericInline` are the two
-          new roles; `numericInline` is the one the 2026-09-07 critique said was missing. */}
-      <Section title="Typography — Lexend 400/500/600/700">
+      {/* Visual 2026 V2 done-when: every variant in both faces, so a missing display cut shows up
+          as the platform face here rather than on a driver's phone. The display face sets a title
+          and a LONE figure; every figure that lines up with another is the tabular platform face
+          (D-DV8, D-DV15). */}
+      <Section title="Typography — platform face + Big Shoulders Display">
         <View className="gap-1 rounded-xl bg-surface-muted p-4">
           <AppText variant="screenTitle">Today</AppText>
-          <AppText variant="navigationTitle">Load LD-20481</AppText>
-          <AppText variant="label" tone="action">Label · reserved, no overlines since D-DB12</AppText>
-          <AppText variant="body">One typeface carries the whole app; the variant picks the weight.</AppText>
-          <AppText variant="rowTitle">Row title, Lexend Medium</AppText>
-          <AppText variant="action">Button label, Lexend SemiBold</AppText>
-          <AppText variant="supporting" tone="muted">Supporting information remains readable without competing.</AppText>
-          <AppText variant="caption" tone="muted">Caption · 12pt</AppText>
-          <AppText variant="numericInline">08:30 – 11:00</AppText>
-          <AppText variant="numericCompact">87</AppText>
-          <AppText variant="numericHero">438,795</AppText>
+          <AppText variant="numericHero">06:00</AppText>
+          <AppText variant="navigationTitle">Load 1184530</AppText>
+          <AppText variant="label" tone="muted">Rest of the day</AppText>
+          <AppText variant="body">Words are the platform face; the variant picks size and weight.</AppText>
+          <AppText variant="rowTitle">Row title, semibold</AppText>
+          <AppText variant="rowTitle" weight="regular">Row title, weight="regular"</AppText>
+          <AppText variant="action">Button label, semibold</AppText>
+          <AppText variant="supporting" tone="secondary">Supporting information remains readable without competing.</AppText>
+          <AppText variant="caption" tone="muted">Caption · 13pt</AppText>
+          <AppText variant="numericInline">06:00 – 08:00</AppText>
+          <AppText variant="numericInline">14:00 – 16:00</AppText>
+          <AppText variant="numericCompact">94</AppText>
         </View>
       </Section>
 
@@ -144,7 +150,7 @@ export default function Gallery() {
           <View className="flex-row items-center gap-4 pt-3">
             <Icon name="navigation" size={26} className="text-brand" />
             <Icon name="navigation" size={26} fill className="text-brand" />
-            <Icon name="star" size={26} variant="outlined" className="text-ink-muted" />
+            <Icon name="star" size={26} className="text-ink-muted" />
             <Icon name="star" size={26} fill className="text-warning" />
           </View>
         </Card>
@@ -390,11 +396,11 @@ export default function Gallery() {
 
       {/* B4 done-when: the stop screen's two heroes. The map one needs network AND coordinates, so
           the flat fallback is otherwise only reachable by putting a device in airplane mode. */}
-      <Section title="Stop hero — with a map, and without">
-        <StopHero load={SAMPLE_STOP_LOAD} stop={SAMPLE_STOP_LOAD.stops[0]!} onBack={noop} />
-        <StopHero load={SAMPLE_STOP_LOAD} stop={SAMPLE_STOP_LOAD.stops[1]!} onBack={noop} />
+      <Section title="Map strip (V6) — with a map, and without">
+        <MapStrip stop={SAMPLE_STOP_LOAD.stops[0]!} onBack={noop} />
+        <MapStrip stop={SAMPLE_STOP_LOAD.stops[1]!} onBack={noop} />
         <AppText variant="caption" tone="muted">
-          The second stop carries no coordinates, so it draws the flat hero — the same thing an
+          The second stop carries no coordinates, so it draws the navy field — the same thing an
           offline device sees. The map is `pointerEvents="none"`: a picture, not a navigator, because
           no route service is reachable from this app.
         </AppText>

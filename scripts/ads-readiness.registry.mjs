@@ -811,10 +811,13 @@ export const READINESS = [
     levels: {
       L1: [
         {
-          need: "B6: one Conversions API CRM event per RECORDED stage (Q-AD37), event_id = lead:stage, nothing about the person (D-AD14), ledgered",
+          need: "B6: one Conversions API CRM event per lead (V7e) and per RECORDED stage (Q-AD37), event_id = lead:stage, nothing about the person (D-AD14), ledgered",
           tests: [
             { file: "apps/api/src/modules/ads/outcomes/outcomeEvents.test.ts", titles: [
-              "one candidate per recorded stage, its ref the lead id and the stage, in the shared stage order",
+              // Repointed 2026-11-20 (V7e, 0637): the feed now sends each lead itself (`lead`) before its stages, as
+              // Meta's lead coverage asks; the same test, renamed to say so, plus the lead's own event at arrival.
+              "the lead itself, then one candidate per recorded stage, its ref the lead id and the stage, in the shared stage order",
+              "every lead is sent as itself, at the time it arrived, with no stage reached yet (V7e: Meta's lead coverage)",
               "no unrecorded stage can become a candidate (Q-AD37: never sent)",
               "seven days old is still sent; a millisecond more is too old",
               "the Conversions API event is a CRM event in seconds, the lead id a string",
@@ -855,7 +858,8 @@ export const READINESS = [
         {
           need: "scenario bar: exactly one accepted event per stage row across every crash point × fault (a sweep, as the Renderer's)",
           tests: [{ file: "apps/api/src/modules/ads/outcomes/outcomeFeed.sweep.test.ts", titles: [
-            "a clean run makes the writes and calls the sweep kills at (5 inserts, 5 updates, 3 batches)",
+            // Repointed 2026-11-20 (V7e): each lead's own event adds one insert, one update and a batch per lead.
+              "a clean run makes the writes and calls the sweep kills at (8 inserts, 8 updates, 4 batches)",
             "killed at %s ends with one accepted event per stage row",
           ] }],
         },
@@ -880,6 +884,14 @@ export const READINESS = [
           need: "fakeMetaEvents.ts's OUR readings, re-recorded on the target and diffed against readings.recorded.json",
           tests: [{ file: "apps/api/src/modules/ads/outcomes/outcomeReadings.contract.test.ts", titles: [
             "every OUR reading of FakeMeta's Conversions API (fakeMetaEvents.ts) answers on the target as committed",
+          ] }],
+        },
+        {
+          // V7e, Q-APX33 (a), 2026-11-20: Q-AD17 asked of the target by its own request, so the first sandbox certify
+          // answers whether a job ad may optimise for qualified leads (fakeMetaAdSets.ts holds our reading meanwhile).
+          need: "Q-AD17: a QUALITY_LEAD ad set under EMPLOYMENT, with the dataset, without it, and with no category, re-recorded on the target",
+          tests: [{ file: "apps/api/src/modules/ads/outcomes/outcomeReadings.contract.test.ts", titles: [
+            "the QUALITY_LEAD ad set under EMPLOYMENT, with and without the dataset and with no category, answers on the target as committed",
           ] }],
         },
       ],

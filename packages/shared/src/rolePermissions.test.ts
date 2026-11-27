@@ -8,6 +8,8 @@ import {
   FULL_SSN_PERMISSION,
   HOME_TIME_PERMISSION,
   IDENTITY_NUMBER_IMAGES_PERMISSION,
+  LOAD_RATES_PERMISSION,
+  BROKER_MAIL_ALL_PERMISSION,
   NOTES_MANAGE_ALL_PERMISSION,
   callerPermissions,
   effectivePermission,
@@ -120,6 +122,8 @@ describe("closing an application is a named switch", () => {
       [FULL_SSN_PERMISSION]: false,
       [NOTES_MANAGE_ALL_PERMISSION]: false,
       [HOME_TIME_PERMISSION]: false,
+      [LOAD_RATES_PERMISSION]: false,
+      [BROKER_MAIL_ALL_PERMISSION]: false,
     });
     expect(callerPermissions("admin", {})).toEqual({
       [IDENTITY_NUMBER_IMAGES_PERMISSION]: true,
@@ -127,6 +131,8 @@ describe("closing an application is a named switch", () => {
       [FULL_SSN_PERMISSION]: true,
       [NOTES_MANAGE_ALL_PERMISSION]: true,
       [HOME_TIME_PERMISSION]: true,
+      [LOAD_RATES_PERMISSION]: true,
+      [BROKER_MAIL_ALL_PERMISSION]: true,
     });
     expect(callerPermissions(null, {})).toEqual({
       [IDENTITY_NUMBER_IMAGES_PERMISSION]: false,
@@ -134,6 +140,8 @@ describe("closing an application is a named switch", () => {
       [FULL_SSN_PERMISSION]: false,
       [NOTES_MANAGE_ALL_PERMISSION]: false,
       [HOME_TIME_PERMISSION]: false,
+      [LOAD_RATES_PERMISSION]: false,
+      [BROKER_MAIL_ALL_PERMISSION]: false,
     });
   });
 });
@@ -147,5 +155,24 @@ describe("reading the full SSN is a named switch", () => {
     expect(effectivePermission("admin", FULL_SSN_PERMISSION, { admin: { [FULL_SSN_PERMISSION]: false } } as never)).toBe(true);
     expect(effectivePermission("recruiter", FULL_SSN_PERMISSION, { recruiter: { [FULL_SSN_PERMISSION]: true } })).toBe(true);
     expect(effectivePermission("safety_manager", FULL_SSN_PERMISSION, { safety_manager: { [FULL_SSN_PERMISSION]: false } })).toBe(false);
+  });
+});
+
+/** LOAD-RATES-PLAN D-RATE6 (owner 2026-11-19): admins always see load rates; every other role starts off. */
+describe("seeing load rates is a named switch", () => {
+  it("ships 'See load rates' to the admin alone, and the carrier may switch any editable role on", () => {
+    for (const role of EDITABLE_ROLES) {
+      expect(effectivePermission(role, LOAD_RATES_PERMISSION, {}), role).toBe(false);
+      expect(effectivePermission(role, LOAD_RATES_PERMISSION, { [role]: { [LOAD_RATES_PERMISSION]: true } }), role).toBe(true);
+    }
+    expect(effectivePermission("admin", LOAD_RATES_PERMISSION, { admin: { [LOAD_RATES_PERMISSION]: false } } as never)).toBe(true);
+    expect(effectivePermission("driver", LOAD_RATES_PERMISSION, { driver: { [LOAD_RATES_PERMISSION]: true } } as never)).toBe(false);
+    expect(effectivePermission("dispatcher", LOAD_RATES_PERMISSION, CLOSED_PERMISSION_GRANTS)).toBe(false);
+  });
+
+  it("is listed in the catalogue Settings → Permissions draws, under its plan wording", () => {
+    const entry = EDITABLE_PERMISSIONS.find((p) => p.key === LOAD_RATES_PERMISSION);
+    expect(entry?.label).toBe("See load rates");
+    expect(entry?.shippedRoles).toEqual([]);
   });
 });

@@ -77,7 +77,7 @@ import {
   type DispatchBoardRow,
   type DispatchScope,
   type HomeTimeSettings,
-  IN_SERVICE_VEHICLE_STATUSES,
+  boardCarriesTruck,
 } from "@silvicom/shared";
 import { readHosClocks, readVehiclePositions } from "../samsara/index.js";
 import {
@@ -90,22 +90,21 @@ import {
   type OpenUnitMentions,
 } from "../roster/index.js";
 import { readUnitMaintenance } from "../fleetpal/index.js";
-import { readTruckLoadPlans } from "../loads/index.js";
+import { readLoadCharges, readTruckLoadPlans } from "../loads/index.js";
 import { readDispatchLinks } from "../mcleod/index.js";
 import { getComplianceOverview } from "../evidence/index.js";
 import { orgToday } from "../org/index.js";
 import { readDriversDueForRandomTest } from "../medstop/index.js";
 import { createCoalescingCache } from "../../lib/coalescingCache.js";
 
-/** A truck not in service — retired, or ordered and not yet delivered — is no work anybody can dispatch. */
-const inService = (status: string | null): boolean => status != null && (IN_SERVICE_VEHICLE_STATUSES as readonly string[]).includes(status);
 const IN_SHOP_VEHICLE_STATUS = "maintenance";
 
 /**
- * Who is reading the board: what they may see of the driver depends on it (DBV4), and whether they get
- * the note chips on whether they hold the `notes` screen (D-UN18), which the route asks.
+ * Who is reading the board: what they may see of the driver depends on it (DBV4), whether they get
+ * the note chips on whether they hold the `notes` screen (D-UN18), and whether each load carries its
+ * price on whether they hold `dispatch.load_rates` (LOAD-RATES-PLAN D-RATE7) — both asked by the route.
  */
-export type BoardReader = Pick<AuthContext, "userId" | "role" | "sections"> & { readsNotes?: boolean };
+export type BoardReader = Pick<AuthContext, "userId" | "role" | "sections"> & { readsNotes?: boolean; readsRates?: boolean };
 
 /**
  * How long one org's board rows may be served after they were built (PLATFORM-RELIABILITY-PLAN D-RLY4).
@@ -147,16 +146,30 @@ export async function readDispatchBoard(
     homeTimeSettingsCache.get(orgId, () => readHomeTimeSettings(admin, orgId), now.getTime()),
   ]);
   const rows = withNoteMentions(await withDriverWarnings(admin, orgId, board.rows, links.scope, reader, board.today), mentions);
+  // Judged on the rows' own clock (`builtAt`), the one Available's colour is judged on in the browser.
+  const timed = withHomeTimes(rows, homeTimes, homeTimeSettings, board.builtAt);
   return {
     generatedAt: board.builtAt.toISOString(),
-    // Judged on the rows' own clock (`builtAt`), the one Available's colour is judged on in the browser.
-    rows: withHomeTimes(rows, homeTimes, homeTimeSettings, board.builtAt),
+    rows: reader.readsRates ? await withLoadRates(admin, orgId, timed) : timed,
     scope: links.scope,
     fleets: links.fleets,
     dispatchers: links.dispatchers.map(({ id, name, isSystem }) => ({ id, name, isSystem })),
     uncoveredCount: board.uncoveredCount,
     hosAsOf: board.hosAsOf,
   };
+}
+
+/**
+ * Each row's current and next load with its price (LOAD-RATES-PLAN D-RATE7), for a reader the route found
+ * holding `dispatch.load_rates`. Read here, per request and AFTER the org-wide row cache, never inside
+ * `readBoardRows`: those rows are shared by every reader of the org and by the ETA recorder, so a price
+ * cached there would reach a dispatcher the carrier has not switched on. Anyone else's rows carry no
+ * `charges` key at all. One read for the board's loads, by the loads module's own reader.
+ */
+async function withLoadRates(admin: SupabaseClient, orgId: string, rows: DispatchBoardRow[]): Promise<DispatchBoardRow[]> {
+  const charges = await readLoadCharges(admin, orgId, rows.flatMap((r) => [r.current?.loadId, r.next?.loadId].filter((id): id is string => !!id)));
+  const priced = (l: DispatchBoardRow["current"]) => l && { ...l, charges: charges.get(l.loadId) ?? null };
+  return rows.map((r) => ({ ...r, current: priced(r.current), next: priced(r.next) }));
 }
 
 /** Tests only: the caches are module state. */
@@ -204,10 +217,11 @@ export async function readBoardRows(
   const positionOf = new Map(positions.rows.map((p) => [p.vehicle_id, p]));
   const rows: DispatchBoardRow[] = [];
   for (const id of identities.byVehicleId.values()) {
-    if (!inService(id.status)) continue;
-    const p = positionOf.get(id.vehicleId);
     const plan = plans.byVehicleId.get(id.vehicleId) ?? { current: null, next: null, currentAhead: [], currentTrailerId: null };
-    if (id.windingDown && !plan.current && !plan.next) continue;
+    // Which trucks the board carries is `@silvicom/shared`'s rule, the one the Seats card counts with
+    // (FLEET-MANAGER-HOME-PLAN D-FM10): not in service, or wound down with no load, is no row.
+    if (!boardCarriesTruck({ status: id.status, winding_down: id.windingDown }, !!(plan.current || plan.next))) continue;
+    const p = positionOf.get(id.vehicleId);
     // The roster's assigned driver — the map's pairing (Q-DB6), so the board and the map name one person.
     const driver = id.driver;
     const hos = freshHos(driver ? (clocks.byDriverId.get(driver.id) ?? null) : null, now);

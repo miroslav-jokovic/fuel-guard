@@ -68,6 +68,27 @@ export const RETENTION_RULES: RetentionRule[] = [
   },
   {
     /**
+     * Broker-mail envelopes (0643, Q-BMR6): sender, time and subject of an external message in a
+     * dispatcher's mailbox. Ninety days is the ruling; nothing in 360 needs an older one.
+     */
+    table: "broker_mail_messages",
+    timeColumn: "received_at",
+    keepDays: 90,
+    strategy: "id",
+    orgScoped: true,
+    why: "Envelope facts of dispatcher mail are kept ninety days by the owner's ruling (Q-BMR6); no body was ever stored.",
+  },
+  {
+    /** The mail gateway's run log (0643): one row a minute — the heartbeat and the measure week's counts. */
+    table: "mail_gateway_cycles",
+    timeColumn: "started_at",
+    keepDays: 14,
+    strategy: "id",
+    orgScoped: true,
+    why: "One row per gateway run; two weeks covers the measure week and any incident review.",
+  },
+  {
+    /**
      * U2 (0604): a device an applicant asked to be remembered. The token is dead thirty days after it
      * was made (`TRUSTED_DEVICE_TTL_DAYS`) and is only ever checked on a link that still resolves, so a
      * row older than ninety days opens nothing. `audit_logs` keeps the record that it was remembered.
@@ -92,6 +113,20 @@ export const RETENTION_RULES: RetentionRule[] = [
     strategy: "id",
     orgScoped: true,
     why: "A code is dead after ten minutes; the office's notice matters only while the application is reviewed (the draft's own 90 days); audit_logs keeps each send and use.",
+  },
+  {
+    /**
+     * Tenstreet's posts (0640, TS1): the one-year log the guide asks for, kept as Tenstreet sent them minus the SSN and
+     * the equal-opportunity answers (never stored). Q-TS9 (a), ruled 2026-11-20: a post is purged a year after it
+     * arrived — 29 CFR 1602.14 and 56 Ill. Adm. Code 2520.110 hold application records one year — so 400 days is that
+     * year plus margin, as for `phone_lookups`.
+     */
+    table: "tenstreet_posts",
+    timeColumn: "received_at",
+    keepDays: 400,
+    strategy: "id",
+    orgScoped: true,
+    why: "The guide's one-year log of posts and replies; application records are held one year (29 CFR 1602.14, 56 Ill. Adm. Code 2520.110), then the post goes.",
   },
   {
     /**
@@ -346,6 +381,17 @@ export const RETENTION_RULES: RetentionRule[] = [
     strategy: "id",
     orgScoped: true,
     why: "AW14 (APPLICATION-FLOW-V2-PLAN §6.8): screen visits on the applicant's link, names and times only, read by the completion-time query; 180 days as 0376's table comment promised",
+  },
+  {
+    // 0653 (WARNING-DESK-PLAN D-WD4, Q-WD11). The collector's staging of Samsara warnings. A follow-up
+    // keeps its own count, first and last time; the raw warning is needed only inside the longest rule
+    // window (30 days) and for a person reading a follow-up's history, so a quarter is ample.
+    table: "samsara_warnings",
+    timeColumn: "happened_at",
+    keepDays: 90,
+    strategy: "id",
+    orgScoped: true,
+    why: "WARNING-DESK-PLAN Q-WD11: raw Samsara warnings (alerts, safety events, defects, lamp episodes, HOS); follow-ups and their actions are kept, the warnings behind them only for a quarter",
   },
   {
     // DATA-LIFECYCLE-PLAN Q11 (ruled (b), 2026-10-05). Prunable ONLY because 0432 moved the dedupe

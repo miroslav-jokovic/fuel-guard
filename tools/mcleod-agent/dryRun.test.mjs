@@ -71,3 +71,21 @@ test("a roster dry run records nothing; a real sweep records what it sent", () =
   assert.equal(persistRosterState("roster-state.json", { drivers: { A: "h" } }, { dryRun: false, save }), true);
   assert.deepEqual(writes, [{ path: "roster-state.json", state: { drivers: { A: "h" } } }]);
 });
+
+import { describeRateCoverage } from "./dryRun.mjs";
+
+// LOAD-RATES-PLAN R4: what the logs say about rates is a count of loaded movements, never an amount.
+test("rate coverage counts loaded movements with a total, and prints no amount", () => {
+  const ms = [
+    { loaded: "L", total_charge: 3620.55, freight_charge: 3400.55, otherchargetotal: 220, stops: [] },
+    { loaded: "L", total_charge: null, stops: [] },
+    // A $0 total is McLeod's figure (10 orders since 01-01), so it is a rate, not a blank.
+    { loaded: "L", total_charge: 0, stops: [] },
+    // An empty leg repeats its order's charge and is never priced (D-RATE3): counted on neither side.
+    { loaded: "E", total_charge: 3620.55, stops: [] },
+  ];
+  assert.equal(describeRateCoverage(ms), "with a rate: 2 of 3 loaded");
+  const out = [describeRateCoverage(ms), ...describeMirrorDryRun(ms)].join("\n");
+  for (const v of ["3620", "3,620", "3400", "220.", " 220"]) assert.ok(!out.includes(v), `printed ${v}`);
+  assert.ok(out.includes("     3/4  total_charge  (1 without)"));
+});

@@ -71,6 +71,25 @@ describe("GET /api/version", () => {
     expect(body.ok).toBe(false);
   });
 
+  it("names the deployment in `environment`, because `env` is NODE_ENV and says production on staging", async () => {
+    const saved = { railway: process.env.RAILWAY_ENVIRONMENT_NAME, deploy: process.env.DEPLOY_ENVIRONMENT };
+    try {
+      delete process.env.RAILWAY_ENVIRONMENT_NAME;
+      process.env.DEPLOY_ENVIRONMENT = "staging";
+      const named = (await (await fetch(`${baseUrl}/api/version`)).json()) as { env: string; environment: string | null };
+      expect(named.environment).toBe("staging");
+      expect(named.env).toBe("test");
+      delete process.env.DEPLOY_ENVIRONMENT;
+      const unnamed = (await (await fetch(`${baseUrl}/api/version`)).json()) as { environment: string | null };
+      expect(unnamed.environment).toBeNull();
+    } finally {
+      if (saved.railway === undefined) delete process.env.RAILWAY_ENVIRONMENT_NAME;
+      else process.env.RAILWAY_ENVIRONMENT_NAME = saved.railway;
+      if (saved.deploy === undefined) delete process.env.DEPLOY_ENVIRONMENT;
+      else process.env.DEPLOY_ENVIRONMENT = saved.deploy;
+    }
+  });
+
   // No Supabase here either, so the maintenance function cannot be called. Same rule as the schema:
   // "I could not check" is `unknown`, never a healthy state.
   it("reports partition maintenance as unknown when it cannot be read", async () => {
@@ -89,6 +108,8 @@ describe("GET /api/version", () => {
     expect(Object.keys(body.realtime as object).sort()).toEqual(["lastProbeAt", "latencyMs", "sendFailures24h", "state"]);
     // A state and three platform-wide device counts (pushHealth.ts) — no org, no person, no endpoint.
     expect(Object.keys(body.webPush as object).sort()).toEqual(["delivered24h", "failing24h", "rejected24h", "state"]);
+    // A state, the gateway's commit and one timestamp (gatewayHealth.ts) — no org, no mailbox, no count.
+    expect(Object.keys(body.mailGateway as object).sort()).toEqual(["commit", "lastCycleAt", "state"]);
     const keys = Object.keys(body).sort();
     expect(keys).toEqual([
       "branch",
@@ -96,6 +117,10 @@ describe("GET /api/version", () => {
       "commitShort",
       "deploymentId",
       "env",
+      // The deployment's own name ("production", "uat", "staging") — the same word for every tenant.
+      "environment",
+      // The broker-mail gateway's heartbeat (BROKER-MAIL-READER-PLAN §6): running, and which commit.
+      "mailGateway",
       "maintenance",
       "ok",
       // The Realtime probe's state (CHA4): is the database's broadcast reaching a subscriber.

@@ -26,6 +26,10 @@ export type TextTone =
   | 'onHero'
   | 'onHeroSecondary'
   | 'onHeroMuted'
+  /** The live cyan on the navy status block (Visual 2026 V4). `accent` is for light grounds only. */
+  | 'onHeroLive'
+  /** Amber on the navy status block: a closed window (Visual 2026 V5). `action` is for light grounds only. */
+  | 'onHeroAct'
   /**
    * The foreground for a SOLID amber or lavender fill — a badge count, a filled chip, the active
    * segment. It is `action-fg`, a fixed near-black held identical in all four appearances, because
@@ -79,6 +83,8 @@ export const TEXT_TONE_CLASS: Record<TextTone, string> = {
   onHero: 'text-on-hero',
   onHeroSecondary: 'text-on-hero-secondary',
   onHeroMuted: 'text-on-hero-muted',
+  onHeroLive: 'text-on-hero-live',
+  onHeroAct: 'text-on-hero-act',
   onAction: 'text-action-fg',
   onBrand: 'text-brand-fg',
 };

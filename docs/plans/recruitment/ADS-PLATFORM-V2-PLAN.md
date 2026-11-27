@@ -38,7 +38,7 @@ this section is what is true today and what comes next. When the two disagree, t
 | V8 health read (API) and token expiry (A-8, A-9) | built 2026-11-18: `GET /api/ads/health`; the token read daily with the reconcile, admins told 14 days before it lapses. Its page is V6's Automation tab | FakeMeta's `debug_token` |
 | V6 workspace | screens built 2026-11-19: Ads is its own sidebar section (Q-APX18 (a)) with Overview, Campaigns, Creative studio (brand kit, presets, swipe file), Automation (the health read) and Settings; the two old addresses redirect | web tests; not yet walked on staging |
 | V5 modes | built 2026-11-19: one enforced authority table, the steps and their modes, lowering a budget, Assisted start, the Automation tab; the agent's own lower ruled out until the canary (Q-APX23 (a)) | tests; not walked on staging |
-| V7 lead engine | read at its call sites 2026-11-19 (§4 V7); V7a–e being built around Q-APX24–28 | — |
+| V7 lead engine | V7a–d built 2026-11-19 (#2576, #2577); Q-APX24–28 ruled (a) 2026-11-20; V7e next; Tenstreet and the apply page wait on their own answers | tests; not walked on staging |
 
 Scorecard (`pnpm ads:readiness`): nine workers at L3, six at L2 (Copywriter, Art director, Craft judge,
 Finished-ad judge, Checker, Strategist), **none at L4**. `scripts/ads-certifications.json` is empty, so Launch
@@ -521,6 +521,21 @@ whose ad is not in the record is "Ad not known", an ad whose preset names no con
 in one range are refused rather than summed. Ads › Overview shows it as a card with its own date range. Not built:
 `LeadQuality`'s wrong-number share by line type, and the Analyst's brief reading this report. Progress:
 `ads-progress/2026-11-19-2200-W-V7cd-cost-report.md`.
+
+**Built 2026-11-20 (V7e, the qualified-lead goal's readiness).** Read first, Meta's Conversion Leads pages
+(Conversions API › Conversion Leads integration, CRM steps 3–6, 2026-11-20): 200 leads a month, an upload at least
+daily, a "Lead Coverage" of at least 60 % ("the percentage of leads that have matching events uploaded to Meta"), and a
+stage reached by 1–40 % of leads within 28 days. **That reading found a gap in B6:** Meta asks for "the raw lead event
+that represents all leads generated on Meta", and the feed sent only the stages a recruiter's act records — a lead
+nobody had reached had no event, so no carrier could reach 60 %. The feed now sends each lead itself (`lead`, at its
+arrival) before its stages: migration **0637** widens `ads_outcome_events.stage` in the same merge as the shared list
+(`OUTCOME_STAGES = ["lead", …LEAD_OUTCOME_STAGES]`; `lead` is a feed event, not a stage a lead reaches, so the brief and
+the report are unchanged). `GET /api/ads/conversion-leads` (recruitment view; both route ledgers) measures each
+requirement on our rows — Meta leads of the last 30 days, the share with an event Meta accepted, the feed's switch, and
+each forward stage's 28-day rate on the leads 29–58 days old — and Ads › Automation shows it. **Shown, never offered:**
+the fifth line is Q-AD17, which only the sandbox answers, and Meta's pages name no API value for the goal, so no switch
+is built. Progress: `ads-progress/2026-11-20-1100-W-V7e-conversion-leads.md`. **V7 is built** except Tenstreet
+(Q-APX27) and the apply page (Q-APX28), which wait on their own answers; Indeed waits on Indeed's approval.
 
 ### V8 · What makes it enterprise grade
 
@@ -1051,7 +1066,7 @@ lead-volume curve of ours to set it from.
   benchmarks (Boostpoint's middle half, §2a.7). Automatic, but its three numbers would be guesses on our own fleet.
 - (c) Lower instead of pause on the daily-cap rule. Changes a rule the owner chose as a pause (`pause_at_daily_cap`).
 
-### Q-APX24 · What a lead's "score" is — OPEN, 2026-11-19
+### Q-APX24 · What a lead's "score" is — RULED (a), 2026-11-20
 
 **What was read.** D-LS2: rules decide, no model. `leadMatch` already gives one verdict per requirement with its
 evidence, `summariseLeadMatch` counts hard requirements unmet and unknown, and `compareLeadMatch` sorts without
@@ -1069,7 +1084,7 @@ why" — a number out of 100 says neither, and its weights would be invented (no
   weights have nothing of ours behind them, and HB 3773's audit asks why one person ranked over another.
 - (c) No score; the queue keeps today's order. V7's line goes unbuilt.
 
-### Q-APX25 · Should a lead keep its ad in a column? — OPEN, 2026-11-19
+### Q-APX25 · Should a lead keep its ad in a column? — RULED (a), 2026-11-20
 
 **What was read.** `recruiting_leads` is frozen after insert (RL013, 0553) and has no ad column; Meta's `ad_id`
 is in `raw` on every platform lead (`LEAD_FIELDS`). The publisher's record (`platform_refs.ads[]`) maps each Meta ad
@@ -1081,7 +1096,7 @@ to its creative and language, and the creative names its preset.
 - (b) A column filled at intake, beside `campaign_ref`. A second copy of a fact in `raw`; needs a migration, the
   two-merge rule, and a backfill of every existing lead.
 
-### Q-APX26 · What the report counts as "qualified", and what a source without spend shows — OPEN, 2026-11-19
+### Q-APX26 · What the report counts as "qualified", and what a source without spend shows — RULED (a), 2026-11-20
 
 **What was read.** `qualified` is a recruiter's qualify after a reached call (0578, Q-AD64 (a)); `applied` and `hired`
 are read from the application and the driver (`leadOutcomes.ts`). Spend is known for Meta only: Tenstreet, Indeed and
@@ -1094,7 +1109,7 @@ a typed-in lead carry none.
   form, not the person.
 - (c) Add a typed monthly spend per source now. A screen and a table for figures nobody has asked to type.
 
-### Q-APX27 · Tenstreet waits on its own plan's answers — OPEN, 2026-11-19
+### Q-APX27 · Tenstreet waits on its own plan's answers — RULED (a), 2026-11-20
 
 **What was read.** `TENSTREET-INTAKE-PLAN.md` (TS0–TS6, D-TS1–10, Q-TS1–10) and its meeting prep of 2026-11-19 sit in
 the owner's working copy, not on main. Its own order: TS1–TS3 may start before Tenstreet answers authentication
@@ -1108,7 +1123,7 @@ meeting with Tenstreet was on 2026-11-19 with its outcome not yet written down.
 - (b) Build TS1–TS3 now with the plan's recommendations (SSN and EEO dropped by the parser, status shown only). Fast;
   rules on the owner's three questions by building them.
 
-### Q-APX28 · "Our own apply page" does not exist — OPEN, 2026-11-19
+### Q-APX28 · "Our own apply page" does not exist — RULED (a), 2026-11-20
 
 **What was read.** The only apply page is the invite (`/apply/:token`): a recruiter creates the applicant first,
 then sends a link. Nothing public makes a lead. A public page is a new unauthenticated door taking a name, a phone and
@@ -1123,6 +1138,38 @@ carrier's web site to be linked from.
 - (b) Build it now with today's Instant Form consent text. The wording was written for Meta's form, where Meta shows
   its own terms; on our page it would be ours alone, which is the question counsel holds.
 - (c) Drop it: leads come from ads, Tenstreet and Indeed, and the invite stays the only apply page.
+
+### Q-APX29 to Q-APX33 · V7's waiting questions, researched — RULED (a), 2026-11-20
+
+The owner asked for research and the best answers (2026-11-20). The research, sources and full proposals are in
+[`V7-OPEN-QUESTIONS-RESEARCH-2026-11-20.md`](V7-OPEN-QUESTIONS-RESEARCH-2026-11-20.md). In one line each:
+
+- **Q-APX29 · Tenstreet's rulings.** (a) recommended:
+  - SSN and EEO answers are REMOVED from the post before it is sealed or logged; the plan had kept them sealed.
+  - Tenstreet's status is shown, never obeyed.
+  - A deletion request hides the lead at once and purges the SSN-free post one year after receipt. 29 CFR 1602.14 and
+    56 Ill. Adm. Code 2520.110 hold application records a year; the plan's fallback was "purge at once".
+  - Hires link through our own conversion.
+- **Q-APX30 · Tenstreet's mechanics.** (a) recommended: one complete message to integrations@tenstreet.com covering
+  auth and IPs, retries, full record or delta, leaving out SSN and EEO, and the carrier's question ids. Meanwhile
+  TS1–TS3 are built on the plan's defaults.
+- **Q-APX31 · The apply page.** (a) recommended: one public page per opening, carrying:
+  - its pay range and benefits — an opening with no top of range is not published (Illinois Equal Pay Act);
+  - the Instant Form's questions, no criminal history (Illinois JOQAA);
+  - a separate, unchecked, optional texting box in the drafted wording, with its proof stored;
+  - Turnstile, a honeypot and rate limits — failing them flags the lead, never refuses it;
+  - EEO, privacy and accommodation notices, built to WCAG 2.2 AA.
+  It doubles as the careers page Indeed requires. Counsel confirms three points rather than drafting from nothing.
+- **Q-APX32 · Indeed.** (a) recommended:
+  - The Indeed admin checks the Integrations Hub and CSV-export eligibility, and asks Client Success for the Developer
+    Agreement as a direct employer.
+  - We build the Indeed Apply receiver, the screener file and Job Sync on the shared careers pages.
+  - Indeed reviews it (about 6 weeks); Disposition Sync follows.
+- **Q-APX33 · Meta's qualified-lead goal (Q-AD17) and the pay rule.** (a) recommended:
+  - Put the exact QUALITY_LEAD-under-EMPLOYMENT check (validate-only, with two controls) into the sandbox readings
+    now, so the first certify run answers Q-AD17 by a recording.
+  - The goal is a launch-time choice, since `promoted_object` is fixed when the ad set is created.
+  - Hold every ad to the same pay-range rule if counsel confirms an ad is a "job posting".
 
 ### Q-APX20 · A motion ad's file has no size cap; the store takes 15 MB — RULED (a), 2026-11-19
 
@@ -1241,6 +1288,47 @@ Progress: `ads-progress/2026-11-19-1800-W-V5-assisted-start.md`. **V5 is built**
   needs no change to the table — only the rule, its threshold from our own figures, and a test. **V5 is built.**
 - **V7 next**, the lead engine (§4 V7), read at its call sites first as V5 was.
 
+**2026-11-20, the owner, to Q-APX24 to Q-APX28: *"Ok proceed as recommended."*** Taken as:
+
+- **Q-APX24 RULED (a).** A lead's standing is Call, Check first or Does not qualify by their answer, with its reasons
+  in words; no number, no weights. Built as V7b (`leadStanding`); nothing changes.
+- **Q-APX25 RULED (a).** A lead's ad is derived on read from Meta's `ad_id` in `raw` and the publisher's record; no
+  column. Built as V7c; a column is the later answer only if the read is measured slow.
+- **Q-APX26 RULED (a).** "Qualified" in the report is a recruiter's qualify or any later step taken with the person;
+  a source with no spend says "No spend recorded". Built as V7d.
+- **Q-APX27 RULED (a).** Tenstreet is its own track from `TENSTREET-INTAKE-PLAN.md`, started once the 2026-11-19
+  meeting's answers and the owner's D-TS4 (SSN), D-TS5 (EEO) and D-TS8 (status shown, never obeyed) are written
+  into that plan. The report already counts a `tenstreet` lead the day one arrives.
+- **Q-APX28 RULED (a).** The public apply page is its own step after V7e, designed once counsel answers Q-AD52
+  (texting consent on our own page).
+- **Next:** V7e, the qualified-lead switch's readiness (shown, not offered, until Q-AD17's sandbox answer).
+
+**2026-11-20, the owner, to Q-APX29 to Q-APX33: *"Ok proceed as recommended and proposed."*** Taken as:
+
+- **Q-APX29 RULED (a).** Tenstreet's SSN (`GovernmentID`) and EEO block are removed from a post BEFORE it is sealed,
+  logged or queued; Tenstreet's status is shown, never obeyed; a deletion request hides the lead at once and the
+  SSN-free post is purged one year after receipt (longer while a charge is pending); hires link through our own
+  conversion. TENSTREET-INTAKE-PLAN's D-TS4, D-TS5, D-TS8 and Q-TS9 are updated to match. The samples committed to
+  `docs/tenstreet/samples/` are redacted to `xxx-xx-NNNN`, as Tenstreet's own guide asks of any file sent around.
+- **Q-APX30 RULED (a).** One complete message to integrations@tenstreet.com, drafted in TENSTREET-INTAKE-PLAN §2; the
+  owner sends it. TS1–TS3 are built now on the plan's defaults.
+- **Q-APX31 RULED (a).** The public apply page as designed; counsel is asked to confirm the three points.
+- **Q-APX32 RULED (a).** The Indeed admin's three asks; the receiver and the shared careers pages are built after the
+  apply page.
+- **Q-APX33 RULED (a).** The QUALITY_LEAD-under-EMPLOYMENT reading goes into the sandbox readings now.
+- **Order:** the Q-AD17 reading (small), then Tenstreet TS1–TS3, then the apply page, then Indeed's receiver.
+
+**2026-11-20, the owner: *"We have public Apply page on our official website silvicominc.com"*, then, to the proposal
+to replace it: *"Ok proceed as proposed, and make sure we dont assume nothing."*** Taken as:
+
+- **Q-APX34 RULED (a) — the apply page replaces the website's form.** The website's `/for-drivers/` is a WordPress
+  Gravity Form whose entries never reach Silvicom 360 (measured from its HTML, `APPLY-PAGE-PLAN.md` §1). We build the
+  page; the web developer points the website's Apply links at it and retires the form (AP5). The other two options
+  were connecting the Gravity Form (its Webhooks add-on is on the Elite licence, and it would mean two forms to keep
+  the same, one with no texting box or notices) or running both.
+- The build, its decisions and four new questions (Q-AP1–4: texting a lead does not exist yet; Spanish; solo/team;
+  CDL number and address) are in [`APPLY-PAGE-PLAN.md`](APPLY-PAGE-PLAN.md).
+
 ## 6. Open, in one place
 
 | Id | Question | Recommendation | Who |
@@ -1257,11 +1345,18 @@ Progress: `ads-progress/2026-11-19-1800-W-V5-assisted-start.md`. **V5 is built**
 | Q-APX21 | What V5's modes are, step by step; step 6 cannot exist on Meta | **ruled (a) 2026-11-19, §5a**: one enforced table of who acts, a mode only where two are real; lowering a budget built | — |
 | Q-APX22 | Approved replacements are turned on today (Q-AD68); Q-APX1 put that after the canary | **ruled (a) 2026-11-19, §5a**: keep it; Level B means launching a new campaign | — |
 | Q-APX23 | When the agent should lower a budget on its own (Level A allows it; no rule exists) | **ruled (a) 2026-11-19, §5a**: none until the canary's data; lowering stays a person's step | — |
-| Q-APX24 | What a lead's "score" is | **(a)** an ordered standing with its reasons, no number | owner |
-| Q-APX25 | Whether a lead keeps its ad in a column | **(a)** derive on read from `raw` and the publisher's record | owner |
-| Q-APX26 | What "qualified" counts in the report; a source with no spend | **(a)** a recruiter's qualify or later; "no spend recorded", never $0 | owner |
-| Q-APX27 | Tenstreet's receiver | **(a)** its own track, after the meeting's answers and D-TS4/5/8 | owner |
-| Q-APX28 | A public apply page | **(a)** its own step after V7a–e, with Q-AD52's consent answer | owner |
+| Q-APX24 | What a lead's "score" is | **ruled (a) 2026-11-20, §5a**: an ordered standing with its reasons, no number; built (V7b) | — |
+| Q-APX25 | Whether a lead keeps its ad in a column | **ruled (a) 2026-11-20, §5a**: derived on read from `raw` and the publisher's record; built (V7c) | — |
+| Q-APX26 | What "qualified" counts in the report; a source with no spend | **ruled (a) 2026-11-20, §5a**: a recruiter's qualify or later; "no spend recorded", never $0; built (V7d) | — |
+| Q-APX27 | Tenstreet's receiver | **ruled (a) 2026-11-20, §5a**: its own track, after the meeting's answers and D-TS4/5/8 | owner (D-TS4/5/8) |
+| Q-APX28 | A public apply page | **ruled (a) 2026-11-20, §5a**: its own step after V7a–e, with Q-AD52's consent answer | counsel (Q-AD52) |
+| Q-APX29 | Tenstreet: SSN, EEO, status, deletion, linking hires | **ruled (a) 2026-11-20, §5a**: strip SSN and EEO before sealing; show status; hide then purge after 1 year; our own conversion | — |
+| Q-APX30 | Tenstreet: auth, retries, delta, field exclusion | **ruled (a) 2026-11-20, §5a**: one message to integrations@tenstreet.com; build on the plan's defaults meanwhile | — |
+| Q-APX31 | The public apply page and texting consent (Q-AD52) | **ruled (a) 2026-11-20, §5a**: the drafted page and wording; counsel confirms three points | — |
+| Q-APX32 | Indeed | **ruled (a) 2026-11-20, §5a**: Indeed admin asks for the Developer Agreement; we build receiver + careers pages; ~6-week review | — |
+| Q-APX33 | Q-AD17 and the pay rule for ads | **ruled (a) 2026-11-20, §5a**: the sandbox reading now; goal chosen at launch; ads held to the pay range if counsel confirms | — |
+| Q-APX34 | The website's own apply form (WordPress, never reaches Silvicom 360) | **ruled (a) 2026-11-20, §5a**: our page replaces it; the developer repoints the links (APPLY-PAGE-PLAN AP5) | owner (web developer) |
+| Q-AP1–4 | Texting a lead; Spanish; solo/team; CDL number and address | `APPLY-PAGE-PLAN.md` §4 | owner, counsel |
 | — | Meta app (id `META_APP_ID` and secret), system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 **2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want

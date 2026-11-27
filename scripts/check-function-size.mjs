@@ -4,7 +4,8 @@
  * single enormous function under the 500-line file budget (audit P2-B: scoreTransaction was 397 lines in a
  * 419-line file). This measures FUNCTION spans and fails any over MAX, so deep logic can't hide.
  *
- * Scope: apps/api/src service/logic code. Route files are excluded — an Express router factory is a flat
+ * Scope: apps/api/src service/logic code, and apps/mail-gateway/src (2026-11-24, BROKER-MAIL-READER-PLAN
+ * D-BMR2: "the file and function budgets apply to it"). Route files are excluded — an Express router factory is a flat
  * list of `router.<verb>(...)` registrations (breadth, not depth); its length is covered by the file gate.
  *
  * GRANDFATHERED holds the functions already over MAX, pinned to their CURRENT span: they may not GROW
@@ -32,7 +33,7 @@ const GRANDFATHERED = {
 
 function listFiles() {
   // List the whole tree (git ls-files with a `**` glob misses direct children like src/app.ts) and filter.
-  const out = execSync("git ls-files apps/api/src", { cwd: ROOT, encoding: "utf8" });
+  const out = execSync("git ls-files apps/api/src apps/mail-gateway/src", { cwd: ROOT, encoding: "utf8" });
   return out.trim().split("\n").filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !f.includes("/routes/"));
 }
 

@@ -574,7 +574,8 @@
     "RUN_SCHEDULERS_IN_PROCESS": true,
     "SCHEDULER_LANES": [
      "egress",
-     "general"
+     "general",
+     "mail"
     ],
     "JOB_EXECUTION_MODE": "inprocess",
     "WORKER_ROLE": "both",
@@ -695,7 +696,8 @@
     "RUN_SCHEDULERS_IN_PROCESS": true,
     "SCHEDULER_LANES": [
      "egress",
-     "general"
+     "general",
+     "mail"
     ],
     "JOB_EXECUTION_MODE": "inprocess",
     "WORKER_ROLE": "both",
@@ -818,7 +820,8 @@
     "RUN_SCHEDULERS_IN_PROCESS": true,
     "SCHEDULER_LANES": [
      "egress",
-     "general"
+     "general",
+     "mail"
     ],
     "JOB_EXECUTION_MODE": "inprocess",
     "WORKER_ROLE": "both",
@@ -941,7 +944,8 @@
     "RUN_SCHEDULERS_IN_PROCESS": true,
     "SCHEDULER_LANES": [
      "egress",
-     "general"
+     "general",
+     "mail"
     ],
     "JOB_EXECUTION_MODE": "inprocess",
     "WORKER_ROLE": "both",
@@ -1096,7 +1100,7 @@
    "  - SAMSARA_STATS_SYNC_MINUTES: Invalid input: expected number, received NaN",
    "  - SAMSARA_SYNC_HOURS: Invalid input: expected number, received NaN",
    "  - SAMSARA_TRAILER_PAIRING_SYNC_HOURS: Invalid input: expected number, received NaN",
-   "  - SCHEDULER_LANES: SCHEDULER_LANES: unknown lane(s) zz not valid — expected \"all\" or any of egress, general",
+   "  - SCHEDULER_LANES: SCHEDULER_LANES: unknown lane(s) zz not valid — expected \"all\" or any of egress, general, mail",
    "  - SENTRY_DSN: Invalid URL",
    "  - SENTRY_TRACES_SAMPLE_RATE: Invalid input: expected number, received NaN",
    "  - SITE_PROX_MILES: Invalid input: expected number, received NaN",
@@ -1191,7 +1195,7 @@
    "  - SAMSARA_STATS_SYNC_MINUTES: Too small: expected number to be >=1",
    "  - SAMSARA_SYNC_HOURS: Too small: expected number to be >=0",
    "  - SAMSARA_TRAILER_PAIRING_SYNC_HOURS: Too small: expected number to be >=0",
-   "  - SCHEDULER_LANES: SCHEDULER_LANES: unknown lane(s) -1 — expected \"all\" or any of egress, general",
+   "  - SCHEDULER_LANES: SCHEDULER_LANES: unknown lane(s) -1 — expected \"all\" or any of egress, general, mail",
    "  - SENTRY_DSN: Invalid URL",
    "  - SENTRY_TRACES_SAMPLE_RATE: Too small: expected number to be >=0",
    "  - SITE_PROX_MILES: Too small: expected number to be >=0.05",

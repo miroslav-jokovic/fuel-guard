@@ -15,6 +15,8 @@ import {
   routesInForce,
   type AlertMember,
   type AlertRoute,
+  alertIsMandatory,
+  OWN_DRAIN_ALERTS,
 } from "./alertRouting.js";
 import { rolesThatCanView } from "./auth.js";
 import { NOTIFICATION_CATEGORIES, NOTIFICATION_CATEGORY_LABELS } from "./notificationsContract.js";
@@ -48,13 +50,16 @@ describe("the catalogue", () => {
       expect(NOTIFICATION_CATEGORIES).toContain(a.key);
       expect(a.label).toBe(NOTIFICATION_CATEGORY_LABELS[a.key]);
     }
-    expect(ALERT_KEYS).toEqual(["home_time_return_due", "home_time_overdue", "home_time_truck_limit", "lumper_rc_waiting", "lumper_rc_missing_billed", "lumper_billing_gap", "roadside_repair_due"]);
+    expect(ALERT_KEYS).toEqual(["home_time_return_due", "home_time_overdue", "home_time_truck_limit", "lumper_rc_waiting", "lumper_rc_missing_billed", "lumper_billing_gap", "roadside_repair_due", "broker_mail_waiting", "broker_mail_backup"]);
     expect(isAlertKey("home_time_overdue")).toBe(true);
     expect(isAlertKey("fuel_alert")).toBe(false);
   });
 
   it("starts SMS off for everybody: nobody has a confirmed number until they give one", () => {
-    expect(ALERT_CATALOGUE.flatMap((a) => a.defaults).filter((r) => r.channel === "sms")).toEqual([]);
+    // Broker mail is the ruled exception (Q-BM7, Q-BM12): the text IS the alert. It still reaches only a number
+    // the person confirmed (`recipientsFor` drops the rest), so "nobody until they give one" holds for it too.
+    expect(ALERT_CATALOGUE.flatMap((a) => a.defaults.map((r) => [a.key, r.channel])).filter(([, c]) => c === "sms").map(([k]) => k))
+      .toEqual(["broker_mail_waiting", "broker_mail_backup"]);
   });
 
   it("defaults only to roles that can view the alert's section", () => {
@@ -347,5 +352,37 @@ describe("alerts follow the carrier's Permissions page (Q-HT8)", () => {
 
   it("what one member receives is the same answer: nothing for somebody the carrier took the section from", () => {
     expect(alertsForMember("home_time_overdue", [], member(FRAN, "fleet_manager", NO_DISPATCH))).toEqual({ always: [], whenMine: [] });
+  });
+});
+
+describe("broker mail's two alerts (BROKER-MAIL-READER-PLAN P3)", () => {
+  const member = (userId: string, role: "dispatcher" | "admin" = "dispatcher") => ({ userId, role, surfaces: { "dispatch.broker-mail": true } });
+
+  it("a relation can name several people: every backup the admin chose gets the notice", () => {
+    const out = resolveAlertRecipients("broker_mail_backup", [], [member("a"), member("b"), member("c")], { dispatcher_backup: ["a", "b"] });
+    expect([...out.keys()].sort()).toEqual(["a", "b"]);
+    expect([...out.get("a")!]).toEqual(["sms"]);
+  });
+
+  it("the dispatcher's own text and bell are mandatory: a saved set cannot switch them off (Q-BM11)", () => {
+    const off = [
+      { recipientKind: "relation" as const, recipientKey: "mailbox_owner", channel: "sms" as const, enabled: false },
+      { recipientKind: "role" as const, recipientKey: "admin", channel: "bell" as const, enabled: true },
+    ];
+    expect(alertRoutesProblem("broker_mail_waiting", off, new Set(), new Set(["admin"]))).toMatch(/cannot be switched off/);
+    // …and if such a set were stored anyway, the resolver still sends them.
+    const out = resolveAlertRecipients("broker_mail_waiting", off, [member("d")], { mailbox_owner: "d" });
+    expect([...out.get("d")!].sort()).toEqual(["bell", "sms"]);
+    expect(alertIsMandatory("broker_mail_waiting")).toBe(true);
+    expect(alertIsMandatory("broker_mail_backup")).toBe(false);
+  });
+
+  it("only people who can open the Broker mail page are told — it starts off for dispatchers", () => {
+    const out = resolveAlertRecipients("broker_mail_waiting", [], [{ userId: "d", role: "dispatcher" }], { mailbox_owner: "d" });
+    expect(out.size).toBe(0);
+  });
+
+  it("names exactly broker mail's two as drained by their own module", () => {
+    expect(OWN_DRAIN_ALERTS).toEqual(["broker_mail_waiting", "broker_mail_backup"]);
   });
 });

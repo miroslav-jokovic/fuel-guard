@@ -84,12 +84,26 @@ describe("the page's own content-security-policy", () => {
     expect(csp["default-src"]).toEqual(["'self'"]);
   });
 
-  it("does not let a script come from anywhere but this origin", async () => {
+  it("lets a training film and its captions play from storage, and from nowhere else", async () => {
     const csp = await cspOf();
-    // The directive the two above are most likely to be widened by accident alongside. The one addition
-    // compiles WebAssembly (the licence-barcode decoder, AW5) and admits no origin and no `eval`.
-    expect(csp["script-src"]).toEqual(["'self'", "'wasm-unsafe-eval'"]);
+    // Without the directive a film falls back to default-src 'self' and never plays (SAFETY-VIDEOS D-TR1).
+    expect(csp["media-src"]).toEqual(["'self'", "https://*.supabase.co"]);
+  });
+
+  it("does not let a script come from anywhere but this origin and Cloudflare's robot check", async () => {
+    const csp = await cspOf();
+    // The directive the two above are most likely to be widened by accident alongside. `'wasm-unsafe-eval'` compiles
+    // WebAssembly (the licence-barcode decoder, AW5) and admits no origin and no `eval`. The one origin is Turnstile's
+    // (APPLY-PAGE-PLAN D-AP5), named exactly as Cloudflare's CSP page gives it, never a wildcard.
+    expect(csp["script-src"]).toEqual(["'self'", "'wasm-unsafe-eval'", "https://challenges.cloudflare.com"]);
     expect(csp["script-src"]).not.toContain("'unsafe-eval'");
+  });
+
+  it("lets the careers page's robot check draw its frame and talk to Cloudflare, and nothing else of theirs", async () => {
+    const csp = await cspOf();
+    expect(csp["frame-src"]).toContain("https://challenges.cloudflare.com");
+    expect(csp["connect-src"]).toContain("https://challenges.cloudflare.com");
+    for (const d of ["script-src", "frame-src", "connect-src"]) expect(csp[d]!.filter((v) => v.includes("cloudflare")), d).toEqual(["https://challenges.cloudflare.com"]);
   });
 });
 

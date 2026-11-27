@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
-import { Card, ListRow, Screen, ScreenHeader, Section, Skeleton, AppText } from '@/components';
+import { GroupedList, ListRow, Screen, ScreenHeader, Section, Skeleton, AppText } from '@/components';
 import { getCaptureConfig } from '@/capture/engine';
 import { describeScanner, type ScannerFacts, type SettingsRow } from '@/features/scanner/scannerSettingsModel';
 import { useSyncState } from '@/data/sync';
 import { useFeatures } from '@/session/useFeatures';
 import { getCaptureNativeModule } from '../modules/capture-native';
+import { liveEdgePageSource } from '@/capture/liveEdgePageSource';
 
 /**
  * Scanner settings (D-DB14, 2026-09-07) — what this phone will do when a driver captures a
@@ -33,7 +34,8 @@ export default function ScannerSettings() {
       if (!active) return;
       const platform: ScannerFacts['platform'] =
         Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'other';
-      setFacts({ platform, support, config });
+      // The same question the capture engine asks to pick the scanner, so this screen cannot disagree.
+      setFacts({ platform, support, config, ownCamera: liveEdgePageSource(native) !== null });
     })();
     return () => {
       active = false;
@@ -46,7 +48,7 @@ export default function ScannerSettings() {
 
   return (
     <Screen padTop={false} flow="sections">
-      <ScreenHeader title="Scanner settings" subtitle="How documents are captured on this phone" onClose={() => router.back()} />
+      <ScreenHeader display title="Scanner" subtitle="How documents are captured on this phone" onClose={() => router.back()} />
 
       <Section title="Scanner">
         {view ? <Rows rows={view.scanner} /> : <Skeleton className="w-full rounded-xl" style={{ height: 128 }} />}
@@ -68,13 +70,10 @@ export default function ScannerSettings() {
 
 function Rows({ rows }: { rows: readonly SettingsRow[] }) {
   return (
-    <Card padded={false}>
-      {rows.map((row, index) => (
-        <View key={row.key}>
-          <ListRow icon={row.icon} disc={row.tone} title={row.title} subtitle={row.subtitle} />
-          {index < rows.length - 1 ? <View className="ml-18 h-px bg-edge-subtle" /> : null}
-        </View>
+    <GroupedList>
+      {rows.map((row) => (
+        <ListRow key={row.title} icon={row.icon} disc={row.tone} title={row.title} subtitle={row.subtitle} />
       ))}
-    </Card>
+    </GroupedList>
   );
 }

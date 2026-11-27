@@ -8,6 +8,7 @@ import {
   homeTimeState,
   homeTimeTimesRefusal,
   isHomeTimeLive,
+  matchesHomeTimeFilter,
   truckPastLimit,
 } from "./homeTime.js";
 import { HOME_TIME_DEFAULTS, homeTimeChangeSchema, homeTimeMarkSchema } from "./homeTimeContract.js";
@@ -220,5 +221,21 @@ describe("the board's attention flag", () => {
     expect(flags.homeTimeUrgent).toBe(false);
     expect(needsAttention(flags)).toBe(false);
     expect(needsAttention({ ...flags, homeTimeUrgent: true })).toBe(true);
+  });
+});
+
+describe("matchesHomeTimeFilter (HOME-TIME-VISIBILITY-PLAN D-HT23)", () => {
+  const cases: [Parameters<typeof matchesHomeTimeFilter>[0], Record<string, boolean>][] = [
+    [null, { on: false, overdue: false, scheduled: false, off: true }],
+    ["scheduled", { on: false, overdue: false, scheduled: true, off: true }],
+    ["active", { on: true, overdue: false, scheduled: false, off: false }],
+    ["overdue", { on: true, overdue: true, scheduled: false, off: false }],
+  ];
+  it.each(cases)("a driver whose period is %s", (state, want) => {
+    for (const [filter, ok] of Object.entries(want)) expect(matchesHomeTimeFilter(state, filter)).toBe(ok);
+  });
+  it("a word outside the vocabulary is no filter", () => {
+    expect(matchesHomeTimeFilter(null, "banana")).toBe(true);
+    expect(matchesHomeTimeFilter("overdue", "")).toBe(true);
   });
 });

@@ -1,5 +1,5 @@
 import { isRecordId } from "@silvicom/shared";
-import type { Router } from "express";
+import type { Request, Response, Router } from "express";
 import { requireSection, requireOrg } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, dbErrorResponse } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -9,6 +9,9 @@ import { type StatementWord } from "@silvicom/shared";
 import { ingestFuelStatement, STATEMENT_BUCKET } from "../fuelStatementIngest.js";
 import { runFuelReconciliation } from "../fuelReconRun.js";
 import { listReconRuns, readReconRun } from "../reconRunRead.js";
+import { readWeeklyBill } from "../weeklyBillRead.js";
+import { weeklyBillWorkbook } from "../weeklyBillWorkbook.js";
+import { readPilotBillMails } from "../pilotBillMail.js";
 
 
 /** Statement + reconciliation routes — moved here from routes/fueling/networks.ts at the P1.6
@@ -39,6 +42,10 @@ export function registerStatementRoutes(router: Router): void {
         sourceBase64: typeof body.sourceBase64 === "string" ? body.sourceBase64 : null,
       });
       if (!result.ok) {
+        // Logged as well as returned. Until 2026-11-24 a refused save was a toast and nothing else, and
+        // production holds ZERO statements beside nine checks of the same invoices — nobody could say why
+        // (PILOT-INVOICE-FORMAT-ANALYSIS-2026-11-24, progress log). One line per refusal, no line content.
+        console.warn(`[fuel-statement] refused for org ${req.auth!.orgId}: ${result.error ?? "?"}${result.tieOutFailures?.length ? ` — ${result.tieOutFailures.join(" | ")}` : ""}`);
         // The tie-out failures travel with the error on purpose: "the statement didn't add up" is
         // useless to the person holding the PDF, "fuel total $x vs the printed $y" is actionable.
         res.status(422).json({
@@ -107,6 +114,19 @@ export function registerStatementRoutes(router: Router): void {
     }),
   );
 
+  // The weekly bills the API pulled from the Pilot-Bills folder itself (PILOT-INVOICE-FORMAT-ANALYSIS §4): what
+  // became of each recent email — recorded (and which invoice), a duplicate, refused and why, or no PDF. The
+  // fuel section's VIEW set, the gate of the invoice checks it sits above.
+  router.get(
+    "/statements/mail",
+    requireOrg,
+    requireSection("fuel", "view"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json({ mails: await readPilotBillMails(admin, req.auth!.orgId!) });
+    }),
+  );
+
   /**
    * The saved checks, newest period first, paged (FS3). Superseded ones are history, not a finding to
    * act on, and are not listed. This read used to stop at `.limit(100)` and say nothing; `total` lets
@@ -155,6 +175,43 @@ export function registerStatementRoutes(router: Router): void {
       res.json({ ok: true, ...r.detail });
     }),
   );
+
+  /**
+   * A recorded weekly bill rebuilt in the old statement's columns, with the discount and the quote check
+   * Pilot's 2026-11 invoice no longer prints (`weeklyBillRead.ts`). JSON for the page, `.xlsx` for the
+   * office's spreadsheet. The fuel section's VIEW set, the gate of the check it belongs to; the workbook is
+   * audited as `export.generated`, as every fuel export is.
+   */
+  // Two literal paths rather than a loop: `routeGates.test.ts` reads each route's gate from its source.
+  const weeklyBill = (format: "json" | "xlsx") => async (req: Request, res: Response): Promise<void> => {
+    const id = String(req.params.id);
+    if (!isRecordId(id)) {
+      res.status(404).json(apiError("not_found", "No statement with that id."));
+      return;
+    }
+    const admin = getSupabaseAdmin(getAppLocals(req).env);
+    const r = await readWeeklyBill(admin, req.auth!.orgId!, id);
+    if (!r.ok) {
+      if (r.notFound) res.status(404).json(apiError("not_found", "No statement with that id."));
+      else dbErrorResponse(res, "fuel_statements read", { message: r.error }, "Could not load that statement");
+      return;
+    }
+    if (format === "json") {
+      res.json({ ok: true, statement: r.statement, report: r.report });
+      return;
+    }
+    const bytes = await weeklyBillWorkbook(r.statement, r.report);
+    await writeAudit(admin, {
+      orgId: req.auth!.orgId!, actorId: req.auth!.userId, action: "export.generated",
+      entity: "fuel_statements", entityId: id,
+      meta: { report: "weekly-bill.xlsx", invoice: r.statement.invoiceNo, rows: r.report.rows.length, overQuote: r.report.overQuote.length },
+    });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="pilot-${r.statement.invoiceNo}-${r.statement.periodStart}-old-columns.xlsx"`);
+    res.send(bytes);
+  };
+  router.get("/statements/:id/weekly-bill", requireOrg, requireSection("fuel", "view"), asyncHandler(weeklyBill("json")));
+  router.get("/statements/:id/weekly-bill.xlsx", requireOrg, requireSection("fuel", "view"), asyncHandler(weeklyBill("xlsx")));
 
   // The original PDF behind a statement. Served as a short-lived signed URL rather than a public
   // object: the bucket has no client policies at all, so this route is the only door, and it re-checks

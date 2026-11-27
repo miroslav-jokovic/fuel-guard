@@ -26,8 +26,14 @@
  */
 // 1.2 (2026-11-16): the office work-alert texts are a second programme on its own number — a section
 // of the text message terms and a paragraph of the privacy policy (HOME-TIME HT6).
-export const LEGAL_VERSION = "1.2";
-export const LEGAL_EFFECTIVE = "16 November 2026";
+// 1.3 (2026-11-22): the text message terms and the privacy section name all three ways an applicant agrees to
+// texts — the careers page's box (APPLY-PAGE-PLAN AP2), the application page's box, and asking a recruiter
+// (D-SMS11) — and what the messages are about is the two boxes' own words; the company's name is printed as its
+// registration reads, without the period.
+// 1.4 (2026-11-22): the privacy policy's section on the careers page's form — what it keeps, including the internet
+// address, the browser and Cloudflare Turnstile's check (APPLY-PAGE-PLAN AP3, D-AP7).
+export const LEGAL_VERSION = "1.4";
+export const LEGAL_EFFECTIVE = "22 November 2026";
 
 /**
  * Whether the documents still carry the counsel-review notice. Flipped to `false` in the PR that
@@ -37,11 +43,16 @@ export const LEGAL_EFFECTIVE = "16 November 2026";
 export const UNDER_REVIEW = true;
 
 /**
- * The controller. "Silvicom Inc." is the organisation's own registered name — the same string the
- * `organizations` row carries in production — not a marketing name. "Silvicom 360" is the product;
- * the distinction matters in a privacy policy, because the obligations attach to the company.
+ * The controller. "Silvicom Inc" is the organisation's own registered name, not a marketing name. "Silvicom 360"
+ * is the product; the distinction matters in a privacy policy, because the obligations attach to the company.
+ *
+ * ⚠ Measured 2026-11-22, three places agree and this constant did not: FMCSA's SAFER record for US DOT 1864495
+ * ("Legal Name: SILVICOM INC"), production's `organizations.name` ("Silvicom Inc", which every consent's wording is
+ * composed from — `carrierName`), and the toll-free verification's `businessName` ("Silvicom Inc"). Until then this
+ * read "Silvicom Inc." and said production carried the same string; it did not. A reviewer matches the business on
+ * the page to the business on the submission, so the page prints what the registration says.
  */
-export const COMPANY_NAME = "Silvicom Inc.";
+export const COMPANY_NAME = "Silvicom Inc";
 export const PRODUCT_NAME = "Silvicom 360";
 
 /**

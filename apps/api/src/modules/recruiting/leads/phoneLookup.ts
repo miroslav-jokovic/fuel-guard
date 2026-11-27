@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { lookupIsStale, projectTelnyxLookup, telnyxLookupSchema, type PhoneLine, type PhoneLookupProjection } from "@silvicom/shared";
+import { APPLY_FLAGS_SELECT, isFlaggedLead, lookupIsStale, projectTelnyxLookup, telnyxLookupSchema, type PhoneLine, type PhoneLookupProjection } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { redactNumber } from "../../../lib/sms.js";
 
@@ -190,11 +190,15 @@ export const LOOKUP_RETRY_MAX = 100;
 export async function lookUpMissingPhones(admin: SupabaseClient, orgId: string, deps: PhoneLookupDeps, now: Date): Promise<LookupRun> {
   const since = new Date(now.getTime() - LOOKUP_RETRY_DAYS * 86_400_000).toISOString();
   const { data, error } = await admin
-    .from("recruiting_leads").select("phone_e164")
+    .from("recruiting_leads").select(`phone_e164, status, ${APPLY_FLAGS_SELECT}`)
     .eq("org_id", orgId).gte("received_at", since).not("phone_e164", "is", null)
     .order("received_at", { ascending: false }).order("id").limit(500);
   if (error) throw new Error(`Could not read the recent leads' numbers: ${error.message}`);
-  const phones = [...new Set(((data ?? []) as Array<{ phone_e164: string }>).map((r) => r.phone_e164))];
+  // A flagged careers-page submission's number is not paid for while nobody has worked the lead (APPLY-PAGE-PLAN
+  // D-AP5): a bot can type a stranger's. Once a recruiter moves it past `new`, a person has vouched for it and it is
+  // looked up like any lead; the same number on any unflagged lead is looked up regardless.
+  const vouched = (r: { status?: unknown; apply_flags?: unknown }) => !isFlaggedLead(r) || r.status !== "new";
+  const phones = [...new Set(((data ?? []) as Array<{ phone_e164: string; status?: unknown; apply_flags?: unknown }>).filter(vouched).map((r) => r.phone_e164))];
   const known = await readPhoneLines(admin, orgId, phones);
   const missing = phones.filter((p) => { const k = known.get(p); return !k || lookupIsStale(k.looked_up_at, now); });
   return lookUpPhones(admin, orgId, missing.slice(0, LOOKUP_RETRY_MAX), deps, now);

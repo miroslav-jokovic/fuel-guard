@@ -134,6 +134,56 @@ export const GRAPH_READINGS: readonly Reading[] = [
   },
 ];
 
+/**
+ * Q-AD17 (ADS-PLATFORM-V2-PLAN V7e, Q-APX33 (a), ruled 2026-11-20): may a job ad (special ad category EMPLOYMENT)
+ * optimise for qualified leads? Meta's pages name the goal (`QUALITY_LEAD`, ad set reference) and restrict only
+ * audiences under a special category, and nobody has published a run of it either way — so it is asked here, once,
+ * by the first `pnpm ads:certify` on the sandbox, and answered by a recording instead of a guess.
+ *
+ * Three ad sets on one PAUSED campaign each (cleaned up with the target's campaigns): EMPLOYMENT with the dataset in
+ * `promoted_object`, the same with no category (control: the goal itself works on this account), and EMPLOYMENT with
+ * no dataset (control: Meta's reported April 2026 rule that the goal needs the Conversions API). Targeting is plain
+ * US — no age, gender, ZIP or exclusion — so a refusal can only be about the goal. Observed: each create's HTTP
+ * status and error code, and what the EMPLOYMENT ad set reads back as its goal. No ad is made; nothing can spend.
+ */
+async function qualityLeadAdSet(t: ReadingTarget, pageId: string, category: "EMPLOYMENT" | "NONE", datasetId: string | null): Promise<{ status: number; code: number | string; id: string | null }> {
+  const campaign = await call(t, "POST", `act_${t.accountId}/campaigns`, {
+    name: `reading q-ad17 ${category} ${datasetId ? "dataset" : "none"}`, objective: "OUTCOME_LEADS", buying_type: "AUCTION", status: "PAUSED",
+    special_ad_categories: JSON.stringify(category === "NONE" ? [] : [category]), special_ad_category_country: JSON.stringify(["US"]),
+  });
+  const campaignId = typeof campaign.body.id === "string" ? campaign.body.id : "";
+  const r = await call(t, "POST", `act_${t.accountId}/adsets`, {
+    name: "reading q-ad17", campaign_id: campaignId, status: "PAUSED", daily_budget: "1000", billing_event: "IMPRESSIONS",
+    optimization_goal: "QUALITY_LEAD", bid_strategy: "LOWEST_COST_WITHOUT_CAP", destination_type: "ON_AD",
+    promoted_object: JSON.stringify(datasetId ? { page_id: pageId, pixel_id: datasetId } : { page_id: pageId }),
+    targeting: JSON.stringify({ geo_locations: { countries: ["US"] } }),
+  });
+  const e = err(r.body);
+  return { status: r.status, code: kind(e.code) === "number" ? (e.code as number) : kind(e.code), id: typeof r.body.id === "string" ? r.body.id : null };
+}
+
+export const QUALITY_LEAD_READINGS = (pageId: string): readonly Reading[] => [
+  {
+    id: "quality-lead-employment",
+    fake: "platforms/simulator/fakeMetaAdSets.ts",
+    async ask(t) {
+      const { datasetId } = needs(t);
+      const job = await qualityLeadAdSet(t, pageId, "EMPLOYMENT", datasetId);
+      const plain = await qualityLeadAdSet(t, pageId, "NONE", datasetId);
+      const noFeed = await qualityLeadAdSet(t, pageId, "EMPLOYMENT", null);
+      const back = job.id ? await call(t, "GET", `${job.id}?fields=optimization_goal`) : null;
+      return {
+        "EMPLOYMENT with dataset: status": job.status,
+        "EMPLOYMENT with dataset: error.code": job.code,
+        "EMPLOYMENT with dataset: reads back optimization_goal": back ? String(back.body.optimization_goal ?? kind(back.body.optimization_goal)) : "not created",
+        "no category with dataset: status": plain.status,
+        "EMPLOYMENT without dataset: status": noFeed.status,
+        "EMPLOYMENT without dataset: error.code": noFeed.code,
+      };
+    },
+  },
+];
+
 /** The Conversions API readings: the Outcome feed's (fakeMetaEvents.ts). */
 export const EVENTS_READINGS: readonly Reading[] = [
   {

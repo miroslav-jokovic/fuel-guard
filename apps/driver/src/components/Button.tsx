@@ -8,30 +8,31 @@ import { useTheme } from '@/theme/ThemeProvider';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 
 /**
- * `hero` is the amber pill that only ever appears ON the navy (D-DB2: amber is the one action
- * colour there). On the sheet the primary action is the navy pill instead, because an amber fill on
- * white is a warning, not a button. `soft` is gone — a tinted brand button was a third weight
- * nobody could rank against the other two.
+ * Visual 2026 (D-DV5): amber means "you must act", on the navy and on the canvas alike, so `primary`
+ * is the amber pill everywhere and a screen has ONE of them. `hero` is the same pill, kept as a
+ * name so the call sites that used it move with no edit. `secondary` is an outline with no fill, the
+ * mock's "Navigate" beside "Scan BOL", so it never competes with the primary. Direction B's navy
+ * primary on the sheet is retired: in dark mode it was a near-white pill (the brand role turns to mist
+ * there), and a second strong colour for "act" was the ambiguity D-DV5 removes.
  */
 type Variant = 'primary' | 'hero' | 'secondary' | 'danger' | 'ghost';
 type Size = 'sm' | 'md' | 'lg';
 
 const VIEW: Record<Variant, string> = {
-  primary: 'bg-brand active:bg-brand-pressed',
+  primary: 'bg-action active:bg-action-pressed',
   hero: 'bg-action active:bg-action-pressed',
-  // A hairline edge, because a white pill sitting on a white card had no outline at all — the
-  // offer deck's Decline was a label floating in space until 2026-09-07.
-  secondary: 'border border-edge bg-surface active:bg-surface-selected',
+  // An outline with no fill: present enough to read as a button, quiet beside the amber primary.
+  secondary: 'border-2 border-edge active:bg-surface-muted',
   danger: 'bg-danger active:opacity-90',
   ghost: 'active:bg-surface-muted',
 };
 /** The same variant on the navy: a white pill and a grey ghost both disappear there. */
 const VIEW_ON_HERO: Partial<Record<Variant, string>> = {
-  secondary: 'border border-hero-edge bg-hero-tile active:bg-hero-edge',
+  secondary: 'border-2 border-hero-edge active:bg-hero-tile',
   ghost: 'active:bg-hero-tile',
 };
 const LABEL: Record<Variant, string> = {
-  primary: 'text-brand-fg',
+  primary: 'text-action-fg',
   hero: 'text-action-fg',
   secondary: 'text-ink',
   danger: 'text-ink-inverse',
@@ -42,8 +43,8 @@ const LABEL_ON_HERO: Partial<Record<Variant, string>> = {
   ghost: 'text-on-hero-secondary',
 };
 const LABEL_TONE: Record<Variant, TextTone> = {
-  primary: 'inverse',
-  hero: 'primary',
+  primary: 'onAction',
+  hero: 'onAction',
   secondary: 'primary',
   danger: 'inverse',
   ghost: 'secondary',
@@ -97,9 +98,9 @@ export function Button({
   const labelClass = (onHero ? LABEL_ON_HERO[variant] : undefined) ?? LABEL[variant];
   const labelTone = (onHero ? LABEL_TONE_ON_HERO[variant] : undefined) ?? LABEL_TONE[variant];
   const spinnerColor =
-    variant === 'primary' || variant === 'danger'
+    variant === 'danger'
       ? rc.inkInverse
-      : variant === 'hero'
+      : variant === 'primary' || variant === 'hero'
         ? rc.actionFg
         : onHero
           ? rc.onHero

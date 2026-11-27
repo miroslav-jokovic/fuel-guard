@@ -5,9 +5,10 @@ import { useQuery } from '@tanstack/react-query';
 import {
   AppText,
   Banner,
-  Card,
   EmptyState,
+  GroupedList,
   Icon,
+  ListRow,
   OfflineBanner,
   Screen,
   ScreenHeader,
@@ -81,7 +82,7 @@ export default function HazmatVerdictScreen() {
 
   return (
     <Screen padTop={false} flow="sections">
-      <ScreenHeader title="Compliance verdict" onBack={() => router.back()} />
+      <ScreenHeader display title="BOL check" onBack={() => router.back()} />
       <OfflineBanner />
       {query.isError && !query.data ? (
         <Banner
@@ -98,42 +99,37 @@ export default function HazmatVerdictScreen() {
         <>
           {/* The verdict is the screen: a driver opening this wants one word before any detail,
               and a thin status strip made "Rejected" the same weight as "2 pending". */}
-          <Section first>
-            <Card>
-              <View className={`h-11 w-11 items-center justify-center rounded-full ${TONE_SOFT[meta.tone].bg}`}>
-                <Icon name={meta.icon} size={22} fill className={TEXT_TONE_CLASS[TONE_SOFT[meta.tone].textTone]} />
-              </View>
-              <AppText variant="navigationTitle">{meta.word}</AppText>
-              <AppText variant="supporting" tone="secondary">{meta.message}</AppText>
-            </Card>
+          {/* The verdict is the screen (Visual 2026 V7): one word in its state colour with its glyph,
+              before any detail. No card and no tinted disc around it (D-DV5, D-DV7). */}
+          <Section>
+            <View className="flex-row items-center gap-3">
+              <Icon name={meta.icon} size={32} fill className={TEXT_TONE_CLASS[TONE_SOFT[meta.tone].textTone]} />
+              <AppText variant="screenTitle" tone={TONE_SOFT[meta.tone].textTone} accessibilityRole="header">{meta.word}</AppText>
+            </View>
+            <AppText variant="body" tone="secondary">{meta.message}</AppText>
           </Section>
           {view.findings.length > 0 ? (
             <Section title="Findings">
-              <Card padded={false}>
+              <GroupedList>
                 {view.findings.map((finding, index) => (
-                  <View key={`${finding.ruleId}-${index}`} className="flex-row items-start gap-3 px-4 py-3">
-                    <Icon name="warning" size={18} className="mt-0.5 text-warning" />
-                    <View className="flex-1 gap-1">
-                      <AppText variant="body">{finding.message}</AppText>
-                      {finding.citations.length > 0 ? (
-                        <AppText variant="caption" tone="muted">{finding.citations.map((citation) => citation.cfr).join(' · ')}</AppText>
-                      ) : null}
-                    </View>
-                  </View>
+                  <ListRow
+                    key={`${finding.ruleId}-${index}`}
+                    icon="warning"
+                    disc="caution"
+                    title={finding.message}
+                    subtitle={finding.citations.length > 0 ? finding.citations.map((citation) => citation.cfr).join(' · ') : undefined}
+                  />
                 ))}
-              </Card>
+              </GroupedList>
             </Section>
           ) : null}
           {view.findings.length === 0 && view.flags.length > 0 ? (
             <Section title="Review flags">
-              <Card padded={false}>
+              <GroupedList>
                 {view.flags.map((flag, index) => (
-                  <View key={`${flag}-${index}`} className="flex-row items-start gap-3 px-4 py-3">
-                    <Icon name="info" size={18} className="mt-0.5 text-info" />
-                    <AppText variant="body" className="flex-1">{flag}</AppText>
-                  </View>
+                  <ListRow key={`${flag}-${index}`} icon="info" disc="info" title={flag} />
                 ))}
-              </Card>
+              </GroupedList>
             </Section>
           ) : null}
         </>

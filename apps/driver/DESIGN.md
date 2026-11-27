@@ -1,507 +1,358 @@
-# FuelGuard Driver App Design Contract
+# Silvicom 360 Driver App Design Contract
 
-This document is the implementation contract for the FuelGuard driver app. It exists to prevent
-new screens and components from drifting toward generic AI-generated mobile UI. Read it before
-creating or changing any UI in `apps/driver`.
+This is the implementation contract for the driver app. **Read it before you create or change any UI in
+`apps/driver`.** It exists so that a feature added next year looks like it was designed with the
+rest, and does not drift toward generic AI-generated mobile UI.
 
 ## Where the decisions live
 
-The visual world is **Direction B**, approved by the owner on 2026-09-07 and recorded in
-[`DRIVER-APP-DIRECTION-B-PLAN.md`](../../docs/plans/drivers-app/DRIVER-APP-DIRECTION-B-PLAN.md).
-Its §1 and §2 are copied into this document below so a screen never has to link out for a value.
+- **Visual 2026** is the current visual world. The owner approved it on 2026-11-20 on the V1 mock.
+  - The plan is [`DRIVER-APP-VISUAL-2026-PLAN.md`](../../docs/plans/drivers-app/DRIVER-APP-VISUAL-2026-PLAN.md),
+    with decisions D-DV1–D-DV23 and the owner's rulings in §6.1.
+  - The mock is [`visual-2026-mock/V1-MOCK.html`](../../docs/plans/drivers-app/visual-2026-mock/V1-MOCK.html).
+    **When this file and the mock disagree, the mock shows the intended look and this file says how to build it.**
+- **Direction B** ([plan](../../docs/plans/drivers-app/DRIVER-APP-DIRECTION-B-PLAN.md), D-DB1–D-DB18)
+  is superseded for colour, type, containers and the tab shell. Its **behavioural** rules and the owner's
+  product rulings still hold:
+  - the tab set (D-DB14);
+  - no tab motion (D-DB11 amendment);
+  - the leaderboard (D-DB17, D-DB18);
+  - no invented ETA (D-DB8).
 
-Direction B **supersedes the visual world** of the Design System 2.0 documents
-([`plan`](../../docs/plans/drivers-app/DRIVER-APP-DESIGN-SYSTEM-2.md),
-[`Phase 2`](../../docs/plans/drivers-app/DRIVER-APP-DESIGN-SYSTEM-2-PHASE-2.md),
-[`Phase 3`](../../docs/plans/drivers-app/DRIVER-APP-DESIGN-SYSTEM-2-PHASE-3.md),
-[`Phase 4`](../../docs/plans/drivers-app/DRIVER-APP-DESIGN-SYSTEM-2-PHASE-4.md),
-[`audit`](../../docs/plans/drivers-app/DRIVER-APP-DESIGN-SYSTEM-2-AUDIT.md)) — do not read them for
-colour, type, radius or composition. **Every behavioural rule of Design System 2.0 still holds** and
-is restated as D-DB9 below; the compact-density, semantic-token, container and task-hierarchy rules
-apply exactly as they did.
+  They are restated below wherever they apply.
+- The screens move to Visual 2026 one step at a time (plan §5, V3–V9). Until a screen's step lands, the
+  screen keeps its Direction B composition, painted in the new colours and type. **New work follows
+  this file, not the screen it happens to sit next to.**
 
-## Product character — Direction B, "night cab over a day sheet"
+## The system in one picture
 
-Silvicom 360's driver app is an operational tool used by professional drivers in a moving vehicle,
-in daylight, at night, with gloves, intermittent connectivity, and limited attention. The interface
-is calm, glanceable, explicit, and trustworthy. It is not a marketing site, a social feed, or a
-generic consumer dashboard.
+```
+PALETTE  (scripts/gen-driver-roles.mjs)       what a colour IS — the carrier navy, the decal cyan, …
+   ↓ generated
+ROLES    (src/theme/theme.roles.json)          what a colour DOES — ink, canvas, action, operation-current …
+   ↓ generated / derived
+CLASSES + NATIVE COLOURS  (global.css, tailwind.config.js, src/theme/colors.ts)
 
-Each decision below is final; a change is a new dated decision line, not an edit.
+TYPE     (src/theme/typography.ts)             face · size · weight · figures, per variant
+   ↓
+AppText / textStyle()                          the only way text gets a style
 
-- **D-DB1 · Layered structure.** A dark navy **hero** region owns the top of Today, Loads, Score and
-  Stop; a light **sheet** with 28pt top corners rides over it and carries list work. Screens without
-  a hero (More, Settings, check-in, end-shift, messages, notifications, hazmat, auth, load detail)
-  are sheet-only. Dark appearance keeps the same layering with a deeper hero and a navy sheet.
-- **D-DB2 · Colour strategy: Committed.** Navy carries the hero (30–40% of a hero screen). **Safety
-  amber is the only action colour** on the hero; on the sheet the primary action is a navy pill and
-  amber is the accent for time-critical state. Lavender is the soft secondary for informational
-  state (offered, upcoming, messages). Green, red, orange and brown remain status-only and never
-  decorate.
-- **D-DB3 · One typeface.** Lexend, weights 400/500/600/700, replaces both the platform UI face and
-  Hanken Grotesk everywhere. Numerals are tabular wherever two numbers can sit in a column.
-- **D-DB4 · Radius scale.** 12 (inputs, small tiles), 16 (tiles, thumbnails, day chips), 24 (cards),
-  28 (sheet and tab-shell top corners), pill (buttons, chips, icon discs). No other radius.
-- **D-DB5 · Depth.** Cards on the sheet carry one soft offset shadow (`0 8 / blur 22 / 8%` of the
-  hero, since D-DB10) from `src/theme/elevation.ts`. Hero cards carry a 1px translucent edge and no
-  shadow. The floating tab shell carries the only other shadow (D-DB11); nothing else casts one,
-  and class-based shadows stay banned.
-- **D-DB6 · Rows.** Every list row leads with a 44pt circular icon disc tinted by the row's meaning
-  (lavender = message, amber = sync/attention, green = complete, red = blocked, tile-grey = neutral).
-  Chevrons are shown only on rows that open something.
-- **D-DB7 · Signature moments, one per screen.** Today: the current load as a hero card with the
-  appointment window in numerals. Loads: a stacked deck for offered loads with Accept/Decline on the
-  card. Score: an eight-week trend line with a callout. Stop: a map hero with the stop pinned.
-- **D-DB8 · Not adopted.** Photos or avatars of people, ring charts, fake status-bar chrome, grey
-  captions on navy below 4.5:1, gradient buttons, a filter control with no filter behind it, and an
-  ETA or remaining-distance figure — **no routing service is reachable from this app**, so any
-  "12 min · 4.8 mi" figure would be invented.
-- **D-DB9 · Everything behavioural from Design System 2.0 holds:** 4pt quantum; 44/48/56pt targets;
-  status = text + icon + tone; offline is a normal state; skeletons only without cached data; no
-  native alerts; no card inside a card except a captured-document preview; Dynamic Type stacks
-  rather than truncates; Reduce Motion, Bold Text, and high contrast honoured through
-  `ThemeProvider`.
-- **D-DB10 · Softened palette (owner, 2026-09-07 evening).** The owner's reading of the B0 values
-  on a device was "too hard": an ice-blue sheet under a saturated navy with a traffic-cone amber.
-  Every role is re-valued, no role is renamed: the sheet is warm cream (`#F3EFE8`), the ink and
-  the hero are a low-saturation charcoal-navy (`#1F2433` / `#20283A`), the action colour is
-  apricot (`#F2B267`), the lavender and the status hues are desaturated to match. The structure of
-  D-DB1–D-DB2 stands; only the temperature changed. The card shadow drops from 12% to 8%.
-- **D-DB11 · The tab shell floats.** A capsule in the hero colour, 16pt in from each edge, riding
-  on the home indicator's inset, with the active tab's icon raised on an apricot disc through a
-  canvas-coloured notch; the disc slides between slots (spring; Reduce Motion jumps). It replaces
-  the docked bar with 28pt corners. The shell is the app's SECOND and last shadow
-  (`shellElevation`), amending D-DB5. Geometry and rules live in `src/components/tabBarModel.ts`.
-- **D-DB12 · No overlines.** The uppercase `label` kicker above a hero-card heading is gone: the
-  heading carries its own weight, and what the kicker said moves into the supporting line
-  ("Deliver next · Gary, IN · …"). The `label` variant stays in the scale, reserved, with no
-  current caller.
-- **D-DB13 · ⛔ WITHDRAWN the same day.** Messages was a tab for one merge; the owner's tab set
-  (D-DB14) has no room for it and the hero button + More row are restored. Kept so the change is
-  traceable.
-- **D-DB14 · The four tabs (owner, 2026-09-07 evening).** Home · Loads · Documents · More, with
-  Home01, DeliveryTruck01, Folder03 and Ellipsis as their glyphs. Supersedes D51's tab list.
-  **Documents** is the driver's document surface — the bill-of-lading scanner and every compliance
-  verdict it produced — promoted from a modal hub two taps inside More; it is gated on
-  `hazmat.capture` like the hub was. **Score is not a tab**: it is read from More and summarised on
-  Home, and `tab.score.detailTab` no longer changes anything in the app. **More** holds three
-  groups: the account (who is signed in, the company-issued login, **Sign out**), the work surfaces
-  that are not tabs (Driver score, Messages, Notifications) and the settings (System settings,
-  Scanner settings, the gallery in dev). Sign out moved to More from System settings.
-- **D-DB15 · Auth screens are hero-and-sheet.** The Silvicom mark, white, centred on the navy; the
-  title, form and footer on the cream at the one 20pt inset. Replaces a left-aligned 240pt mark
-  over a 16pt-gutter form with a centred dev link under left-aligned copy.
-- **D-DB16 · Cards are lit, not flat.** A sheet card carries a faint SVG wash (white toward the
-  subtle surface at its foot in light; the raised surface fading from its head in dark), a hero
-  card sinks toward the hero colour at its foot. In the dark appearances a card carries a hairline
-  `edge-subtle` instead of the shadow, which a near-black ground swallows. The wash is
-  `react-native-svg`, already in the binary — no gradient module was added. Amends D-DB8's ban on
-  gradients: buttons stay flat; only containers carry a wash, and never above 10% at the deep end
-  in light.
-- **D-DB11 amendment (2026-09-07).** No tab-switch motion at all: the disc is drawn at the active
-  slot without a transition and the tab scene switches with `animation: 'none'`. The owner ruled
-  the spring "too much", then the fade too.
-- **D-DB17 · Home carries the rig and the driver's own rank list (owner, 2026-09-07).** Two modules
-  at the foot of the sheet, after the work: **Your score** — this week's grade, fleet rank, the
-  eight-week line and the last four weeks each with its rank, the whole card opening Score — and
-  **Your rig** — the truck and trailer of the current duty segment with *Change rig* and *End
-  shift*. Every rank is the driver's own: the API deliberately exposes no other driver's row
-  (`driverContract.ts`), so a fleet leaderboard is §7 Q-DB7, not a module. The current load stays
-  the hero card; Up next stays the rows beneath it.
-- **D-DB18 · The fleet leaderboard (owner's answer to Q-DB7, 2026-09-07: "top five plus me").**
-  Under Your score, a card with the latest ranked week's top five drivers by FIRST NAME and rounded
-  grade, then the driver after a break if they placed lower, and one line saying where they placed.
-  It is an API projection (`GET /api/me/score/leaderboard`): `dpw_driver_scope` still denies a
-  driver every row but their own, the service assembles exactly this shape with the service role,
-  and nothing else crosses — no ids, no sub-scores, no history for anyone but the viewer. A fleet
-  opts out with `tab.score.leaderboard` (web: Driver app settings → Score → "Fleet leaderboard on
-  Home"), and the API refuses the endpoint when it is off, so no build of the app can show it
-  against the fleet's wish. The viewer's row is the selected surface with "(you)" in the name.
+PRIMITIVES (src/components)                    Button, ListRow, Section, Screen …  — built from the above
+   ↓
+PATTERNS  (this file, "Screen patterns")       how primitives compose into a screen
+   ↓
+SCREENS   (app/)                               composition only
+```
 
-Icons remain HugeIcons SVG through the single `Icon` adapter. Do not replace these traits with a
-bundled generic UI font, dashboard gradients, arbitrary illustrations, emoji, or ad-hoc icon imports.
+Each layer may use only the layer above it:
+- a screen never names a palette colour;
+- a component never sets a font size;
+- nothing outside `src/theme/` writes a hex value, a `fontFamily` or a `fontWeight`.
 
-## Apple-inspired layout rules
+The gates refuse each of these (see "Gates").
 
-These rules are an Apple Human Interface Guidelines interpretation for this product, not a claim
-that Apple mandates one universal numeric grid.
+## Product character
 
-### Safe areas and structure
+The driver app is an operational tool used by professional drivers in a moving vehicle, in daylight
+and at night, with gloves, with intermittent connectivity, and with limited attention. It is calm,
+glanceable, explicit and trustworthy. It is not a marketing site, a social feed or a consumer
+dashboard. It carries the **carrier's** brand (Silvicom, Inc.: navy wordmark, cyan trailer decal,
+Big Shoulders), because drivers know it from the trucks.
 
-- Every screen starts with `Screen`; do not hand-roll safe-area padding.
-- Use `ScreenHeader` for titles, subtitles, back actions, close actions, and trailing actions.
-- Keep enabled tabs in one stable order: Home, Loads, Documents, More (D-DB14). Fleet feature flags
-  may omit Loads or Documents; Home and More are never conditional. The shell draws any count of
-  visible tabs; do not add more conditional tab behaviour beyond `href: null`.
-- Use modal routes for contextual work such as load details, driving, capture, duty, and settings.
-- Respect the device's safe areas and keyboard; never place essential content under system chrome.
+## Visual 2026 decisions (owner-approved 2026-11-20)
 
-### Spacing and layout
+Each decision below is final. A change is made by adding a new dated line, never by editing an existing one.
 
-- Use a 4pt structural base quantum. Primary structural alignment uses 8, 16, 24, and 32pt; 12pt is
-  reserved for tightly related content, and 20pt is a comfortable control or sheet inset. A 2pt
-  value is allowed only for optical stacked-text adjustment or a hairline, never structural layout.
-  Apple alignment does not require every dimension to be divisible by 8.
-- Standard screen content margin: 20pt.
-- Standard section separation: 24pt.
-- Standard component gap: 16pt; use 12pt only within a related content group.
-- Standard card padding: 20pt on the hero, 16pt on the sheet.
-- Standard grouped-row minimum height: 52pt; content and Dynamic Type may make it taller.
-- Standard interactive target: at least 44pt; primary driver actions use 48pt or 56pt.
-- Standard card radius: 24pt. Use 12pt for inputs and small tiles, 16pt for tiles, thumbnails and
-  day chips, 28pt for the sheet and tab-shell top corners, and full only for pills, badges, avatars,
-  chips, and circular controls (D-DB4). There is no fifth radius.
-- Do not introduce arbitrary spacing, radius, or width values without a product-specific reason.
-- Prefer full-width mobile layouts. Do not force desktop dashboard grids into the driver app.
-- Keep primary actions reachable and visually dominant; secondary actions should not compete with them.
+- **D-DV1 · Native chrome, custom content.**
+  - The operating system draws the tab bar, stack headers, sheets, menus, pickers and switches:
+    - Expo Router native tabs and native stack;
+    - `@expo/ui` for sheets, pickers, switches and menus.
+  - Our design lives in the content: type, colour, the status block, the rows.
+  - The tab bar is `NativeTabs` (`app/(tabs)/_layout.tsx`, glyphs in `src/components/nativeTabsModel.ts`) since V3.
+    Screen titles stay in the content in Big Shoulders (D-DV18). Score and Navigate are root-stack routes,
+    because a hidden native tab cannot be navigated to.
+- **D-DV2 · Glass belongs to the system.** The OS gives native chrome Liquid Glass on iOS 26 and
+  Material 3 on Android. Content never carries glass, blur or gradients (`lint:design`). The single
+  exception is controls floating over a map, on iOS 26 only, with a solid fallback. It is not built yet.
+- **D-DV3 · The carrier's colours.**
+  - Navy `#0A2144`, measured from the wordmark.
+  - Cyan `#00B2E3`, measured from the trailer decal.
+  - Every neutral is navy-tinted, so the app has no stock grey.
+- **D-DV4 · Dark-first.** "Night cab" is the designed state and "Day steel" its daylight twin. The phone's
+  setting chooses between them by default, and Settings → Theme overrides it.
+- **D-DV5 · Colour has jobs, never decoration.**
+  - **Cyan = live** (the current load, the active stop, "sent").
+  - **Amber = act** (the one primary action, time-critical state).
+  - **Red = stop** (safety, compliance, failure).
+  - **Green = done.**
+  - Everything else is ink on a neutral ground.
+  - Status colours sit outside the brand's two-colour rule by owner ruling Q-DV2, and only as state.
+  - **These roles govern what WE draw, not the system's own controls** (D-DV29, owner ruling
+    2026-11-24). A switch is phone chrome: iOS draws "on" in its system green and Android in Material
+    3's track seeded from the brand navy. Neither is our "done" or "live"; a driver reads a switch the
+    way every other app on the phone taught them. Never repaint a system control to fit these roles.
+- **D-DV6 · One signature per screen.** At most one raised block per screen carries what the screen is
+  about:
+  - Today: the current stop with its appointment window.
+  - Documents: what is still missing.
+  - Stop: the map strip.
+  - Loads and Load detail: none; the figures in the rows carry them.
+- **D-DV7 · No cards around rows.**
+  - Lists are rows on the canvas, grouped by space and a section label.
+  - A raised surface is reserved for the signature block and for sheets.
+  - Never a card inside a card.
+- **D-DV8 · Two faces.**
+  - The platform face (SF Pro / Roboto) for words and for every figure that aligns with another.
+  - **Big Shoulders Display** only for a screen title and a screen's lone hero figure.
+  - Direction B's single-face rule (D-DB3) retires.
+- **D-DV9 · Text scales.** Every variant follows the phone's text size. Layouts wrap, grow or stack. A time,
+  unit number or stop name never truncates. `allowFontScaling={false}` is allowed only on badge counts.
+- **D-DV10 · Glove targets.**
+  - The primary action is at least 56pt tall and sits in the bottom third of the screen.
+  - Rows are at least 56pt.
+  - Every other control is at least 48pt.
+- **D-DV11 · Platform icons.** SF Symbols on iOS and Material Symbols on Android, through `Icon`.
+  HugeIcons retire as screens move. *(Done: V8 drew Material Symbols from the bundled font,
+  `src/theme/iconFont.ts`; V9 draws SF Symbols on iOS through `expo-symbols`, from the typed table in
+  `src/theme/sfSymbols.ts`. Call sites name the Material Symbol on both platforms.)*
+- **D-DV12 · Motion only says something happened.**
+  - A haptic plus one short fade or slide confirms a scan, a send or a completed stop.
+  - No tab motion.
+  - No bounce.
+  - Reduce Motion is honoured.
+- **D-DV13 · Honest figures only.**
+  - No ETA and no "miles left" while no routing service is reachable.
+  - "Window opens in 18 min" counts down to a real appointment time and is allowed.
+  - "Tight" waits for the feature plan (Q-DV4).
+- **D-DV14 · Banned devices**:
+  - purple or indigo gradients;
+  - glass on content;
+  - glow;
+  - gradient text;
+  - emoji;
+  - "Welcome back, Name";
+  - decorative pills or chips;
+  - a hairline between everything;
+  - tracked small-caps kicker labels;
+  - a FAB;
+  - a five-tab bar;
+  - stacks of white rounded cards;
+  - ring charts;
+  - photos of people.
+- **D-DV15 · Tabular figures need the platform face.** Neither Big Shoulders nor Lexend has `tnum`; this
+  was measured with fontTools on 2026-11-20. So a figure that lines up with another figure is the
+  platform face, and Big Shoulders is used only for a figure that stands alone.
 
-### Information density and vertical rhythm
+**Product rulings carried forward:**
+- **Tabs.** Home · Loads · Documents · More (D-DB14). Loads and Documents may be turned off per fleet; Home
+  and More are never conditional.
+- **Score** is read from More and summarised on Home.
+- **Leaderboard.** "Top five plus me" (D-DB18).
+- **Duty.** Duty lives on Today, never in More.
+- **Failed syncs.** A failed sync is a list of records, each with its own retry.
 
-- Dense means less redundant chrome, not smaller type or touch targets.
-- Do not add vertical space solely to make a screen feel premium, airy, cinematic, or symmetrical.
-- At default text size on a 390×844pt portrait viewport, a normal Today state should show driver or
-  duty context, current/next work, the primary action, and the start of the next useful group. Safe
-  areas, accessibility text, translated copy, and blocking errors take precedence over this baseline.
-- Use 24pt between genuine workflow regions. Use 32pt or more only for a real workflow boundary or
-  an empty-state explanation, never as decorative breathing room.
-- A primary operational module has no fixed height target. Its current state and primary action must
-  remain visible without decorative filler, and it must grow for Dynamic Type or safety copy.
-- Group related rows into one surface with separators. Do not render every row as an independent
-  rounded, bordered, shadowed card.
-- Do not place a generic card inside another card. An inner surface must represent an independent
-  object or action, such as a captured-document preview.
-- Multiple simultaneous alerts collapse into one attention summary with expandable detail.
-- Inline empty states take only the space needed by their explanation and recovery action; they do
-  not fill the viewport for visual balance.
-- Every vertical region must answer a driver question, communicate state, or enable an action. If
-  it does none of these, remove it.
+## Colour
 
-### Typography and accessibility
+### Adding or changing a colour
 
-- New or redesigned text uses `AppText` semantic variants. Every variant is Lexend (D-DB3); the
-  variant names the weight, because a `font-medium`-style utility does nothing to a loaded custom
-  face in React Native.
-- Do not use raw React Native `Text` or legacy font utility aliases outside `AppText`. Tailwind
-  **weight** utilities (`font-medium`, `font-semibold`, …) are banned outright by `lint:design`: they
-  are silently inert on a loaded custom face, so they read as emphasis in the source and render as
-  none on the device. Reach for `font-ui`, `font-ui-md`, `font-ui-sb` or `font-ui-bold`, or better,
-  the variant that already carries the weight.
-- Use semantic icon names through `src/components/Icon.tsx`; do not import HugeIcons directly in screens.
-- Use the semantic type scale in `src/theme/tokens.ts`. Do not invent arbitrary text sizes for a
-  one-off screen.
-- Support Dynamic Type and readable text hierarchy. Do not cap content scaling to protect a fixed
-  layout; make the layout wrap, grow, or stack. The icon component may remain a fixed glyph box.
-- At the shared large-text breakpoint, horizontal metrics, paired actions, route timestamps, and
-  segmented choices stack vertically instead of compressing or truncating operational copy.
-- Respect Reduce Motion, Bold Text, and high-text-contrast platform preferences through
-  `ThemeProvider`; primitives do not perform their own disconnected platform checks.
-- Body text must remain readable in light and dark modes and in sunlight.
-- Every icon-only control has an accessibility label.
-- Every interactive element exposes an appropriate accessibility role and disabled/busy/selected state.
-- Do not use color as the only indication of status, trend, error, or selection.
+1. Is it a new **job**? Then it is a new ROLE: add a row to `ROLES` in `scripts/gen-driver-roles.mjs`
+   naming a palette colour for each of the four appearances.
+2. Is it a new **colour**? Add it to `PALETTE`, with a comment saying where it comes from. A palette
+   colour no role uses fails `tests/theme-roles-generated.test.ts`.
+3. Run `pnpm --filter @silvicom/driver gen:roles`. This writes `theme.roles.json` and then `global.css`.
+4. `tests/theme-colors.test.ts` and `tests/tone-pairings.test.ts` measure every promised pairing in all
+   four appearances. If a pairing fails, change the value, never the threshold.
 
-## Token contract
+Never hand-edit `theme.roles.json` or `global.css`: a test fails on any difference from the generator's output.
 
-### Approved semantic colors — the 50 roles
+### What each role means now
 
-`src/theme/theme.roles.json` is the single colour source: 4 appearances × 50 roles as `"R G B"`
-triplets. `ThemeProvider`, `src/theme/colors.ts` (native API colours), `tailwind.config.js` and the
-**generated** `global.css` mirror all read it. Regenerate the mirror with `pnpm gen:theme`; never
-hand-edit `global.css`. `lint:theme` verifies every declaration and
-`tests/theme-css-mirror.test.ts` fails if the file is not what the generator would write.
+Role **names** are unchanged from Direction B, so every screen re-valued without an edit. Their
+**meanings** follow D-DV5. The values are in the generator, never copied here (a copied value table is
+how the old version of this file came to describe a palette the app no longer had).
 
-Values are hex here and triplets in the file (mechanical conversion).
+| Roles | Means | Note |
+|---|---|---|
+| `canvas`, `surface*` | grounds | `surface-raised` is for the signature block and sheets only (D-DV7) |
+| `ink`, `ink-secondary`, `ink-muted` | text | `ink-subtle` = `ink-muted`; `ink-disabled` only for disabled controls |
+| `edge*` | rare separators, input borders | separate by space first (D-DV7) |
+| `hero`, `hero-*`, `on-hero*` | the navy **status block** (D-DV6) | white on navy; `on-hero-muted` only for non-essential copy; **`on-hero-live`** (tone `onHeroLive`) is the cyan ON navy — never `accent`, which is the dark-teal ink for light grounds (2.4:1 on navy); **`on-hero-act`** (tone `onHeroAct`) is the amber ON navy, for a closed window (V5) |
+| `action`, `action-fg`, `action-pressed` | **amber = act** fill | `action-fg` is the navy text on it; one per screen |
+| `action-ink`, `warning`, `caution`, `sync-pending` | amber as text | "expires in 26 days", "Take" |
+| `accent`, `accent-ink`, `accent-soft`, `info`, `operation-current`, `surface-selected`, `edge-focus` | **cyan = live** | was Direction B's lavender |
+| `danger*`, `operation-blocked`, `sync-failed` | **red = stop** | |
+| `success*`, `operation-complete` | **green = done** | |
+| `brand`, `brand-*` | navy ink on day; mist on night | the brand on the night is the navy block, not navy text |
 
-| Role | light | dark | highContrastLight | highContrastDark | Job |
-|---|---|---|---|---|---|
-| canvas | `#F3EFE8` | `#131720` | `#FFFFFF` | `#000000` | the sheet |
-| surface | `#FFFFFF` | `#1C2130` | `#FFFFFF` | `#0F1219` | cards, rows |
-| surface-subtle | `#FAF8F4` | `#171C28` | `#FAF8F4` | `#000000` |  |
-| surface-muted | `#F4F0E9` | `#262C3C` | `#F1EDE6` | `#1C2130` | tiles inside cards, day chips |
-| surface-raised | `#FFFFFF` | `#262C3C` | `#FFFFFF` | `#1F2433` | sheets, overlays |
-| surface-selected | `#EEEAF8` | `#2C2F4E` | `#E4E0F6` | `#333871` | pressed/selected rows (= accent-soft) |
-| surface-inverse | `#1F2433` | `#F4F2EE` | `#12161F` | `#FFFFFF` |  |
-| ink | `#1F2433` | `#F5F3EF` | `#000000` | `#FFFFFF` |  |
-| ink-secondary | `#454B5C` | `#CBCFDA` | `#1E2331` | `#F1EFEA` |  |
-| ink-muted | `#585E6E` | `#ABB1BF` | `#343A4B` | `#D8DCE5` |  |
-| ink-subtle | `#5E6474` | `#959CAB` | `#454B5C` | `#C5CBD8` |  |
-| ink-disabled | `#9A9EAC` | `#5F6676` | `#585E6E` | `#7C8496` |  |
-| ink-inverse | `#FFFFFF` | `#131720` | `#FFFFFF` | `#000000` |  |
-| edge-subtle | `#E7E2DA` | `#2A3040` | `#9A958C` | `#585E6E` | row separators |
-| edge | `#D4CEC4` | `#363D4F` | `#5E6474` | `#9A9EAC` |  |
-| edge-strong | `#9A958C` | `#525A6E` | `#1E2331` | `#D8DCE5` |  |
-| edge-focus | `#9C5210` | `#F2B267` | `#743B08` | `#FFCF8F` | focus ring |
-| brand | `#1F2433` | `#F2B267` | `#12161F` | `#FFCF8F` | sheet primary action fill + link/selected text |
-| brand-pressed | `#30364A` | `#E6A050` | `#000000` | `#FFE1B6` |  |
-| brand-subtle | `#EEEAF8` | `#2C2F4E` | `#E4E0F6` | `#333871` |  |
-| brand-fg | `#FFFFFF` | `#1F2433` | `#FFFFFF` | `#000000` | text on brand |
-| danger | `#B0433B` | `#F58F87` | `#7F1A14` | `#FFB8B3` |  |
-| warning | `#8C5716` | `#F3BC78` | `#5C3700` | `#FFD8A0` |  |
-| caution | `#A64A19` | `#F5A263` | `#7A2E00` | `#FFC194` |  |
-| success | `#276F4D` | `#7BD6A2` | `#0D4A2E` | `#A2E9C4` |  |
-| info | `#5B53B8` | `#C9C4F6` | `#3A3390` | `#DEDBFA` | = accent-ink |
-| operation-current | `#9C5210` | `#F5BE78` | `#743B08` | `#FFCF8F` | = action-ink |
-| operation-next | `#5B53B8` | `#C9C4F6` | `#3A3390` | `#DEDBFA` | offered / upcoming |
-| operation-complete | `#276F4D` | `#7BD6A2` | `#0D4A2E` | `#A2E9C4` |  |
-| operation-blocked | `#B0433B` | `#F58F87` | `#7F1A14` | `#FFB8B3` |  |
-| sync-local | `#5B53B8` | `#C9C4F6` | `#3A3390` | `#DEDBFA` |  |
-| sync-pending | `#8C5716` | `#F3BC78` | `#5C3700` | `#FFD8A0` |  |
-| sync-failed | `#B0433B` | `#F58F87` | `#7F1A14` | `#FFB8B3` |  |
-| hero | `#20283A` | `#0F1219` | `#12161F` | `#000000` | hero region, tab shell |
-| hero-raised | `#2B3446` | `#1C2130` | `#1F2433` | `#1C2130` | cards on the hero |
-| hero-edge | `#3A4457` | `#2E3546` | `#454B5C` | `#585E6E` | 1px edge on hero cards, hero dividers |
-| hero-tile | `#333C4F` | `#272E3F` | `#2B3446` | `#232939` | tiles inside hero cards |
-| on-hero | `#FFFFFF` | `#FFFFFF` | `#FFFFFF` | `#FFFFFF` | primary text on hero |
-| on-hero-secondary | `#C5CBD8` | `#C5CBD8` | `#DDE1EA` | `#F1EFEA` | ≥ 4.5 on hero and hero-raised |
-| on-hero-muted | `#939CAD` | `#939CAD` | `#C5CBD8` | `#D8DCE5` | ≥ 4.5 on hero only |
-| action | `#F2B267` | `#F2B267` | `#F2B267` | `#FFCF8F` | amber fill: hero primary button, amber chips |
-| action-pressed | `#E6A050` | `#E6A050` | `#DD9843` | `#FFE1B6` |  |
-| action-fg | `#1F2433` | `#1F2433` | `#000000` | `#000000` | text on action **and on accent** |
-| action-ink | `#9C5210` | `#F5BE78` | `#743B08` | `#FFCF8F` | amber as text on sheet surfaces |
-| action-soft | `#FBE9D3` | `#3B2C14` | `#FBE9D3` | `#3B2C14` | amber disc / soft chip fill |
-| accent | `#D7D3F6` | `#D7D3F6` | `#D7D3F6` | `#DEDBFA` | lavender chip fill |
-| accent-ink | `#5B53B8` | `#C9C4F6` | `#3A3390` | `#DEDBFA` | lavender as text |
-| accent-soft | `#EEEAF8` | `#2C2F4E` | `#E4E0F6` | `#333871` | lavender disc fill |
-| success-soft | `#DFF1E6` | `#173D2C` | `#DFF1E6` | `#173D2C` | green disc / chip fill |
-| danger-soft | `#F9E4E0` | `#3F1D1C` | `#F9E4E0` | `#3F1D1C` | red disc / chip fill |
+Text on an amber or cyan fill is navy (`action-fg`), in every appearance.
 
-Rules bound to the table, all asserted by `tests/theme-colors.test.ts`:
+## Type
 
-- Text on `action` and `accent` is always `action-fg` — never white and never `ink`. `action` and
-  `accent` hold the same value in every appearance, so a theme-relative ink lands on them at 1.4:1
-  in the dark themes.
-- Text on `*-soft` fills is the matching strong role (`success` on `success-soft`, `danger` on
-  `danger-soft`, `accent-ink` on `accent-soft`, `action-ink` on `action-soft`).
-- `on-hero-muted` may carry only non-essential copy (axis labels, timestamps). Anything a driver
-  must read on the hero uses `on-hero` or `on-hero-secondary`.
-- `ink` ≥ 7 and `ink-secondary|muted|subtle` ≥ 4.5 on the seven content surfaces; every status,
-  operation and sync role plus `brand`, `action-ink` and `accent-ink` ≥ 4.5 there as text;
-  `on-hero` ≥ 7 on `hero` and `hero-raised`; `on-hero-secondary` ≥ 4.5 on `hero`, `hero-raised` and
-  `hero-tile`.
+All type comes from `src/theme/typography.ts` through `AppText`'s `variant` and `weight`. A
+`TextInput` that shows a value uses `textStyle()` from the same file (see `Input` and `NumericField`).
+No font class, `fontFamily`, `fontWeight` or `fontSize` exists anywhere else.
 
-Raw colour values belong only in `src/theme`. Screens and components use semantic classes. Never
-use raw hex values, generic Tailwind palette classes, or inline colour styles.
+| Variant | Face | Size / line | Default weight | Use |
+|---|---|---|---|---|
+| caption | platform | 13 / 18 | regular | timestamps, helper text |
+| label | platform | 13 / 18 | semibold | **section labels** ("Rest of the day"), sentence case |
+| supporting | platform | 15 / 20 | regular | the second line of a row |
+| body | platform | 17 / 24 | regular | prose, input text |
+| rowTitle | platform | 17 / 22 | semibold | the first line of a row |
+| action | platform | 17 / 22 | semibold | button labels |
+| navigationTitle | platform | 17 / 22 | semibold | header titles, sheet headings |
+| numericInline | platform, **tabular** | 22 / 28 | semibold | times, windows and values in rows and timelines |
+| numericCompact | platform, **tabular** | 26 / 32 | semibold | a score, a count beside its label, entered numbers |
+| screenTitle | **Big Shoulders Display**, uppercase | 38 / 40 | ExtraBold | the tab screen's title |
+| numericHero | **Big Shoulders Display** | 64 / 68 | ExtraBold | the screen's ONE lone figure (06:00, "2") |
 
-### Approved scales
+- **Weight.** `weight="regular|medium|semibold|bold"` is the only way to change weight, and it applies
+  only to the platform face. Bold Text steps every weight up one, and the display face switches to its
+  Black cut.
+- **Tabular figures.** `tabular` forces tabular digits on a platform variant. The numeric platform
+  variants are tabular by definition.
+- **Display line heights are measured.** Big Shoulders' natural line is 1.197em and iOS trims a shorter
+  line from the top, which cut the hero figures at 64/60 (2026-11-20). `tests/typography.test.ts` reads
+  the font file and refuses a line height that loses the cap height.
+- **The display face.** These are static 800 and 900 instances of the Google Fonts variable font, bundled
+  in `assets/fonts/` with their OFL licence. The provenance is in `typography.ts`.
 
-Use `src/theme/tokens.ts` for non-colour decisions.
+## Layout, space, targets
 
-**Type — all Lexend (D-DB3).** The Tailwind `fontSize` names are exactly the variant names, so a
-class and a variant cannot drift apart.
+- **Grid.** Base quantum is 4pt; `space` and `layout` are in `src/theme/tokens.ts`. Screen inset 20pt,
+  section gap 24pt, related gap 12pt.
+- **Radii.** 12 (inputs), 16 (tiles, thumbnails), 24 (the signature block), 28 (sheets), pill (buttons).
+  There is no fifth radius.
+- **Targets (D-DV10).** Primary action 56pt; rows 56pt; every other control 48pt, never under 44pt.
+- **Primary action placement.** The one primary action sits in the bottom third: a pinned footer on a
+  pushed screen, or the next-step block on Today.
+- **Wide screens.** On a display 600pt or wider, content is centred in a 560pt column.
+- **Shadows.** Only from `src/theme/elevation.ts`.
+- **Density.** Dense means less chrome, not smaller type. Every region answers a driver question, states
+  something, or enables an action; if it does none of these, remove it.
+- **No arbitrary values.** If a value is not on the scale, first ask whether this is a new pattern. Do not
+  add a one-off.
 
-| Variant | Size / line | Family | Use |
+## Screen patterns (from the approved V1 mock)
+
+These are the building blocks a new feature composes from. The **"Built in"** column says which plan
+step makes each one a primitive. Before that step, compose it from `AppText`, `Section`, `ListRow` and
+`Button` exactly as the mock draws it, and leave a comment naming the step.
+
+| Pattern | Mock screen | Anatomy | Built in |
 |---|---|---|---|
-| caption | 12 / 16 | `Lexend_400Regular` | timestamps, helper |
-| label | 12 / 16, uppercase, +0.96 tracking | `Lexend_500Medium` | reserved — no overlines since D-DB12 |
-| supporting | 14 / 20 | `Lexend_400Regular` | secondary row text |
-| body | 16 / 22 | `Lexend_400Regular` | prose |
-| rowTitle | 16 / 22 | `Lexend_500Medium` | row titles |
-| action | 17 / 22 | `Lexend_600SemiBold` | button labels |
-| navigationTitle | 18 / 24 | `Lexend_600SemiBold` | contextual titles, sheet section headings |
-| screenTitle | 28 / 32 | `Lexend_600SemiBold` | tab screen titles on the hero |
-| numericInline | 22 / 28, tabular | `Lexend_600SemiBold` | appointment window, unit numbers, miles, durations, row values |
-| numericCompact | 24 / 28, tabular | `Lexend_600SemiBold` | hero-card headline number |
-| numericHero | 40 / 44, tabular | `Lexend_600SemiBold` | the weekly score |
+| **Status block** (signature) | Today, Documents | Navy block, 24 radius. A context line, the subject, ONE lone figure (`numericHero`), then a live line in `onHeroLive` | **`StatusBlock`** (V4, built) |
+| **Next step** | Today | One surface row: what to do and why, with the amber action on the right (48pt). One per screen, and only when there IS a next step | **`NextStep`** (V4, built) |
+| **Today** | Today | The composition itself: `screens/today/todayStatusModel.ts` decides the block, the next step and the rows; `home.tsx` only draws them | **V5, built** |
+| **Grouped rows** | Today, Loads, More | `Section` (its heading is the muted `label`), then a `GroupedList` of `ListRow`s on the canvas with no card around them. `disc={tone}` tints the glyph by state. Trailing figure `numericInline` or an action word in its state colour | **`Section` + `GroupedList` + `ListRow`** (V4, built) |
+| **Time groups** | Loads | Sections by time (Now, Next, Delivered this week, Earlier), not by status; offers first. The appointment is the trailing figure, the day in the note under it | **`loadsListModel` + `LoadRows`** (V6, built) |
+| **Timeline** | Load detail | Stops on a 2pt rail: cyan dot = current, green = done, hollow = ahead. Window figure largest in each stop. Required photos in words | **`Timeline`** (V6, built; rules `timelineStops`) |
+| **Map strip** | Stop | Fixed-height map at the top, full bleed (`Screen media`); floating controls are the only glass (D-DV2: Liquid Glass on iOS 26 over the dark map, through `expo-glass-effect`, V9; the solid white disc in daylight and on Android, where glass did not separate from the roads). No ETA. Actions in a pinned footer: Navigate outlined + amber primary | **`MapStrip`** (V6, built) |
+| **Review queue** | Documents | Status block with the count, then the missing items first, then verdicts, then what was sent. Each status a word in its colour, never a pill | **`documentsModel` + `DocumentRows`** (V7, built); the tab badge is the same count |
+| **Settings list** | More | Grouped rows on the canvas (`GroupedList`). No avatar, no icon discs; a row's trailing value is the live fact ("3 new", "94 · #4") | **V8, built.** Stays `GroupedList`, not `@expo/ui` List: the native list is inset-grouped cards (against D-DV7) and titles in SF Pro (against D-DV18). Its controls are native (V9, D-DV25) |
+| **Swipe-to-act** | Messages, Notifications | Swipe a row left for ONE action it already has ("Mark read"), 96pt, on the neutral selected surface, never a status colour. Offered to screen readers as a named action too; a swipe is a shortcut, never the only way. No tray of actions, no invented actions | **`ListRow swipeAction` + `SwipeAction`** (V8 follow-up, built) |
+| **Pinned primary** | Load detail, pre-shift Today | One 56pt amber button above the tab bar or the home indicator | V4 `ActionBar` |
 
-`sectionTitle` (13 / 18) is a **transitional** variant: eleven screens still use it, B1.7 migrates
-them to `navigationTitle` through the `Section` component, and B7 deletes it. Do not use it on a new
-screen. Bold Text steps every variant one weight up (400→500, 500→600, 600→700).
+The tab shell is not a pattern you compose. It is the OS's own (D-DV1, V3). A new tab needs an owner ruling
+(D-DB14) and a row in `nativeTabsModel.ts`. A screen reached only by URL goes in the root stack, never as a hidden tab.
 
-- Radii (D-DB4): 12pt inputs and small tiles, 16pt tiles/thumbnails/day chips, 24pt cards, 28pt
-  sheet and tab-shell top corners, pill for buttons, chips and icon discs. The Tailwind aliases
-  carry the same numbers: `rounded-md` 12, `rounded-lg` 16, `rounded-xl` 24, `rounded-2xl` 28.
-- Spacing: 4, 8, 12, 16, 20, 24, 32, 40pt, chosen by semantic relationship; 2pt only for the optical
-  exceptions defined above. `layout.screenInset` is 20; hero cards pad 20 and sheet cards 16;
-  the sheet rides 28pt over the hero (`sheetOverlap`) and opens with 24pt (`sheetTopPadding`).
-- Targets: 44pt minimum, 48pt comfortable, 52pt grouped row, 56pt driving-critical action.
-- Elevation: `cardElevation(themeKey)` and `shellElevation(themeKey)` from `src/theme/elevation.ts`
-  and nothing else. `lint:design` bans `shadowColor` outside `src/theme/`.
+### Building a new screen
 
-If a value is not represented by the token scale, first ask whether the component is actually a
-new pattern. Do not silently add a one-off value.
+1. Name the driver's question the screen answers. That question decides the signature, if the screen
+   has one.
+2. Pick the patterns above. If none fits, write down why before inventing a new one, and add it to the
+   table in the same PR.
+3. Compose from the primitives in `src/components`. Screens contain composition only. Every rule that
+   decides content is a pure, tested function in a `*Model.ts` file (see `screens/today/todayModel.ts`).
+4. Give the screen every state it can be in: loading (a skeleton only when nothing is cached), empty,
+   error, offline, and large text.
+5. Add a realistic example to `app/gallery.tsx` if you made or changed a primitive.
+6. Take screenshots of light and dark at default and largest text size, and compare them with the V1 mock.
 
 ## Component rules
 
-### Use existing primitives first
+- **Use existing primitives first** (`src/components`):
+  - layout: `Screen`, `ScreenHeader`, `Section`, `SectionLabel`, `GroupedList`, `ListRow`, `ActionBar`;
+  - text: `AppText`;
+  - actions: `Button`, `IconButton`, `ConfirmSheet`, `ChoiceSheet` (both the system's sheet, `SystemSheet`), `ListRow`'s `swipeAction`;
+  - forms: `Field`, `Input`, `NumericField`;
+  - counts: `CountBadge` (an unread count on an icon button, the only text that ignores text size);
+  - feedback: `Banner`, `Toast`/`useToast`, `OfflineBanner`, `SyncStatus`;
+  - progress: `Progress`, `TaskStepper`;
+  - data: `Sparkline`, `TrendChart`;
+  - state: `SkeletonRows` for anything that loads as rows, `Skeleton` only for the one signature block, `EmptyState`;
+  - choice: `SegmentedControl` (the system's segmented control, `NativeSegmented`; drawn only as chips),
+    `ToggleRow` (the system's switch);
+  - glance: `src/features/glance` (Live Activity, Lock Screen and home-screen widget; props from
+    `glanceModel.ts`, because a widget layout cannot reach `AppText` or the theme).
+- **Do not use these on new work:**
+  - `Card`'s generic use: rows are not carded (D-DV7);
+  - `Badge` as decoration: a status is a word in its colour;
+  - `Button variant="hero"`: it is now the same amber pill as `primary`, so use `primary`.
 
-Always check `src/components` before writing markup. The canonical primitives are:
+  They remain only until their screens move (V5–V8). `ListRow`'s 44pt discs, `HeroBackdrop`'s texture and `Card`'s
+  wash are already gone (V4).
+- **Extend or create.** Extend a primitive when the anatomy and behaviour are the same. Create one only when an
+  existing primitive cannot express the case without becoming confusing.
+- **What every new reusable component must state:**
+  - its one user problem;
+  - its anatomy;
+  - its approved variants;
+  - its states (rest, pressed, focused, disabled, loading, empty, error, selected);
+  - its light and dark behaviour;
+  - its accessibility role, label, state and target;
+  - its offline behaviour;
+  - a gallery example.
+- **No escape-hatch variants.** Never add a variant that accepts arbitrary styling. A variant encodes an
+  approved decision.
 
-- Layout: `Screen`, `ScreenHeader`, `Section`, `SectionLabel`, `GroupedList`, `Card`, `ListRow`, `ActionBar`
-- Typography: `AppText`
-- Actions: `Button`, `IconButton`, `ConfirmSheet`
-- Forms: `Field`, `Input`, `NumericField`
-- Status and feedback: `Badge`, `Banner`, `Toast` + `ToastProvider`/`useToast`, `OfflineBanner`, `SyncStatus`
-- Progress and workflow: `Progress`, `TaskStepper`
-- Data display: `Sparkline` and compact grouped metric rows.
-- State handling: `Skeleton`, `EmptyState`
-- Choice controls: `SegmentedControl`, `ToggleRow`
+## Accessibility and state
 
-Direction B anatomy, in the primitives:
+- **Text.** Use `AppText`, never raw `Text`. Every icon-only control has a label. Every interactive element
+  exposes its role and its disabled, busy or selected state.
+- **Never colour alone.** Status is text plus icon plus tone.
+- **Platform settings.** Reduce Motion, Bold Text and high contrast are honoured through `ThemeProvider`.
+  Primitives do not run their own platform checks.
+- **Cached data first.** Prefer cached data to a blank screen. A skeleton appears only when nothing usable
+  is cached.
+- **Offline is normal.** Say what was saved and what will sync later. Never swallow a failed write
+  silently.
+- **Haptics.** Only for selection, success, warning or destructive confirmation.
 
-- **`Screen`** takes a `hero` node to become the two-layer composition (navy region, light sheet with
-  28pt corners riding 28pt over it, one ScrollView). It owns the status-bar style and, on a display
-  ≥ 600pt wide, centres content in a 560pt column. `flow="sections"` means the children are
-  `Section`s and the flow adds no gap of its own.
-- **`Section`** owns the space around a titled region: 24pt above the heading, 12pt below it. Do not
-  reintroduce a container gap alongside it — the two rhythms sum.
-- **`Card`** is `sheet` (the surface, the one shadow in light, a hairline edge in dark, a faint
-  wash), `hero` (on the navy, 1px `hero-edge`, a wash toward the hero at the foot, no shadow) or
-  `flat` (none of it — a container for rows inside an already-contained region).
-- **`Button`** is a pill at 44 / 48 / 56. `primary` is the charcoal fill on the sheet; `hero` is the
-  apricot fill, and it belongs only on the hero. `secondary` carries a hairline `edge` so it keeps a
-  shape on a white card. `onHero` switches `secondary` and `ghost` to their hero forms.
-- **`Badge`** is a chip: 28 or 32pt, pill, `caption` in `ui-md`, and **no `self-start`** — it centres
-  in whatever row holds it.
-- **`ListRow`** takes `disc={tone}` to lead with the 44pt tinted circle (D-DB6). `GroupedList`
-  derives each separator's inset from the row above it, so the line starts where the text does.
-- **Tones** live in `src/components/tone.ts` and are shared by chips, discs, banners, toasts,
-  progress bars and confirm sheets, so one meaning is one pair of colours everywhere.
+## Gates (what refuses work that breaks the system)
 
-Extend an existing primitive when the anatomy and behavior are the same. Create a new component
-only when the use case cannot be expressed by an existing primitive without making it confusing.
+| Gate | Refuses |
+|---|---|
+| `lint:tokens` | raw hex, Tailwind palette classes, inline colour styles outside `src/theme`; `theme.roles.json` differing from the palette generator; `global.css` drift |
+| `lint:design` | font classes of any kind, `fontFamily`/`fontWeight`/`fontSize`/`lineHeight`/`letterSpacing` in a style outside `src/theme`, banned faces, `uppercase`/`tracking-*`, emoji, glass/blur/gradient modules, raw `Text`, native `Alert`, arbitrary sizes, `shadowColor` outside the theme, colour classes on `AppText` |
+| `test` | every promised contrast pairing in four appearances, the role parity with the palette, the type system (`tests/typography.test.ts`), the elevation step |
 
-### Required component contract
-
-Every new reusable component must define:
-
-1. Its single user problem and intended context.
-2. Anatomy and content hierarchy.
-3. Approved variants and size options.
-4. Rest, pressed, focused, disabled, loading, empty, error, and selected states where relevant.
-5. Light-mode and dark-mode behavior.
-6. Accessibility role, label, state, and hit target.
-7. Offline behavior when it reads or writes operational data.
-8. At least one realistic FuelGuard example in the component gallery.
-
-Do not add a `variant="primary"` escape hatch that allows arbitrary styling. Variants must encode
-approved product decisions.
-
-## Screen composition rules
-
-### Hero and sheet (D-DB1)
-
-Today, Loads, Score and Stop are **hero screens**: `Screen` takes a `hero` node, draws the navy
-region, and rides the light sheet 28pt over it with 28pt top corners. One ScrollView — the hero
-scrolls away with the content, because a driver reading a list should not be paying for a header
-they have already read. Every other screen is **sheet-only**; a second navy region under the first
-reads as a new app rather than a deeper level.
-
-A hero screen passes `flow="sections"`, which means its children are `Section`s that own the space
-above them. A sheet-only screen keeps the flat 16pt gap until its own step recomposes it. The two
-rhythms cannot coexist: a screen with both gets 40pt between sections.
-
-On a display 600pt or wider, content is centred in a 560pt column and nothing stretches — Android 16
-ignores the portrait lock at that width for apps targeting API 36.
-
-### Today
-
-Today is **four screens, not one template** (`screens/today/todayModel.ts`): `preShift`,
-`activeLoad`, `betweenLoads`, `recovery`. The state decides which modules appear and in what order;
-`home.tsx` is composition only, and every rule that decides what a module contains is pure and
-tested. Recovery outranks the rest — a screen built on data that failed to load says so first, and
-still shows what the cache held.
-
-The attention queue is the second half: sync failures, a trailer gap, unread alerts and threads,
-queued work and a hazmat verdict, in priority order, capped at four, with the rest collapsed into an
-honest "+n more". Before it, each of those lived on a different screen, so the one screen a driver
-actually opens could be entirely calm while three things were wrong.
-
-### Loads
-
-The offer deck is the signature moment: Accept and Decline on the card, plates behind it for the
-count, and Offered as the default chip whenever an offer exists — ahead even of the load in transit,
-because an offer is the only thing here with dispatch waiting on an answer. Current, Upcoming and
-History are rows on the sheet, not cards: Today already gives the current load a hero, and repeating
-that card made Loads a second Today.
-
-There is **no filter control**. The reference had one and there is nothing behind it.
-
-### Load detail and Stop
-
-Load detail is sheet-only and carries ONE progress indicator: the itinerary. The lifecycle stepper
-is deleted — a driver looking at a load they are driving does not need to be told it has been
-accepted. A stop's node colour says what happened to it, and the connector out of a **skipped** stop
-stays grey, because the run did not pass through it.
-
-The stop screen's hero is a map, `pointerEvents="none"`. There is no route service in this app, so a
-pannable map would promise something with nothing behind it; it orients a driver in a yard they have
-never been to. Offline, or with no coordinates, the flat navy hero takes its place. Required photos
-are tiles, and a tile never claims more than the app knows.
-
-### Score
-
-The number and the eight-week trend are the hero; what made the score is the sheet. Every sub-score
-states what it measures and what share of the grade it carries. The chart's floor is the ten below
-the driver's worst week — never a flat 0–100, which spends two thirds of its height on a band no
-driver occupies — and its ceiling stays at 100. No projections, no "on track for", no target the
-driver did not set.
-
-### Documents
-
-The scanner's front door, as a tab (D-DB14): the capture action pinned in the footer, every past
-check as a row whose disc carries its outcome, the verdict one tap deeper as a modal. Nothing here
-is invented — a row is a `MeHazmatLoadRow`, a verdict is the server's run.
-
-### More, Settings, Messages, Notifications
-
-`Section` + `Card variant="flat"` + `ListRow disc` for grouped settings and account actions. More
-is three groups (D-DB14): account with Sign out, work, settings. Scanner settings is a screen of
-facts with no switches — every capture rule is signed fleet configuration.
-Destructive actions use `ConfirmSheet`; an n-answer question uses `ChoiceSheet`, in front of the
-flow rather than below its fold.
-
-**Duty does not appear in More** — Today owns the shift, and a second place to change a truck is how
-a driver ends up unsure which screen is telling the truth. A failed sync is a **list of records with
-individual retries**, not a count with one global button.
-
-### Operational workflows
-
-Capture, duty, navigation, and load details are contextual modal routes. They should preserve the
-shell and make the next action obvious, with no decorative controls that do not affect the task.
-
-## State and motion rules
-
-- Prefer cached data over a blank screen when safe.
-- Show skeletons only when no usable cached data exists.
-- Use `EmptyState` to explain what happens next and offer a recovery action when one exists.
-- Use `Banner` for actionable errors and connectivity state; never silently swallow a failed write.
-- Offline is a normal operational mode. Say what was saved locally and what will sync later.
-- Use haptics only for meaningful actions: selection, success, warning, or destructive confirmation.
-- Motion is short and purposeful: pressed feedback, sheet presentation, skeleton breathing, and state transitions.
-- Never animate essential content in a way that delays the driver's next action.
+Run `pnpm --filter @silvicom/driver typecheck lint lint:tokens lint:design test` before every push. CI runs all of them.
 
 ## AI implementation protocol
 
 Before writing UI:
-
-1. Read this file and inspect the existing component gallery.
-2. Identify the closest canonical screen and component pattern.
-3. State which existing primitives will be reused.
-4. State any genuinely new design decision and why the current system cannot express it.
-5. Implement states and accessibility before visual polish.
-6. Run driver typecheck, lint, token checks, and tests.
+1. Read this file and open the V1 mock.
+2. Name the pattern(s) you are using from "Screen patterns".
+3. State which primitives you reuse and any new decision you need, and why the system cannot already
+   express it.
+4. Build the states and accessibility before the polish.
+5. Run the gates.
 
 Reject generated UI that contains any of the following:
-
-- A new color, font, icon set, radius, shadow, or spacing scale outside the Design System 2.0 tokens.
-- Generic cards, dashboard tiles, tables, or pills with no FuelGuard domain purpose.
-- A new component that duplicates an existing primitive.
-- Native `Alert` for a user-facing confirmation.
-- A screen without loading, empty, error, or offline behavior where applicable.
-- Icon-only actions without labels.
-- Status represented by color alone.
-- Desktop/web layout patterns copied into the mobile task flow.
-- Placeholder copy, lorem ipsum, fake metrics, or generic SaaS language in production UI.
+- a colour, face, icon set, radius, shadow or spacing outside this system;
+- any D-DV14 banned device;
+- a card around rows;
+- a second primary action;
+- an invented figure;
+- a duplicate primitive;
+- placeholder copy or generic SaaS language.
 
 ## Definition of done
 
-A driver UI change is complete only when:
-
-- It uses the approved tokens and primitives.
-- It is correct in light mode, dark mode, and offline/empty/error states.
-- It respects safe areas, the 4pt spacing quantum, semantic layout rhythm, and minimum touch targets.
-- It uses `AppText` for semantic typography and the semantic `Icon` adapter.
-- It has a realistic gallery or screen example.
-- It passes `pnpm --filter @silvicom/driver typecheck`.
-- It passes `pnpm --filter @silvicom/driver lint` and `lint:tokens`.
-- It passes the relevant driver tests.
+A driver UI change is done when:
+- it uses only the system above;
+- it is correct in dark, light, offline, empty, error and largest-text states;
+- it matches the V1 mock's patterns;
+- all gates pass;
+- the owner has seen a screenshot of any screen step before it merges (plan §4).

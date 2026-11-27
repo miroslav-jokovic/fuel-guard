@@ -3,7 +3,7 @@ import { mount, RouterLinkStub } from "@vue/test-utils";
 import { SMS_STOP_KEYWORDS, alertTextHelpReply, smsHelpReply } from "@silvicom/shared";
 import SmsTermsPage from "@/pages/legal/SmsTermsPage.vue";
 import PrivacyPolicyPage from "@/pages/legal/PrivacyPolicyPage.vue";
-import { SMS_PRIVACY_ANCHOR, SMS_PRIVACY_PATH, SMS_STAFF_ALERTS_ANCHOR } from "@/lib/legalPaths";
+import { CAREERS_PRIVACY_ANCHOR, CAREERS_PRIVACY_PATH, SMS_PRIVACY_ANCHOR, SMS_PRIVACY_PATH, SMS_STAFF_ALERTS_ANCHOR } from "@/lib/legalPaths";
 
 /**
  * The two pages a toll-free verification reviewer opens from the opt-in screenshot (SMS-OPT-IN-PLAN
@@ -51,6 +51,37 @@ describe("the text message terms", () => {
     expect(text).toContain("Mobile carriers are not liable");
   });
 
+  /**
+   * APPLY-PAGE-PLAN (2026-11-22): every way the code lets a person agree is named — the careers page's box
+   * (`SMS_APPLY_PAGE_CONSENT`), the application page's box (`SMS_CONSENT`), a recruiter's attestation
+   * (`SMS_OFFICE_INVITE_ATTESTATION`) — and every kind of message either box names is a kind the programme names, so
+   * no box promises what the terms do not. What only a private application page has is said only of it.
+   */
+  it("names all three ways to agree, and never promises a careers-page lead an application page or an email", () => {
+    const text = mountPage(SmsTermsPage).text().replace(/\s+/g, " ");
+    expect(text).toContain("careers page when you apply for a job");
+    expect(text).toContain("private driver application page");
+    expect(text).toContain("ask the trucking company's recruiter to text you your application link");
+    expect(text).toContain("A box is never ticked for you.");
+    expect(text).not.toContain("tick the text-message box on your application page. The box is never ticked");
+    expect(text).toContain("If you have a private application page, every message about it is also sent by email");
+    expect(text).not.toMatch(/saying no changes nothing about your application: every message is also sent by email/);
+  });
+
+  it("names every kind of message the careers page's box and the application page's box say they send", () => {
+    const text = mountPage(SmsTermsPage).text().replace(/\s+/g, " ").toLowerCase();
+    // The careers page box: "application links, interview and orientation scheduling, and hiring updates".
+    for (const kind of ["application links", "interview and orientation scheduling", "status"]) expect(text, kind).toContain(kind);
+    // The application page box: "a link to your application form, reminders about steps you have not finished,
+    // and updates on its status".
+    for (const kind of ["a link to fill in your driver application", "a reminder if you have not finished a step"]) expect(text, kind).toContain(kind);
+    expect(text).toContain("not a condition of applying, of being considered for a job, or of employment");
+  });
+
+  it("prints the company as its registration reads", () => {
+    expect(mountPage(SmsTermsPage).text()).toContain("Silvicom Inc, 1301 Armitage Ave");
+  });
+
   it("links to the privacy section the opt-in card links to", () => {
     const links = mountPage(SmsTermsPage).findAllComponents(RouterLinkStub).map((l) => l.props("to"));
     expect(links).toContain(SMS_PRIVACY_PATH);
@@ -65,5 +96,25 @@ describe("the privacy policy's text-message section", () => {
     // The two sentences a verification reviewer reads for, in the form carriers expect.
     expect(w.text()).toContain("No mobile information will be shared with third parties or affiliates for marketing");
     expect(w.text()).toContain("opt-in data and consent will not be shared with any third parties");
+  });
+});
+
+/**
+ * APPLY-PAGE-PLAN AP3, D-AP7: the section the careers form and its footer link to (`CAREERS_PRIVACY_PATH`). It must
+ * name what the API actually records beside the form's fields: the address and browser (`raw.client`) and
+ * Cloudflare's check (`raw.checks`).
+ */
+describe("the privacy policy's careers page section", () => {
+  it("exists at the anchor the careers form links to, and names the address, the browser and Cloudflare's check", () => {
+    const w = mountPage(PrivacyPolicyPage);
+    const section = w.find(`#${CAREERS_PRIVACY_ANCHOR}`).element.closest("section");
+    expect(section, "the anchor heads a section").not.toBeNull();
+    const text = (section!.textContent ?? "").replace(/\s+/g, " ");
+    expect(CAREERS_PRIVACY_PATH).toBe(`/privacy#${CAREERS_PRIVACY_ANCHOR}`);
+    for (const kept of ["name, mobile number and email", "answers to the job's questions", "ticked the box", "internet address and browser", "Cloudflare Turnstile"]) {
+      expect(text).toContain(kept);
+    }
+    expect(text).toContain("does not ask for your licence number, your address, your date of birth or your Social Security number");
+    expect(text).toContain("A failed check never stops you applying");
   });
 });

@@ -1,12 +1,8 @@
-import { useContext, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { BottomTabBarHeightContext } from 'expo-router/js-tabs';
 import { layout } from '@/theme/tokens';
-import { shellHeight } from './tabBarModel';
-import { HeroBackdrop } from './HeroBackdrop';
-import type { HeroTextureName } from '@/theme/heroTexture';
 import { heroTopPadding, screenBottomPadding, screenTopPadding } from '@/theme/safeArea';
 import { useTheme } from '@/theme/ThemeProvider';
 import { roleColors } from '@/theme/colors';
@@ -33,7 +29,7 @@ export function Screen({
   padTop = true,
   footer,
   hero,
-  heroTexture = 'band',
+  media,
   flow = 'flat',
   onRefresh,
   refreshing = false,
@@ -50,14 +46,14 @@ export function Screen({
    */
   onRefresh?: () => void;
   refreshing?: boolean;
+  /**
+   * A full-bleed region at the very top, under the status bar, that scrolls away with the content
+   * (the Stop screen's map strip, Visual 2026 V6). Unlike `hero` it draws no navy and no sheet:
+   * the content sits straight on the canvas below it, as the V1 mock's screen 6 does.
+   */
+  media?: ReactNode;
   /** The navy hero region. Its presence, not a flag, is what makes this a hero screen. */
   hero?: ReactNode;
-  /**
-   * Which artwork backs the hero. `band` — the default — is capped for a hero that carries all three
-   * `on-hero` tones. `auth` is the looser one, and is only honest on a hero that carries the mark
-   * alone; see `src/theme/heroTexture.ts`.
-   */
-  heroTexture?: HeroTextureName;
   /**
    * `sections` means the children are `Section`s, which own the space above them, so the flow adds
    * none. `flat` keeps a uniform 16pt gap between loose children. A hero screen is always
@@ -73,12 +69,12 @@ export function Screen({
   const { isDark } = useTheme();
   const { width } = useWindowDimensions();
   /**
-   * Inside a tab the scene now passes UNDER the floating shell, so it has to end above it. The
-   * context answers "am I in a tab"; the height comes from `shellHeight`, the same model the bar
-   * draws itself from — see the note there for why this is not read from the context's value.
+   * The tab bar is the system's own since V3 (Visual 2026 D-DV1). Inside a native tab the safe-area
+   * bottom inset already includes the bar, the floating Liquid Glass capsule on iOS 26 and the
+   * Material bar on Android, so a screen ends above it by honouring `insets.bottom` like any other
+   * screen. Until V3 the custom JS shell floated over the scene with no inset of its own, and every
+   * screen had to add its measured height (`shellHeight`). That model was deleted with the shell.
    */
-  const protectedByTabBar = useContext(BottomTabBarHeightContext) !== undefined;
-  const tabBarHeight = protectedByTabBar ? shellHeight(insets.bottom) : 0;
   const top = screenTopPadding(insets.top, padTop);
 
   /**
@@ -90,17 +86,9 @@ export function Screen({
 
   const statusBar = <StatusBar style={hero || isDark ? 'light' : 'dark'} />;
 
-  /**
-   * A pinned footer has to clear the floating shell, not sit under it.
-   *
-   * This used to read `protectedByTabBar ? 0 : insets.bottom`, which was right while the shell was an
-   * opaque band the scene ended above — the footer landed ON the band and adding the inset again put
-   * 34pt of empty raised surface between the button and the bar. Now that the shell floats OVER the
-   * scene, zero puts the Documents tab's capture bar directly underneath it: two bars stacked in the
-   * same place, which is exactly what it looked like.
-   */
+  /** A pinned footer sits on the safe-area inset, which inside a native tab already includes the bar. */
   const footerNode = footer ? (
-    <View style={[{ paddingHorizontal: layout.screenInset, paddingBottom: (protectedByTabBar ? tabBarHeight : insets.bottom) + 8 }, columnStyle]}>
+    <View style={[{ paddingHorizontal: layout.screenInset, paddingBottom: insets.bottom + 8 }, columnStyle]}>
       {footer}
     </View>
   ) : null;
@@ -142,7 +130,6 @@ export function Screen({
               screen the content still centres in its readable column while the art runs edge to
               edge, which is what a backdrop is for. */}
           <View>
-            <HeroBackdrop texture={heroTexture} />
             <View
               style={[
                 {
@@ -164,7 +151,7 @@ export function Screen({
               marginTop: -layout.sheetOverlap,
               paddingTop: layout.sheetTopPadding,
               paddingHorizontal: layout.screenInset,
-              paddingBottom: screenBottomPadding(insets.bottom, Boolean(footer), tabBarHeight),
+              paddingBottom: screenBottomPadding(insets.bottom, Boolean(footer)),
             }}
           >
             {columnStyle ? <View style={columnStyle}>{children}</View> : children}
@@ -187,7 +174,7 @@ export function Screen({
             // shell's height directly or its last control sits under the capsule.
             paddingBottom: footer
               ? layout.screenInset
-              : (protectedByTabBar ? tabBarHeight : insets.bottom) + layout.screenInset,
+              : insets.bottom + layout.screenInset,
           }]}
         >
           {children}
@@ -201,15 +188,25 @@ export function Screen({
     <KeyboardAvoidingView className={ui.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {statusBar}
       <ScrollView
-        contentContainerClassName={flow === 'sections' ? ui.scrollContentSections : ui.scrollContent}
-        contentContainerStyle={[{
+        contentContainerClassName={media ? undefined : flow === 'sections' ? ui.scrollContentSections : ui.scrollContent}
+        contentContainerStyle={media ? { paddingBottom: screenBottomPadding(insets.bottom, Boolean(footer)) } : [{
           paddingTop: top,
-          paddingBottom: screenBottomPadding(insets.bottom, Boolean(footer), tabBarHeight),
+          paddingBottom: screenBottomPadding(insets.bottom, Boolean(footer)),
         }, columnStyle]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {children}
+        {media ? (
+          <>
+            {media}
+            <View
+              className={flow === 'sections' ? ui.scrollContentSections : ui.scrollContent}
+              style={columnStyle}
+            >
+              {children}
+            </View>
+          </>
+        ) : children}
       </ScrollView>
       {footerNode}
     </KeyboardAvoidingView>

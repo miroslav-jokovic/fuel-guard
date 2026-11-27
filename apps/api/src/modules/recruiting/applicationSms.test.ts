@@ -132,7 +132,7 @@ describe("sending", () => {
 const consentRow = (over: Record<string, unknown>) =>
   ({ id: "c", org_id: ORG, driver_id: DRIVER, phone: NEW_NUMBER, revoked_at: null, granted_at: "2026-09-25T10:00:00Z", ...over });
 
-const inbound = (opts: { consents?: Record<string, unknown>[]; suppressions?: Record<string, unknown>[]; insertError?: unknown } = {}) =>
+const inbound = (opts: { consents?: Record<string, unknown>[]; suppressions?: Record<string, unknown>[]; insertError?: unknown; revokedByRpc?: number } = {}) =>
   createSupabaseRecorder({
     tables: {
       sms_consents: postgrestFixture(opts.consents ?? [consentRow({})]),
@@ -141,7 +141,8 @@ const inbound = (opts: { consents?: Record<string, unknown>[]; suppressions?: Re
           ? { data: [], error: null, writeError: opts.insertError }
           : postgrestFixture(opts.suppressions ?? [])(q),
     },
-    rpc: { revoke_sms_consent: 1 },
+    // What one `revoke_sms_consent` call answers: 1 live row on the number unless a test says otherwise.
+    rpc: { revoke_sms_consent: opts.revokedByRpc ?? 1 },
   });
 const revokedPhones = (rec: ReturnType<typeof inbound>) =>
   rec.rpcs().filter((r) => r.fn === "revoke_sms_consent").map((r) => (r.args as Record<string, unknown>).p_phone);
@@ -177,6 +178,25 @@ describe("the opt-out", () => {
     expect(revokedPhones(rec).sort()).toEqual([OLD_NUMBER, NEW_NUMBER].sort());
   });
 
+  /**
+   * APPLY-PAGE-PLAN AP2 (0641): a consent ticked on the careers page belongs to a LEAD and has no driver. Before AP2 the
+   * STOP withdrew per driver, so this row — the only one on the number — was never revoked.
+   */
+  it("revokes a lead's consent, which has no driver, by its number; and suppresses the number naming nobody", async () => {
+    const rec = inbound({ consents: [consentRow({ id: "c-lead", driver_id: null, lead_id: "77777777-7777-4777-8777-777777777777" })] });
+    const result = await handleInboundSms(rec.client, env(), NEW_NUMBER, "STOP");
+    expect(result.revoked).toBe(1);
+    expect(revokedPhones(rec)).toEqual([NEW_NUMBER]);
+    expect((rec.rpcs().find((r) => r.fn === "revoke_sms_consent")?.args as Record<string, unknown>).p_org).toBe(ORG);
+    expect(rec.writtenRows("sms_suppressions")).toEqual([{ org_id: ORG, driver_id: null, phone: NEW_NUMBER, reason: "stop" }]);
+  });
+
+  it("revokes the number once even when an applicant and a lead both hold a consent on it", async () => {
+    const rec = inbound({ consents: [consentRow({ id: "c-app" }), consentRow({ id: "c-lead", driver_id: null, lead_id: "77777777-7777-4777-8777-777777777777" })] });
+    await handleInboundSms(rec.client, env(), NEW_NUMBER, "STOP");
+    expect(revokedPhones(rec)).toEqual([NEW_NUMBER]);
+  });
+
   it("suppresses the number in the org, naming the applicant, as a STOP", async () => {
     const rec = inbound();
     await handleInboundSms(rec.client, env(), NEW_NUMBER, "STOP");
@@ -185,7 +205,8 @@ describe("the opt-out", () => {
 
   /** A consent already withdrawn on the page: nothing to revoke, and the STOP still stands (G-2). */
   it("suppresses the number even when no consent on it was live", async () => {
-    const rec = inbound({ consents: [consentRow({ revoked_at: "2026-09-26T10:00:00Z" })] });
+    // Nothing live on the number, so the database's own revoke answers 0.
+    const rec = inbound({ consents: [consentRow({ revoked_at: "2026-09-26T10:00:00Z" })], revokedByRpc: 0 });
     const result = await handleInboundSms(rec.client, env(), NEW_NUMBER, "STOP");
     expect(result.revoked).toBe(0);
     expect(rec.writtenRows("sms_suppressions")).toHaveLength(1);

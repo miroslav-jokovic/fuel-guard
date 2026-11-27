@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { OpeningStatus, OpeningView } from "@silvicom/shared";
+import { OPENING_UNPUBLISHED_TEXT, openingUnpublishedReason, type OpeningStatus, type OpeningView } from "@silvicom/shared";
 import { AppButton as BaseButton, AppSelect, DataTable, DataWorkspace, FilterBar, useQueryState, type DataTableColumn, type SelectOption } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -77,6 +77,13 @@ async function move(o: OpeningView, status: OpeningStatus): Promise<void> {
   }
 }
 
+/** Why an open opening is not on the careers page, or null (D-AP2; `openingUnpublishedReason`). */
+function careersGap(o: OpeningView): string | null {
+  if (o.status !== "open") return null;
+  const reason = openingUnpublishedReason(o.status, o.current);
+  return reason ? OPENING_UNPUBLISHED_TEXT[reason] : null;
+}
+
 const columns: DataTableColumn[] = [
   { key: "title", label: "Opening" },
   { key: "status", label: "Status" },
@@ -109,6 +116,9 @@ const columns: DataTableColumn[] = [
       >
         <template #cell-title="{ row }">
           <BaseButton variant="link" class="font-medium" :data-test="`open-${row.id}`" @click="openParam = row.id">{{ row.current?.title ?? "Untitled" }}</BaseButton>
+          <!-- APPLY-PAGE-PLAN D-AP2: an OPEN opening the careers page leaves out says so, from the server's one rule.
+               A paused or closed one needs no line: its status already says it. -->
+          <p v-if="careersGap(row as OpeningView)" class="text-xs text-ink-muted" :data-test="`careers-gap-${row.id}`">{{ careersGap(row as OpeningView) }}</p>
         </template>
         <template #cell-status="{ row }">
           <span :class="[BADGE_BASE, toneClass(OPENING_STATUS_TONE[row.status as OpeningStatus])]">{{ OPENING_STATUS_LABEL[row.status as OpeningStatus] }}</span>

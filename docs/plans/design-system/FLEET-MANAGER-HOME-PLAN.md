@@ -108,6 +108,20 @@ Real fleet, org `86d6b3ea…`, read-only `supabase db query --linked`.
 
 - **D-FM9: every figure is a door.** Each count links to the page that lists exactly those rows,
   carrying the filter in the URL. A figure with no list behind it is not shown.
+- **D-FM10: one truck population on the tab — the dispatch board's (2026-11-26).** The owner read
+  Fleet right now ("Trucks on the board 181") beside Seats ("179 of 196 running trucks have a driver",
+  17 without, 8 wound down, 13 on order) as contradicting numbers, and they were two populations: the
+  board leaves out McLeod's fleet '1', the Unassigned pool (Q-DB2), and counts the truck in the shop;
+  Seats counted `active` and not wound down, pool included, shop not. Measured in production that day:
+  210 trucks in service = 181 on the board (177 seated, 3 active and 1 in the shop without a driver) +
+  29 off it (16 parked in the pool, 5 in the shop in the pool, 8 wound down — all 8 in the pool), and
+  14 of the 17 "without a driver" were parked pool trucks. Ruled: the Seats card counts the board's
+  trucks (`isOnDispatchBoard` in `@silvicom/shared`, which the API board and the board's pool filter
+  now also read), reading "177 of 181"; its rows are "Trucks on the board without a driver" (4),
+  "Drivers without a truck" (14), and "Off the board" (29) with the reasons in its caption, including
+  the 2 pool trucks still holding a driver (664, 683). "Trucks on order" left the card — not in
+  service, not a seat question; Vehicles lists them under status `ordered`. Fleet right now's total
+  now says "Unassigned pool not counted". The one known gap is Q-FM10.
 
 ## 4. The cards
 
@@ -298,6 +312,16 @@ needs a migration.
   Either way the rate needs a list behind it (D-FM9): `?clean=1` on the inspections list, filtered by
   the same predicate. **Recommend (a).** Until this is ruled, the card shows four figures and no rate.
 
+- **Q-FM10 — A wound-down truck still hauling, outside the pool (found building D-FM10, 2026-11-26).**
+  The board keeps a wound-down truck that holds a load (D-DB11); the Seats card reads `equipment`
+  and cannot see loads, so it asks `isOnDispatchBoard(v, false)` and would count such a truck "Off
+  the board" while the strip counts it on — a one-truck disagreement. Today there are none (all 8
+  wound-down trucks are in fleet '1', and no pool truck holds an open load). Candidates: (a) a
+  per-truck "holds an open load" fact on `vehicles`, written by the loads owner, readable by
+  equipment; (b) Seats reads the board's rows when the reader may view `dispatch`, vehicles
+  otherwise — two sources, rejected; (c) leave it, and a nightly check reports any such truck.
+  *Recommend (a)*: one fact, derived where loads are owned, and the card stays exact by construction.
+
 ## 8. Not in scope
 
 No change to Fleet overview's cards, to `applyMoneyGate`, to the role matrix, or to the dispatcher's
@@ -416,3 +440,11 @@ landing tab.
   - The only refusal is again `/api/me/notifications` → 403 `module_disabled` (FM4's entry).
   - Owed: the card's real figures, seen in production by the owner (staging cannot show them), and
     Q-FM8 (the clean-inspection rate). Q-FM5 (PM due) is still its own plan.
+
+- 2026-11-26: **D-FM10 built** — Seats counts the dispatch board's trucks. Production replay of the
+  shipped rules over that day's rows: 181 on the board, 177 with a driver, 4 without (777, 749, 686,
+  and 765 in the shop), 29 off the board (16 parked · 5 in the shop · 8 sold or retiring · 2 still
+  have a driver), 14 drivers without a truck; 181 + 29 = the 210 in service. Pinned by `opsTab.test.ts`
+  "seats: counts the board's trucks — the shop's in, the pool and the wound-down on one line of their
+  own" and `VehiclesPage.test.ts` "opens the Seats card's two truck doors on exactly the trucks it
+  counted — the pool off the board, the shop on it". Q-FM10 is the one gap left open.

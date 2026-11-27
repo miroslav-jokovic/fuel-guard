@@ -1,4 +1,4 @@
-import { boardStops, loadBoardState } from "@silvicom/shared";
+import { boardStops, loadBoardState, loadRatePerMile } from "@silvicom/shared";
 import type { DataTableColumn } from "@silvicom/ui";
 import { deliveredCell } from "./loadListFilters";
 import { loadEventAt, loadStartedAt } from "./loadListOrder";
@@ -22,6 +22,34 @@ export const LOAD_COLUMNS: DataTableColumn[] = [
 /** When the truck left the last drop (D-LA1), beside Delivery's appointment, on the two tabs that hold delivered loads. */
 export const DELIVERED_COLUMN: DataTableColumn = { key: "delivered", label: "Delivered", sortable: true, width: "md", card: "figure" };
 
+
+/**
+ * What each load pays (LOAD-RATES-PLAN D-RATE8): the McLeod order's total and its rate per mile, before
+ * Dispatch. Only for a reader holding `dispatch.load_rates` (`loadColumns`) — for anyone else the columns do
+ * not exist, so the picker does not list them, and the API sends them no `charges` anyway (D-RATE7).
+ * Rate is shown by default with the per mile on its second line; Per mile, its own sortable column, is
+ * hidden by default (`RATE_DEFAULT_HIDDEN`) — owner, 2026-11-20, Q-RATE1 (b): two visible columns pushed
+ * the list ≈ 42 px past its 1,104 px box on In transit and ≈ 170 px on Delivered/All at 1440.
+ * A detail on the phone card: Pickup, Delivery and Type are already its three figures.
+ * The cells are `LoadRateCell.vue`'s, shared with the board.
+ */
+export const RATE_COLUMNS: DataTableColumn[] = [
+  { key: "rate", label: "Rate", sortable: true, numeric: true, width: "sm", card: "detail" },
+  { key: "per_mile", label: "Per mile", sortable: true, numeric: true, width: "sm", card: "detail" },
+];
+export const RATE_KEYS = ["rate", "per_mile"] as const;
+export const RATE_DEFAULT_HIDDEN = ["per_mile"] as const;
+
+/** The list's columns, in the page's order: Delivered after Delivery on the two windowed tabs, the rates before Dispatch. */
+export function loadColumns(windowed: boolean, seesRates: boolean): DataTableColumn[] {
+  const base = windowed ? [...LOAD_COLUMNS.slice(0, 5), DELIVERED_COLUMN, ...LOAD_COLUMNS.slice(5)] : LOAD_COLUMNS;
+  if (!seesRates) return base;
+  const at = base.findIndex((c) => c.key === "dispatch");
+  return [...base.slice(0, at), ...RATE_COLUMNS, ...base.slice(at)];
+}
+/** Every key the URL may sort by. A rate key from a holder's shared link sorts nothing for a non-holder: no row has a price. */
+export const LOAD_SORT_KEYS = [...LOAD_COLUMNS, DELIVERED_COLUMN, ...RATE_COLUMNS].filter((c) => c.sortable).map((c) => c.key);
+
 /** What a column — or an opening order's own key (`loadListOrder.ts`), which no header writes — sorts by. */
 export function loadSortValue(load: DispatchLoad, key: string, nowMs: number): unknown {
   const { pickup, delivery } = boardStops(load.stops);
@@ -31,5 +59,7 @@ export function loadSortValue(load: DispatchLoad, key: string, nowMs: number): u
   if (key === "delivered") return deliveredCell(load, nowMs).at;
   if (key === "started") return loadStartedAt(load);
   if (key === "event") return loadEventAt(load);
+  if (key === "rate") return load.charges?.total_charge ?? null;
+  if (key === "per_mile") return load.charges ? loadRatePerMile(load.charges) : null;
   return (load as unknown as Record<string, unknown>)[key];
 }

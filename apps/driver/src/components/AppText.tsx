@@ -1,90 +1,32 @@
-import { Text, type TextProps, type TextStyle } from 'react-native';
+import { Text, type TextProps } from 'react-native';
 import { useTheme } from '@/theme/ThemeProvider';
 import { TEXT_TONE_CLASS, type TextTone } from '@/theme/textTone';
+import { textStyle, type TextVariant, type TextWeight } from '@/theme/typography';
 
 export { TEXT_TONE_CLASS, type TextTone };
-
-export type TextVariant =
-  | 'caption'
-  | 'label'
-  | 'supporting'
-  | 'body'
-  | 'rowTitle'
-  | 'action'
-  | 'navigationTitle'
-  | 'screenTitle'
-  | 'numericInline'
-  | 'numericCompact'
-  | 'numericHero';
-
-/**
- * Weight is the family in React Native: a Tailwind weight utility does nothing to a loaded custom
- * face, so the variant names one of the four Lexend families outright (Direction B §2.3). Keeping the family and
- * the size in separate maps means Bold Text swaps ONE class rather than appending a second
- * `font-*` whose precedence would depend on stylesheet order.
- */
-const FAMILY: Record<TextVariant, string> = {
-  caption: 'font-ui',
-  label: 'font-ui-md',
-  supporting: 'font-ui',
-  body: 'font-ui',
-  rowTitle: 'font-ui-md',
-  action: 'font-ui-sb',
-  navigationTitle: 'font-ui-sb',
-  screenTitle: 'font-ui-sb',
-  numericInline: 'font-ui-sb',
-  numericCompact: 'font-ui-sb',
-  numericHero: 'font-ui-sb',
-};
-
-/** Bold Text steps every variant one weight up: 400→500, 500→600, 600→700. 700 has nowhere to go. */
-const FAMILY_BOLD: Record<TextVariant, string> = {
-  caption: 'font-ui-md',
-  label: 'font-ui-sb',
-  supporting: 'font-ui-md',
-  body: 'font-ui-md',
-  rowTitle: 'font-ui-sb',
-  action: 'font-ui-bold',
-  navigationTitle: 'font-ui-bold',
-  screenTitle: 'font-ui-bold',
-  numericInline: 'font-ui-bold',
-  numericCompact: 'font-ui-bold',
-  numericHero: 'font-ui-bold',
-};
-
-const SIZE: Record<TextVariant, string> = {
-  caption: 'text-caption',
-  label: 'text-label uppercase',
-  supporting: 'text-supporting',
-  body: 'text-body',
-  rowTitle: 'text-rowTitle',
-  action: 'text-action',
-  navigationTitle: 'text-navigationTitle',
-  screenTitle: 'text-screenTitle',
-  numericInline: 'text-numericInline',
-  numericCompact: 'text-numericCompact',
-  numericHero: 'text-numericHero',
-};
-
-/** Figures a driver reads at a glance never jitter: the numeric variants are tabular by definition. */
-const ALWAYS_TABULAR: readonly TextVariant[] = ['numericInline', 'numericCompact', 'numericHero'];
+export type { TextVariant, TextWeight };
 
 export interface AppTextProps extends TextProps {
   variant?: TextVariant;
   tone?: TextTone;
+  /** Raise the variant's weight for emphasis — the only way to change weight (lint:design). */
+  weight?: TextWeight;
+  /** Tabular figures on a variant that is not tabular by definition (numeric variants always are). */
   tabular?: boolean;
   className?: string;
 }
 
 /**
- * Semantic, Dynamic-Type-safe text. One typeface — Lexend — in four weights (D-DB3); the `action`
- * and `accent` tones are the amber and lavender *text* roles, never the fills. No default max
- * multiplier is imposed: layouts must adapt to the driver's selected content size instead of
- * silently capping it.
+ * Semantic, Dynamic-Type-safe text. Face, size, weight and figure style come from
+ * `src/theme/typography.ts` (D-DV8, D-DV15); colour comes from `tone` (D-DV5). `className` is for
+ * layout only — a font or colour class here is refused by `lint:design`, because a second class
+ * setting the same property is resolved by stylesheet order, not by what the call site wrote.
+ * No default max multiplier is imposed: layouts adapt to the driver's text size (D-DV9).
  */
 export function AppText({
   variant = 'body',
   tone = 'primary',
+  weight,
   tabular = false,
   className = '',
   style,
@@ -92,16 +34,12 @@ export function AppText({
   ...props
 }: AppTextProps) {
   const { boldText } = useTheme();
-  const numericStyle: TextStyle | undefined =
-    tabular || ALWAYS_TABULAR.includes(variant) ? { fontVariant: ['tabular-nums'] } : undefined;
-  const family = boldText ? FAMILY_BOLD[variant] : FAMILY[variant];
-
   return (
     <Text
       {...props}
       allowFontScaling={allowFontScaling}
-      className={`${family} ${SIZE[variant]} ${TEXT_TONE_CLASS[tone]} ${className}`.trim()}
-      style={[numericStyle, style]}
+      className={`${TEXT_TONE_CLASS[tone]} ${className}`.trim()}
+      style={[textStyle(variant, { boldText, weight, tabular }), style]}
     />
   );
 }

@@ -19,6 +19,7 @@ import {
   LOAD_DECLINE_KIND,
   LOAD_START_KIND,
   LOAD_STOP_KIND,
+  LOAD_STOP_PHOTOS_KIND,
 } from '@/data/handlers';
 import { useSession } from '@/session/SessionProvider';
 import { useDriverContext } from '@/session/useDriverContext';
@@ -108,7 +109,8 @@ function patchStop(
   qc: ReturnType<typeof useQueryClient>,
   loadId: string,
   stopId: string,
-  status: LoadStop['status'],
+  /** `null` keeps the stop's status: a late photo adds to a finished stop without moving it (D-DV30). */
+  status: LoadStop['status'] | null,
   captures: readonly SessionCapture[],
   skipReason: string | undefined,
 ): void {
@@ -132,7 +134,7 @@ function patchStop(
             }));
             return {
               ...s,
-              status,
+              status: status ?? s.status,
               ...(skipReason ? { skip_reason: skipReason } : {}),
               photos: [...s.photos, ...optimisticPhotos],
             };
@@ -254,6 +256,45 @@ export function useCompleteStop() {
         fileUris: stagedPhotos.map((p) => p.local_uri),
       });
       patchStop(qc, input.loadId, input.stopId, input.status, captures, input.skipReason);
+    },
+  });
+}
+
+export interface AddStopPhotosInput {
+  loadId: string;
+  stopId: string;
+  captures: readonly SessionCapture[];
+}
+
+/**
+ * A late photo for a stop the driver already finished (Visual 2026 D-DV30, migration 0645). Staged
+ * and queued exactly like a completion's photos (D12), so it is sent whenever there is signal; the
+ * stop itself is not moved. The server refuses a stop finished more than LATE_PHOTO_WINDOW_DAYS ago,
+ * and the screens offer "Add" only inside that window (`latePhotoOpen`).
+ */
+export function useAddStopPhotos() {
+  const qc = useQueryClient();
+  const { orgId } = useSession();
+  const driver = useDriverContext();
+  return useMutation({
+    mutationFn: async (input: AddStopPhotosInput) => {
+      const driverId = driver.data?.driver.id;
+      if (!orgId || !driverId) {
+        throw new Error('Your profile is still loading — give it a second and try again.');
+      }
+      if (input.captures.length === 0) return;
+      const recordId = newClientId();
+      const photos = buildStopPhotos({ orgId, driverId, loadId: input.loadId, captures: input.captures });
+      const stagedPhotos = await Promise.all(
+        photos.map(async (p, i) => ({ ...p, local_uri: await stageFile(p.local_uri, recordId, i) })),
+      );
+      await enqueue({
+        id: recordId,
+        kind: LOAD_STOP_PHOTOS_KIND,
+        payload: { load_id: input.loadId, stop_id: input.stopId, occurred_at: new Date().toISOString(), photos: stagedPhotos },
+        fileUris: stagedPhotos.map((p) => p.local_uri),
+      });
+      patchStop(qc, input.loadId, input.stopId, null, input.captures, undefined);
     },
   });
 }

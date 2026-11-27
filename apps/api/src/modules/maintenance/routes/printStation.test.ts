@@ -71,6 +71,14 @@ describe("authentication", () => {
     expect(jobs.claimNextJob).not.toHaveBeenCalled();
   });
 
+  it("answers 503, not 401, when the token lookup itself failed, so the station waits it out", async () => {
+    svc.stationForToken.mockImplementationOnce((async () => ({ code: "station_lookup_failed", error: "down" })) as never);
+    const base = await start();
+    const res = await fetch(`${base}/jobs/next`, { headers: auth });
+    expect(res.status).toBe(503);
+    expect(jobs.claimNextJob).not.toHaveBeenCalled();
+  });
+
   it("pairs without a token, and a wrong code is a 401", async () => {
     const base = await start();
     const post = (pairingCode: string) =>

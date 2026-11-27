@@ -1,20 +1,11 @@
-import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
+import type { NotificationEvent } from '@silvicom/shared';
 import {
-  NOTIFICATION_CATEGORIES,
-  NOTIFICATION_CATEGORY_LABELS,
-  isMutable,
-  type NotificationCategory,
-  type NotificationEvent,
-} from '@silvicom/shared';
-import {
-  Badge,
   AppText,
   Banner,
-  Card,
+  GroupedList,
   EmptyState,
-  Icon,
   IconButton,
   ListRow,
   OfflineBanner,
@@ -22,21 +13,22 @@ import {
   ScreenHeader,
   Section,
   Skeleton,
-  ToggleRow,
+  SkeletonRows,
   type Tone,
 } from '@/components';
-import { useMarkRead, useNotifications, useUpdatePreferences } from '@/features/notifications/useNotifications';
+import { useMarkRead, useNotifications } from '@/features/notifications/useNotifications';
 import { resolveDeepLink } from '@/features/notifications/deepLink';
 import { CATEGORY_ICON } from '@/features/notifications/categoryIcon';
 import { useFeatures } from '@/session/useFeatures';
-import { haptics } from '@/lib/haptics';
 
 /**
  * The notification centre (Phase 6 / D53) — the honest fallback behind the push fast path: a driver
  * who denied the OS permission still sees everything here. Tapping a row marks it read and opens
- * the thing it's about (deep link translated to an app route — never trusted raw). Preferences
- * live at the bottom: category mutes (minus the NON_MUTABLE set — a canceled load is not a
- * preference) — enforced server-side, recorded here.
+ * the thing it's about (deep link translated to an app route — never trusted raw).
+ *
+ * This screen is the inbox ONLY. The category switches moved to `notification-settings.tsx`
+ * (More › Settings) on 2026-11-23, when the owner read inbox + switches + the Messages row as one
+ * page (Q-DF-7; the "split later" Direction B's Q-DB4 left open). That file says why.
  */
 
 const SEVERITY_TONE: Record<string, Tone> = { info: 'info', warning: 'warning', critical: 'danger' };
@@ -55,13 +47,6 @@ export default function NotificationsCentre() {
   const features = useFeatures();
   const q = useNotifications(features.isLoaded && features.enabled('notifications'));
   const markRead = useMarkRead();
-  const updatePrefs = useUpdatePreferences();
-  const [prefsError, setPrefsError] = useState<string | null>(null);
-
-  const muted = useMemo(
-    () => new Set(q.data?.preferences.muted_categories ?? []),
-    [q.data?.preferences.muted_categories],
-  );
 
   if (features.isLoaded && !features.enabled('notifications')) return <Redirect href="/home" />;
   if (!features.isLoaded) {
@@ -82,26 +67,10 @@ export default function NotificationsCentre() {
     router.push(resolveDeepLink(n.deep_link));
   };
 
-  const toggleMute = async (category: NotificationCategory) => {
-    setPrefsError(null);
-    const next = new Set(muted);
-    if (next.has(category)) next.delete(category);
-    else next.add(category);
-    try {
-      await updatePrefs.mutateAsync({
-        muted_categories: [...next].filter((c): c is NotificationCategory =>
-          (NOTIFICATION_CATEGORIES as readonly string[]).includes(c),
-        ),
-      });
-      haptics.select();
-    } catch (e) {
-      setPrefsError(e instanceof Error ? e.message : 'Could not save your notification settings.');
-    }
-  };
-
   return (
     <Screen padTop={false} flow="sections">
       <ScreenHeader
+        display
         title="Notifications"
         subtitle={unread > 0 ? `${unread} unread` : undefined}
         onClose={() => router.back()}
@@ -120,35 +89,36 @@ export default function NotificationsCentre() {
       <OfflineBanner />
 
       {q.isError && !q.data ? (
-        <Banner
-          tone="danger"
-          message={q.error.message || 'Could not load notifications.'}
-          actionLabel="Retry"
-          onAction={() => void q.refetch()}
-        />
+        <Section>
+          <Banner
+            tone="danger"
+            message={q.error.message || 'Could not load notifications.'}
+            actionLabel="Retry"
+            onAction={() => void q.refetch()}
+          />
+        </Section>
       ) : null}
-      {markRead.isError ? <Banner tone="danger" message={markRead.error.message || 'Could not mark notifications read.'} /> : null}
+      {markRead.isError ? (
+        <Section>
+          <Banner tone="danger" message={markRead.error.message || 'Could not mark notifications read.'} />
+        </Section>
+      ) : null}
 
       <Section title="Recent">
         {showSkeletons ? (
-          <>
-            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
-            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
-            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
-          </>
-        ) : rows.length === 0 ? (
-          <Card padded={false}>
-            <EmptyState
+          <SkeletonRows count={3} />
+        ) : rows.length === 0 && !(q.isError && !q.data) ? (
+          <EmptyState
               icon="notifications"
               title="Nothing yet"
               subtitle="Fleet alerts, assignments, and shift updates land here."
             />
-          </Card>
+          
         ) : (
-          <Card padded={false}>
-            {rows.map((n, index) => (
-              <View key={n.id} className={n.read_at === null ? 'bg-surface-selected' : ''}>
+          <GroupedList>
+            {rows.map((n) => (
                 <ListRow
+                  key={n.id}
                   icon={CATEGORY_ICON[n.category] ?? 'info'}
                   iconFill={n.read_at === null}
                   // Severity is the disc's tone, so an unread critical alert and an unread
@@ -157,48 +127,21 @@ export default function NotificationsCentre() {
                   title={n.title}
                   subtitle={n.body ?? undefined}
                   onPress={() => openRow(n)}
+                  // Swipe-to-act (V8 plan): the one action a notification already has, on an unread row.
+                  swipeAction={n.read_at === null ? { label: 'Mark read', icon: 'done', onAction: () => markRead.mutate([n.id]) } : undefined}
                   right={
                     <View className="items-end gap-1">
                       <AppText variant="caption" tone="subtle" tabular>{timeLabel(n.created_at)}</AppText>
-                      {n.read_at === null ? <Badge label="New" tone={SEVERITY_TONE[n.severity] ?? 'info'} /> : null}
+                      {/* A word in the live cyan, never a pill (Visual 2026 D-DV14). */}
+                      {n.read_at === null ? <AppText variant="caption" weight="semibold" tone="accent">New</AppText> : null}
                     </View>
                   }
                 />
-                {index < rows.length - 1 ? <View className="ml-18 h-px bg-edge-subtle" /> : null}
-              </View>
             ))}
-          </Card>
+          </GroupedList>
         )}
       </Section>
 
-      {/* Preferences move to the END: a driver opening this screen came to read what arrived, not
-          to configure what may arrive later (B6.7 / Q-DB4 keeps them on one screen). */}
-      <Section title="Preferences">
-      {prefsError ? <Banner tone="danger" message={prefsError} /> : null}
-      <Card padded={false}>
-        {NOTIFICATION_CATEGORIES.map((category) => (
-          isMutable(category) ? (
-            <ToggleRow
-              key={category}
-              title={NOTIFICATION_CATEGORY_LABELS[category]}
-              value={!muted.has(category)}
-              disabled={updatePrefs.isPending}
-              onValueChange={() => { void toggleMute(category); }}
-            />
-          ) : (
-            <ListRow
-              key={category}
-              title={NOTIFICATION_CATEGORY_LABELS[category]}
-              subtitle="Always on · safety-critical"
-              right={<Icon name="lock" size={18} className="text-ink-subtle" />}
-            />
-          )
-        ))}
-      </Card>
-      <AppText variant="caption" tone="subtle" className="pb-2 text-center">
-        Muting is enforced by the server, so a muted category stays quiet on every device.
-      </AppText>
-      </Section>
     </Screen>
   );
 }

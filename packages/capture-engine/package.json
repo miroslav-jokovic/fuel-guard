@@ -17,9 +17,14 @@
     "fixtures:check": "node fixtures/generate.mjs --check",
     "targets": "node fixtures/targets/generate-targets.mjs",
     "targets:check": "node fixtures/targets/generate-targets.mjs --check",
-    "expected": "node fixtures/expected.mjs"
+    "expected": "node fixtures/expected.mjs",
+    "edges:score": "tsx tools/edges/score-edges.ts",
+    "edges:smartdoc": "tsx tools/edges/smartdoc-labels.ts",
+    "edges:import": "tsx tools/edges/import-photos.ts"
   },
   "devDependencies": {
+    "onnxruntime-node": "1.30.0",
+    "tsx": "4.22.4",
     "typescript": "6.0.3",
     "vitest": "4.1.9"
   }

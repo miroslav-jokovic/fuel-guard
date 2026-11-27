@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeAudit } from "../../../lib/audit.js";
+import { purgeTenstreetPosts } from "../tenstreet/leadPost.js";
 
 /**
  * Deleting a lead's personal details on request (2026-11-03 lead-path audit H2) — the reader of 0558's
@@ -13,7 +14,10 @@ import { writeAudit } from "../../../lib/audit.js";
  *  3. With `same_person`, every other lead of this carrier with that phone or email that is not purged yet.
  *     One that became an applicant is skipped and NAMED (purge the applicant for that), never failed: the
  *     person asked for their details to go, and the rest still can.
- *  4. One `recruitment.lead_purged` audit row per lead emptied: ids and counts, never a detail.
+ *  4. Each lead's kept Tenstreet posts are emptied too (0640's purge: the sealed application goes, the log row of
+ *     what arrived and what we answered stays) — also for a lead purged before, so a post kept since is not left
+ *     behind (TENSTREET-INTAKE-PLAN TS5, which first reads those bodies back).
+ *  5. One `recruitment.lead_purged` audit row per lead emptied: ids and counts, never a detail.
  */
 
 const REFUSALS: Record<string, { status: number; code: string; message: string }> = {
@@ -36,6 +40,7 @@ type PurgeAnswer = { purged: boolean; already: boolean; verdicts_deleted: number
 export async function purgeLead(
   admin: SupabaseClient,
   ask: { orgId: string; actorId: string; leadId: string; samePerson: boolean },
+  now: () => Date = () => new Date(),
 ): Promise<LeadPurgeOutcome> {
   const { data, error } = await admin
     .from("recruiting_leads").select("id, phone_e164, email_lower").eq("org_id", ask.orgId).eq("id", ask.leadId).maybeSingle();
@@ -58,14 +63,21 @@ export async function purgeLead(
       throw new Error(`purge_lead failed: ${pe.message}`);
     }
     const a = answer as PurgeAnswer;
+    const tenstreetPostsEmptied = await purgeTenstreetPosts(admin, ask.orgId, id, now());
     if (a.already) {
       result.already.push(id);
+      if (tenstreetPostsEmptied > 0) {
+        await writeAudit(admin, {
+          orgId: ask.orgId, actorId: ask.actorId, action: "recruitment.lead_purged", entity: "recruiting_leads", entityId: id,
+          meta: { already: true, tenstreetPostsEmptied },
+        });
+      }
       continue;
     }
     result.purged.push(id);
     await writeAudit(admin, {
       orgId: ask.orgId, actorId: ask.actorId, action: "recruitment.lead_purged", entity: "recruiting_leads", entityId: id,
-      meta: { verdictsDeleted: a.verdicts_deleted, contactsKept: a.contacts_kept, ...(id === lead.id ? {} : { samePersonAs: lead.id }) },
+      meta: { verdictsDeleted: a.verdicts_deleted, contactsKept: a.contacts_kept, tenstreetPostsEmptied, ...(id === lead.id ? {} : { samePersonAs: lead.id }) },
     });
   }
   return { ok: true, result };

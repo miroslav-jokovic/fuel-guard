@@ -15,6 +15,8 @@ vi.mock("@/features/ads/useAdsOverview", () => ({
 vi.mock("@/features/ads/useAdsSettings", () => ({
   useAdsSettings: () => ({ isLoading: ref(false), isFetching: ref(false), data: ref(state.settings ? { settings: state.settings } : undefined), error: ref(state.settingsError), refetch: () => {} }),
 }));
+// V7e's card has its own read and its own test (`AdsConversionLeadsCard.test.ts`).
+vi.mock("@/features/ads/useAdsConversionLeads", () => ({ useAdsConversionLeads: () => ({ isLoading: ref(true), isFetching: ref(false), data: ref(undefined), error: ref(null), refetch: () => {} }) }));
 vi.mock("@/features/ads/useAdsTabs", () => ({ useAdsTabs: () => ({ tabs: computed(() => []), canOpenSettings: computed(() => state.canOpenSettings) }) }));
 import AdsAutomationPage from "./AdsAutomationPage.vue";
 

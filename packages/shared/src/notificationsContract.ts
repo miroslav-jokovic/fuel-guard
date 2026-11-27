@@ -186,6 +186,13 @@ export const NOTIFICATION_CATEGORIES = [
   "lumper_rc_waiting",
   "lumper_rc_missing_billed",
   "lumper_billing_gap",
+  /**
+   * Broker mail (BROKER-MAIL-READER-PLAN P3): a broker email unanswered in a dispatcher's own Outlook
+   * past the company's time — the dispatcher's own text and bell — and the short notice to the backups
+   * an admin chose for that dispatcher. Mirrored in the CHECK (0651); nothing writes them until P3-b.
+   */
+  "broker_mail_waiting",
+  "broker_mail_backup",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -196,7 +203,9 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   load_offered: "New loads",
   load_changed: "Load changes",
   load_canceled: "Cancellations",
-  message_received: "Messages",
+  // "New message alerts", not "Messages": on the driver's settings screen a bare "Messages" reads as
+  // the Messages page itself (Q-DF-7, 2026-11-23).
+  message_received: "New message alerts",
   duty_auto_closed: "Shift closed automatically",
   performance_week: "Weekly score",
   training_due: "Training reminders",
@@ -246,13 +255,17 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   lumper_rc_waiting: "Revised RC missing",
   lumper_rc_missing_billed: "Invoiced without the revised RC",
   lumper_billing_gap: "Lumper not billed in full",
+  broker_mail_waiting: "Broker email unanswered",
+  broker_mail_backup: "Broker email unanswered (backup)",
 };
 
 /**
- * Categories a driver may NOT mute. A load being canceled while they are driving toward it is not a
- * preference — it is something they have to know. Everything else is theirs to switch off.
+ * Categories nobody may mute. A load being canceled while a driver is driving toward it is not a
+ * preference — it is something they have to know. Nor is a broker email unanswered in a dispatcher's
+ * own Outlook (Q-BM11, owner 2026-11-24: mandatory, day and night). Everything else is theirs to
+ * switch off. The preferences save drops these (`routes/notifications.ts`), so no screen can store one.
  */
-export const NON_MUTABLE_CATEGORIES: readonly NotificationCategory[] = ["load_canceled", "system"];
+export const NON_MUTABLE_CATEGORIES: readonly NotificationCategory[] = ["load_canceled", "system", "broker_mail_waiting"];
 
 export function isMutable(category: NotificationCategory): boolean {
   return !NON_MUTABLE_CATEGORIES.includes(category);
@@ -355,6 +368,9 @@ export function deepLinkFor(
     case "lumper_rc_missing_billed":
     case "lumper_billing_gap":
       return "/lumper-fees";
+    case "broker_mail_waiting":
+    case "broker_mail_backup":
+      return "/broker-mail";
     default:
       return null;
   }

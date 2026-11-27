@@ -10,7 +10,7 @@ import {
   PRODUCT_NAME,
   supportEmail,
 } from "@/features/legal/legalMeta";
-import { SMS_PRIVACY_ANCHOR, SMS_TERMS_PATH } from "@/lib/legalPaths";
+import { CAREERS_PRIVACY_ANCHOR, SMS_PRIVACY_ANCHOR, SMS_TERMS_PATH } from "@/lib/legalPaths";
 
 /**
  * The privacy policy (P3.2, D-PR9). Public, unauthenticated, indexable.
@@ -33,7 +33,7 @@ const email = computed(() => supportEmail());
 <template>
   <LegalDocument
     title="Privacy policy"
-    summary="What the Silvicom 360 driver app collects, why, who can see it, and how long it is kept — and what happens to the number you give us if you agree to texts about a job application."
+    summary="What the Silvicom 360 driver app collects, why, who can see it, and how long it is kept — what a careers page application keeps, and what happens to the number you give us if you agree to texts about a job application."
   >
     <LegalSection id="who-we-are" title="Who we are">
       <p>
@@ -195,11 +195,44 @@ const email = computed(() => supportEmail());
 
     <!-- SMS-OPT-IN-PLAN D-SMS4: the section a toll-free verification reviewer opens from the opt-in
          screenshot. Every promise in it is something the code enforces — see the page's header. -->
+    <!-- APPLY-PAGE-PLAN AP3, D-AP7: what the public careers page's form keeps. Every item is a field
+         `applySubmitSchema` carries or what the API records beside it (`raw.client`, `raw.checks`). No retention
+         period is promised: that is Q-REC7, still open. -->
+    <LegalSection :id="CAREERS_PRIVACY_ANCHOR" title="Applying on a carrier's careers page">
+      <p>
+        A carrier that uses {{ PRODUCT_NAME }} may publish its open driving jobs on a public careers page,
+        each with a short form. When you send that form, the carrier keeps:
+      </p>
+      <ul class="list-disc space-y-1.5 pl-5">
+        <li>your name, mobile number and email, as you typed them;</li>
+        <li>your answers to the job's questions, and which job you applied for;</li>
+        <li>whether you ticked the box to be texted about your application;</li>
+        <li>when you sent it, and the internet address and browser you sent it from;</li>
+        <li>the result of the robot check described below.</li>
+      </ul>
+      <p>
+        The form does not ask for your licence number, your address, your date of birth or your Social
+        Security number. Those come later, if you are invited to complete a full application.
+      </p>
+      <p>
+        To keep automated submissions out, the page uses Cloudflare Turnstile. Its script runs on the page
+        and receives your internet address and browser details to decide whether a person is sending the
+        form. Cloudflare's own privacy policy covers what it does with them. A failed check never stops
+        you applying. It marks the application so a recruiter looks at it before relying on it.
+      </p>
+      <p>
+        The carrier uses what you sent to contact you about the job, and to judge whether the job fits
+        you on the answers you gave. It is seen by the carrier's office staff who handle hiring, and by our own staff only as
+        <a href="#who-sees-it" class="text-link hover:text-link-hover">Who can see it</a> describes.
+      </p>
+    </LegalSection>
+
     <LegalSection :id="SMS_PRIVACY_ANCHOR" title="Text messages about a driver application">
       <p>
-        If you apply to drive for a carrier that uses {{ PRODUCT_NAME }}, your application link may
-        offer to text you about your application. Agreeing is optional and is never a condition of
-        applying or of being considered. The full programme terms are on the
+        If you apply to drive for a carrier that uses {{ PRODUCT_NAME }}, the carrier's careers page or
+        your private application link may offer to text you about your application, or you may ask the
+        carrier's recruiter to text you your application link. Agreeing is optional and is never a
+        condition of applying or of being considered. The full programme terms are on the
         <RouterLink :to="SMS_TERMS_PATH" class="text-link hover:text-link-hover">text message terms</RouterLink>
         page.
       </p>
@@ -207,7 +240,9 @@ const email = computed(() => supportEmail());
       <ul class="list-disc space-y-1.5 pl-5">
         <li>the mobile number you typed;</li>
         <li>the exact wording you agreed to and its version;</li>
-        <li>the date and time you agreed, and the internet address and browser you agreed from;</li>
+        <li>the date and time you agreed, and the internet address and browser you agreed from; when a
+          recruiter records that you asked to be texted, the recruiter's internet address and browser,
+          and their name on our audit record;</li>
         <li>if you stop the texts, when and how you did.</li>
       </ul>
       <p>
@@ -227,8 +262,8 @@ const email = computed(() => supportEmail());
         provider that deliver the texts, and only to deliver them.
       </p>
       <p>
-        Reply STOP to any message, turn texts off on your application page, or ask the carrier's
-        office, and we stop. The record of your agreement is kept, marked as stopped, because it is
+        Reply STOP to any message, or ask the carrier's office, and we stop; if you have a private
+        application page, you can also turn texts off there. The record of your agreement is kept, marked as stopped, because it is
         the evidence of what you did and did not agree to.
       </p>
       <!-- HOME-TIME HT6: the office programme, on its own number. What is listed is what

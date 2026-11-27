@@ -12,6 +12,7 @@ import { applicationIntakeLimiter, isApplicationLink, packetCeremonyLimiter } fr
 import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
 import { drainKindNow } from "./queue/inprocessDrain.js";
+import { leadRecipientsFor } from "./queue/handlers/leadSinkFor.js";
 import { accessReviewRouter, invitesRouter, memberPasswordResetRouter, publicInvitesRouter, publicPasswordResetRouter, rolePermissionsRouter, sectionAccessRouter, surfaceAccessRouter } from "./modules/org/index.js";
 import {
   memberDevicesRouter,
@@ -25,6 +26,7 @@ import {
 import { dashboardLayoutRouter, orgSettingsRouter, pageViewsRouter, savedViewsRouter } from "./modules/org/index.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
 import { tollsRouter } from "./modules/tolls/index.js";
+import { publicTrainingRouter, trainingRouter } from "./modules/training/index.js";
 import { anomaliesRouter, cardFraudIncidentsRouter } from "./modules/anomalies/index.js";
 import { reportsRouter, aiRouter, dashboardRouter } from "./modules/insights/index.js";
 import { iftaRouter } from "./modules/ifta/index.js";
@@ -36,6 +38,7 @@ import { registerTagResolvers } from "./tags/resolvers.js";
 import { auditRouter } from "./modules/org/index.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { dispatchLinksRouter, lumperCasesRouter, lumperReminderSettingsRouter, tmsIngestRouter, tmsRosterMasterRouter } from "./modules/mcleod/index.js";
+import { brokerMailRouter } from "./modules/broker-mail/index.js";
 import { fuelingRouter } from "./routes/fueling.js";
 import { fuelCardCapabilityRouter } from "./modules/efs/router.js";
 import { fuelCardEchoScanRouter } from "./modules/efs/routes/echoScan.js";
@@ -62,7 +65,7 @@ import { drugAlcoholRouter } from "./modules/medstop/index.js";
 import { adsRouter, META_WEBHOOK_PATH, metaWebhookBootWarning, metaWebhookRouter } from "./modules/ads/index.js";
 import { roadsideInspectionsRouter } from "./modules/inspections/index.js";
 import { hazmatRouter, meHazmatRouter, publicHazmatRouter } from "./modules/hazmat/index.js";
-import { publicApplicationRouter, recordOrderedDrugTest, recruitingBriefSource, recruitingLeadSources, recruitmentRouter, releaseOrderedDrugTest } from "./modules/recruiting/index.js";
+import { applicantTrainingTexter, publicApplicationRouter, publicCareersRouter, turnstileBootWarning, recordOrderedDrugTest, recruitingBriefSource, recruitingLeadSources, recruitmentRouter, releaseOrderedDrugTest, TENSTREET_WEBHOOK_PATH, tenstreetBootWarning, tenstreetWebhookRouter } from "./modules/recruiting/index.js";
 import { complianceRouter } from "./modules/evidence/index.js";
 import { driverAppSettingsRouter, meRouter } from "./modules/driver-app/index.js";
 import { alertRoutingRouter, chatRouters, myAlertsRouter, notificationsRouter, messagesRouter } from "./modules/messaging/index.js";
@@ -152,6 +155,15 @@ function mountPublic(app: Express): void {
   app.use("/api/public/application", applicationIntakeLimiter());
   app.use("/api/public/application", packetCeremonyLimiter());
   app.use("/api/public/application", publicApplicationRouter());
+  // The public careers page and its apply form (APPLY-PAGE-PLAN AP2): `/api/public`'s 60-a-minute bucket is its only
+  // limiter, because a check that fails FLAGS a lead and never refuses one (D-AP5). Who hears a new lead crosses in here,
+  // as for Meta's and Tenstreet's leads (recruiting may not import ads).
+  app.use("/api/public/careers", publicCareersRouter({ recipientsFor: leadRecipientsFor }));
+  // A driver's safety-training link (D-TR2): the token is the credential. A film page reports progress every ten seconds
+  // and a quiz posts one answer at a time, so 120 a minute per address covers several drivers sharing a truck stop's
+  // Wi-Fi and still bounds a guessing run, which 144 random bits make pointless anyway. Same one-line rule as above.
+  app.use("/api/public/training", rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: "draft-7", legacyHeaders: false }));
+  app.use("/api/public/training", publicTrainingRouter());
 }
 
 /** The P5 finance sections — split out of createApp at the 200-line function budget. The
@@ -248,8 +260,11 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/notes", unitNotesRouter()); // notes on drivers, trucks, trailers — office-wide (UNIT-NOTES D-UN4)
   app.use("/api/roster/home-time", rosterHomeTimeRouter()); // a driver's home time and return, marked by dispatch (HOME-TIME D-HT7)
   app.use("/api/tolls", tollsRouter()); // toll tags on trucks, gated on equipment (TOLLS-PER-TRUCK-PLAN TL2)
+  // Safety → Training (SAFETY-VIDEOS-AND-QUIZZES-ANALYSIS): gated safety + the training module; applicants are texted by recruiting's texter (D-TR11).
+  app.use("/api/training", trainingRouter({ texter: applicantTrainingTexter }));
   app.use("/api/lumper-cases", lumperCasesRouter()); // every load where we paid a lumper, and whether the revised RC is on file (LUMPER-REVISED-RC LRC3)
   app.use("/api/lumper-reminders/settings", lumperReminderSettingsRouter()); // the daily reminder's switch, on Settings › Notifications (LRC4, D-LRC9)
+  app.use("/api/broker-mail", brokerMailRouter()); // the Broker mail page and Settings › Broker mail (BROKER-MAIL-READER-PLAN P2)
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
   app.use("/api/card-fraud-incidents", cardFraudIncidentsRouter());
@@ -304,6 +319,12 @@ function mountApiRouters(app: Express, env: Env): void {
   if (metaWebhookWarning) console.warn(metaWebhookWarning);
   const stepUpWarning = stepUpBootWarning(env); // Q-AD41 (b): a deploy that cannot do "Confirm it's you" says so here
   if (stepUpWarning) console.warn(stepUpWarning);
+  // Tenstreet's application posts (TS3): the URL secret + Company ID; its own text/xml parser, before the JSON one.
+  const tenstreetWarning = tenstreetBootWarning(env);
+  if (tenstreetWarning) console.warn(tenstreetWarning);
+  const turnstileWarning = turnstileBootWarning(env); // the careers page's robot check (APPLY-PAGE-PLAN D-AP6)
+  if (turnstileWarning) console.warn(turnstileWarning);
+  app.use(TENSTREET_WEBHOOK_PATH, tenstreetWebhookRouter({ kick: (e, admin, n) => drainKindNow(e, admin, "tenstreet_post_process", n) }));
   app.use(META_WEBHOOK_PATH, metaWebhookRouter({ kick: (e, admin, n) => drainKindNow(e, admin, "ads_lead_fetch", n) })); // Meta leadgen (ads B4b): X-Hub-Signature-256; no user auth
   app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth
 }

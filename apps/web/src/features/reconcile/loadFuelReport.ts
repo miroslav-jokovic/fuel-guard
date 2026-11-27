@@ -11,7 +11,7 @@
  */
 import {
   parsePilotFuelReport,
-  parsePilotStatement,
+  parsePilotWeeklyBill,
   type PilotReportFill,
   type StatementLine,
   type StatementTieOut,
@@ -62,11 +62,11 @@ export async function loadFuelReport(file: File): Promise<LoadedReport> {
 
 async function loadStatementPdf(buf: ArrayBuffer, fileName: string): Promise<LoadedReport> {
   const words = await readPdfWords(buf);
-  const parsed = parsePilotStatement(words);
+  const parsed = parsePilotWeeklyBill(words);
   if (!parsed.headerFound) {
     throw new ReportLoadError(
-      "That PDF isn't a Pilot statement",
-      "We couldn't find the transaction table. Upload the weekly direct-bill statement from Pilot Receivables.",
+      "That PDF isn't a Pilot weekly bill",
+      "We couldn't find the transaction table. Upload the weekly direct-bill statement or invoice from Pilot Receivables.",
     );
   }
   // The statement checks its own arithmetic; if we can't reproduce it, we have mis-read a column and

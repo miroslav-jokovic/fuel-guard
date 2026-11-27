@@ -46,10 +46,10 @@ A new `RAILWAY_*` read is never the answer: read the platform-neutral name (`GIT
 
 ## Commands
 
-- `pnpm ci:local` — before a push: runs on this machine the steps `ci.yml` runs on a PR, read from
-  `ci.yml` (never a guessed subset), and lists every failure, not the first. `--list` shows the plan,
-  `--job gates,typecheck` narrows it. Commit first: CI tests the commit, and so do some gates. It refuses
-  to start in a fresh worktree until `pnpm install --frozen-lockfile && pnpm --filter @silvicom/shared build:rn`.
+- Check in three tiers. While coding: the changed code's test file and its package's typecheck. Once the whole
+  change is written: commit, then ONE `pnpm ci:local` (runs `ci.yml`'s PR steps, lists every failure; `--job gates`
+  narrows it; a fresh worktree first needs `pnpm install --frozen-lockfile && pnpm --filter @silvicom/shared build:rn`).
+  Then push once: CI is the full gate, so a red CI means fixing that gate, not re-running everything locally.
 - `pnpm test` — unit suites AND every `supabase/tests/*.test.mjs` matrix, unconditionally. Matrices are
   auto-discovered and must print a `RESULT` line; a silent matrix fails.
 - `pnpm typecheck` · `pnpm lint` · `pnpm build` (artefacts only: the web and admin bundles and tokens.css — `pnpm typecheck` is the one type gate).

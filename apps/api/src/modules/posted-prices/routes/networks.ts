@@ -6,6 +6,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { ingestPilotPrices } from "../pilotPriceIngest.js";
 import { ingestPilotLocations } from "../pilotLocationsIngest.js";
 import { readPilotPriceMails } from "../pilotPriceMail.js";
+import { readPilotSftpFiles } from "../pilotSftpFeed.js";
 import { ingestPostedPrices } from "../postedPriceIngest.js";
 import { gatePostedBatch, runPostedPriceFetch, POSTED_SOURCE_XLSX } from "../postedPriceFetch.js";
 import { runKwikTripSync } from "../kwikTripIngest.js";
@@ -66,6 +67,18 @@ export function registerNetworkRoutes(router: Router): void {
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       res.json({ mails: await readPilotPriceMails(admin, req.auth!.orgId!) });
+    }),
+  );
+
+  // The files the API took from Pilot's SFTP drop (PILOT-SFTP-FEED-PLAN §6): loaded, held for a reader that does
+  // not exist yet, refused, or failed and why. Same gate as the emailed quotes above, for the same reason.
+  router.get(
+    "/prices/sftp",
+    requireOrg,
+    requireSection("dispatch"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json({ files: await readPilotSftpFiles(admin, req.auth!.orgId!) });
     }),
   );
 

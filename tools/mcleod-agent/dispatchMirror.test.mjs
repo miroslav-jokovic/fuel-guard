@@ -133,3 +133,43 @@ test("stops are stitched to their own movement only", () => {
   );
   assert.deepEqual(out.movements.map((m) => m.stops.map((s) => s.stop_id)), [["zz1A2B3C"], ["other"]]);
 });
+
+// LOAD-RATES-PLAN R4: the order's charges ride on every movement, all seven keys at once — the API
+// refuses a movement or a batch carrying some but not all (`orderChargeProblem`, D-RATE9).
+const CHARGE_KEYS = ["total_charge", "freight_charge", "otherchargetotal", "total_charge_c", "bill_distance", "bill_distance_um",
+  "order_loaded_movements"];
+const priced = (over = {}) => row({
+  total_charge: 3620, freight_charge: 3400, otherchargetotal: 220, total_charge_c: "USD ", bill_distance: 836.0,
+  bill_distance_um: "MI  ", order_loaded_movements: 2, ...over,
+});
+
+test("a movement carries its order's charges as McLeod states them, text trimmed", () => {
+  const m = mapDispatchMovement(priced(), []);
+  assert.deepEqual(Object.fromEntries(CHARGE_KEYS.map((k) => [k, m[k]])), {
+    total_charge: 3620, freight_charge: 3400, otherchargetotal: 220, total_charge_c: "USD", bill_distance: 836,
+    bill_distance_um: "MI", order_loaded_movements: 2,
+  });
+});
+
+test("a numeric string becomes a number, and a negative other charge stays negative (McLeod records them)", () => {
+  const m = mapDispatchMovement(priced({ total_charge: "3000.00", freight_charge: "4000.00", otherchargetotal: "-1000.00" }), []);
+  assert.equal(m.total_charge, 3000);
+  assert.equal(m.freight_charge, 4000);
+  assert.equal(m.otherchargetotal, -1000);
+  // $0 is McLeod's figure (10 orders since 01-01), not a blank.
+  assert.equal(mapDispatchMovement(priced({ total_charge: 0 }), []).total_charge, 0);
+});
+
+test("all seven keys are present even where McLeod is blank or there is no order — null, never missing", () => {
+  for (const m of [
+    mapDispatchMovement(row({ ref: null }), []),
+    mapDispatchMovement(priced({ total_charge: null, total_charge_c: "  ", bill_distance_um: "" }), []),
+  ]) {
+    for (const k of CHARGE_KEYS) assert.ok(k in m, `${k} missing`);
+  }
+  const blank = mapDispatchMovement(priced({ total_charge: null, total_charge_c: "  ", bill_distance_um: "" }), []);
+  assert.equal(blank.total_charge, null);
+  assert.equal(blank.total_charge_c, null);
+  assert.equal(blank.bill_distance_um, null);
+  for (const k of CHARGE_KEYS) assert.equal(mapDispatchMovement(row({ ref: null }), [])[k], null);
+});

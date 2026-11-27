@@ -210,6 +210,13 @@ const API_ALLOW = new Set([
   // `organizations`. One function through org's index — the same arrow evidence, maintenance and
   // inspections draw for it — so the board and the Shop's disagreements list cannot cut different days.
   "livemap -> org",
+  // Broker mail (BROKER-MAIL-READER-PLAN P2) asks org two questions through its index only: who may see
+  // every dispatcher's mail (`holdsNamedPermission`, Q-BM9) and what each member is called
+  // (`listOfficeMembers`), so the page and the admin's mailbox list name people the way the Users page does.
+  "broker-mail -> org",
+  // Broker mail's texts (P3) leave through messaging's one text road — `sendAlerts` and the drain with its door
+  // hook — through its index only; messaging imports nothing of broker-mail's.
+  "broker-mail -> messaging",
   // The driver's own account closure (P4.2) closes their login by calling the roster module's
   // `disableDriverLogin` through its index — the ban, the push-token revoke and the
   // `app_access_enabled` flag. A second ban path in driver-app would be two implementations of
@@ -255,6 +262,10 @@ const API_ALLOW = new Set([
   // all 24 existing waivers are an owner acting on its own table, and a foreign shortcut would have
   // been a new kind. This edge IS that ruling: a new arrow instead of a new hole.
   "idle -> posted-prices",
+  // The weekly Pilot bill rebuilt in the old columns checks each diesel line against Pilot's quote for that
+  // store and day (PILOT-INVOICE-FORMAT-ANALYSIS-2026-11-24 §3). Same ruling as the edge above: it asks
+  // through posted-prices' own reader (`readPilotQuotes`), never a waiver on `fuel_prices`.
+  "fuel-spend -> posted-prices",
   // Scoring judges a fill against the truck Samsara actually saw — the tank reconciliation.
   "anomalies -> samsara",
   // GPS co-location pairing: the collector infers which tractor a trailer travels with, but the
@@ -403,6 +414,11 @@ const API_ALLOW = new Set([
   // The attribution trail reads Samsara's driver↔vehicle segments, the roster's
   // `driver_vehicle_assignments`, through the roster's reader (DISPATCH-LOADS-COUNTS-PLAN D-DLC5).
   "loads -> roster",
+  // What each load pays is withheld from a reader the carrier has not switched on (LOAD-RATES-PLAN
+  // D-RATE7): the Loads list and one load ask `holdsNamedPermission` — org's per-request read of
+  // `org_role_permissions` — before adding `charges`, the same gate roster's notes routes ask through the
+  // same index. One function; org imports nothing of loads'.
+  "loads -> org",
   // A red hazmat verdict tells the office through the same fabric as everyone else.
   "hazmat -> messaging",
   // The Samsara scheduler paces the score sync and week snapshots — the cadence clock again.
@@ -635,6 +651,51 @@ for (const [rel, forbiddenSpecs, why] of PURE_PACKAGES) {
   }
 }
 
+// ── the mail gateway (BROKER-MAIL-READER-PLAN D-BMR2): a closed list of imports, and no importers. ──
+// apps/mail-gateway holds a token that opens every dispatcher mailbox in its Exchange scope, so what it
+// may load is an ALLOWLIST, not a deny-list: its own files, @silvicom/shared (the contract), the
+// database and AWS clients it runs on, zod and node builtins. No @supabase client (its database door is
+// six functions over `postgres`, never the service role), no Express, nothing from another app. And no
+// file anywhere else may import it — the API reaches the gateway only through the database.
+const MAIL_GATEWAY_ALLOWED = [/^\.\/(?!.*\.\.\/)/, /^\.\.\/(?!\.\.\/)(?!.*\/\.\.\/)/, /^@silvicom\/shared$/, /^postgres$/, /^@aws-sdk\/client-(sts|ssm)$/, /^zod$/, /^vitest$/, /^node:[a-z_/]+$/];
+
+/** Pure so the self-test can plant source. `file` is repo-relative. */
+function mailGatewayViolations(file, src) {
+  const out = [];
+  const specs = [...src.matchAll(/(?:from|import)\s+["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']/g)].map((m) => m[1] ?? m[2]);
+  // The allowlist covers what is BUNDLED into the Lambda — `src/`. A build script beside it
+  // (build.mjs, which loads esbuild) runs on the CI machine and never ships.
+  if (file.startsWith("apps/mail-gateway/src/")) {
+    for (const spec of specs) {
+      if (!MAIL_GATEWAY_ALLOWED.some((re) => re.test(spec))) out.push(`${file}  imports ${spec}  (the mail gateway imports only its allowlist — D-BMR2)`);
+    }
+  } else if (!file.startsWith("apps/mail-gateway/")) {
+    for (const spec of specs) {
+      if (/^@silvicom\/mail-gateway(\/|$)/.test(spec) || /(^|\/)apps\/mail-gateway\//.test(spec) || /(^|\/)mail-gateway\/src\//.test(spec)) {
+        out.push(`${file}  imports ${spec}  (nothing may import the mail gateway — D-BMR2)`);
+      }
+    }
+  }
+  return out;
+}
+
+// Its own walk: `walk()` above descends into node_modules, which is fine for one feature folder and
+// not for the whole of apps/ and packages/. Source only — build output and installed packages skipped.
+function sourceFiles(dir, out = []) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (e.isDirectory()) {
+      if (["node_modules", "dist", "build", ".expo", "android", "ios", "coverage"].includes(e.name) || e.name.startsWith(".")) continue;
+      sourceFiles(join(dir, e.name), out);
+    } else if (/\.(ts|tsx|vue|mjs|js)$/.test(e.name)) out.push(join(dir, e.name));
+  }
+  return out;
+}
+for (const base of ["apps", "packages"]) {
+  for (const file of sourceFiles(join(ROOT, base))) {
+    violations.push(...mailGatewayViolations(relative(ROOT, file), readFileSync(file, "utf8")));
+  }
+}
+
 // ── determinism: output must be a pure function of input (audit: engine-determinism). ──
 // Two packages are in scope, and they are in scope for the same reason rather than by coincidence:
 // each has TWO callers that must agree to the byte. @hazmat/engine's verdict is rendered on screen
@@ -741,6 +802,26 @@ if (process.argv.includes("--self-test")) {
   }
   if (packageImportViolations("packages/qr/src/clean.ts", 'import { encode } from "uqr";', ["@silvicom/", "@/", "@hazmat/"], "self-test").length) {
     fails.push("package-boundary detector fired on a legitimate third-party import");
+  }
+
+  // The mail gateway's two directions (D-BMR2).
+  if (!mailGatewayViolations("apps/mail-gateway/src/x.ts", 'import { createClient } from "@supabase/supabase-js";').length) {
+    fails.push("mail-gateway allowlist did not fire on a planted @supabase import");
+  }
+  if (!mailGatewayViolations("apps/mail-gateway/src/x.ts", 'import { complete } from "../../api/src/lib/anthropic.js";').length) {
+    fails.push("mail-gateway allowlist did not fire on a relative climb into another app");
+  }
+  if (!mailGatewayViolations("apps/mail-gateway/src/x.ts", 'import { build } from "esbuild";').length) {
+    fails.push("mail-gateway allowlist did not fire on a build tool imported from src/");
+  }
+  if (mailGatewayViolations("apps/mail-gateway/build.mjs", 'import { build } from "esbuild";').length) {
+    fails.push("mail-gateway allowlist fired on the build script, which is never bundled");
+  }
+  if (mailGatewayViolations("apps/mail-gateway/src/x.ts", 'import { z } from "zod";\nimport postgres from "postgres";\nimport { a } from "./a.js";').length) {
+    fails.push("mail-gateway allowlist fired on allowed imports");
+  }
+  if (!mailGatewayViolations("apps/api/src/modules/broker-mail/x.ts", 'import { runCycle } from "@silvicom/mail-gateway";').length) {
+    fails.push("mail-gateway importer rule did not fire on a planted import from apps/api");
   }
 
   if (violations.length) {

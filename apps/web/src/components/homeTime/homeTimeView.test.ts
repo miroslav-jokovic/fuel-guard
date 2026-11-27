@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HOME_TIME_CHIPS } from "@silvicom/shared";
-import { fromWallTime, homeTimeChipTone, homeTimeChipWords, spanWords, toWallTime } from "./homeTimeView";
+import { fromWallTime, homeTimeChipTone, homeTimeChipWords, homeTimeStatusWords, spanWords, toWallTime } from "./homeTimeView";
 
 /**
  * How home time is worded, and how the form's clock is read (HOME-TIME-PLAN §3.3, §3.4). The clock is
@@ -73,5 +73,24 @@ describe("the form's clock", () => {
     expect(fromWallTime("", ZONE)).toBeNull();
     expect(fromWallTime(null, ZONE)).toBeNull();
     expect(fromWallTime("2026-11-18", ZONE)).toBeNull();
+  });
+});
+
+describe("homeTimeStatusWords (HOME-TIME-VISIBILITY-PLAN D-HT21)", () => {
+  const p = { startAt: "2026-11-16T21:32:00Z", expectedReturnAt: "2026-11-24T21:32:00Z" };
+
+  it("says each live state with its day on the carrier's clock, overdue in red", () => {
+    expect(homeTimeStatusWords({ ...p, state: "scheduled" }, ZONE)).toMatchObject({ label: "Home time from 11/16", tone: "neutral" });
+    expect(homeTimeStatusWords({ ...p, state: "active" }, ZONE)).toMatchObject({ label: "Home until 11/24", tone: "brand" });
+    expect(homeTimeStatusWords({ ...p, state: "overdue" }, ZONE)).toMatchObject({ label: "Overdue since 11/24", tone: "danger" });
+  });
+
+  it("puts the full time in the title", () => {
+    expect(homeTimeStatusWords({ ...p, state: "active" }, ZONE)!.title).toContain("11/24/2026");
+  });
+
+  it("has no badge for a period that is over", () => {
+    expect(homeTimeStatusWords({ ...p, state: "ended" }, ZONE)).toBeNull();
+    expect(homeTimeStatusWords({ ...p, state: "canceled" }, ZONE)).toBeNull();
   });
 });

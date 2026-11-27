@@ -68,6 +68,10 @@ export const DRIVER_REASSIGNMENTS: ReadonlyArray<{ table: string; column: string
   // came from Meta" survives the merge. Its guard lets only `driver_id` move (RL011) and the composite
   // FK keeps it inside the carrier; `on delete restrict`, so a missing line aborts the merge, never loses it.
   { table: "lead_conversions", column: "driver_id", orgScoped: true },
+  // Driver safety training (0648): what a driver was sent and, through it, every quiz they took — the
+  // record goes with the person. Its guard lets only `driver_id` move, inside the carrier (TR022); the FK
+  // is NO ACTION, so a merge that forgot this line stops at the driver delete instead of losing it.
+  { table: "training_assignments", column: "driver_id", orgScoped: true },
   // §391.51 events go with the driver (0203)
   { table: "qualification_records", column: "driver_id", orgScoped: true },
   // The four FKs check-driver-references.mjs found UNHANDLED by the SQL merge on its first run

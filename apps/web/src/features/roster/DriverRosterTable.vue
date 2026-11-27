@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
-import type { Driver, DqRosterCell, DqRosterColumnKey } from "@silvicom/shared";
-import { canManageDriverIdentity, driverAppAccess } from "@silvicom/shared";
+import type { Driver, DqRosterCell, DqRosterColumnKey, HomeTimePeriod } from "@silvicom/shared";
+import { canManageDriverIdentity, driverAppAccess, unitsByDriver } from "@silvicom/shared";
 import {
   AppButton as BaseButton,
   DataTable,
@@ -16,6 +16,7 @@ import { useVehiclesQuery } from "@/composables/useVehicles";
 import KebabMenu from "@/components/KebabMenu.vue";
 import FileCell from "@/components/files/FileCell.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
+import HomeTimeBadge from "@/components/homeTime/HomeTimeBadge.vue";
 import NotesCell from "@/components/notes/NotesCell.vue";
 import { useUnitNoteSummary } from "@/components/notes/useUnitNotes";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -57,6 +58,10 @@ const props = defineProps<{
    */
   selectable?: boolean;
   selected?: Set<string>;
+  /** Each driver's live home time, for a reader who may read it (D-HT24); absent for anybody else. */
+  homeTimes?: ReadonlyMap<string, HomeTimePeriod>;
+  /** The carrier's clock, for the home-time badge's day. */
+  zone?: string;
 }>();
 
 const emit = defineEmits<{
@@ -124,21 +129,13 @@ const expiry = (driverId: string, key: DqRosterColumnKey) =>
   dqExpiryBadge(requirementsByDriver.value.get(driverId)?.get(key), formatDate);
 
 /**
- * Vehicles assigned to a driver (assignment is set from the Vehicles page). Indexed for the same
- * reason as the rollup above — a per-row `.filter()` over the whole vehicle list is the same O(n²).
+ * The trucks a driver sits in, either seat (`unitsByDriver`, HOME-TIME-VISIBILITY-PLAN D-HT22) — the
+ * same map the page's search reads, so a unit this column shows is a unit the search finds. Until
+ * 2026-11-23 it listed the first seat only, and a co-driver's row read "—" while he was in the truck.
  */
 const { data: vehicles } = useVehiclesQuery();
-const unitsByDriver = computed(() => {
-  const byDriver = new Map<string, string[]>();
-  for (const v of vehicles.value ?? []) {
-    if (!v.assigned_driver_id) continue;
-    const units = byDriver.get(v.assigned_driver_id);
-    if (units) units.push(v.unit_number);
-    else byDriver.set(v.assigned_driver_id, [v.unit_number]);
-  }
-  return byDriver;
-});
-const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.join(", ") || "—";
+const unitsOf = computed(() => unitsByDriver(vehicles.value ?? []));
+const assignedUnits = (driverId: string) => unitsOf.value.get(driverId)?.join(", ") || "—";
 
 /** The Notes column's counts (UNIT-NOTES-PLAN D-UN12), refreshed with the roster's own list (D-UN10). */
 const notes = useUnitNoteSummary("driver", useDriversQuery().dataUpdatedAt);
@@ -162,6 +159,13 @@ const notes = useUnitNoteSummary("driver", useDriversQuery().dataUpdatedAt);
     @sort="emit('sort', $event)"
     @retry="emit('retry')"
   >
+    <!-- Home time under the NAME (HOME-TIME-VISIBILITY-PLAN D-HT24), the one column that never scrolls
+         away. It first sat beside the employment badge in Status — the last of fifteen columns, off the
+         screen at 1440 px on staging 2026-11-23, so the roster "showed" it to nobody. Opens the period. -->
+    <template #cell-full_name="{ row }">
+      <div>{{ row.full_name }}</div>
+      <HomeTimeBadge v-if="zone && homeTimes?.get(row.id)" :period="homeTimes.get(row.id)!" :zone="zone" class="mt-0.5" />
+    </template>
     <template #cell-samsara_username="{ row }">{{ row.samsara_username || "—" }}</template>
     <template #cell-phone="{ row }"><PhoneContact :phone="row.phone" :name="row.full_name" /></template>
     <template #cell-current_hos_status="{ row }">
@@ -229,7 +233,7 @@ const notes = useUnitNoteSummary("driver", useDriversQuery().dataUpdatedAt);
       >{{ expiry(row.id, "endorsement_hazmat")!.label }}</RouterLink>
       <span v-else class="text-ink-tertiary">—</span>
     </template>
-    <template #cell-notes="{ row }"><NotesCell kind="driver" :id="row.id" :label="row.full_name" :summary="notes.summary.value[row.id]" /></template>
+    <template #cell-notes="{ row }"><NotesCell :id="row.id" kind="driver" :label="row.full_name" :summary="notes.summary.value[row.id]" /></template>
     <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>
     <template #cell-status="{ row }">
       <StatusBadge :status="row.status" />

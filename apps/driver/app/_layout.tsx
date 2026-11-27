@@ -1,12 +1,6 @@
 import "../global.css";
 import { useEffect } from "react";
 import { useFonts } from "expo-font";
-import {
-  Lexend_400Regular,
-  Lexend_500Medium,
-  Lexend_600SemiBold,
-  Lexend_700Bold,
-} from "@expo-google-fonts/lexend";
 import { Stack, useRouter, useSegments } from "expo-router";
 import Constants from "expo-constants";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -14,6 +8,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { isVersionBelow } from "@silvicom/shared";
 import { ThemeProvider } from "@/theme/ThemeProvider";
+import { DISPLAY_FACE, DISPLAY_FACE_BOLD } from "@/theme/typography";
+import { ICON_FACE, ICON_FACE_FILL } from "@/theme/iconFont";
 import { SessionProvider, useSession } from "@/session/SessionProvider";
 import { useFeatures } from "@/session/useFeatures";
 import { UpdateRequired } from "@/components/UpdateRequired";
@@ -152,6 +148,11 @@ function RootNavigator() {
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="loads/[id]" />
+      {/* Score and Navigate were hidden JS tabs until V3; a hidden native tab cannot be reached, so
+          they are pushed screens here and keep their URLs (/score from More, Home and a
+          notification; /navigate is the dev-only nav seam, D52). */}
+      <Stack.Screen name="score" />
+      <Stack.Screen name="navigate" options={{ presentation: "modal" }} />
       {/* Contextual work is a modal over the shell, never a tab (D51/§22.1). */}
       <Stack.Screen name="duty/check-in" options={{ presentation: "modal" }} />
       <Stack.Screen name="drive" options={{ presentation: "modal" }} />
@@ -161,9 +162,14 @@ function RootNavigator() {
       {/* Hazmat capture + verdict (hardening plan Phase 3) — same modal contract as the other
           contextual surfaces. The hub itself is the Documents TAB since D-DB14. */}
       <Stack.Screen name="hazmat/capture" options={{ presentation: "modal" }} />
+      {/* The scanner (D-LED6): full screen, and no swipe-down — a driver steadying a page must not
+          dismiss it by accident. Close is its own button. */}
+      <Stack.Screen name="scan" options={{ presentation: "fullScreenModal", gestureEnabled: false }} />
       <Stack.Screen name="hazmat/[loadId]" options={{ presentation: "modal" }} />
       {/* Notification centre (Phase 6) — opened from the Home bell, gated on `notifications`. */}
       <Stack.Screen name="notifications" options={{ presentation: "modal" }} />
+      {/* Notification switches (Q-DF-7, 2026-11-23) — opened from More › Settings. */}
+      <Stack.Screen name="notification-settings" options={{ presentation: "modal" }} />
       {/* Messages (Phase 7) — inbox + conversation, gated on `messages`. */}
       <Stack.Screen name="messages/index" options={{ presentation: "modal" }} />
       <Stack.Screen name="messages/[id]" options={{ presentation: "modal" }} />
@@ -172,14 +178,16 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
-  // Direction B D-DB3: Lexend is the ONE typeface. Every AppText variant names one of these four
-  // families directly, because in React Native a weight utility does nothing for a loaded custom
-  // face — the family IS the weight.
+  // Visual 2026 D-DV8: text is the platform face, which needs no loading. Only the carrier's display
+  // face is bundled — the two static cuts of Big Shoulders Display, instanced from Google Fonts' OFL
+  // variable font (provenance in src/theme/typography.ts). Keyed by the names typography.ts uses, so
+  // the family a style asks for and the family loaded here cannot differ.
   const [fontsLoaded] = useFonts({
-    Lexend_400Regular,
-    Lexend_500Medium,
-    Lexend_600SemiBold,
-    Lexend_700Bold,
+    [DISPLAY_FACE]: require("../assets/fonts/BigShouldersDisplay-ExtraBold.ttf") as number,
+    [DISPLAY_FACE_BOLD]: require("../assets/fonts/BigShouldersDisplay-Black.ttf") as number,
+    // The icon glyphs (V8, src/theme/iconFont.ts): Material Symbols subset to the app's names.
+    [ICON_FACE]: require("../assets/fonts/MaterialSymbolsRounded.ttf") as number,
+    [ICON_FACE_FILL]: require("../assets/fonts/MaterialSymbolsRoundedFill.ttf") as number,
   });
 
   if (!fontsLoaded) return null;

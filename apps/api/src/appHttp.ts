@@ -7,7 +7,7 @@ import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import type { Env } from "./env.js";
 import { permissionsPolicy } from "./permissionsPolicy.js";
-import { APP_NAME } from "@silvicom/shared";
+import { APP_NAME, TRAINING_LINK_ROUTE } from "@silvicom/shared";
 import { apiError, asyncHandler } from "./lib/http.js";
 import { getBuildInfo } from "./lib/buildInfo.js";
 import { getSchemaStatus } from "./lib/schemaVersion.js";
@@ -52,6 +52,15 @@ export function securityMiddleware(env: Env): RequestHandler[] {
   return [securityHeaders(env), permissionsPolicy];
 }
 
+/**
+ * Cloudflare Turnstile, the careers page's robot check (APPLY-PAGE-PLAN D-AP5). Its CSP page (read 2026-11-20) names
+ * this one origin for `script-src` and `frame-src`: the widget is a script that draws an iframe. Its widget page adds
+ * "you must allow connections to this domain", so `connect-src` carries it too. One named origin, never a wildcard,
+ * and Cloudflare's own warning is why the script is not proxied through us: "Proxying or caching this file will cause
+ * Turnstile to fail when future updates are released."
+ */
+const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
+
 function securityHeaders(env: Env) {
   const apiConnectSrc = env.VITE_API_URL ? [env.VITE_API_URL] : [];
   return helmet({
@@ -67,17 +76,24 @@ function securityHeaders(env: Env) {
          * driver types instead — silently, since an
          * unreadable barcode is designed to cost nothing. Only a page served with this header shows it.
          */
-        scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
+        scriptSrc: ["'self'", "'wasm-unsafe-eval'", TURNSTILE_ORIGIN],
         // maplibre-gl runs its tile decoder in a Worker created from a blob: URL.
         workerSrc: ["'self'", "blob:"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "blob:", "https://*.supabase.co"],
+        // The driver's training films (SAFETY-VIDEOS D-TR1) play from signed URLs on the
+        // `training-media` bucket, as do their captions (`<track>` is media too). With no `media-src`
+        // the directive falls back to `default-src 'self'` and the browser refuses every film: the
+        // poster shows (img-src admits Supabase) and the player stays black. Found reading this list
+        // before the page's first deploy, 2026-11-25; only the deployed header could have shown it.
+        mediaSrc: ["'self'", "https://*.supabase.co"],
         connectSrc: [
           "'self'",
           ...apiConnectSrc,
           "https://*.supabase.co",
           "wss://*.supabase.co",
           "https://*.sentry.io",
+          TURNSTILE_ORIGIN,
         ],
         fontSrc: ["'self'", "data:"],
         objectSrc: ["'none'"],
@@ -104,7 +120,7 @@ function securityHeaders(env: Env) {
          * decoder, for the same reason: the bytes never left the page, so the origin is the document
          * itself and there is nothing for an allow-list to name.
          */
-        frameSrc: ["'self'", "blob:", "https://*.supabase.co"],
+        frameSrc: ["'self'", "blob:", "https://*.supabase.co", TURNSTILE_ORIGIN],
       },
     },
   });
@@ -358,6 +374,18 @@ export function mountWebSpa(app: Express, env: Env): void {
         },
       }),
     );
+    // The driver's training link (`/t/<token>`, D-TR2) is its own small page, not the SPA: `t.html` is
+    // a second Vite entry of a few KB because a driver opens it on weak signal (D-TR4, D-TR12), and
+    // the SPA's bundle is what it exists to avoid. No-cache for the same reason as index.html — its
+    // hashed assets must match the deploy. Only a well-formed token's path gets it; anything else
+    // falls through to the SPA, whose not-found page is the honest answer.
+    const trainingPage = path.join(webDist, "t.html");
+    if (fs.existsSync(trainingPage)) {
+      app.get(TRAINING_LINK_ROUTE, (_req: Request, res: Response) => {
+        res.setHeader("Cache-Control", "no-cache");
+        res.sendFile(trainingPage);
+      });
+    }
     // SPA history fallback: only for navigation paths (no file extension). A request for a missing
     // asset (…/foo.js, …/bar.css) must 404 — never fall back to index.html, or the browser rejects
     // the HTML as the wrong MIME type. Keeps deploy hash-mismatches from silently breaking the app.
