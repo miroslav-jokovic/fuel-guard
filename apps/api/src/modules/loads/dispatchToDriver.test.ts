@@ -33,6 +33,42 @@ const tables = (over: Record<string, unknown> = {}) => ({
 const EXEMPT = { exempt: ["organizations"] };
 
 describe("dispatchLoad", () => {
+  it("puts the load in the app of a driver with an app login: one app/sent row, and a New load notice to driver and co-driver (S1.1)", async () => {
+    const CO = "11111111-2222-4333-8444-000000000009";
+    const rec = createSupabaseRecorder({
+      tables: tables({
+        loads: [{ id: LOAD, ref: "0012345", status: "approved", source: "tms", vehicles: { unit_number: "702" }, trailers: null,
+          driver_id: DRIVER, co_driver_id: CO }],
+        // Answered by the driver the query asks for, as the database would.
+        drivers: (q: { filters: () => { col: string; val: unknown }[] }) => {
+          const id = q.filters().find((f) => f.col === "id")?.val;
+          return id === CO
+            ? [{ id: CO, user_id: "u-co" }]
+            : [{ id: DRIVER, full_name: "Dana Kelly", status: "active", user_id: "u-dana", app_access_enabled: true }];
+        },
+      }),
+      rpc: { emit_notification: "n-1" },
+    });
+    const result = await dispatchLoad(rec.client, dark, ORG, ACTOR, LOAD, DRIVER);
+    expectOrgScoped(rec, ORG, { exempt: ["organizations", "driver_app_features", "rpc:emit_notification"] });
+    const rows = rec.writtenRows("load_dispatches");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ channel: "app", outcome: "sent", outcome_reason: null });
+    expect(result).toMatchObject({ ok: true, data: { channel: "app", outcome: "sent", outcomeReason: null } });
+    const told = rec.rpcs().filter((r) => r.fn === "emit_notification").map((r) => r.args as Record<string, unknown>);
+    expect(told.map((a) => a.p_user)).toEqual(["u-dana", "u-co"]);
+    expect(told[0]).toMatchObject({ p_category: "load_offered", p_title: "New load from dispatch", p_entity_id: LOAD,
+      p_dedupe_key: "load_dispatch:d-1:u-dana" });
+  });
+
+  it("tells nobody, and keeps the held text record, when the driver has no app login", async () => {
+    const rec = createSupabaseRecorder({ tables: tables(), rpc: { emit_notification: "n-1" } });
+    const result = await dispatchLoad(rec.client, dark, ORG, ACTOR, LOAD, DRIVER);
+    expect(rec.writtenRows("load_dispatches")[0]).toMatchObject({ channel: "sms", outcome: "not_sent" });
+    expect(rec.rpcs().filter((r) => r.fn === "emit_notification")).toHaveLength(0);
+    expect(result).toMatchObject({ ok: true, data: { channel: "sms" } });
+  });
+
   it("writes one not-sent row, scoped to the org, saying SMS is not configured — never that it was sent", async () => {
     const rec = createSupabaseRecorder({ tables: tables() });
     const result = await dispatchLoad(rec.client, dark, ORG, ACTOR, LOAD, DRIVER);

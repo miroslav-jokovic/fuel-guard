@@ -349,6 +349,11 @@ const API_ALLOW = new Set([
   "mcleod -> org",
   "fuel -> messaging",
   "recruiting -> messaging",
+  // DRIVER-APP-ENTERPRISE-PLAN S1.1 (2026-11-27): the office's Dispatch → Send puts a McLeod load in
+  // the driver's app (0655), and the driver and McLeod co-driver are told "New load from dispatch" —
+  // the `load_offered` category that already existed for exactly this. notify() and loginForDriver
+  // through messaging's index, the hazmat shape; messaging imports nothing of loads'.
+  "loads -> messaging",
   // · ads -> messaging — the 2026-11-03 audit (H2): a pause the platform keeps refusing, and a connection
   //   no pause can use, reach a person through notify() (`modules/ads/alerts/`), not only a failed
   //   `ads_actions` row nobody reads. messaging imports nothing of ads'.
