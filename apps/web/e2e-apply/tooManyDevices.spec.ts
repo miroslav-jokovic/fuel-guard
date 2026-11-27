@@ -52,7 +52,7 @@ async function serve(page: Page, world: World) {
       world.refused.push(url.pathname);
       return route.fulfill({ status: 403, json: { error: { code: "device_limit", message: "You are signed in on 3 devices. Sign one out to use this one." } } });
     }
-    if (url.pathname === "/api/me/second-factor") return route.fulfill({ json: { required: false, satisfied: false, has_factor: false, due_from: null, must_keep: false } });
+    if (url.pathname === "/api/me/second-factor") return route.fulfill({ json: { required: true, satisfied: true, email_hint: "d•••@e2e.test", trusted_until: null } });
     if (url.pathname === "/api/me") return route.fulfill({ json: { fullName: "E2E Dispatcher", surfaces: {}, permissions: null } });
     if (url.pathname === "/rest/v1/org_modules") return route.fulfill({ json: [{ module_key: "dispatch", enabled: true, config: {} }] });
     if (url.origin === ORIGIN || url.pathname.startsWith("/rest/v1/")) return route.fulfill({ json: [] });

@@ -207,6 +207,7 @@ export * from "./deviceLabel.js";
 export * from "./memberSessionsContract.js";
 export * from "./memberDevicesContract.js";
 export * from "./secondFactorContract.js";
+export * from "./twoStepEmail.js";
 export * from "./rosterContract.js";
 export * from "./rosterHeld.js";
 export * from "./recruitmentContract.js";

@@ -289,9 +289,9 @@ describe("the section gates on the navigation guard", () => {
   });
 });
 
-/** INSTALLED-APP-PLAN IA-S1: a session that owes its code opens one page until it has given it. */
+/** INSTALLED-APP-PLAN IA-S1 rev 2: a device that owes its emailed code opens one page until it has given it. */
 describe("the two-step sign-in guard", () => {
-  const owed = { required: true, satisfied: false, has_factor: true, due_from: null, must_keep: false };
+  const owed = { required: true, satisfied: false, email_hint: "a•••@silvicom.test", trusted_until: null };
   const withSecond = async (status: unknown, role: string, path: string) => {
     (session as unknown as { secondFactor: unknown }).secondFactor = status;
     try { return await landsOn(role, path); } finally { (session as unknown as { secondFactor: unknown }).secondFactor = null; }
@@ -312,7 +312,8 @@ describe("the two-step sign-in guard", () => {
     expect(await withSecond(null, "admin", "/settings/users")).toBe("users");
   });
 
-  it("opens the page to somebody who chose it from the account menu", async () => {
-    expect(await withSecond({ ...owed, required: false, has_factor: false }, "dispatcher", "/two-step")).toBe("two-step");
+  it("opens the page to a device that has given its code (it says until when), without holding it there", async () => {
+    expect(await withSecond({ ...owed, satisfied: true }, "dispatcher", "/two-step")).toBe("two-step");
+    expect(await withSecond({ ...owed, satisfied: true }, "dispatcher", "/")).not.toBe("two-step");
   });
 });
