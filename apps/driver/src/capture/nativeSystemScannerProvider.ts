@@ -75,10 +75,12 @@ async function measurePage(
  */
 export interface PageSource {
   source: CaptureSource;
+  /** True when this source IS the OS scanner, so the OS scanner's absence means it cannot scan. */
+  needsOsScanner: boolean;
   acquire(native: CaptureNativeModule, options: NativeScanOptions): Promise<NativeScanResult>;
 }
 
-const OS_SCANNER: PageSource = { source: SYSTEM_SCANNER, acquire: (native, options) => native.scan(options) };
+const OS_SCANNER: PageSource = { source: SYSTEM_SCANNER, needsOsScanner: true, acquire: (native, options) => native.scan(options) };
 
 export function createNativeSystemScannerProvider(
   config: CaptureConfig,
@@ -111,7 +113,7 @@ export function createNativeSystemScannerProvider(
     id: from.source.providerId,
     version: "0.1.0",
     async isSupported(): Promise<SupportResult> {
-      return supportFromNative(await native.isSupported());
+      return supportFromNative(await native.isSupported(), !from.needsOsScanner);
     },
     async scan(options?: ScanOptions): Promise<ScanResult> {
       // Timed around the OS scanner alone: `captureMs` is the driver's own shooting time and says

@@ -30,8 +30,9 @@ async function bootstrap(): Promise<{ config: CaptureConfig; provider: CapturePr
   if (cached) return cached;
   const { config } = await loadConfig({ bundled: BUNDLED_DEFAULT_CONFIG, verifier });
   let provider: CaptureProvider = createExpoImagePickerProvider(config);
-  // One scanner for every document (owner, 2026-11-23): our own camera wherever it exists (iPhone,
-  // runtime 1.5.0+), else the OS scanner, else the plain camera. Same provider, same gate either way.
+  // One scanner for every document (owner, 2026-11-23): our own camera wherever it exists (iPhone
+  // runtime 1.5.0+, Android 1.6.0+), else the OS scanner, else the plain camera. Same provider, same
+  // gate either way.
   const ownCamera = liveEdgePageSource(getCaptureNativeModule());
   const native = ownCamera
     ? createNativeSystemScannerProvider(config, platform, ownCamera)
