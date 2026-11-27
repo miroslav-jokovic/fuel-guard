@@ -363,3 +363,17 @@ screens; trailer TPMS and wheel-end temperature rules (catalogue entries, enable
   evaluation, every holder of `maintenance.follow-ups` (`surfaceHolders`, the Permissions page's own
   resolver — no role list) once per urgent follow-up (`follow_up:<id>`), category `follow_up_urgent`,
   severity critical; the web bell opens `/shop/follow-ups?open=<id>`. A bell failure never fails the tick.
+- 2026-11-27 — **WD4–WD6 merged** (#2686 `422a7fa`, #2690 `9a59fff`). **Verified on staging** (serving
+  `422a7fa`, schema 0655): signed in as the staging admin, `GET /api/follow-ups` answers all four
+  categories and `GET /api/follow-ups/rules` lists 25 rules (8 fixed + 17 Samsara alerts, so the API's
+  Samsara token answers); as the staging dispatcher, the list answers Route alone, `?category=safety` 403,
+  `/rules` 403. The page serves, and the CSP carries `media-src … https://*.samsara.com`.
+  **Not verifiable on staging, and why:** the `warning_desk` tick has never run there — the `general`
+  scheduler lane is still held by the retired Railway `uat` service at `70e1592` (2026-10-28; owner ruling
+  2026-11-15: leave it), so `samsara_warnings` and `follow_ups` hold 0 rows; with no line there is no video
+  to play and no action to log. Those halves are proven by `routes.test.ts`, `evaluate.test.ts`,
+  `warningDeskBell.test.ts` and `supabase/tests/warning-desk.test.mjs`. **First real run is production**
+  after the owner approves a release (01:07 CT train, 0653/0654 apply first). Expect ≈ 88 day-one backlog
+  lines (§1.6).
+- **WD7 measurement due 14 days after the release ships:** per rule, follow-ups opened vs §1.6, median time
+  New → closed, share closed *Not a problem* (> 50% → raise that rule's N), red-STOP-lamp ongoing rate.
