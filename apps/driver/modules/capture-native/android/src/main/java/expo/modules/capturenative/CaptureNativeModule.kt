@@ -189,6 +189,37 @@ class CaptureNativeModule : Module() {
      * provenance says so rather than inheriting ML Kit's `true`. A page we cannot read REJECTS: we wrote
      * it moments ago, so failing to read it is the unforeseen (D-SCAN7), not an outcome about the device.
      */
+    // The on-device half of the model check (LIVE-EDGE-DETECTION-PLAN §8 "Open check", 2026-11-27): the
+    // shipped path — JPEG → RGBA → `DocAlignerDecode.input` → LiteRT 1.4.2 → decode — on a file, so a
+    // dev route can hold Android's corners to the ONNX fixture (`fixtures/edges/docaligner-decode.json`).
+    // The model was verified only on the Python runtime; this is what proves the phone's runtime agrees.
+    // Debuggable builds only: a release binary answers DEBUG_ONLY and opens no file.
+    AsyncFunction("detectImageForTest") Coroutine { path: String ->
+      val ctx = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      if ((ctx.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
+        throw CodedScannerException("DEBUG_ONLY", "detectImageForTest runs only in a debuggable build")
+      }
+      withContext(Dispatchers.Default) {
+        val bmp = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
+          ?: throw CodedScannerException("PROVIDER_ERROR", "could not decode $path")
+        val rgba = java.nio.ByteBuffer.allocateDirect(bmp.byteCount)
+        bmp.copyPixelsToBuffer(rgba)
+        val detector = DocAlignerDetector(ctx)
+        try {
+          val r = detector.detect(rgba, bmp.width, bmp.height, bmp.rowBytes, 0)
+          mapOf(
+            "width" to bmp.width,
+            "height" to bmp.height,
+            "confidence" to (r?.confidence?.toDouble()),
+            "corners" to r?.quad?.points?.map { listOf(it.x, it.y) },
+          )
+        } finally {
+          detector.close()
+          bmp.recycle()
+        }
+      }
+    }
+
     AsyncFunction("processPages") Coroutine { uris: List<String>, options: Map<String, Any?> ->
       val longEdge = (options["enhanceLongEdgePx"] as? Number)?.toInt() ?: 1568
       val quality = (options["enhanceQuality"] as? Number)?.toInt() ?: 80

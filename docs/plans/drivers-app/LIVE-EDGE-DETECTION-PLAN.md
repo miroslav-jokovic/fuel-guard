@@ -485,12 +485,13 @@ trained; L5 ~1 week. That is **about 6–8 weeks in total**, against a licence f
     manifest adds FOREGROUND_SERVICE / FOREGROUND_SERVICE_DATA_SYNC (a Play declaration the scanner cannot
     justify) and its GPU accelerator artifacts collide in AGP; 2.3+ is compiled with Kotlin 2.4 metadata,
     which the app's Kotlin 2.2 refuses. Every native library is 16 KB-aligned.
-    ⚠ **Open check (2026-11-27):** the model's output was verified against ONNX with the PYTHON runtime
-    `ai-edge-litert==2.4.0` (`tools/edges/tflite/requirements.txt`, 200 SmartDoc frames, max heatmap
-    difference 1.33e-6) — not with the Android 1.4.2 runtime the app ships. Until a device run of the
-    decode fixture's model input matches those heatmaps, "Android detects the same corners" is unproven.
-    The check: an instrumented test (or a dev-route button) that feeds `fixtures/edges/` inputs to the
-    on-device `Interpreter` and compares to the stored heatmaps at 1e-4.
+    **Device check, PASSED 2026-11-27.** The model was verified against ONNX with the Python runtime
+    (`ai-edge-litert==2.4.0`, 200 SmartDoc frames, max heatmap difference 1.33e-6), and the Android 1.4.2
+    runtime is now held to it on the device: `apps/driver/scripts/check-device-detector.mjs` runs the
+    SHIPPED path (JPEG → RGBA → `DocAlignerDecode.input` → LiteRT 1.4.2 → decode) through the debug-only
+    `detectImageForTest` on the fixture's five SmartDoc frames and compares to the ONNX corners at 640 × 360.
+    Galaxy Tab A9 (Android 16): worst corner 0.688 px (0.379 / 0.469 / 0.428 / 0.688 / 0.664), tolerance
+    1 px, confidence 0.901–0.939. Re-run it after any change to the model, LiteRT or the decoder.
   · **One reference, held exactly.** DocAligner's pre- and post-processing moved from the scorer tool
     into `capture-engine/src/edges/docalignerDecode.ts` with no change of behaviour. Kotlin's
     `DocAlignerDecode.kt` is held to it over `fixtures/edges/docaligner-decode.json`: real heatmaps from
@@ -536,3 +537,12 @@ trained; L5 ~1 week. That is **about 6–8 weeks in total**, against a licence f
 - Open source read at source level: https://github.com/WeTransfer/WeScan (MIT, archived) · https://github.com/JaMoLpE88/ScanFromCam (Apache-2.0) · https://github.com/DocsaidLab/DocAligner (Apache-2.0 code) · https://github.com/rydn/docap (MIT)
 - SmartDoc 2015 challenge 1: https://marcalr.github.io/pdfs/ICDAR15e.pdf · https://github.com/jchazalon/smartdoc15-ch1-dataset
 - One Euro filter: https://gery.casiez.net/1euro/
+
+- **2026-11-27 (S2.3, DRIVER-APP-ENTERPRISE-PLAN):** memory on the Tab A9, 10-minute soaks on the live edge
+  screen with `apps/driver/scripts/mem-soak.mjs` (development build both times). Before: PSS +7.6 % from
+  minute 2 to minute 10 (906 → 975 MB), swap 0 → 99 MB — FAIL against the plan's 5 % bar. Cause: every
+  detection event (10/s) re-rendered the whole screen. After (headline-only state on `app/scan.tsx`, stable
+  camera props, stats at 2/s on the prototype): +2.2 % (873 → 892 MB), swap 0 → 7 MB, no kill — PASS. Most
+  of the ~900 MB is the DEBUG build itself: Home with no camera reads 932 MB, the camera adds ~80 MB. A
+  release-build soak needs a staging driver login (owner action).
+
