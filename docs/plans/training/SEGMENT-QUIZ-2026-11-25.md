@@ -534,3 +534,10 @@ spoken. ⚠ **A safety person checks every question against the film before rele
   `--target production --yes-production`; in production it asks for the password and the authenticator
   code with typing hidden, so it is run by the member who signs in, never with a stored password. The
   `training` module is granted to the carrier in the console first (step-up works in production).
+- 2026-11-27: **send to a phone number (owner: "we should be able to send this directly to some phone
+  number as option instead just to drivers from list"; "do as proposed").** An assignment belongs to
+  exactly one of a driver or a named person with a +1 number (migration 0663, merge 1 of 2; the Send
+  tab's "Send to a phone number" and the Progress tag follow in merge 2, as a column and its first reader
+  may not ship together). **Texting that number waits on Q-TR9 (a), ruled the same day:** a
+  driver-operations toll-free number, verified for training, dispatch and safety notices; until then the
+  office copies the link. Q-TR9 (c), texting from the applicant number, stays refused.
