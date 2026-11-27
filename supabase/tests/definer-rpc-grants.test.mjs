@@ -139,7 +139,7 @@ ok("service_role still runs sync_fuel_exceptions end to end",
 // takes a topic NAME, not a tenant, and answers only for the caller's own claims (auth_in_thread's shape).
 // `auth_driver_message_topic` (0514): the same check for the driver app's private message topics, the
 // same shape — a topic name in, an answer for the caller's own claims out.
-const RLS_HELPERS = ["auth_chat_topic", "auth_dispatched_load_ids", "auth_driver_id", "auth_driver_message_topic", "auth_in_thread", "auth_module_enabled"];
+const RLS_HELPERS = ["auth_chat_topic", "auth_dispatched_load_ids", "auth_driver_id", "auth_driver_message_topic", "auth_in_thread", "auth_module_enabled", "auth_visible_tms_load_ids"];
 const exposed = (await all(
   `select p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' sig, p.proname
      from pg_proc p

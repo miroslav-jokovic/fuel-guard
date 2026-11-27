@@ -15,16 +15,20 @@ const OTHER = "11111111-2222-4333-8444-666666666666";
 const L1 = "22222222-2222-4333-8444-000000000001";
 const L2 = "22222222-2222-4333-8444-000000000002";
 
+// The load-list read is the one carrying the `or`; the other `loads` reads find co-driver seats.
 const loadsOr = (rec: ReturnType<typeof createSupabaseRecorder>) =>
-  rec.forTable("loads")[0]!.ops.find((o) => o.method === "or")?.args[0];
+  rec.forTable("loads").flatMap((q) => q.ops).find((o) => o.method === "or")?.args[0];
+const MANUAL = (d: string) =>
+  `and(source.neq.tms,driver_id.eq.${d},status.in.(offered,accepted,in_transit,delivered,canceled))`;
+const MCLEOD = (ids: string[]) =>
+  `and(source.eq.tms,status.in.(pending_approval,approved,in_transit,delivered,canceled),id.in.(${ids.join(",")}))`;
 
 describe("getDriverLoads", () => {
   it("asks only for this driver's loads in this org, and with no dispatch, no McLeod load at all", async () => {
     const rec = createSupabaseRecorder({ tables: { loads: [], load_dispatches: [] } });
     await getDriverLoads(rec.client, ORG, DRIVER);
     expectOrgScoped(rec, ORG);
-    expect(rec.forTable("loads")[0]!.filters()).toContainEqual({ col: "driver_id", val: DRIVER });
-    expect(loadsOr(rec)).toBe("source.neq.tms");
+    expect(loadsOr(rec)).toBe(MANUAL(DRIVER));
   });
 
   it("admits a McLeod load only while its LATEST dispatch names this driver", async () => {
@@ -47,13 +51,44 @@ describe("getDriverLoads", () => {
     });
     await getDriverLoads(rec.client, ORG, DRIVER);
     expectOrgScoped(rec, ORG);
-    expect(loadsOr(rec)).toBe(`source.neq.tms,id.in.(${L1})`);
+    expect(loadsOr(rec)).toBe(`${MANUAL(DRIVER)},${MCLEOD([L1])}`);
     // Newest first, with the same tie-break as auth_dispatched_load_ids (0371).
     const history = rec.forTable("load_dispatches")[1]!.ops.filter((o) => o.method === "order").map((o) => o.args);
     expect(history).toEqual([
       ["sent_at", { ascending: false }],
       ["id", { ascending: false }],
     ]);
+  });
+
+  it("admits a McLeod load to its co-driver while the load's dispatch names the McLeod driver (O-3, 0655)", async () => {
+    const LEAD = "11111111-2222-4333-8444-777777777777";
+    const rec = createSupabaseRecorder({
+      tables: {
+        loads: {
+          pages: [
+            [{ id: L1 }, { id: L2 }], // my co-driver seats
+            [
+              { id: L1, driver_id: LEAD, co_driver_id: DRIVER },
+              { id: L2, driver_id: LEAD, co_driver_id: DRIVER },
+            ],
+            [], // the load list itself
+          ],
+        },
+        // No row names me; L1 was sent to its McLeod driver, L2 to somebody McLeod did not name.
+        load_dispatches: { pages: [[], [{ load_id: L1, driver_id: LEAD }, { load_id: L2, driver_id: OTHER }]] },
+      },
+    });
+    await getDriverLoads(rec.client, ORG, DRIVER);
+    expectOrgScoped(rec, ORG);
+    expect(loadsOr(rec)).toBe(`${MANUAL(DRIVER)},${MCLEOD([L1])}`);
+  });
+
+  it("shows a co-driver nothing for a load nobody has sent (D-LMR5)", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { loads: { pages: [[{ id: L1 }], [{ id: L1, driver_id: OTHER, co_driver_id: DRIVER }], []] }, load_dispatches: [] },
+    });
+    await getDriverLoads(rec.client, ORG, DRIVER);
+    expect(loadsOr(rec)).toBe(MANUAL(DRIVER));
   });
 });
 
