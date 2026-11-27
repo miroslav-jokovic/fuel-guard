@@ -76,14 +76,15 @@ const status = (w: Mounted) => w.findAllComponents(FilterSelect).find((c) => c.p
 const units = (w: Mounted) => w.findAll("tbody tr td:nth-child(2)").map((td) => td.text());
 
 describe("Vehicles keeps its list in the URL", () => {
-  it("opens on Active with nothing in the URL", async () => {
+  it("opens on In service (active + in the shop) with nothing in the URL", async () => {
+    // FLEET-MANAGER-HOME-PLAN D-FM11: the fleet the Operations tab's Trucks card totals.
     const { w, query } = await mountAt("/vehicles");
-    expect(status(w).props("modelValue")).toBe("active");
+    expect(status(w).props("modelValue")).toBe("in_service");
     expect(w.findComponent(TablePagination).props("total")).toBe(22);
     expect(query()).toEqual({});
   });
 
-  it("writes All statuses as its own word, so the list does not snap back to Active", async () => {
+  it("writes All statuses as its own word, so the list does not snap back to In service", async () => {
     const { w, query } = await mountAt("/vehicles");
     status(w).vm.$emit("update:modelValue", "");
     await flushPromises();
