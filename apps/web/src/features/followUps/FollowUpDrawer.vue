@@ -33,12 +33,15 @@ const video = useFollowUpVideo();
 const note = ref("");
 const noteErr = ref<string | undefined>();
 const videos = ref<Record<string, FollowUpVideo>>({});
+/** A clip the browser could not play (an expired link, a blocked host): say so and point to Samsara. */
+const failed = ref<Record<string, boolean>>({});
 watch(
   () => props.id,
   () => {
     note.value = "";
     noteErr.value = undefined;
     videos.value = {};
+    failed.value = {};
   },
 );
 
@@ -100,7 +103,15 @@ function clipsOf(warningId: string): { url: string; input: string | null }[] {
   return v && !v.restricted ? v.urls : [];
 }
 
-const CAMERA: Record<string, string> = { dashcamForwardFacing: "Road", dashcamDriverFacing: "Driver" };
+// Samsara's own words for the camera (measured 2026-11-27: PRIMARY is the road-facing clip, SECONDARY the
+// driver-facing one, which our cameras send with an empty URL and so never reaches the panel).
+const CAMERA: Record<string, string> = {
+  MEDIA_INPUT_PRIMARY: "Road",
+  MEDIA_INPUT_SECONDARY: "Driver",
+  dashcamForwardFacing: "Road",
+  dashcamDriverFacing: "Driver",
+};
+
 </script>
 
 <template>
@@ -185,8 +196,11 @@ const CAMERA: Record<string, string> = { dashcamForwardFacing: "Road", dashcamDr
                     <!-- A workaround, labelled: Samsara's dashcam clips carry no sound and no caption track, and the API offers
                          none to attach; this exception comes out the day Samsara serves one (D-WD7). -->
                     <!-- eslint-disable-next-line vuejs-accessibility/media-has-caption -->
-                    <video :src="m.url" controls playsinline preload="metadata" class="w-full rounded-detail bg-surface-subtle" />
-                    <figcaption v-if="m.input" class="text-2xs text-ink-tertiary">{{ CAMERA[m.input] ?? m.input }} camera</figcaption>
+                    <video :src="m.url" controls playsinline preload="metadata" class="w-full rounded-detail bg-surface-subtle" @error="failed = { ...failed, [m.url]: true }" />
+                    <figcaption v-if="m.input && CAMERA[m.input]" class="text-2xs text-ink-tertiary">{{ CAMERA[m.input] }} camera</figcaption>
+                    <p v-if="failed[m.url]" class="text-xs text-danger-700" data-test="video-failed">
+                      This clip would not play here. Open it in Samsara, or close this panel and play it again for a fresh link.
+                    </p>
                   </figure>
                 </template>
               </template>

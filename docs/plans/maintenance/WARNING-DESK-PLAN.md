@@ -377,3 +377,10 @@ screens; trailer TPMS and wheel-end temperature rules (catalogue entries, enable
   lines (§1.6).
 - **WD7 measurement due 14 days after the release ships:** per rule, follow-ups opened vs §1.6, median time
   New → closed, share closed *Not a problem* (> 50% → raise that rule's N), red-STOP-lamp ongoing rate.
+- 2026-11-27 — **Video did not play in production (owner).** Samsara's `media[].url` answers **307** to a
+  presigned S3 URL on `samsara-transcoded-video-cache.s3.us-west-2.amazonaws.com` (H.264 MP4, 6 h expiry);
+  CSP checks every redirect hop, so `media-src *.samsara.com` alone blocked it. Fix: that exact bucket host
+  in `media-src` (never `*.amazonaws.com`). Proved in Chrome against a live clip: old policy → 1 CSP
+  violation, `MediaError` 4; new policy → loaded, 8.0 s, no violation. Also: Samsara names cameras
+  `MEDIA_INPUT_PRIMARY` (road) / `SECONDARY` (driver, always an empty URL on our cameras), and the drawer now
+  says when a clip fails to play instead of showing a black box.

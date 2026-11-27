@@ -88,7 +88,13 @@ describe("the page's own content-security-policy", () => {
     const csp = await cspOf();
     // Without the directive a film falls back to default-src 'self' and never plays (SAFETY-VIDEOS D-TR1);
     // the warning desk's safety clips are Samsara's signed links, never stored (WARNING-DESK-PLAN D-WD7).
-    expect(csp["media-src"]).toEqual(["'self'", "https://*.supabase.co", "https://*.samsara.com"]);
+    // …and the S3 bucket Samsara's link redirects to — CSP checks every hop, so without it the clip never plays.
+    expect(csp["media-src"]).toEqual([
+      "'self'",
+      "https://*.supabase.co",
+      "https://*.samsara.com",
+      "https://samsara-transcoded-video-cache.s3.us-west-2.amazonaws.com",
+    ]);
   });
 
   it("does not let a script come from anywhere but this origin and Cloudflare's robot check", async () => {
