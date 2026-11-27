@@ -68,6 +68,27 @@ export const RETENTION_RULES: RetentionRule[] = [
   },
   {
     /**
+     * IA-S1 rev 2 (0662, Q-IA20): an emailed sign-in code. It lives ten minutes; the row is kept a month only so
+     * the hourly sending budget and a "was a code sent?" question have something to read.
+     */
+    table: "two_step_codes",
+    timeColumn: "created_at",
+    keepDays: 30,
+    strategy: "id",
+    orgScoped: true,
+    why: "A sign-in code is dead ten minutes after it is made; a month of rows is ample for the hourly budget and a support question.",
+  },
+  {
+    /** IA-S1 rev 2 (0662, Q-IA20): when a device last gave its code. Older than TWO_STEP_DAYS it trusts nothing. */
+    table: "two_step_devices",
+    timeColumn: "verified_at",
+    keepDays: 90,
+    strategy: "id",
+    orgScoped: true,
+    why: "A device's code is trusted for seven days; a row untouched for 90 is a device nobody signs in on.",
+  },
+  {
+    /**
      * Broker-mail envelopes (0643, Q-BMR6): sender, time and subject of an external message in a
      * dispatcher's mailbox. Ninety days is the ruling; nothing in 360 needs an older one.
      */
