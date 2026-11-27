@@ -507,3 +507,12 @@ spoken. ⚠ **A safety person checks every question against the film before rele
   driver's page pauses at each stop, when hidden and when muted, and undoes a skip ahead. A browser
   spec proves each one against a committed 8-second WebM, because Chromium in CI cannot play the
   films' H.264.
+- 2026-11-27: owner, "proceed as proposed": load all five films on staging, not only FILM-01.
+  `scripts/training-load.mjs` reads §5 itself (`scripts/lib/training-bank.mjs`), refuses a bank that
+  breaks §3.5/D-TR14/D-TR15, and enters films, chapters (an Opening and a Closing with no questions
+  around the stops of §2) and all 84 questions through the office API, so the page's checks and audit
+  rows apply. It runs against staging only; production waits for §6 step 4. Measured: the bank parses
+  to 5 films, 14 stops, 84 questions; staging at 0655 answers the loader `403 module_disabled` until
+  the `training` module is granted to its org. The console's grant needs a step-up, which staging
+  cannot give (Q-AD41), and an agent's direct grant on the staging database was refused by the
+  auto-mode classifier, so the grant is the owner's one command.

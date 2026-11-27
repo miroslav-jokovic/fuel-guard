@@ -41,6 +41,10 @@ vi.mock("../../../middleware/auth.js", () => ({
     },
 }));
 
+const queue = vi.hoisted(() => ({ enqueue: vi.fn(async (): Promise<{ jobId: string } | { conflict: true }> => ({ jobId: "job-1" })), drainKindNow: vi.fn(async () => 1) }));
+vi.mock("../../../queue/pgDriver.js", () => ({ pgQueueDriver: () => ({ enqueue: queue.enqueue }) }));
+vi.mock("../../../queue/inprocessDrain.js", () => ({ drainKindNow: queue.drainKindNow }));
+
 const texted: string[] = [];
 const texter = {
   canText: vi.fn(async (_a: unknown, _e: unknown, _o: string, _d: string, status: string) => ({ ok: status === "applicant", reason: status === "applicant" ? null : "Texting hired drivers is not set up yet." })),
@@ -150,6 +154,42 @@ describe("watching a film in the office", () => {
     const none = await withServer((b) => fetch(`${b}/versions/99999999-9999-4999-8999-999999999999/preview`));
     expect(none.status).toBe(404);
     expect(rec.storageCalls()).toEqual([]);
+  });
+});
+
+describe("preparing an uploaded film", () => {
+  const V = "77777777-7777-4777-8777-777777777777";
+  const seedProcessing = () => {
+    rec = createSupabaseRecorder({ tables: { training_versions: [{ id: V, state: "processing", chapters: [] }] } });
+  };
+
+  it("queues the film and starts preparing it at once", async () => {
+    seedProcessing();
+    queue.enqueue.mockClear();
+    queue.drainKindNow.mockClear();
+    const res = await withServer((b) => post(`${b}/versions/${V}/uploaded`, {}));
+    expect(res.status).toBe(200);
+    expect(queue.enqueue).toHaveBeenCalledWith("training_transcode", expect.objectContaining({ dedupKey: `training_transcode:${V}` }));
+    expect(queue.drainKindNow).toHaveBeenCalledWith(expect.anything(), expect.anything(), "training_transcode", 1);
+  });
+
+  it("starts the queue again when the office retries a film whose job is already queued, instead of a 500", async () => {
+    seedProcessing();
+    queue.enqueue.mockClear().mockResolvedValueOnce({ conflict: true });
+    queue.drainKindNow.mockClear();
+    const res = await withServer((b) => post(`${b}/versions/${V}/uploaded`, {}));
+    expect(res.status).toBe(200);
+    expect(queue.drainKindNow).toHaveBeenCalledTimes(1);
+    expect(audit.writeAudit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ action: "training.video_uploaded", entityId: V }));
+  });
+
+  it("still fails on any other queue error", async () => {
+    seedProcessing();
+    queue.enqueue.mockClear().mockRejectedValueOnce(new Error("database down"));
+    queue.drainKindNow.mockClear();
+    const res = await withServer((b) => post(`${b}/versions/${V}/uploaded`, {}));
+    expect(res.status).toBe(500);
+    expect(queue.drainKindNow).not.toHaveBeenCalled();
   });
 });
 
