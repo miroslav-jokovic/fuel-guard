@@ -111,10 +111,35 @@ export interface WeeklyBillProductTotal {
   lines: number;
 }
 
+/**
+ * One transaction date's block, as the old statement printed it under each day: a subtotal per product
+ * (`020 Subtotal`), the `Date Subtotal`, its `Average Cost Per Gallon` and its `Savings SubTotal`.
+ */
+export interface WeeklyBillDay {
+  /** YYYY-MM-DD; null collects lines the bill printed without a date (none on any statement measured). */
+  date: string | null;
+  byProduct: { code: string; units: number; amount: number }[];
+  units: number;
+  amount: number;
+  misc: number;
+  tax: number;
+  invoiceTotal: number;
+  retailTotal: number;
+  savings: number;
+  /** Fuel amount ÷ gallons, every product together. Can differ from Pilot's printed day average (see avgCost). */
+  avgCostPerGal: number | null;
+}
+
 export interface WeeklyBillReport {
   rows: WeeklyBillRow[];
   byProduct: WeeklyBillProductTotal[];
-  totals: { units: number; amount: number; misc: number; tax: number; invoiceTotal: number; retailTotal: number; savings: number };
+  /** Oldest day first. */
+  byDay: WeeklyBillDay[];
+  totals: {
+    units: number; amount: number; misc: number; tax: number; invoiceTotal: number; retailTotal: number; savings: number;
+    /** The `** Customer Total` line's `Average Cost Per Gallon`: fuel amount ÷ gallons for the week. */
+    avgCostPerGal: number | null;
+  };
   /** Rows billed above their quote by at least the floor, largest first. */
   overQuote: WeeklyBillRow[];
   quote: { tractorLines: number; quoted: number; unquoted: number; floorUsd: number };
@@ -222,15 +247,63 @@ export function buildWeeklyBillReport(lines: readonly WeeklyBillLineIn[], quoteF
 
   return {
     rows,
+    byDay: buildByDay(rows),
     byProduct: [...products.values()]
       .map((p) => ({ ...p, units: r2(p.units), amount: r2(p.amount), retail: r2(p.retail), savings: r2(p.savings) }))
       .sort((a, b) => a.code.localeCompare(b.code)),
-    totals,
+    totals: { ...totals, avgCostPerGal: avgCost(totals.amount, totals.units) },
     overQuote: rows
       .filter((r) => r.overQuoteUsd != null && r.overQuoteUsd >= MIN_CONTRACT_OVERBILL_USD)
       .sort((a, b) => b.overQuoteUsd! - a.overQuoteUsd!),
     quote: { tractorLines, quoted, unquoted: tractorLines - quoted, floorUsd: MIN_CONTRACT_OVERBILL_USD },
   };
+}
+
+/**
+ * ── WHY THE AVERAGE IS FUEL AMOUNT ÷ GALLONS, AND WHERE IT DIFFERS FROM PILOT'S ─────────────────
+ * Measured 2026-11-27 on the 2026-08-17 statement (db139445F1, week 08/10–08/16). Every day's printed
+ * `Date Subtotal` amount, retail, `Savings SubTotal` and per-product subtotal is reproduced from the lines to the
+ * cent, and so is the week's `** Customer Total` average (printed 4.99; amount ÷ units = 4.9868). Pilot's printed
+ * per-DAY average is not reproducible from what it prints. Fuel amount ÷ gallons over every product comes
+ * closest: within 0.05¢ on 08/10, 13, 14 and 16, but 0.3¢ off on 08/11 (4.7726 vs 4.7758) and 0.9¢ off on 08/12
+ * (5.0594 vs 5.0502). Also tried, and further off: the mean of the Fuel Cost column, diesel only, without DEF.
+ * Pilot divides by a gallon figure it does not print, so the day's average here is labelled for what it is,
+ * fuel $ ÷ gallons, and never presented as Pilot's figure.
+ */
+const avgCost = (amount: number, units: number): number | null => (units > 0 ? r4(amount / units) : null);
+
+function buildByDay(rows: readonly WeeklyBillRow[]): WeeklyBillDay[] {
+  const days = new Map<string, WeeklyBillDay & { products: Map<string, { code: string; units: number; amount: number }> }>();
+  for (const row of rows) {
+    const key = row.date ?? "";
+    const d = days.get(key) ?? {
+      date: row.date, byProduct: [], units: 0, amount: 0, misc: 0, tax: 0, invoiceTotal: 0, retailTotal: 0, savings: 0,
+      avgCostPerGal: null, products: new Map(),
+    };
+    d.units += row.units;
+    d.amount += row.amount;
+    d.misc += row.misc;
+    d.tax += row.tax;
+    d.invoiceTotal += row.invoiceTotal;
+    d.retailTotal += row.retailTotal ?? 0;
+    d.savings += row.savings ?? 0;
+    if (row.productCode != null) {
+      const p = d.products.get(row.productCode) ?? { code: row.productCode, units: 0, amount: 0 };
+      p.units += row.units;
+      p.amount += row.amount;
+      d.products.set(row.productCode, p);
+    }
+    days.set(key, d);
+  }
+  return [...days.values()]
+    .sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"))
+    .map(({ products, ...d }) => ({
+      ...d,
+      byProduct: [...products.values()].map((p) => ({ code: p.code, units: r2(p.units), amount: r2(p.amount) })).sort((a, b) => a.code.localeCompare(b.code)),
+      units: r2(d.units), amount: r2(d.amount), misc: r2(d.misc), tax: r2(d.tax),
+      invoiceTotal: r2(d.invoiceTotal), retailTotal: r2(d.retailTotal), savings: r2(d.savings),
+      avgCostPerGal: avgCost(d.amount, d.units),
+    }));
 }
 
 /**

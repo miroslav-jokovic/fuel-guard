@@ -98,4 +98,25 @@ describe("pickPilotQuote — the rule fuel_spend_lines applies (D-FC4)", () => {
     expect(pickPilotQuote([q("2026-11-19")], "2026-11-18")).toBeNull();
     expect(pickPilotQuote([q("2026-11-16")], "2026-11-18")).toBeNull();
   });
+
+  it("subtotals each day as the old statement did: per product, the day, its average cost per gallon and its savings", () => {
+    expect(r.byDay.map((d) => d.date)).toEqual(["2026-11-16", "2026-11-18"]);
+    const [d16, d18] = r.byDay;
+    expect(d16).toMatchObject({ units: 50, amount: 240, invoiceTotal: 240, retailTotal: 280, savings: 40, avgCostPerGal: 4.8 });
+    expect(d18!.byProduct).toEqual([
+      { code: "020", units: 251.37, amount: 1229.95 },
+      { code: "033", units: 11.44, amount: 59.37 },
+    ]);
+    // In-store items and tax are in the day's invoice total, never in the fuel amount the average divides.
+    expect(d18).toMatchObject({ units: 262.81, amount: 1289.32, misc: 51.98, tax: 3.61, invoiceTotal: 1344.91, retailTotal: 1577.63, savings: 232.72 });
+    expect(d18!.avgCostPerGal).toBe(4.9059); // 1289.32 / 262.81
+    // The days add up to the week.
+    expect(r.byDay.reduce((a, d) => Math.round((a + d.invoiceTotal) * 100) / 100, 0)).toBe(r.totals.invoiceTotal);
+    expect(r.byDay.reduce((a, d) => Math.round((a + d.savings) * 100) / 100, 0)).toBe(r.totals.savings);
+  });
+
+  it("averages the week's cost per gallon as the Customer Total line did — fuel amount over every gallon", () => {
+    expect(r.totals.avgCostPerGal).toBe(4.889); // 1529.32 / 312.81
+    expect(buildWeeklyBillReport([L({ lineNumber: 1, ticket: "M", miscAmount: 5, invoiceTotal: 5 })], () => null).totals.avgCostPerGal).toBeNull();
+  });
 });

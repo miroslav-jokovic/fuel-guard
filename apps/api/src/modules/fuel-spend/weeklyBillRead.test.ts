@@ -91,9 +91,35 @@ describe("weeklyBillWorkbook", () => {
       "Misc./Disc.", "Sales Tax", "Invoice Total", "Retail Total",
     ]);
     expect(head.slice(21)).toEqual(["Savings", "Vehicle ID", "Driver ID", "Pilot quote (Your Price)", "Billed − quote $/gal", "Billed − quote $"]);
-    const total = ws.getRow(7);
-    expect(total.getCell(1).value).toBe("** Customer Total");
+    const total = rowLabelled(ws, "** Customer Total");
     expect((total.getCell(20).value as { result: number }).result).toBe(796.86);
     expect(wb.getWorksheet("Totals")).toBeDefined();
   });
+
+  it("closes each day as the old statement did — product subtotal, Date Subtotal, average, Savings SubTotal — without counting them in the week", async () => {
+    const r = await readWeeklyBill(seed().client, ORG, STMT);
+    if (!r.ok) throw new Error("expected a bill");
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load((await weeklyBillWorkbook(r.statement, r.report)) as unknown as ArrayBuffer);
+    const ws = wb.getWorksheet("Statement")!;
+    const labels = (ws.getColumn(1).values as unknown[]).filter((v) => typeof v === "string");
+    expect(labels).toEqual(expect.arrayContaining(["020 Subtotal", "Date Subtotal", "Average Cost Per Gallon", "Savings SubTotal", "** Customer Total"]));
+    const cell = (label: string, c: number) => rowLabelled(ws, label).getCell(c).value as { formula: string; result: unknown };
+    // Units (L), Amount (N), Fuel Cost (M), Invoice Total (T), Savings (V).
+    expect(cell("020 Subtotal", 12)).toEqual({ formula: 'SUMPRODUCT((K6:K6="020")*L6:L6)', result: 151.37 });
+    expect(cell("Date Subtotal", 20)).toEqual({ formula: "SUM(T6:T6)", result: 796.86 });
+    expect(cell("Average Cost Per Gallon", 13).result).toBe(5.0543); // 765.07 / 151.37
+    expect(cell("Savings SubTotal", 22).result).toBe(r.report.totals.savings);
+    // The week's total reads the lines only: SUMIF leaves every "…Subtotal" row out, so nothing is counted twice.
+    expect(cell("** Customer Total", 20).formula).toMatch(/^SUMIF\(A6:A\d+,"<>\*Subtotal\*",T6:T\d+\)$/);
+  });
 });
+
+function rowLabelled(ws: ExcelJS.Worksheet, label: string): ExcelJS.Row {
+  let found: ExcelJS.Row | null = null;
+  ws.eachRow((row) => {
+    if (!found && row.getCell(1).value === label) found = row;
+  });
+  if (!found) throw new Error(`no row labelled ${label}`);
+  return found;
+}
