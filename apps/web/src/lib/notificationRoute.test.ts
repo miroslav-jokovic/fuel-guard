@@ -6,6 +6,11 @@ import { notificationRoute } from "./notificationRoute";
  * any notification, so only certain pairs route.
  */
 describe("notificationRoute", () => {
+  it("an urgent follow-up opens the warning desk with its own drawer open, and only when it names one", () => {
+    expect(notificationRoute("follow_up_urgent", "follow_up", "f1")).toBe("/shop/follow-ups?open=f1");
+    expect(notificationRoute("follow_up_urgent", "follow_up", null)).toBeNull();
+  });
+
   it("dq_* + driver goes to the qualification file", () => {
     // Straight to the driver's qualification section since DQ-INTO-DRIVERS-PLAN DD4, not via the
     // `/compliance/:id` redirect that stays for notifications already sent.

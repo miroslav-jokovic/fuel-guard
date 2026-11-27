@@ -19,6 +19,7 @@ import { evaluateFollowUps, readRuleOverrides, type EvaluateResult } from "../mo
 import { finishJob, lastDoneJob, startJob, startJobHeartbeat, JobConflictError } from "../modules/org/index.js";
 import { enqueueJob } from "../queue/enqueue.js";
 import { orgsToSync } from "../modules/samsara/lib/tierRunner.js";
+import { ringUrgentFollowUps } from "./warningDeskBell.js";
 
 /** Every five minutes (D-WD2): a call made about a warning an hour old is a call about the past. */
 export const WARNING_DESK_INTERVAL_MS = 5 * 60_000;
@@ -31,6 +32,8 @@ const EVALUATE_MAX_LOOKBACK_MS = 8 * 86_400_000;
 export interface WarningDeskResult {
   sync: WarningsSyncResult;
   evaluate: EvaluateResult;
+  /** Bell notifications written for follow-ups opened urgent this pass (D-WD14). */
+  rang: number;
 }
 
 /** One org's pass: rules → collect → evaluate. A collector failure still evaluates what was collected. */
@@ -68,11 +71,19 @@ export async function runWarningDesk(admin: SupabaseClient, env: Env, orgId: str
     },
   });
 
+  // The bell never fails the pass: the follow-up is open and on the list either way.
+  let rang = 0;
+  try {
+    rang = await ringUrgentFollowUps(admin, orgId, evaluate.urgentOpened, rules);
+  } catch (e) {
+    console.error(`[warning-desk] urgent bell failed for org ${orgId}:`, e instanceof Error ? e.message : e);
+  }
+
   if (syncError) {
     const err = new Error(`${syncError.message} (evaluated: ${evaluate.opened} opened, ${evaluate.refreshed} refreshed)`);
     throw err;
   }
-  return { sync, evaluate };
+  return { sync, evaluate, rang };
 }
 
 /** The tick, in-process or queued, through the jobs ledger like every Samsara tier (one run per org at a time). */
