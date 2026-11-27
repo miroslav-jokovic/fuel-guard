@@ -36,7 +36,7 @@ consumer and defers to it on everything below.
 ## 1. The architecture, with the measurements attached
 
 ```
-   ┌─ McLeod SQL Server (APPNEW, 10.0.1.171) ── 42 cores · 62 GB · ~138 batch req/s baseline ─┐
+   ┌─ McLeod SQL Server (<LME SQL host>, <LME SQL LAN IP>) ── 42 cores · 62 GB · ~138 batch req/s baseline ─┐
    │                                                                                          │
    │   lme  ── PRODUCTION, continuously written, restored once (2022-11-28)                   │
    │     └─ Change Tracking ON · 91 tables · 10-day retention                                 │
@@ -174,7 +174,7 @@ stable citation; none was renumbered.)*
   anything McLeod needs, against 62 GB of RAM and a 54.9 GB database.
 
 - **D-MCC7 — the on-prem agent stays the only thing that touches McLeod.** Railway has no route to
-  `10.0.1.171` and never gets one. The agent reads over the LAN and pushes over HTTPS with an ingest
+  `<LME SQL LAN IP>` and never gets one. The agent reads over the LAN and pushes over HTTPS with an ingest
   token. This is already true and is restated because a live map creates the temptation to open a
   tunnel; the answer is no.
 
@@ -267,7 +267,7 @@ stable citation; none was renumbered.)*
 
 | Fact | Value |
 |---|---|
-| Host | `APPNEW`, SQL Server 2019 Enterprise, `10.0.1.171:1433` |
+| Host | `<LME SQL host>`, SQL Server 2019 Enterprise, `<LME SQL LAN IP>:1433` |
 | Capacity | **42 cores, 62 GB RAM** |
 | Uptime at measurement | 141 hours |
 | Sustained load | **~138 batch requests/second** (70,843,263 batches over uptime) |
@@ -325,13 +325,13 @@ Folds into `LIVE-MAP-PLAN.md` LM0 rather than duplicating it. The login asked fo
 clause:
 
 ```sql
-GRANT VIEW CHANGE TRACKING ON dbo.movement       TO silvicom_dispatch_ro;
-GRANT VIEW CHANGE TRACKING ON dbo.movement_order TO silvicom_dispatch_ro;
-GRANT VIEW CHANGE TRACKING ON dbo.orders         TO silvicom_dispatch_ro;
-GRANT VIEW CHANGE TRACKING ON dbo.stop           TO silvicom_dispatch_ro;
-GRANT VIEW CHANGE TRACKING ON dbo.driver         TO silvicom_dispatch_ro;
-GRANT VIEW CHANGE TRACKING ON dbo.tractor        TO silvicom_dispatch_ro;
-GRANT VIEW CHANGE TRACKING ON dbo.trailer        TO silvicom_dispatch_ro;
+GRANT VIEW CHANGE TRACKING ON dbo.movement       TO <read-only SQL login>;
+GRANT VIEW CHANGE TRACKING ON dbo.movement_order TO <read-only SQL login>;
+GRANT VIEW CHANGE TRACKING ON dbo.orders         TO <read-only SQL login>;
+GRANT VIEW CHANGE TRACKING ON dbo.stop           TO <read-only SQL login>;
+GRANT VIEW CHANGE TRACKING ON dbo.driver         TO <read-only SQL login>;
+GRANT VIEW CHANGE TRACKING ON dbo.tractor        TO <read-only SQL login>;
+GRANT VIEW CHANGE TRACKING ON dbo.trailer        TO <read-only SQL login>;
 -- finance feeds, when MC5 lands:
 -- gl_ledger, gl_ledger_hist, gl_account, drs_settle_hist, drs_deduct_hist,
 -- billing_history, journal_ap, journal_cash, journal_driver, journal_office,

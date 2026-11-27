@@ -30,9 +30,9 @@ and the owner's driver-app research of 2026-11-19 (checked claim by claim agains
 | **Symphony Mobile Communications** API: POST position, trailerStatus, forms; PUT driverHours, driverAvailable, driverStatus; reads outbound messages/workflows | `RESEARCH-RESOLUTIONS.md:3558-3584` |
 | Movement search caps at 1,000 rows; `changedAfterDate` reaches back only as far as audit retention | `MCLEOD-SELF-HOSTED-INTEGRATION.md:39-43` |
 | We run **LoadMaster 22.1**; current is 26.2; `/ws` "ships with our version but was never enabled" | meeting PREP PDF |
-| Our on-prem VM (`10.0.1.172`, Alex's) is **outbound-only**: LME `:1433` and HTTPS 443 out, nothing in | `mail.md:40`; `tools/mcleod-agent/README.md:24-28` |
+| Our on-prem VM (`<VM LAN IP>`, Alex's) is **outbound-only**: LME `:1433` and HTTPS 443 out, nothing in | `mail.md:40`; `tools/mcleod-agent/README.md:24-28` |
 | McLeod's EFS integration writes TRIP and TRLR prompts onto fuel cards on every dispatch (162 of 199 cards) | `docs/25-EFS-ACCOUNT-INVENTORY.md:180` |
-| Imaging (DocumentPower) lives in `dta`..`dta6` on host MCLEODIMAGING; neither of our logins can open it | `dispatch-loads/LUMPER-REVISED-RC-PLAN.md:302-305` |
+| Imaging (DocumentPower) lives in `dta`..`dta6` on host <imaging host>; neither of our logins can open it | `dispatch-loads/LUMPER-REVISED-RC-PLAN.md:302-305` |
 
 ### 0.2 Not known — every one of these is a blocker for something below
 

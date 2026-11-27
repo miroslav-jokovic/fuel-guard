@@ -18,13 +18,13 @@ The authoritative implementation plan remains `MCLEOD-ROSTER-SYNC-PLAN.md`. This
 | Fact | Verified result |
 |---|---|
 | SQL Server | Microsoft SQL Server 2019 Enterprise, version 15.0.2120.1 |
-| Server name | `APPNEW` |
+| Server name | `<LME SQL host>` |
 | Database | `lme_analytics` |
 | Database state | `ONLINE` |
 | Recovery model | `SIMPLE` |
 | Database read-only flag | Off; the database itself is technically `READ_WRITE` |
 | Connection authentication | SQL authentication |
-| Current login | `NikiAnalytics` |
+| Current login | `<analytics SQL login>` |
 | Current database role | `db_datareader` |
 | Explicit permission observed | Database `CONNECT`; table reads come from the role |
 | Server admin roles | No `sysadmin`, `securityadmin`, or `serveradmin` membership |
@@ -34,7 +34,7 @@ The database is an isolated sandbox restored from backup, not a live production 
 
 - Backup completion: 2026-08-21 09:43
 - Database restore completion: 2026-08-21 09:46
-- Source server: `APPNEW`
+- Source server: `<LME SQL host>`
 
 Production is a separate database named `lme` on the same SQL Server instance. The current login does not have access to production. A production connection and acceptance test are therefore still required before cutover.
 
