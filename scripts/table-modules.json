@@ -4028,6 +4028,28 @@
         "why": "new in 0651 (2026-11-25, P3): one row per dispatcher and backup the admin chose (Q-BM10); grows with the dispatch office (14 dispatchers, a few backups each), never with time."
       }
     },
+    "broker_mail_drafts": {
+      "module": "broker-mail",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 300,
+        "why": "new in 0656 (2026-11-27, P4): one row per reply draft a dispatcher asks 360 for; at most one open per broker email. 14 dispatchers x ~20 a day ~ 280, budgeted 300. Its text is cleared the minute Outlook has it; no rule of its own: the row goes with its broker_mail_messages row (on delete cascade), which dataRetention prunes at 90 days (Q-BMR6), so a second rule would only race the first."
+      }
+    },
+    "broker_mail_compose_usage": {
+      "module": "broker-mail",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 400,
+        "why": "new in 0656 (2026-11-27, P4): one row per draft composition, tokens and outcome only, no text. Budgeted 400 a day (each draft plus retries). Kept 400 days like Ask AI's cost ledger (Q-AI4 (a)): the same year-over-year cost view."
+      }
+    },
     "samsara_warnings": {
       "module": "samsara",
       "layer": "raw",
