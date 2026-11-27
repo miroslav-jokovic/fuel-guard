@@ -101,3 +101,5 @@ export {
   type StoredWarning,
   type SubjectWarningQuery,
 } from "./warnings/warningReads.js";
+// A safety event's video, fetched fresh per click and never stored (D-WD7).
+export { fetchSafetyEventVideo, type SafetyEventMedia } from "./warnings/safetyVideo.js";

@@ -8,6 +8,8 @@ import {
   DocumentTextIcon,
   ChartAverageIcon,
   GaugeIcon,
+  PhoneIcon,
+  RouteIcon,
   ClipboardDocumentCheckIcon,
   ClipboardDocumentListIcon,
   ClockIcon,
@@ -84,6 +86,8 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   "dispatch.fuel-planning": MapIcon,
   "dispatch.truck-stops": TruckStopIcon,
   "dispatch.lumper-cases": ArchiveBoxIcon, // freight coming off the trailer; no other item uses the box
+  // Out of route follow-ups (D-WD13): the path a truck left. The live map's route toggle is a button, not a menu row.
+  "dispatch.route-follow-ups": RouteIcon,
   "dispatch.broker-mail": AtIcon, // an email address: the broker mail in a dispatcher's Outlook; no other item uses the @
 
   "safety.alerts": ExclamationTriangleIcon,
@@ -136,6 +140,8 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   // is the fleet group's and `VehicleIcon` is Vehicles'. See the barrel for the whole note.
   "maintenance.units": UnitKitIcon,
   "maintenance.inspections": ChecklistIcon,
+  // The warning desk is worked by phone (WARNING-DESK-PLAN D-WD16): calls, not texts. No other item wears it.
+  "maintenance.follow-ups": PhoneIcon,
 
   "admin.settings": Cog6ToothIcon,
   "admin.users": UsersIcon,

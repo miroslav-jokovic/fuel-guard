@@ -84,10 +84,11 @@ describe("the page's own content-security-policy", () => {
     expect(csp["default-src"]).toEqual(["'self'"]);
   });
 
-  it("lets a training film and its captions play from storage, and from nowhere else", async () => {
+  it("lets a training film play from storage and a dashcam clip from Samsara, and media from nowhere else", async () => {
     const csp = await cspOf();
-    // Without the directive a film falls back to default-src 'self' and never plays (SAFETY-VIDEOS D-TR1).
-    expect(csp["media-src"]).toEqual(["'self'", "https://*.supabase.co"]);
+    // Without the directive a film falls back to default-src 'self' and never plays (SAFETY-VIDEOS D-TR1);
+    // the warning desk's safety clips are Samsara's signed links, never stored (WARNING-DESK-PLAN D-WD7).
+    expect(csp["media-src"]).toEqual(["'self'", "https://*.supabase.co", "https://*.samsara.com"]);
   });
 
   it("does not let a script come from anywhere but this origin and Cloudflare's robot check", async () => {

@@ -86,7 +86,12 @@ function securityHeaders(env: Env) {
         // the directive falls back to `default-src 'self'` and the browser refuses every film: the
         // poster shows (img-src admits Supabase) and the player stays black. Found reading this list
         // before the page's first deploy, 2026-11-25; only the deployed header could have shown it.
-        mediaSrc: ["'self'", "https://*.supabase.co"],
+        //
+        // `*.samsara.com`: the warning desk plays a safety event's dashcam clip straight from Samsara
+        // (WARNING-DESK-PLAN D-WD7) — a signed link fetched on the click, never stored, served from
+        // `us4-safetymediadelivery.samsara.com` (measured 2026-11-26). The wildcard rather than that one
+        // host because the `us4-` prefix is Samsara's region shard, not a promise.
+        mediaSrc: ["'self'", "https://*.supabase.co", "https://*.samsara.com"],
         connectSrc: [
           "'self'",
           ...apiConnectSrc,

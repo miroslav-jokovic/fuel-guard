@@ -27,6 +27,8 @@
 // purpose: `vehicles` and `drivers` are roster's, and one question is what this answers.
 export { writeAssignmentHistory, type HistoryWrite } from "./driverVehicleAssignmentWrites.js";
 export { readFleetIdentities, readTrailerAnnualInspections, type FleetIdentity } from "./fleetIdentityReads.js";
+// The warning desk's line (WARNING-DESK-PLAN WD4, D-WD15): Samsara ids → unit numbers, the driver to call and their phone.
+export { readSamsaraSubjects, type SamsaraSubjects, type SubjectDriver, type SubjectTrailer, type SubjectTruck } from "./samsaraSubjectReads.js";
 // The Dispatch Board's note chips (UNIT-NOTES-PLAN D-UN18): open mentions of a unit, one value per carrier.
 export { readOpenUnitMentions, type OpenUnitMentions } from "./notes/noteUnits.js";
 // Home time (HOME-TIME-PLAN HT2): the board merges each seat's live period and the carrier's thresholds.

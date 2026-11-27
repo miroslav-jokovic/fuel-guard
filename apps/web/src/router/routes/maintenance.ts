@@ -54,6 +54,14 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
   },
   { path: "/shop/defects", name: "defects", redirect: (to) => ({ path: "/shop", query: { ...to.query, tab: "defects" } }) },
   {
+    // The warning desk (WARNING-DESK-PLAN D-WD1): Samsara's repeating warnings, one line per problem. `?open=<id>`
+    // opens one line's drawer — the urgent bell's deep link (D-WD14).
+    path: "/shop/follow-ups",
+    name: "follow-ups",
+    component: () => import("@/pages/FollowUpsPage.vue"),
+    meta: { requiresAuth: true, title: "Follow-ups", parent: "/shop" },
+  },
+  {
     path: "/shop/inventory",
     name: "parts",
     component: () => import("@/pages/PartsPage.vue"),

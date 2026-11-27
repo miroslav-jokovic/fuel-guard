@@ -72,6 +72,8 @@ export const SETTINGS_CARDS: readonly SettingsCard[] = [
   { key: "admin.settings.card-control", icon: LockIcon, desc: "Who may put cards on hold and grant fuel overrides, and the EFS write-access check.", block: "config" },
 
   { key: "admin.settings.broker-mail", icon: AtIcon, desc: "Whose Outlook the broker mail reader reads and why not, who is left out, and when an unanswered broker email is overdue.", block: "config" },
+  // The warning desk's rules (WARNING-DESK-PLAN D-WD10): admin only, by the owner's ruling of 2026-11-26.
+  { key: "maintenance.follow-ups.rules", icon: AdjustmentsHorizontalIcon, desc: "Which Samsara warnings open a follow-up for the shop, and how many times a problem must repeat first.", block: "config" },
   { key: "admin.settings.thresholds", icon: AdjustmentsHorizontalIcon, desc: "The limits that decide when a fill is flagged, and the AI second opinion.", block: "config" },
   { key: "admin.settings.driver-performance", icon: TrophyIcon, desc: "How safety, efficiency and idling are weighted into a driver's score.", block: "config" },
   { key: "admin.settings.fuel-planning", icon: MapIcon, desc: "The tank rules, the stations the planner may use, emergencies, prices, and the default load and truck.", block: "config" },
