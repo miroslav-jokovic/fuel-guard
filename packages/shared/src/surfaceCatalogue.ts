@@ -148,6 +148,10 @@ export const SURFACES: readonly Surface[] = [
   // D-LRC11: STAFF + startsOnFor, since dispatch and billing share it and no section holds both; `lumperSurface.test.ts` ties the roles to the matrix.
   { key: "dispatch.lumper-cases", label: "Lumper fees", path: "/lumper-fees", group: "dispatch", gate: STAFF, module: "dispatch", startsOnFor: ["fleet_manager", "dispatcher", "accountant"] },
   { key: "dispatch.broker-mail", label: "Broker mail", path: "/broker-mail", group: "dispatch", gate: section("dispatch"), module: "dispatch", startsOnFor: [] }, // off until the measure week is ruled on (BROKER-MAIL-READER-PLAN P2)
+  // Out of route is ONE record the desk and dispatch share (WARNING-DESK-PLAN D-WD13, Q-WD9): the desk's page
+  // with the category fixed to Route, so whoever handles it first closes it for both. The API asks this
+  // screen, and dispatch: manage to act, only for Route lines.
+  { key: "dispatch.route-follow-ups", label: "Route follow-ups", path: "/loads/follow-ups", group: "dispatch", gate: section("dispatch"), module: "dispatch" },
 
   // ── safety ────────────────────────────────────────────────────────────────────────────────────
   { key: "safety.driver-performance", label: "Driver performance", path: "/driver-performance", group: "safety", gate: section("safety") },
@@ -260,6 +264,10 @@ export const SURFACES: readonly Surface[] = [
   { key: "maintenance.assets", label: "Equipment", path: "/shop/assets", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.inspections", label: "Annual inspections", path: "/shop/inspections", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.parts", label: "Shop parts", path: "/shop/inventory", group: "maintenance", gate: section("maintenance") },
+  // The warning desk (WARNING-DESK-PLAN D-WD1): Samsara's repeating warnings, one line per problem, worked by
+  // phone. A sidebar row of its own because it is a daily list, not a tab of today's shop work. Who works it
+  // is this screen's answer on the Permissions page (role or one person, Q-WD1) — no new role.
+  { key: "maintenance.follow-ups", label: "Follow-ups", path: "/shop/follow-ups", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.inspectors", label: "Who can inspect", path: "/settings/inspectors", group: "admin", gate: section("maintenance"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "maintenance.devices", label: "Printers & scanners", path: "/settings/devices", group: "admin", gate: section("maintenance"), reachedFrom: "admin.settings", startsOnFor: [] },
 
@@ -434,6 +442,9 @@ export const SURFACES: readonly Surface[] = [
   { key: "admin.settings.medstop", label: "Med-Stop integration", path: "/settings/medstop", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
   { key: "admin.settings.card-control", label: "Card control", path: "/settings/card-control", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
   { key: "admin.settings.broker-mail", label: "Broker mail", path: "/settings/broker-mail", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
+  // Which Samsara warnings open a follow-up, at the Nth time in how many days (D-WD10). Owner ruling
+  // 2026-11-26: "only Admin set rules" — ADMIN, never offered to another role.
+  { key: "maintenance.follow-ups.rules", label: "Follow-up rules", path: "/settings/follow-up-rules", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
   { key: "admin.settings.thresholds", label: "Anomaly thresholds", path: "/settings/thresholds", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.driver-performance", label: "Driver performance", path: "/settings/driver-performance", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.fuel-planning", label: "Planned fueling", path: "/settings/fuel-planning", group: "admin", gate: manage("dispatch"), reachedFrom: "admin.settings", startsOnFor: [] },

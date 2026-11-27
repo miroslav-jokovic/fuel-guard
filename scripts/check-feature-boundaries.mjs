@@ -217,6 +217,16 @@ const API_ALLOW = new Set([
   // Broker mail's texts (P3) leave through messaging's one text road — `sendAlerts` and the drain with its door
   // hook — through its index only; messaging imports nothing of broker-mail's.
   "broker-mail -> messaging",
+  // The warning desk's routes (WARNING-DESK-PLAN WD4). followups stores Samsara ids, never roster keys (0653 §1),
+  // so drawing a line asks three owners through their index only:
+  //   · samsara — the follow-up's warnings (`listSubjectWarnings`, the raw table is sealed to its collector), the
+  //     alert configurations' names, and a safety event's video fetched per click (D-WD7);
+  //   · roster  — the unit number, the driver to call and their phone (`readSamsaraSubjects`, D-WD15);
+  //   · org     — who did each action, named the way the Users page names them (`listOfficeMembers`).
+  // None of the three imports anything of followups'.
+  "followups -> samsara",
+  "followups -> roster",
+  "followups -> org",
   // The driver's own account closure (P4.2) closes their login by calling the roster module's
   // `disableDriverLogin` through its index — the ban, the push-token revoke and the
   // `app_access_enabled` flag. A second ban path in driver-app would be two implementations of

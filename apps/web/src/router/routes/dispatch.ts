@@ -50,6 +50,15 @@ export const dispatchRoutes: RouteRecordRaw[] = [
   // as a redirect, the way `/hazmat/loads/new` did (D-H17): without it a bookmark would fall through to
   // `/loads/:id` with the id "new" and read "That load no longer exists".
   {
+    // Out of route follow-ups (WARNING-DESK-PLAN D-WD13): the warning desk's page with the category fixed to Route,
+    // so dispatch and the desk work one record. Before `/loads/:id`, which would otherwise read "follow-ups" as an id.
+    path: "/loads/follow-ups",
+    name: "route-follow-ups",
+    component: () => import("@/pages/FollowUpsPage.vue"),
+    props: { routeOnly: true },
+    meta: { requiresAuth: true, title: "Route follow-ups" },
+  },
+  {
     path: "/loads/new",
     redirect: { name: "loads" },
   },

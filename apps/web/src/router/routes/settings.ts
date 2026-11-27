@@ -27,6 +27,14 @@ export const settingsRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiresAdmin: true, title: "Card control", parent: "/settings" },
   },
   {
+    // Which Samsara warnings open a follow-up, at the Nth time (WARNING-DESK-PLAN D-WD10). The catalogue's ADMIN
+    // gate decides it (owner ruling 2026-11-26: only an admin sets the rules); the guard reads it from there.
+    path: "/settings/follow-up-rules",
+    name: "follow-up-rules-settings",
+    component: () => import("@/pages/FollowUpRulesSettingsPage.vue"),
+    meta: { requiresAuth: true, title: "Follow-up rules", parent: "/settings" },
+  },
+  {
     // Whose Outlook is read and why not, who is left out, the answer-by time (BROKER-MAIL-READER-PLAN
     // P2). The catalogue's ADMIN gate decides it (Q-BM9); the guard reads it from there.
     path: "/settings/broker-mail",
