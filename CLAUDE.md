@@ -21,6 +21,11 @@ stripped before Claude reads the file. -->
 - `apps/driver` — Expo/React Native driver app. Ships through the stores only (`driver-store.yml`, EAS → Play/TestFlight); the APK install
   page and the self-hosted OTA server were switched off in the AWS move (D-AWS16).
 - `apps/admin` + `apps/admin-api` — internal platform console (the `console` Compose service).
+- `packages/shared` — Zod contracts (`*Contract.ts`) + pure domain logic. The ONLY home for
+  api/web/driver-shared types and rules; never redefine a contract per app.
+- `packages/ui` — shared Vue components + `tokens.css`. `packages/hazmat-*` — hazmat rules engine
+  (pure, zero workspace deps) + versioned regulatory data.
+- `supabase/` — migrations (single source of schema truth) + PGlite behavioural test matrices. See its CLAUDE.md.
 
 ## Hosting: AWS only — Railway is retired
 
@@ -38,11 +43,6 @@ on AWS (the release name, console release approval, and the web build id are all
 variables AWS never sets). Inventory and fix order: `docs/plans/architecture/RAILWAY-REMOVAL-PLAN.md`.
 A new `RAILWAY_*` read is never the answer: read the platform-neutral name (`GIT_COMMIT_SHA`,
 `GIT_BRANCH`, `DEPLOY_ENVIRONMENT`) that `infra/image/Dockerfile` and `infra/server/` set.
-- `packages/shared` — Zod contracts (`*Contract.ts`) + pure domain logic. The ONLY home for
-  api/web/driver-shared types and rules; never redefine a contract per app.
-- `packages/ui` — shared Vue components + `tokens.css`. `packages/hazmat-*` — hazmat rules engine
-  (pure, zero workspace deps) + versioned regulatory data.
-- `supabase/` — migrations (single source of schema truth) + PGlite behavioural test matrices. See its CLAUDE.md.
 
 ## Commands
 
@@ -65,35 +65,9 @@ A new `RAILWAY_*` read is never the answer: read the platform-neutral name (`GIT
   `package.json` and in neither list is not a gate** — `lint:wsdl` once crashed on a stale path for
   ten days without anybody being able to notice. Adding a gate means adding it to `ci.yml` in the
   same PR, or chaining it onto a neighbour and saying so in its `"//lint:*"` comment.
-- CI is **eight parallel jobs**: `gates`, `typecheck`, `bundle`, `test-api`, `test-web`,
-  `test-packages`, `matrices`, `native-android` — the api, web and matrix jobs each fan out into
-  shards whose i/n come from GitHub's strategy context — plus a do-nothing `build` job that
-  aggregates them and must keep that name, because main's branch protection requires a check called
-  exactly `build`. Put a new gate in `gates`; put anything needing `apps/web/dist` in `bundle`, the
-  only job that builds. Sharding plan and measurements: `docs/plans/ci/CI-FEEDBACK-LOOP-V2-PLAN.md`.
-- `native-android` compiles the capture module's Kotlin (nothing else does) and runs its
-  metric-parity test. On a PR it skips unless one of its `NATIVE_INPUTS` changed — anything the job
-  starts reading goes on that list in the same PR; on main it always builds. **There is no iOS job**
-  (macOS runners bill ~10× Linux): Swift is compiled and checked by hand, per
-  `docs/plans/drivers-app/SCANNER-UPGRADE-PLAN.md` §3.4.
-- **A merge does not wait for main's CI when main's tree is the one the PR tested.** `build` posts a
-  `ci/tested-tree` status on the PR head, and `require-ci-green` (migrate, driver-store)
-  accepts it when main's merge commit has that exact tree — else it polls main's run. Rules in
-  `.github/actions/require-ci-green/tested-tree.sh`. Main's own CI asks the same question in its
-  `plan` job and, on a yes, skips every heavy job but `native-android`; `build` accepts those skips
-  only then (`scripts/check-ci-verdict.sh`, run in `gates`). A nightly `schedule` run (09:30 UTC)
-  and `workflow_dispatch` always run everything. `deploy-verify` passes pushes that touch only
-  paths `railway.json`'s `watchPatterns` exclude (a Railway leftover still in force — see the
-  removal plan), and a host serving a later main commit. A push to
-  main verifies the STAGING hosts (`STAGING_*` variables); `release.yml` calls it for production.
-  Every push-triggered production job (`migrate`, smoke) skips while
-  the repository variable `RELEASE_TRAIN` is `on`; deleting that variable is half of the undo.
-- **Browser tests run in `bundle`**: `pnpm --filter @silvicom/web e2e:apply` runs
-  `apps/web/e2e-apply/` — the applicant's page, built, in Chromium, against a stubbed API
-  (`e2e-apply/stubApi.ts`, raw JSON). Beside them, `tutorials --check` runs every video tutorial's
-  steps camera-less (`apps/web/tutorials/README.md`). Those two are the ONLY Playwright runs in CI:
-  `apps/web/e2e/` is `smoke.yml`'s, against production after a deploy, so a stubbed spec must never
-  go there. Locally: build `dist` first (CI's placeholder `VITE_SUPABASE_*` values), then run `e2e:apply`.
+- CI's job layout, the `native-android` job, the tested-tree merge rule and the browser tests live in
+  `.claude/rules/ci-and-release.md` and `.claude/rules/browser-tests.md`. They load by themselves when
+  you touch a matching file; read them first for any CI failure, workflow change or Playwright work.
 
 ## Hard rules (each one is machine-enforced; the gate is named)
 
@@ -188,25 +162,25 @@ So, when the honest fix is out of scope:
 ## graphify
 
 A knowledge graph of this repo lives at `graphify-out/` (gitignored; a fresh clone runs
-`pnpm graph:update` once, ~30s). A `PreToolUse` hook reminds of it on `Grep` only.
+`pnpm graph:update` once, ~30s). Full rules and the measurements behind them: `docs/GRAPHIFY.md`.
 
-- **Use it by exact symbol name.** `graphify explain "<symbol>"` for what defines, imports and calls
-  one symbol; `graphify affected "<symbol>"` for the blast radius of a change (it follows
-  re-exports grep misses); `graphify path "<A>" "<B>"` for how two symbols connect. These are
-  accurate and cost ~150–300 tokens.
-- **Do not use `graphify query "<question>"` to find code.** It matches question WORDS, not
-  meaning: measured 2026-10-21, "where is the IFTA sync scheduler" returned eight unrelated test
-  helpers (it matched "call" and "sync") and "which code computes fleet MPG" returned the hazmat
-  placard engine, each at up to ~2,000 tokens, while one grep found `samsaraScheduler.ts`. To
-  DISCOVER code, grep; once you have a name, switch to `explain`/`affected`. That measurement is
-  also why the hook no longer fires on Bash, Read or Glob — it added ~50 tokens to every call and
-  steered toward `query`. Read `GRAPH_REPORT.md` only for broad architecture review.
-- ⚠ **It is a map, not the territory.** Verify anything load-bearing at the call site, and be most
-  careful with a NEGATIVE — "there is no such function" is the answer a stale or partial graph
-  gives confidently and wrongly.
-- ⚠ **`built_at_commit` is NOT a staleness check.** It is the HEAD of the last build that CHANGED
-  TOPOLOGY, so it trails HEAD after every docs-only or body-only commit while the graph is current.
-  When in doubt run `pnpm graph:update`: idempotent, ~30s, a no-op when nothing changed.
-- **Rebuild with `pnpm graph:update`, never a bare `graphify update .`** — a graphify without the
-  optional `tree_sitter_sql` grammar silently drops every migration; the wrapper refuses to let
-  that pass (`scripts/graphify-update.sh`). `post-commit`/`post-merge` git hooks already run it.
+- Use it by exact symbol name: `graphify explain "<symbol>"`, `graphify affected "<symbol>"`,
+  `graphify path "<A>" "<B>"` (~150–300 tokens each). To DISCOVER code, grep — `graphify query`
+  matches question words, not meaning, and returns unrelated results.
+
+- Never Read files under `graphify-out/` (`GRAPH_REPORT.md` is ~450 KB, `graph.json` ~49 MB); use
+  the CLI above.
+
+- ⚠ It is a map, not the territory: verify anything load-bearing at the call site, above all a
+  NEGATIVE. `built_at_commit` is not a staleness check; when in doubt run `pnpm graph:update`.
+
+- Rebuild only with `pnpm graph:update`, never a bare `graphify update .` (it can silently drop
+  every migration — `scripts/graphify-update.sh`).
+
+## Compact instructions
+
+When the conversation is compacted, keep: every decision and open-question ID (D-*, Q-*, F-*) with
+its current status; PR numbers, branch names and commit SHAs; migration numbers; the exact text of
+any failing test or gate output not yet fixed; the paths of files changed so far; and every ruling
+the owner gave in this session. Drop: full file contents already read, passing test output, and
+search results.
