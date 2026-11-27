@@ -17,13 +17,19 @@
  *   TRAINING_LOAD_EMAIL=… TRAINING_LOAD_PASSWORD=… \
  *   node scripts/training-load.mjs --target staging [--publish] [--films 1,2]
  *
- * ⚠ Staging only for now. Production waits for the safety review of all 84 (§5 ⚠, §6 step 4) and the
- * owner's go; `--target production` is refused until that is recorded in the plan and this line changes.
- * Pass the password through the environment, never on a command line (it would sit in shell history).
+ *   TRAINING_LOAD_EMAIL=you@… node scripts/training-load.mjs --target production --yes-production --publish
+ *
+ * Production (D-TR18, owner 2026-11-27: a pilot with real drivers, the safety review of all 84 done in
+ * production, corrections as new cuts) needs `--yes-production` as well as the target, so a staging
+ * command edited by one word cannot write there. Run it in a Terminal, by the member who signs in: it
+ * asks for the password and, for an account with a second factor, the 6-digit code, with typing hidden,
+ * so neither sits in shell history, a file or a chat. On staging the password may come from the
+ * environment instead (a test member's, from the Keychain).
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
+import { stdin, stdout } from "node:process";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { chaptersOf, parseBank, questionsOf } from "./lib/training-bank.mjs";
@@ -45,10 +51,9 @@ const FILE_OF = {
  */
 const ghVar = (name) => execFileSync("gh", ["variable", "get", name], { encoding: "utf8" }).trim();
 const TARGETS = {
-  staging: () => ({ api: ghVar("STAGING_API_URL"), supabase: ghVar("STAGING_VITE_SUPABASE_URL"), anonKey: ghVar("STAGING_VITE_SUPABASE_ANON_KEY") }),
+  staging: () => ({ ref: "dssmxlddtyimrwwuqwqq", api: ghVar("STAGING_API_URL"), supabase: ghVar("STAGING_VITE_SUPABASE_URL"), anonKey: ghVar("STAGING_VITE_SUPABASE_ANON_KEY") }),
+  production: () => ({ ref: "nsjszqnfppczbnligxll", api: ghVar("PRODUCTION_VITE_API_URL"), supabase: ghVar("PRODUCTION_VITE_SUPABASE_URL"), anonKey: ghVar("PRODUCTION_VITE_SUPABASE_ANON_KEY") }),
 };
-/** Staging's Supabase project; every run refuses another one, whatever the variables say. */
-const STAGING_REF = "dssmxlddtyimrwwuqwqq";
 const COURSE = { title: "Defensive driving, Act I", description: "Five short films: space, vision, position, speed, being seen. Three questions after each part." };
 const filmTitle = (f) => `${String(f.no).padStart(2, "0")} ${f.title}`;
 
@@ -65,22 +70,60 @@ const chosen = only ? films.filter((f) => only.includes(f.no)) : films;
 console.log(`Bank: ${films.length} films, ${films.reduce((n, f) => n + questionsOf(f).length, 0)} questions; loading ${chosen.map((f) => f.no).join(", ")}.`);
 if (flag("--check")) process.exit(0);
 
-const targetOf = TARGETS[opt("--target") ?? ""];
+const targetName = opt("--target") ?? "";
+const targetOf = TARGETS[targetName];
 if (!targetOf) {
-  console.error(`--target must be one of: ${Object.keys(TARGETS).join(", ")}. Production waits for the safety review and the owner's go.`);
+  console.error(`--target must be one of: ${Object.keys(TARGETS).join(", ")}.`);
+  process.exit(2);
+}
+const isProduction = targetName === "production";
+if (isProduction && !flag("--yes-production")) {
+  console.error("Production needs --yes-production as well: this publishes films real drivers are sent.");
   process.exit(2);
 }
 const target = targetOf();
-if (!target.supabase.includes(STAGING_REF)) {
-  console.error(`Refusing: ${target.supabase} is not the staging project.`);
+// The variables are the source of each address; the project ref pins which database they may name.
+if (!target.supabase.includes(target.ref)) {
+  console.error(`Refusing: ${target.supabase} is not the ${targetName} project (${target.ref}).`);
   process.exit(2);
 }
+
+/** Ask on the terminal with typing hidden; the answer never reaches the screen, history or a file. */
+function askHidden(prompt) {
+  if (!stdin.isTTY) {
+    console.error(`"${prompt.trim()}" needs a Terminal, where typing is hidden: run this there, not in a chat or a pipe.`);
+    process.exit(2);
+  }
+  return new Promise((resolve) => {
+    stdout.write(prompt);
+    stdin.setRawMode(true);
+    stdin.resume();
+    let typed = "";
+    const onData = (buf) => {
+      for (const ch of buf.toString("utf8")) {
+        if (ch === "\r" || ch === "\n") {
+          stdin.setRawMode(false);
+          stdin.pause();
+          stdin.off("data", onData);
+          stdout.write("\n");
+          resolve(typed);
+          return;
+        }
+        if (ch === "\u0003") process.exit(130);
+        typed = ch === "\u007f" ? typed.slice(0, -1) : typed + ch;
+      }
+    };
+    stdin.on("data", onData);
+  });
+}
+
 const email = process.env.TRAINING_LOAD_EMAIL;
-const password = process.env.TRAINING_LOAD_PASSWORD;
-if (!email || !password) {
-  console.error("Set TRAINING_LOAD_EMAIL and TRAINING_LOAD_PASSWORD (a member with Safety: manage).");
+if (!email) {
+  console.error("Set TRAINING_LOAD_EMAIL (a member with Safety: manage).");
   process.exit(2);
 }
+// Production never takes a password from the environment: it is typed by the member it belongs to.
+const password = (!isProduction && process.env.TRAINING_LOAD_PASSWORD) || (await askHidden(`Password for ${email} on ${targetName}: `));
 for (const f of chosen) statSync(join(FILMS_DIR, FILE_OF[f.no]));
 
 async function signIn() {
@@ -93,7 +136,26 @@ async function signIn() {
   if (!r.ok || !j.access_token) throw new Error(`Sign-in refused (${r.status}): ${j.error_description ?? j.msg ?? "no token"}`);
   return j.access_token;
 }
-const token = await signIn();
+
+/**
+ * An account with a verified authenticator signs in at `aal1` and the API answers 403
+ * `second_factor_required` until the same session is raised to `aal2` (middleware/auth.ts). This does
+ * what the sign-in page does: challenge the verified TOTP factor and verify the code the member types.
+ */
+async function raiseToAal2(aal1) {
+  const auth = { apikey: target.anonKey, authorization: `Bearer ${aal1}`, "content-type": "application/json" };
+  const user = await (await fetch(`${target.supabase}/auth/v1/user`, { headers: auth })).json();
+  const factor = (user.factors ?? []).find((f) => f.factor_type === "totp" && f.status === "verified");
+  if (!factor) return aal1;
+  const challenge = await (await fetch(`${target.supabase}/auth/v1/factors/${factor.id}/challenge`, { method: "POST", headers: auth, body: "{}" })).json();
+  if (!challenge.id) throw new Error(`Second-step challenge refused: ${challenge.msg ?? challenge.error_description ?? "no challenge"}`);
+  const code = (await askHidden("6-digit code from your authenticator: ")).trim();
+  const r = await fetch(`${target.supabase}/auth/v1/factors/${factor.id}/verify`, { method: "POST", headers: auth, body: JSON.stringify({ challenge_id: challenge.id, code }) });
+  const j = await r.json();
+  if (!r.ok || !j.access_token) throw new Error(`Code refused (${r.status}): ${j.msg ?? j.error_description ?? "no token"}`);
+  return j.access_token;
+}
+const token = await raiseToAal2(await signIn());
 /**
  * One device name for every run (0620's device key, `DEVICE_KEY_HEADER`), and a sign-out at the end:
  * each password sign-in is a new session, and a member holds at most `DEVICE_LIMIT` (3) devices, so a
