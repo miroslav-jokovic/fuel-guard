@@ -639,8 +639,15 @@ D-BMR9's two-part proof; API tests with `supabaseRecorder` asserting org + owner
     If the owner wants it instant, that is one IAM statement in `setup.sh` plus its `--check` case.
   - **Until Simo gives the scope `Mail.ReadWrite`,** every draft ends `refused` and the panel says
     Microsoft does not let 360 write drafts yet. Nothing is routed around it.
-  - **Not done:** the Dispatch board's envelope badge, the "draft ready" link in the dispatcher's text,
-    and P5's learning notes. P5 waits on **B-7**: which text, if any, may reach a model.
+  - **Not done:** the Dispatch board's envelope badge, the link in the dispatcher's text (done the same
+    day, entry below), and P5's learning notes. P5 waits on **B-7**: which text, if any, may reach a model.
+- 2026-11-27 — **The dispatcher's text says what Q-BM7 ruled.** Until now P3's line was "sender, load,
+  waiting N min". It now also names the truck (off the board's rows, one read per minute's batch; a board
+  that cannot be read costs the text its truck, never the text) and what is asked, and the text ends with
+  a link that opens that email's panel. The link is text-only: messaging's `AlertEvent` gains `textLine`,
+  because the bell reuses `line` as its title and links by itself (`notificationRoute.ts`: the
+  dispatcher's alert opens the panel; a backup's notice opens the list, since a backup cannot open a
+  colleague's email).
 
 ## Sources
 

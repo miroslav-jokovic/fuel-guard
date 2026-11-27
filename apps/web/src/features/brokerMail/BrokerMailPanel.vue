@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, toRef, watch } from "vue";
-import { BROKER_MAIL_DRAFT_STATE_LABELS, formatDisplayDateTime, type BrokerMailCompose, type BrokerMailLoadFacts } from "@silvicom/shared";
+import { BROKER_MAIL_ASK_LABELS, BROKER_MAIL_DRAFT_STATE_LABELS, formatDisplayDateTime, type BrokerMailCompose, type BrokerMailLoadFacts } from "@silvicom/shared";
 import { AppBadge, AppButton, AppCallout, AppFormField, AppTextarea, FactList, QueryState, type Fact } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { useToastStore } from "@/stores/toast";
-import { ASK_WORDS } from "./brokerMailRows";
 import { useBrokerMailDetail, useCloseBrokerMail, useComposeDraft, useQueueDraft } from "./useBrokerMail";
 
 /**
@@ -84,7 +83,7 @@ async function onClose(how: "closed_by_phone" | "closed_not_for_us") {
         <section aria-labelledby="bm-ask">
           <h3 id="bm-ask" class="text-sm font-semibold text-ink">Asking for</h3>
           <div class="mt-2 flex flex-wrap gap-2">
-            <AppBadge v-for="k in data.askKinds.length ? data.askKinds : ['other']" :key="k" tone="neutral">{{ ASK_WORDS[k] ?? k }}</AppBadge>
+            <AppBadge v-for="k in data.askKinds.length ? data.askKinds : (['other'] as const)" :key="k" tone="neutral">{{ BROKER_MAIL_ASK_LABELS[k] }}</AppBadge>
           </div>
           <p class="mt-1 text-xs text-ink-tertiary">Received {{ formatDisplayDateTime(data.receivedAt) }}. 360 keeps no email text; open the email in Outlook to read it.</p>
         </section>

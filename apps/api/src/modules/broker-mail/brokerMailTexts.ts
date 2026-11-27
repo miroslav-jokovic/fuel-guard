@@ -1,9 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { BROKER_MAIL_OPEN_DAYS, type AlertKey } from "@silvicom/shared";
+import { BROKER_MAIL_ASK_SHORT, BROKER_MAIL_OPEN_DAYS, brokerMailEmailPath, type AlertKey, type BrokerMailAskKind } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { drainAlertTexts, sendAlerts, type AlertEvent, type DoorCheck } from "../messaging/index.js";
 import { listOfficeMembers, orgTimezone } from "../org/index.js";
+import { readLoadStatusFacts } from "../livemap/index.js";
 
 /**
  * Broker mail's texts (BROKER-MAIL-READER-PLAN P3, D-BMR10; analysis Q-BM7, Q-BM10–12, Q-BMR7). Runs
@@ -55,6 +56,7 @@ interface Row {
   load_id: string | null;
   thread_checked_at: string | null;
   owner_alerted_at: string | null;
+  ask_kinds?: BrokerMailAskKind[] | null;
 }
 
 export interface TextsRun { owner: number; backup: number; heldForGateway: number; drained: { sent: number; failed: number; skipped: number } }
@@ -115,6 +117,33 @@ export function brokerMailDoor(admin: SupabaseClient, orgId: string, textsOn: bo
   };
 }
 
+/**
+ * The dispatcher's alert, as Q-BM7 ruled the full text: the broker, the load, the truck, what is asked, how long,
+ * and a link that opens that email's panel (and its reply draft). Pure, so the words are a test.
+ */
+export function ownerLines(p: { sender: string; load: string; truck: string | null; asks: readonly BrokerMailAskKind[]; waited: number; link: string }): { line: string; textLine: string } {
+  const asks = p.asks.length ? `, asks ${p.asks.map((a) => BROKER_MAIL_ASK_SHORT[a]).join(", ")}` : "";
+  const line = `${p.sender}, ${p.load}${p.truck ? `, truck ${p.truck}` : ""}${asks}, waiting ${p.waited} min`;
+  // The bell links by itself; only the text carries the address.
+  return { line, textLine: `${line}: ${p.link}` };
+}
+
+/**
+ * The truck on each due email's load, off the Dispatch board's own rows (one read for the minute's
+ * batch). A board that cannot be read costs the text its truck, never the text itself.
+ */
+async function trucksOf(admin: SupabaseClient, orgId: string, rows: readonly Row[], zone: string, now: Date): Promise<Map<string, string>> {
+  const ids = [...new Set(rows.map((r) => r.load_id).filter((x): x is string => Boolean(x)))];
+  if (!ids.length) return new Map();
+  try {
+    const facts = await readLoadStatusFacts(admin, orgId, ids, zone, now);
+    return new Map([...facts].filter(([, f]) => f.truckUnit).map(([id, f]) => [id, f.truckUnit as string]));
+  } catch (e) {
+    console.error(`[broker-mail-texts] org ${orgId}: the board could not be read for trucks:`, e instanceof Error ? e.message : e);
+    return new Map();
+  }
+}
+
 export async function runBrokerMailTextsOnce(admin: SupabaseClient, env: Env, now: Date): Promise<TextsRun | null> {
   const run: TextsRun = { owner: 0, backup: 0, heldForGateway: 0, drained: { sent: 0, failed: 0, skipped: 0 } };
   // One gateway per database (D-BMR12): its config row names the org.
@@ -134,7 +163,7 @@ export async function runBrokerMailTextsOnce(admin: SupabaseClient, env: Env, no
     const since = new Date(Math.max(Date.parse(settings.texts_on_since!), nowMs - BROKER_MAIL_OPEN_DAYS * 86_400_000)).toISOString();
     const { data, error } = await admin
       .from("broker_mail_messages")
-      .select("id, owner_user_id, received_at, from_address, from_domain, match_state, was_candidate, load_id, thread_checked_at, owner_alerted_at")
+      .select("id, owner_user_id, received_at, from_address, from_domain, match_state, was_candidate, load_id, thread_checked_at, owner_alerted_at, ask_kinds")
       .eq("org_id", orgId)
       .eq("thread_state", "waiting")
       // The page's two open queues, in the query, so a week of non-broker mail cannot crowd the batch.
@@ -163,9 +192,11 @@ export async function runBrokerMailTextsOnce(admin: SupabaseClient, env: Env, no
 
     const owners = [...due.owner, ...due.ownerLate];
     if (owners.length) {
+      const trucks = await trucksOf(admin, orgId, owners, zone, now);
       const events: AlertEvent[] = owners.map((r) => ({
         dedupeKey: `broker_mail:${r.id}:owner`,
-        line: `${sender(r)}, ${load(r)}, waiting ${minutes(r.received_at, nowMs)} min`,
+        ...ownerLines({ sender: sender(r), load: load(r), truck: r.load_id ? trucks.get(r.load_id) ?? null : null,
+          asks: r.ask_kinds ?? [], waited: minutes(r.received_at, nowMs), link: `${env.WEB_APP_URL.replace(/\/+$/, "")}${brokerMailEmailPath(r.id)}` }),
         severity: "warning",
         entityType: "broker_mail_message",
         entityId: r.id,

@@ -58,6 +58,12 @@ export interface AlertEvent {
   dedupeKey: string;
   /** The sentence about this event: the bell's title and a line of the email. */
   line: string;
+  /**
+   * The text message's line, when it must say more than the bell can show — broker mail's link that
+   * opens the email (Q-BM7: "link to the draft"). The bell has its own link (`notificationRoute.ts`),
+   * so a URL in its title would only be noise. Absent: the text says `line`.
+   */
+  textLine?: string;
   severity: NotificationSeverity;
   entityType: string;
   entityId: string;
@@ -319,7 +325,7 @@ export async function sendAlerts(
       const phone = audience.textable.get(userId);
       if (!phone) continue;
       try {
-        const items = mine.map((e) => ({ key: e.dedupeKey, line: e.line }));
+        const items = mine.map((e) => ({ key: e.dedupeKey, line: e.textLine ?? e.line }));
         const outcome = await textOne(admin, env, orgId, alert, def.label, userId, phone, items, quiet, clock);
         if (outcome === "sent") result.texts += 1;
         else if (outcome === "held") result.textsHeld += 1;
