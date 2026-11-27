@@ -103,9 +103,9 @@ describe("the Vehicles page behind the Operations tab's doors", () => {
     expect(units((await mountAt("/vehicles?check=winding_down")).w)).toEqual(["T-404"]);
   });
 
-  it("opens the Seats card's two truck doors on exactly the trucks it counted — the pool off the board, the shop on it", async () => {
-    // FLEET-MANAGER-HOME-PLAN D-FM10: the card counts the board's trucks, the shop's (`maintenance`)
-    // included, so its doors say `status=any`; fleet '1' is the Unassigned pool the board leaves out.
+  it("opens on the trucks in service — the shop's included — and each Trucks-card door on exactly its group", async () => {
+    // FLEET-MANAGER-HOME-PLAN D-FM11: the page said 204 while McLeod had 210 in service; the 6 it hid
+    // were in the shop. Fleet '1' is the Unassigned pool the board leaves out (Q-DB2).
     const before = vehicles.value;
     vehicles.value = [
       ...before,
@@ -114,9 +114,13 @@ describe("the Vehicles page behind the Operations tab's doors", () => {
       { id: "t7", unit_number: "T-707", status: "maintenance", mcleod_fleet_code: "1", assigned_driver_id: "b", dot_annual_inspection_expires_at: null, registration_expires_at: null },
     ] as typeof before;
     try {
-      expect(units((await mountAt("/vehicles?status=any&check=no_driver")).w)).toEqual(["T-202", "T-606"]);
-      // Wound down T-404 and the pool's T-505 and T-707; ordered T-303 is not in service.
-      expect(units((await mountAt("/vehicles?status=any&check=off_board")).w)).toEqual(["T-404", "T-505", "T-707"]);
+      // Ordered T-303 is not in service, so not in the fleet.
+      expect(units((await mountAt("/vehicles")).w)).toEqual(["T-101", "T-202", "T-404", "T-505", "T-606", "T-707"]);
+      expect(units((await mountAt("/vehicles?status=active")).w)).toEqual(["T-101", "T-202", "T-404", "T-505"]);
+      expect(units((await mountAt("/vehicles?check=under_dispatch")).w)).toEqual(["T-101", "T-202", "T-606"]);
+      expect(units((await mountAt("/vehicles?check=no_driver")).w)).toEqual(["T-202", "T-606"]);
+      expect(units((await mountAt("/vehicles?check=parked")).w)).toEqual(["T-505", "T-707"]);
+      expect(units((await mountAt("/vehicles?check=winding_down")).w)).toEqual(["T-404"]);
     } finally {
       vehicles.value = before;
     }

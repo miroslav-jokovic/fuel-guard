@@ -1,5 +1,5 @@
 import { computed } from "vue";
-import { matchesVehicleCheck, VEHICLE_CHECK_LABELS, type VehicleCheck } from "@silvicom/shared";
+import { isInServiceVehicleStatus, matchesVehicleCheck, VEHICLE_CHECK_LABELS, type VehicleCheck } from "@silvicom/shared";
 import type { CountRow } from "@/components/ui/CountList.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useUnitFilesQuery } from "@/composables/useCompliance";
@@ -29,7 +29,9 @@ export function useTruckPapersRows() {
   const count = (check: VehicleCheck) => {
     const files = fileById.value;
     if (!vehicles.value || !files) return null;
-    return vehicles.value.filter((v) => v.status === "active" && matchesVehicleCheck(v, check, files.get(v.id))).length;
+    // The fleet the Trucks card totals and the Vehicles page opens on (D-FM11): a truck in the shop still
+    // needs its papers, and it was left out here while the door's list opened on `active` too.
+    return vehicles.value.filter((v) => isInServiceVehicleStatus(v.status) && matchesVehicleCheck(v, check, files.get(v.id))).length;
   };
 
   const grid = computed(() =>
