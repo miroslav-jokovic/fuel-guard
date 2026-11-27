@@ -173,6 +173,10 @@ export const LOAD_EVENT_KINDS = [
   // D-DV30 — see migration 0645. A late photo for a stop the driver already finished. Named here in
   // the merge that adds it to the CHECK, ahead of its first writer, so no reader meets an unknown kind.
   "stop_photo_added",
+  // D-MK15 / D-MK16 — see migration 0660. System facts written only by `apply_mcleod_load_stops`: a stop
+  // McLeod stopped listing (kept, stamped, moved to the tail) and a load whose stops could not be
+  // applied. Named here in the merge that adds them to the CHECK, 0645's rule, ahead of N-7's writer.
+  "stop_removed_in_mcleod", "stop_mirror_refused",
 ] as const;
 export type LoadEventKind = (typeof LOAD_EVENT_KINDS)[number];
 
@@ -210,4 +214,6 @@ export const LOAD_EVENT_LABELS: Record<LoadEventKind, string> = {
   canceled: "Canceled",
   completed: "Delivered",
   stop_photo_added: "Late photo received",
+  stop_removed_in_mcleod: "Stop removed in McLeod",
+  stop_mirror_refused: "McLeod stops not applied",
 };
