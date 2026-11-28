@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import express, { type NextFunction, type Request, type Response } from "express";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { followUpDetailSchema, followUpListSchema, followUpRulesSchema, followUpTruckCodesSchema, type UserRole } from "@silvicom/shared";
+import type { AlertConfigurationSummary } from "@silvicom/shared";
+import { followUpDetailSchema, followUpListSchema, followUpRulesSchema, followUpTruckCodesSchema, offRouteViewSchema, type UserRole } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 
@@ -29,7 +30,7 @@ let surfaceGrants: Record<string, Record<string, boolean>> = {};
 let rpcResult: unknown = null;
 const audit = vi.hoisted(() => vi.fn(async () => true));
 const samsara = vi.hoisted(() => ({
-  configs: vi.fn(async () => [{ id: "77", name: "Out of route", isEnabled: true, triggerTypeIds: [1027] }]),
+  configs: vi.fn(async (): Promise<AlertConfigurationSummary[]> => [{ id: "77", name: "Out of route", isEnabled: true, triggerTypeIds: [1027], outOfRouteMeters: 9656 }]),
   video: vi.fn(async () => [{ url: "https://us4-safetymediadelivery.samsara.com/clip.mp4?exp=1", input: "dashcamForwardFacing" }]),
   codes: vi.fn(),
 }));
@@ -41,6 +42,8 @@ vi.mock("../../samsara/index.js", async (importOriginal) => {
   const real = await importOriginal<typeof import("../../samsara/index.js")>();
   return { ...real, readAlertConfigurations: samsara.configs, fetchSafetyEventVideo: samsara.video, readTruckFaultCodes: samsara.codes };
 });
+const offRoute = vi.hoisted(() => ({ view: vi.fn() }));
+vi.mock("../../livemap/index.js", () => ({ readOffRouteViewCached: offRoute.view }));
 vi.mock("../../../middleware/auth.js", async (importOriginal) => {
   const real = await importOriginal<typeof import("../../../middleware/auth.js")>();
   return {
@@ -94,7 +97,12 @@ const WARNINGS = [
     trailer_samsara_id: null, driver_samsara_id: "s-d2", unit_name: "847", driver_name: "Ana Safe", label: "Crash", happened_at: "2026-11-26T08:30:00Z",
     ended_at: "2026-11-26T08:30:00Z", still_active: false, samsara_url: "https://cloud.samsara.com/o/1/safety/evt-crash", detail: { hasVideo: true },
     updated_at: "2026-11-26T08:35:00Z", org_id: ORG },
+  { id: "00000000-0000-4000-8000-0000000000e3", source: "alert", source_key: "https://cloud.samsara.com/o/1/fleet/workflows/incidents/77/1/s-v/1", kind: "alert:77",
+    subject_kind: "truck", vehicle_samsara_id: "s-v", trailer_samsara_id: null, driver_samsara_id: "s-d1", unit_name: "847", driver_name: "Angel Perez",
+    label: "Out of route", happened_at: "2026-11-25T10:00:00Z", ended_at: "2026-11-25T11:00:00Z", still_active: false,
+    samsara_url: "https://cloud.samsara.com/o/1/fleet/workflows/incidents/77/1/s-v/1", detail: { triggerIds: [1027] }, updated_at: "2026-11-25T11:05:00Z", org_id: ORG },
 ];
+const ROUTE_WARNING = "00000000-0000-4000-8000-0000000000e3";
 
 let lampRows: Record<string, unknown>[] = [];
 const code = (spn: number, module = 0) => ({ module, moduleName: "Engine #1", spn, fmi: 3, description: "Engine Coolant Level 1", fmiDescription: null, makerSpecific: false, occurrences: 2 });
@@ -103,6 +111,7 @@ beforeEach(() => {
   surfaceGrants = {};
   lampRows = [];
   samsara.codes.mockReset();
+  offRoute.view.mockReset();
   rpcResult = { follow_up_id: FU_ROUTE, from_status: "new", to_status: "called", version: 4 };
   audit.mockClear();
   samsara.video.mockClear();
@@ -331,6 +340,54 @@ describe("GET /api/follow-ups/:id/codes — a maintenance truck's codes, never s
   it("says Samsara did not answer when there is nothing kept to show instead", async () => {
     samsara.codes.mockRejectedValue(new Error("Samsara /fleet/vehicles/stats answered 503"));
     const r = await call("technician", "GET", `/api/follow-ups/${FU_STOP}/codes`);
+    expect([r.status, r.json.error.code]).toEqual([502, "samsara_unavailable"]);
+  });
+});
+
+describe("GET /api/follow-ups/:id/route/:warningId — an Out of route warning on our map", () => {
+  const VIEW = {
+    thresholdMiles: 6, samsara: { happenedAt: "2026-11-25T10:00:00.000Z", endedAt: "2026-11-25T11:00:00.000Z", stillActive: false },
+    window: { start: "2026-11-25T09:15:00.000Z", end: "2026-11-25T11:20:00.000Z", capped: false }, path: [], planned: null, notes: [], verdict: null,
+  };
+
+  it("marks the Out of route warning as one the drawer can draw", async () => {
+    const r = await call("dispatcher", "GET", `/api/follow-ups/${FU_ROUTE}`);
+    expect(followUpDetailSchema.parse(r.json).warnings.map((w) => [w.id, w.routeMap])).toEqual([[ROUTE_WARNING, true]]);
+  });
+
+  it("draws it for a dispatcher, for our truck, against the configuration's own distance", async () => {
+    offRoute.view.mockResolvedValue(VIEW);
+    const r = await call("dispatcher", "GET", `/api/follow-ups/${FU_ROUTE}/route/${ROUTE_WARNING}`);
+    expect(r.status).toBe(200);
+    expect(offRouteViewSchema.parse(r.json)).toEqual(VIEW);
+    expect(offRoute.view.mock.calls[0]!.slice(2)).toEqual([
+      ORG, ROUTE_WARNING,
+      { vehicleId: TRUCK, happenedAt: "2026-11-25T10:00:00.000Z", endedAt: "2026-11-25T11:00:00.000Z", stillActive: false, thresholdMeters: 9656 },
+    ]);
+    expectOrgScoped(rec, ORG, { exempt: SURFACE_TABLES });
+  });
+
+  it("refuses a warning that is not this follow-up's, or not an alert, before anything is read", async () => {
+    expect((await call("technician", "GET", `/api/follow-ups/${FU_ROUTE}/route/00000000-0000-4000-8000-0000000000e9`)).status).toBe(404);
+    expect((await call("technician", "GET", `/api/follow-ups/${FU_SAFETY}/route/00000000-0000-4000-8000-0000000000e1`)).status).toBe(404);
+    expect(offRoute.view).not.toHaveBeenCalled();
+  });
+
+  it("refuses an alert whose configuration carries no Out of route distance", async () => {
+    samsara.configs.mockResolvedValueOnce([{ id: "77", name: "Out of route", isEnabled: true, triggerTypeIds: [1027] }]);
+    expect((await call("dispatcher", "GET", `/api/follow-ups/${FU_ROUTE}/route/${ROUTE_WARNING}`)).status).toBe(404);
+    expect(offRoute.view).not.toHaveBeenCalled();
+  });
+
+  it("says Samsara did not answer when its configurations cannot be read, rather than calling it no route alert", async () => {
+    samsara.configs.mockRejectedValueOnce(new Error("Samsara /alerts/configurations answered 503"));
+    const r = await call("dispatcher", "GET", `/api/follow-ups/${FU_ROUTE}/route/${ROUTE_WARNING}`);
+    expect([r.status, r.json.error.code]).toEqual([503, "samsara_unavailable"]);
+  });
+
+  it("says Samsara did not answer when the view cannot be read", async () => {
+    offRoute.view.mockRejectedValue(new Error("Samsara API 503"));
+    const r = await call("dispatcher", "GET", `/api/follow-ups/${FU_ROUTE}/route/${ROUTE_WARNING}`);
     expect([r.status, r.json.error.code]).toEqual([502, "samsara_unavailable"]);
   });
 });
