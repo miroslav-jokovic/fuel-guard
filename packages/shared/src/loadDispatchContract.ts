@@ -69,6 +69,105 @@ export interface LoadDispatchSummary {
   channel: LoadDispatchChannel;
   outcome: LoadDispatchOutcome;
   outcomeReason: string | null;
+  /**
+   * Who said "Got it" to THIS dispatch (0661 `acknowledged` events, one per dispatch per driver), oldest
+   * first. Both seats of a team appear here once each, the McLeod co-driver too (O-3).
+   */
+  acknowledgements: DispatchAcknowledgement[];
+  /**
+   * Everybody this dispatch shows the load to (`dispatchSeats`, 0655's O-3 rule): the dispatched driver,
+   * and McLeod's co-driver when the dispatch names McLeod's driver. The team form of "Seen" reads it.
+   */
+  seats: { driverId: string; driverName: string | null }[];
+  /** Whether anybody can see this load in the app now — derived, never stored (`dispatchReachable`). */
+  reachable: DispatchReach;
+  /** McLeod seats somebody else on the load (`dispatchSeatNote`); the dispatch still decides (D-LMR6). */
+  seatNote: DispatchSeatNote;
+  /**
+   * When the dispatched driver's phone last reached us about this load (D-MK22): the later of their
+   * newest event on this load and their app's last check-in (`device_push_tokens.last_seen_at`). Null
+   * when neither exists. `phoneSilentSince` decides whether the office is told.
+   */
+  lastContactAt: string | null;
+}
+
+export interface DispatchAcknowledgement {
+  driverId: string;
+  driverName: string | null;
+  at: string;
+}
+
+/**
+ * Why a sent load is in nobody's app (T1 N-9, cD DR-14 re-derived against 0655):
+ *   no_app_login        — the dispatched driver has no active app login. The commonest case today
+ *                         (production 2026-11-27: 1 of 195 active drivers has one);
+ *   uncovered_in_mcleod — McLeod has the load at `draft` (uncovered), the one status 0655 shows nobody;
+ *   closed              — McLeod closed the load.
+ */
+export const DISPATCH_UNREACHABLE_REASONS = ["no_app_login", "uncovered_in_mcleod", "closed"] as const;
+export type DispatchUnreachableReason = (typeof DISPATCH_UNREACHABLE_REASONS)[number];
+export type DispatchReach = { ok: true } | { ok: false; reason: DispatchUnreachableReason };
+export type DispatchSeatNote = "mcleod_seats_someone_else" | null;
+
+/**
+ * Whether a driver has a login the app can reach — the predicate Send uses to choose the `app`
+ * channel (#2689) and the office uses to say "not in their app". One definition for both.
+ */
+export function driverHasAppLogin(driver: { user_id: string | null; app_access_enabled: boolean | null } | null): boolean {
+  return driver !== null && driver.user_id != null && driver.app_access_enabled === true;
+}
+
+/** Whether a dispatch reaches an app now. Order matters: a closed load is closed whoever holds it. */
+export function dispatchReachable(
+  load: { status: string; external_closed_at: string | null },
+  driver: { user_id: string | null; app_access_enabled: boolean | null } | null,
+): DispatchReach {
+  if (load.external_closed_at) return { ok: false, reason: "closed" };
+  if (load.status === "draft") return { ok: false, reason: "uncovered_in_mcleod" };
+  if (!driverHasAppLogin(driver)) return { ok: false, reason: "no_app_login" };
+  return { ok: true };
+}
+
+/**
+ * The office sent the load to a driver McLeod does not seat on it (neither `driver_id` nor
+ * `co_driver_id`), e.g. after a repower nobody keyed into McLeod. 0655 still shows them the load; the
+ * office should know McLeod disagrees.
+ */
+export function dispatchSeatNote(
+  load: { driver_id: string | null; co_driver_id: string | null },
+  dispatchedDriverId: string,
+): DispatchSeatNote {
+  return load.driver_id === dispatchedDriverId || load.co_driver_id === dispatchedDriverId ? null : "mcleod_seats_someone_else";
+}
+
+/** The drivers a dispatch shows the load to — 0655's rule (`driver_visible_tms_load_ids`), in TypeScript only for the office's words. */
+export function dispatchSeats(
+  load: { driver_id: string | null; co_driver_id: string | null },
+  dispatchedDriverId: string,
+): string[] {
+  const co = load.co_driver_id;
+  return co && load.driver_id === dispatchedDriverId && co !== dispatchedDriverId ? [dispatchedDriverId, co] : [dispatchedDriverId];
+}
+
+/** How long a phone may be quiet on an active load before the office is told (D-MK22). */
+export const PHONE_SILENT_MINUTES = 60;
+const PHONE_WATCH_STATUSES: readonly string[] = ["pending_approval", "approved", "in_transit"];
+
+/**
+ * The instant to show in "Driver's phone last reached us at …", or null when the office is not told:
+ * only for a load still open in McLeod whose current dispatch reaches an app, when the phone has been
+ * quiet for more than an hour. A phone that never reached us has no time to show — the load page says
+ * "not seen" through the acknowledgement line instead.
+ */
+export function phoneSilentSince(
+  load: { status: string },
+  current: Pick<LoadDispatchSummary, "reachable" | "lastContactAt"> | null | undefined,
+  now: number = Date.now(),
+): string | null {
+  if (!current || !current.reachable.ok || !current.lastContactAt) return null;
+  if (!PHONE_WATCH_STATUSES.includes(load.status)) return null;
+  const at = Date.parse(current.lastContactAt);
+  return Number.isFinite(at) && now - at > PHONE_SILENT_MINUTES * 60_000 ? current.lastContactAt : null;
 }
 
 /** What the modal shows before Send: the exact text, and whether it would actually be texted. */
@@ -86,6 +185,9 @@ export interface LoadDispatchPreview {
    * "New load" notification goes to them and to the McLeod co-driver. False → the `sms` record as before.
    */
   inApp: boolean;
+  /** `uncovered_in_mcleod` when nobody will see the load whoever it is sent to; else the same as `inApp`. */
+  reachable: DispatchReach;
+  seatNote: DispatchSeatNote;
 }
 
 export interface DispatchSmsStop {

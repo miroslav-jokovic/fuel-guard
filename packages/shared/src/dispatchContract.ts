@@ -84,7 +84,13 @@ export function shiftDuration(startedAt: string | null, nowMs: number): string {
  */
 // `stale_approval` and `load_changed` left in LR6: nothing is approved any more (D-LMR5), and the
 // only edit of a released load that raised the second is gone (see `dispatchLoads/exceptions.ts`).
-export const EXCEPTION_KINDS = ["declined", "equipment_mismatch", "amended", "auto_timeout"] as const;
+export const EXCEPTION_KINDS = [
+  "declined", "equipment_mismatch", "amended", "auto_timeout",
+  // T1 N-9 (M-A). late_evidence: a driver's work that landed after the load left them, or on a stop
+  // McLeod removed — kept, not applied (D-MK20). dispatch_not_visible: the current dispatch reaches
+  // nobody's app. stop_mirror_refused: McLeod's stops could not be applied to the load (0660).
+  "late_evidence", "dispatch_not_visible", "stop_mirror_refused",
+] as const;
 export type ExceptionKind = (typeof EXCEPTION_KINDS)[number];
 
 /** The single action that resolves each kind — stated by the server so the UI cannot invent one. */
@@ -96,6 +102,9 @@ export const EXCEPTION_LABELS: Record<ExceptionKind, string> = {
   equipment_mismatch: "Equipment differs from plan",
   amended: "Amended by the TMS",
   auto_timeout: "Shift auto-closed",
+  late_evidence: "Late work from a driver",
+  dispatch_not_visible: "Sent load nobody can see",
+  stop_mirror_refused: "McLeod stops not applied",
 };
 
 export const dispatchExceptionSchema = z.object({

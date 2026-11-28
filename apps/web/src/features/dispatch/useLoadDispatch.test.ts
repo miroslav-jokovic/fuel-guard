@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { LoadDispatchSummary } from "@silvicom/shared";
-import { dispatchHeadline, smsReasonText } from "./useLoadDispatch";
+import { dispatchHeadline, dispatchReachText, dispatchSeenText, phoneSilentText, seatNoteText, smsReasonText } from "./useLoadDispatch";
 import { QUEUE_TABS, inQueue, type DispatchLoad } from "./useDispatchLoads";
 
 /**
@@ -15,6 +15,11 @@ const d: LoadDispatchSummary = {
   channel: "sms",
   outcome: "not_sent",
   outcomeReason: "sms_not_configured",
+  acknowledgements: [],
+  seats: [{ driverId: "d", driverName: "Dana Kelly" }],
+  reachable: { ok: false, reason: "no_app_login" },
+  seatNote: null,
+  lastContactAt: null,
 };
 
 describe("dispatch wording", () => {
@@ -35,6 +40,47 @@ describe("dispatch wording", () => {
     expect(smsReasonText("no_dispatch_consent")).toContain("haven't agreed to receive dispatch texts");
     expect(smsReasonText("telnyx_40001")).toBe("No text was sent (telnyx_40001).");
     expect(smsReasonText(null)).toBeNull();
+  });
+});
+
+describe("what the office sees after Send (T1 N-9)", () => {
+  const app: LoadDispatchSummary = { ...d, channel: "app", outcome: "sent", outcomeReason: null, reachable: { ok: true } };
+  const STAMP = /\d{2}\/\d{2}\/2026 \d{1,2}:\d{2} [AP]M/;
+
+  it("a dispatch seen by its driver says Seen with the time", () => {
+    const seen = { ...app, acknowledgements: [{ driverId: "d", driverName: "Dana Kelly", at: "2026-11-27T15:14:00Z" }] };
+    expect(dispatchSeenText(seen)).toMatch(new RegExp(`^Seen ${STAMP.source}$`));
+    expect(dispatchHeadline(seen)).toMatch(new RegExp(`in their app · ${STAMP.source} · Seen ${STAMP.source}$`));
+    expect(dispatchHeadline(app)).not.toContain("Seen");
+  });
+
+  it("a team dispatch names who has seen it and who has not", () => {
+    const team = {
+      ...app,
+      seats: [{ driverId: "d", driverName: "Dana Kelly" }, { driverId: "c", driverName: "Luis Ortega" }],
+      acknowledgements: [{ driverId: "c", driverName: "Luis Ortega", at: "2026-11-27T15:14:00Z" }],
+    };
+    expect(dispatchSeenText(team)).toMatch(new RegExp(`^Seen by Luis Ortega ${STAMP.source}; Dana Kelly not yet$`));
+    // Nobody yet: no "Seen" line at all rather than "Dana Kelly not yet; Luis Ortega not yet".
+    expect(dispatchSeenText({ ...team, acknowledgements: [] })).toBeNull();
+  });
+
+  it("says why a sent load is in nobody's app, and McLeod's other seat", () => {
+    expect(dispatchReachText(d.reachable, "Dixon Ruiz")).toBe("Not in Dixon Ruiz's app — no app login");
+    expect(dispatchReachText({ ok: false, reason: "uncovered_in_mcleod" }, "Dixon Ruiz")).toContain("McLeod has it uncovered");
+    expect(dispatchReachText({ ok: true }, "Dixon Ruiz")).toBeNull();
+    expect(seatNoteText("mcleod_seats_someone_else")).toContain("McLeod has somebody else on this load");
+    expect(seatNoteText(null)).toBeNull();
+  });
+
+  it("tells the office a phone has been quiet for over an hour on an open load, and only then", () => {
+    const now = Date.parse("2026-11-27T16:30:00Z");
+    const quiet = { ...app, lastContactAt: "2026-11-27T15:05:00Z" };
+    expect(phoneSilentText({ status: "in_transit" }, quiet, now)).toMatch(new RegExp(`^Driver's phone last reached us at ${STAMP.source}$`));
+    expect(phoneSilentText({ status: "in_transit" }, { ...quiet, lastContactAt: "2026-11-27T16:00:00Z" }, now)).toBeNull();
+    expect(phoneSilentText({ status: "delivered" }, quiet, now)).toBeNull();
+    // A driver with no app login is the reach line's to explain, not a "quiet phone".
+    expect(phoneSilentText({ status: "in_transit" }, { ...quiet, reachable: { ok: false, reason: "no_app_login" } }, now)).toBeNull();
   });
 });
 
