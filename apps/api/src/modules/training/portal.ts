@@ -73,7 +73,10 @@ export async function portalHome(admin: SupabaseClient, link: Link): Promise<Tra
   const [films, org, drv, course] = await Promise.all([
     filmsOf(admin, link),
     admin.from("organizations").select("name").eq("id", orgId).maybeSingle(),
-    admin.from("drivers").select("full_name").eq("org_id", orgId).eq("id", a.driver_id).maybeSingle(),
+    // A phone-number recipient (0663) has no driver row: the office's name for them is the greeting.
+    a.driver_id
+      ? admin.from("drivers").select("full_name").eq("org_id", orgId).eq("id", a.driver_id).maybeSingle()
+      : Promise.resolve({ data: { full_name: a.recipient_name }, error: null }),
     admin.from("training_courses").select("title").eq("org_id", orgId).eq("id", a.course_id).maybeSingle(),
   ]);
   const posters = await signPaths(admin, films.map((f) => f.version.poster_path));

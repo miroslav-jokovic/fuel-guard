@@ -88,9 +88,47 @@ function seed() {
   });
 }
 
+describe("sending training to a phone number (0663)", () => {
+  it("makes the link for a named person outside the roster, keeps the number in +1 form, texts nothing and hands the office the link", async () => {
+    seed();
+    texted.length = 0;
+    mail.sendEmail.mockClear();
+    audit.writeAudit.mockClear();
+    const res = await withServer((b) => post(`${b}/assignments/phone`, { name: "Jordan Reyes", phone: "(312) 555-0188", courseId: COURSE }));
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { sent: { driverId: string | null; via: string; link: string | null } };
+    expect(body.sent).toMatchObject({ driverId: null, via: "copy" });
+    expect(body.sent.link).toMatch(/^https:\/\/360\.example\.test\/t\/[A-Za-z0-9_-]{24}$/);
+    const [row] = rec.writtenRows("training_assignments");
+    expect(row).toMatchObject({ driver_id: null, recipient_name: "Jordan Reyes", recipient_phone: "+13125550188", last_sent_via: "copy" });
+    expect(String(row!.token_hash)).toMatch(/^[0-9a-f]{64}$/);
+    expect(texted).toEqual([]);
+    expect(mail.sendEmail).not.toHaveBeenCalled();
+    expect(audit.writeAudit).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(audit.writeAudit.mock.calls[0])).not.toContain("5550188");
+    expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
+  });
+
+  it("refuses a number that is not a dialable US or Canada one, before anything is written", async () => {
+    seed();
+    for (const phone of ["555-0188", "(123) 456-7890", "+44 20 7946 0958"]) {
+      const res = await withServer((b) => post(`${b}/assignments/phone`, { name: "Jordan Reyes", phone, courseId: COURSE }));
+      expect(res.status, phone).toBe(422);
+    }
+    expect(rec.writtenRows("training_assignments")).toEqual([]);
+  });
+
+  it("needs a name, and safety: manage", async () => {
+    seed();
+    expect((await withServer((b) => post(`${b}/assignments/phone`, { name: " ", phone: "3125550188", courseId: COURSE }))).status).toBe(400);
+    expect((await withServer((b) => post(`${b}/assignments/phone`, { name: "Jordan Reyes", phone: "3125550188", courseId: COURSE }, "safety:view"))).status).toBe(403);
+  });
+});
+
 describe("sending training", () => {
   it("texts the applicant, emails the hired driver with an address, and hands the office the link only for the one it must deliver", async () => {
     seed();
+    audit.writeAudit.mockClear(); // counted below, so not the calls of tests before this one
     const res = await withServer((b) => post(`${b}/assignments`, { driverIds: [HIRED, APPLICANT, MAILED], courseId: COURSE }));
     expect(res.status).toBe(201);
     const body = (await res.json()) as { sent: Array<{ driverId: string; via: string; link: string | null }> };

@@ -10,6 +10,7 @@ import {
   type TrainingQuestionView,
   type TrainingReach,
   type TrainingSendOutcome,
+  type TrainingSendToPhone,
   type TrainingVersionUpdate,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
@@ -97,6 +98,7 @@ export const useSaveQuestion = () =>
   );
 export const useDeleteQuestion = () => useWrite(({ versionId, id }: { versionId: string; id: string }) => call(`/versions/${versionId}/questions/${id}`, { method: "DELETE" }));
 export const useSendTraining = () => useWrite(async (b: TrainingAssign) => (await call<{ sent: TrainingSendOutcome[] }>("/assignments", { method: "POST", body: b })).sent);
+export const useSendTrainingToPhone = () => useWrite(async (b: TrainingSendToPhone) => (await call<{ sent: TrainingSendOutcome }>("/assignments/phone", { method: "POST", body: b })).sent);
 export const useResendTraining = () => useWrite(async (id: string) => (await call<{ sent: TrainingSendOutcome }>(`/assignments/${id}/resend`, { method: "POST" })).sent);
 export const useCancelTraining = () => useWrite((id: string) => call(`/assignments/${id}/revoke`, { method: "POST" }));
 

@@ -2,12 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   segmentsOf,
   coveredMs,
+  normaliseUsPhone,
   TRAINING_LINK_DAYS,
   trainingLinkPath,
   type TrainingAssign,
   type TrainingAssignmentRow,
   type TrainingReach,
   type TrainingSendOutcome,
+  type TrainingSendToPhone,
   type TrainingSendVia,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
@@ -25,6 +27,9 @@ import { ASSIGNMENT_COLS, standings, type AssignmentRow, type AttemptRow, type F
  *   · Anybody with an email address → an email.
  *   · Otherwise → the office gets the link to copy and send themselves. This is also every hired
  *     driver without email until a driver-operations number and consent exist (Q-TR9 (a)).
+ *   · A person sent the link by phone number (0663), not on the roster → always copy: they have no
+ *     consent to texts on any number we have, and the applicant number may not carry training
+ *     (Q-TR9 (c), refused). When Q-TR9 (a) lands it is this path that starts texting.
  * The link is in the response ONLY for "copy": a link that went by text or email exists in that
  * message and nowhere else, as the applicant links do.
  */
@@ -41,6 +46,7 @@ const fail = (what: string, e: { message: string }): never => {
 };
 
 async function driversOf(admin: SupabaseClient, orgId: string, ids: readonly string[]): Promise<DriverRow[]> {
+  if (!ids.length) return []; // every row a phone-number recipient: nothing to look up
   const { data, error } = await admin.from("drivers").select("id, full_name, email, phone, status").eq("org_id", orgId).in("id", [...ids]);
   if (error) fail("drivers not read", error);
   return (data ?? []) as DriverRow[];
@@ -83,18 +89,12 @@ export async function assign(
   userId: string,
   body: TrainingAssign,
 ): Promise<TrainingSendOutcome[] | TrainingRefusal> {
-  const { data: course, error: ce } = await admin.from("training_courses").select("id, title, retired_at").eq("org_id", orgId).eq("id", body.courseId).maybeSingle();
-  if (ce) fail("course not read", ce);
-  if (!course || (course as { retired_at: string | null }).retired_at) return refuse(404, "not_found", "No such course.");
-  if (body.lessonIds) {
-    const { data: ls, error } = await admin.from("training_lessons").select("id").eq("org_id", orgId).eq("course_id", body.courseId).in("id", body.lessonIds);
-    if (error) fail("films not read", error);
-    if ((ls ?? []).length !== new Set(body.lessonIds).size) return refuse(422, "lessons", "One of the picked films is not in this course.");
-  }
+  const course = await sendableCourse(admin, orgId, body.courseId, body.lessonIds);
+  if ("refused" in course) return course;
   const drivers = await driversOf(admin, orgId, body.driverIds);
   if (drivers.length !== new Set(body.driverIds).size) return refuse(404, "not_found", "One of the picked drivers is not in this company.");
   const carrier = await carrierName(admin, orgId);
-  const title = (course as { title: string }).title;
+  const title = course.title;
   const out: TrainingSendOutcome[] = [];
   for (const d of drivers) {
     const { token, hash } = mintLinkToken();
@@ -118,6 +118,54 @@ export async function assign(
   return out;
 }
 
+/** The course a send names, live and in this carrier, with every picked film in it. */
+async function sendableCourse(admin: SupabaseClient, orgId: string, courseId: string, lessonIds: string[] | null): Promise<{ title: string } | TrainingRefusal> {
+  const { data: course, error: ce } = await admin.from("training_courses").select("id, title, retired_at").eq("org_id", orgId).eq("id", courseId).maybeSingle();
+  if (ce) fail("course not read", ce);
+  if (!course || (course as { retired_at: string | null }).retired_at) return refuse(404, "not_found", "No such course.");
+  if (lessonIds) {
+    const { data: ls, error } = await admin.from("training_lessons").select("id").eq("org_id", orgId).eq("course_id", courseId).in("id", lessonIds);
+    if (error) fail("films not read", error);
+    if ((ls ?? []).length !== new Set(lessonIds).size) return refuse(422, "lessons", "One of the picked films is not in this course.");
+  }
+  return { title: (course as { title: string }).title };
+}
+
+const linkOf = (env: Env, token: string) => `${env.WEB_APP_URL.replace(/\/+$/, "")}${trainingLinkPath(token)}`;
+
+/**
+ * Send a course to a person by name and phone number, outside the roster (0663). The office gets the
+ * link to send itself — see the module comment for why nothing is texted.
+ */
+export async function assignToPhone(admin: SupabaseClient, env: Env, orgId: string, userId: string, body: TrainingSendToPhone): Promise<TrainingSendOutcome | TrainingRefusal> {
+  const phone = normaliseUsPhone(body.phone);
+  if (!phone) return refuse(422, "phone", "That is not a US or Canada phone number. Write it with its area code, like (312) 555-0188.");
+  const course = await sendableCourse(admin, orgId, body.courseId, body.lessonIds);
+  if ("refused" in course) return course;
+  const { token, hash } = mintLinkToken();
+  const now = new Date().toISOString();
+  const { data: row, error } = await admin
+    .from("training_assignments")
+    .insert({
+      org_id: orgId,
+      driver_id: null,
+      recipient_name: body.name,
+      recipient_phone: phone,
+      course_id: body.courseId,
+      lesson_ids: body.lessonIds,
+      due_on: body.dueOn,
+      token_hash: hash,
+      link_expires_at: new Date(Date.now() + TRAINING_LINK_DAYS * 86_400_000).toISOString(),
+      created_by: userId,
+      last_sent_at: now,
+      last_sent_via: "copy",
+    })
+    .select("id")
+    .single();
+  if (error || !row) fail("assignment not made", error ?? { message: "no row" });
+  return { driverId: null, assignmentId: (row as { id: string }).id, via: "copy", ok: true, detail: null, link: linkOf(env, token) };
+}
+
 /** Deliver one link by the best way open, and stamp how it went. */
 async function deliver(
   admin: SupabaseClient,
@@ -131,7 +179,7 @@ async function deliver(
   dueOn: string | null,
   token: string,
 ): Promise<TrainingSendOutcome> {
-  const link = `${env.WEB_APP_URL.replace(/\/+$/, "")}${trainingLinkPath(token)}`;
+  const link = linkOf(env, token);
   let via: TrainingSendVia = "copy";
   const ok = true;
   let detail: string | null = null;
@@ -163,12 +211,23 @@ export async function resend(admin: SupabaseClient, env: Env, texter: TrainingTe
   const a = data as AssignmentRow | null;
   if (!a) return refuse(404, "not_found", "No such assignment.");
   if (a.revoked_at) return refuse(409, "revoked", "This link was cancelled. Send the training again.");
-  const [d] = await driversOf(admin, orgId, [a.driver_id]);
-  if (!d) return refuse(404, "not_found", "The driver is no longer in this company.");
+  const [d] = a.driver_id ? await driversOf(admin, orgId, [a.driver_id]) : [];
+  if (a.driver_id && !d) return refuse(404, "not_found", "The driver is no longer in this company.");
   const { token, hash } = mintLinkToken();
+  const expires = new Date(Date.now() + TRAINING_LINK_DAYS * 86_400_000).toISOString();
+  if (!d) {
+    // A phone-number recipient: the new link comes back to copy, as the first one did.
+    const { error: pe } = await admin
+      .from("training_assignments")
+      .update({ token_hash: hash, link_expires_at: expires, last_sent_at: new Date().toISOString(), last_sent_via: "copy" })
+      .eq("org_id", orgId)
+      .eq("id", assignmentId);
+    if (pe) fail("link not replaced", pe);
+    return { driverId: null, assignmentId, via: "copy", ok: true, detail: null, link: linkOf(env, token) };
+  }
   const { error: ue } = await admin
     .from("training_assignments")
-    .update({ token_hash: hash, link_expires_at: new Date(Date.now() + TRAINING_LINK_DAYS * 86_400_000).toISOString() })
+    .update({ token_hash: hash, link_expires_at: expires })
     .eq("org_id", orgId)
     .eq("id", assignmentId);
   if (ue) fail("link not replaced", ue);
@@ -196,7 +255,7 @@ export async function progressRows(admin: SupabaseClient, orgId: string): Promis
   if (!rows.length) return [];
   const [stand, drivers, courses] = await Promise.all([
     standings(admin, orgId, rows),
-    driversOf(admin, orgId, [...new Set(rows.map((r) => r.driver_id))]),
+    driversOf(admin, orgId, [...new Set(rows.flatMap((r) => (r.driver_id ? [r.driver_id] : [])))]),
     admin.from("training_courses").select("id, title").eq("org_id", orgId),
   ]);
   if (courses.error) fail("courses not read", courses.error);
@@ -207,7 +266,8 @@ export async function progressRows(admin: SupabaseClient, orgId: string): Promis
     return {
       id: a.id,
       driverId: a.driver_id,
-      driverName: names.get(a.driver_id) ?? "Unnamed driver",
+      driverName: a.driver_id ? (names.get(a.driver_id) ?? "Unnamed driver") : (a.recipient_name ?? "Unnamed"),
+      recipientPhone: a.driver_id ? null : a.recipient_phone,
       courseId: a.course_id,
       courseTitle: titles.get(a.course_id) ?? "",
       sentAt: a.last_sent_at ?? a.created_at,

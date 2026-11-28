@@ -36,7 +36,10 @@ export function pointResults(attempts: readonly AttemptRow[], bank: readonly Ban
 
 export interface AssignmentRow {
   id: string;
-  driver_id: string;
+  /** Null for a phone-number recipient (0663); then `recipient_name` and `recipient_phone` are set. */
+  driver_id: string | null;
+  recipient_name: string | null;
+  recipient_phone: string | null;
   course_id: string;
   lesson_ids: string[] | null;
   due_on: string | null;
@@ -48,7 +51,7 @@ export interface AssignmentRow {
   revoked_at: string | null;
   created_at: string;
 }
-export const ASSIGNMENT_COLS = "id, driver_id, course_id, lesson_ids, due_on, link_expires_at, last_sent_at, last_sent_via, first_opened_at, completed_at, revoked_at, created_at";
+export const ASSIGNMENT_COLS = "id, driver_id, recipient_name, recipient_phone, course_id, lesson_ids, due_on, link_expires_at, last_sent_at, last_sent_via, first_opened_at, completed_at, revoked_at, created_at";
 
 export interface FilmVersion {
   id: string;

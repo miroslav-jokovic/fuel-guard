@@ -39,6 +39,7 @@ const state = vi.hoisted(() => ({
   published: [] as string[],
   sendReturns: [] as unknown[],
   sentBodies: [] as unknown[],
+  phoneBodies: [] as unknown[],
 }));
 vi.mock("@/features/training/useTraining", async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
@@ -60,6 +61,8 @@ vi.mock("@/features/training/useTraining", async (orig) => {
     useSaveQuestion: () => m(),
     useUploadFilm: () => m(),
     useSendTraining: () => m((b) => (state.sentBodies.push(b), state.sendReturns)),
+    useSendTrainingToPhone: () =>
+      m((b) => (state.phoneBodies.push(b), { driverId: null, assignmentId: "ap", via: "copy", ok: true, detail: null, link: "https://360.example.test/t/bbbbbbbbbbbbbbbbbbbbbbbb" })),
     useResendTraining: () => m(),
     useCancelTraining: () => m(),
   };
@@ -85,6 +88,7 @@ async function mountPage(url = "/training") {
   state.courses = COURSES;
   state.published.length = 0;
   state.sentBodies.length = 0;
+  state.phoneBodies.length = 0;
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/training", component: TrainingPage }] });
   await router.push(url);
   await router.isReady();
@@ -151,11 +155,47 @@ describe("TrainingPage › Send to drivers", () => {
     expect(w.find('[data-test="send-copy-d2"]').exists()).toBe(false);
     w.unmount();
   });
+
+  it("makes a link for a person by phone number, outside the list, and hands it to the office to copy (0663)", async () => {
+    const { w } = await mountPage("/training?view=send");
+    await w.find('[data-test="send-to"] input[value="phone"]').setValue(true);
+    await flushPromises();
+    expect(w.find('[data-test="send-summary"]').exists()).toBe(false);
+    const go = () => w.find('[data-test="send-go"]').element as HTMLButtonElement;
+    expect(go().textContent?.trim()).toBe("Make the link");
+    expect(go().disabled).toBe(true);
+    await w.find('[data-test="send-phone-name"]').setValue("Jordan Reyes");
+    expect(go().disabled).toBe(true);
+    await w.find('[data-test="send-phone-number"]').setValue("312 555 0188");
+    expect(go().disabled).toBe(false);
+    await w.find('[data-test="send-go"]').trigger("click");
+    await flushPromises();
+    expect(state.phoneBodies[0]).toMatchObject({ name: "Jordan Reyes", phone: "312 555 0188", courseId: "c1", lessonIds: null });
+    expect(state.sentBodies).toEqual([]);
+    expect(w.find('[data-test="send-copy-ap"]').exists()).toBe(true);
+    expect(w.find('[data-test="send-results"]').text()).toContain("Jordan Reyes");
+    w.unmount();
+  });
 });
 
 describe("TrainingPage › Progress", () => {
+  it("marks a person sent by phone number as not on the driver list, with their number (0663)", async () => {
+    state.assignments = [
+      {
+        id: "ap", driverId: null, driverName: "Jordan Reyes", recipientPhone: "+13125550188", courseId: "c1", courseTitle: "Act I", sentAt: "2026-11-27T15:00:00Z", lastSentVia: "copy",
+        dueOn: null, firstOpenedAt: null, completedAt: null, revokedAt: null, lessons: [],
+      },
+    ];
+    const { w } = await mountPage("/training?view=progress");
+    const tag = w.find('[data-test="progress-outside-roster"]');
+    expect(tag.text()).toContain("Not on the driver list");
+    expect(tag.text()).toContain("(312) 555-0188");
+    w.unmount();
+    state.assignments = [];
+  });
+
   const a = (o: Partial<TrainingAssignmentRow>): TrainingAssignmentRow => ({
-    id: "a1", driverId: "d1", driverName: "Marko Petrovic", courseId: "c1", courseTitle: "Act I", sentAt: "2026-11-20T15:00:00Z", lastSentVia: "copy",
+    id: "a1", driverId: "d1", driverName: "Marko Petrovic", recipientPhone: null, courseId: "c1", courseTitle: "Act I", sentAt: "2026-11-20T15:00:00Z", lastSentVia: "copy",
     dueOn: null, firstOpenedAt: null, completedAt: null, revokedAt: null,
     lessons: [{ lessonId: "l1", title: "Following distance", status: "rewatch", watchedMs: 0, durationMs: 1, firstTry: { correct: 2, total: 3 }, tries: [2, 0, 0], fast: 0, attempts: 2 }], ...o,
   });
