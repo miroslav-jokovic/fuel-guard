@@ -31,7 +31,7 @@ function stop(over: Partial<LoadStop> = {}): LoadStop {
     state: 'IL', postal_code: null, lat: null, lon: null,
     appointment_start: '2026-09-07T14:00:00Z', appointment_end: '2026-09-07T16:00:00Z',
     status: 'pending', arrived_at: null, completed_at: null, required_photos: [],
-    skip_reason: null, notes: null, photos: [], ...over,
+    skip_reason: null, notes: null, photos: [], external_status: null, actual_arrival_at: null, actual_departure_at: null, mcleod_removed_at: null, ...over,
   };
 }
 
@@ -40,7 +40,7 @@ function load(stops: LoadStop[]): Load {
     id: '11111111-1111-4111-8111-111111111111', ref: 'LD-1', status: 'in_transit',
     equipment: 'Dry van', commodity: null, hazmat: false, total_miles: 100, accepted_at: null,
     completed_at: null, notes: null, created_at: '2026-09-01T00:00:00Z', vehicle_unit: null,
-    trailer_unit: null, stops,
+    trailer_unit: null, source: 'manual', acknowledged_at: null, customer_name: null, stops,
   };
 }
 
@@ -153,7 +153,7 @@ describe('timelineStops (Visual 2026 V6, mock screen 5)', () => {
   const twoStops = (first: Partial<LoadStop>, second: Partial<LoadStop> = {}) => ({
     id: 'l', ref: 'LD', status: 'in_transit' as const, equipment: null, commodity: null, hazmat: false, total_miles: null,
     accepted_at: null, completed_at: null, notes: null, created_at: '2026-09-07T00:00:00Z', vehicle_unit: null,
-    trailer_unit: null, stops: [stop({ ...first, seq: 1, id: 'a' }), stop({ ...second, seq: 2, id: 'b' })],
+    trailer_unit: null, source: 'manual' as const, acknowledged_at: null, customer_name: null, stops: [stop({ ...first, seq: 1, id: 'a' }), stop({ ...second, seq: 2, id: 'b' })],
   });
 
   it('the next stop is the only tappable one, with a countdown; the others carry no live line', () => {

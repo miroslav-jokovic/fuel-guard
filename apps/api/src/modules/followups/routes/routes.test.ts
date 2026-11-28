@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import express, { type NextFunction, type Request, type Response } from "express";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { followUpDetailSchema, followUpListSchema, followUpRulesSchema, type UserRole } from "@silvicom/shared";
+import type { AlertConfigurationSummary } from "@silvicom/shared";
+import { followUpDetailSchema, followUpListSchema, followUpRulesSchema, followUpTruckCodesSchema, offRouteViewSchema, type UserRole } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 
@@ -29,8 +30,9 @@ let surfaceGrants: Record<string, Record<string, boolean>> = {};
 let rpcResult: unknown = null;
 const audit = vi.hoisted(() => vi.fn(async () => true));
 const samsara = vi.hoisted(() => ({
-  configs: vi.fn(async () => [{ id: "77", name: "Out of route", isEnabled: true, triggerTypeIds: [1027] }]),
+  configs: vi.fn(async (): Promise<AlertConfigurationSummary[]> => [{ id: "77", name: "Out of route", isEnabled: true, triggerTypeIds: [1027], outOfRouteMeters: 9656 }]),
   video: vi.fn(async () => [{ url: "https://us4-safetymediadelivery.samsara.com/clip.mp4?exp=1", input: "dashcamForwardFacing" }]),
+  codes: vi.fn(),
 }));
 
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
@@ -38,8 +40,10 @@ vi.mock("../../../lib/appLocals.js", () => ({ getAppLocals: () => ({ env: {} }) 
 vi.mock("../../../lib/audit.js", () => ({ writeAudit: audit }));
 vi.mock("../../samsara/index.js", async (importOriginal) => {
   const real = await importOriginal<typeof import("../../samsara/index.js")>();
-  return { ...real, readAlertConfigurations: samsara.configs, fetchSafetyEventVideo: samsara.video };
+  return { ...real, readAlertConfigurations: samsara.configs, fetchSafetyEventVideo: samsara.video, readTruckFaultCodes: samsara.codes };
 });
+const offRoute = vi.hoisted(() => ({ view: vi.fn() }));
+vi.mock("../../livemap/index.js", () => ({ readOffRouteViewCached: offRoute.view }));
 vi.mock("../../../middleware/auth.js", async (importOriginal) => {
   const real = await importOriginal<typeof import("../../../middleware/auth.js")>();
   return {
@@ -93,10 +97,21 @@ const WARNINGS = [
     trailer_samsara_id: null, driver_samsara_id: "s-d2", unit_name: "847", driver_name: "Ana Safe", label: "Crash", happened_at: "2026-11-26T08:30:00Z",
     ended_at: "2026-11-26T08:30:00Z", still_active: false, samsara_url: "https://cloud.samsara.com/o/1/safety/evt-crash", detail: { hasVideo: true },
     updated_at: "2026-11-26T08:35:00Z", org_id: ORG },
+  { id: "00000000-0000-4000-8000-0000000000e3", source: "alert", source_key: "https://cloud.samsara.com/o/1/fleet/workflows/incidents/77/1/s-v/1", kind: "alert:77",
+    subject_kind: "truck", vehicle_samsara_id: "s-v", trailer_samsara_id: null, driver_samsara_id: "s-d1", unit_name: "847", driver_name: "Angel Perez",
+    label: "Out of route", happened_at: "2026-11-25T10:00:00Z", ended_at: "2026-11-25T11:00:00Z", still_active: false,
+    samsara_url: "https://cloud.samsara.com/o/1/fleet/workflows/incidents/77/1/s-v/1", detail: { triggerIds: [1027] }, updated_at: "2026-11-25T11:05:00Z", org_id: ORG },
 ];
+const ROUTE_WARNING = "00000000-0000-4000-8000-0000000000e3";
+
+let lampRows: Record<string, unknown>[] = [];
+const code = (spn: number, module = 0) => ({ module, moduleName: "Engine #1", spn, fmi: 3, description: "Engine Coolant Level 1", fmiDescription: null, makerSpecific: false, occurrences: 2 });
 
 beforeEach(() => {
   surfaceGrants = {};
+  lampRows = [];
+  samsara.codes.mockReset();
+  offRoute.view.mockReset();
   rpcResult = { follow_up_id: FU_ROUTE, from_status: "new", to_status: "called", version: 4 };
   audit.mockClear();
   samsara.video.mockClear();
@@ -111,7 +126,7 @@ beforeEach(() => {
       follow_ups: (q) => filtered(FOLLOW_UPS, q),
       follow_up_rules: [],
       follow_up_actions: [{ id: "00000000-0000-4000-8000-0000000000a1", action: "called", note: "Driver checked the tire", actor_id: USER, created_at: "2026-11-26T12:00:00Z" }],
-      samsara_warnings: (q) => filtered(WARNINGS, q),
+      samsara_warnings: (q) => filtered([...WARNINGS, ...lampRows], q),
       trailers: [{ id: TRAILER, samsara_asset_id: "s-tr", unit_number: "R535973", assigned_vehicle_id: TRUCK }],
       vehicles: [{ id: TRUCK, samsara_vehicle_id: "s-v", unit_number: "847", assigned_driver_id: DRIVER }],
       drivers: (q) =>
@@ -151,12 +166,13 @@ const SURFACE_TABLES = ["org_role_surface_access", "user_surface_access"];
 const categoryFilter = () => rec.forTable("follow_ups").map((q) => q.ops.find((o) => o.method === "in" && o.args[0] === "category")?.args[1]);
 
 describe("GET /api/follow-ups — the desk's list", () => {
-  it("gives the desk every category, urgent first, with who to call and which record named them", async () => {
+  it("gives the desk every category, newest warning first, with who to call and which record named them", async () => {
     const r = await call("technician", "GET", "/api/follow-ups");
     expect(r.status).toBe(200);
     expect(followUpListSchema.safeParse(r.json).success).toBe(true);
     expect(r.json.categories).toEqual(["maintenance", "safety", "compliance", "route"]);
-    expect(r.json.lines.map((l: { id: string }) => l.id)).toEqual([FU_STOP, FU_SAFETY, FU_ROUTE, FU_ATIS]);
+    // last_at 11:00, 10:00, 09:00, 08:00 — newest first, severity only breaks a tie (D-WD18).
+    expect(r.json.lines.map((l: { id: string }) => l.id)).toEqual([FU_STOP, FU_ATIS, FU_ROUTE, FU_SAFETY]);
     const atis = r.json.lines.find((l: { id: string }) => l.id === FU_ATIS);
     expect(atis.trailer).toEqual({ id: TRAILER, number: "R535973" });
     expect(atis.truck).toEqual({ id: TRUCK, number: "847" });
@@ -198,13 +214,13 @@ describe("GET /api/follow-ups/:id — one line", () => {
     expect((await call("dispatcher", "GET", `/api/follow-ups/${FU_SAFETY}`)).status).toBe(404);
   });
 
-  it("gives the warnings in time order with their video ids, and the history by name", async () => {
+  it("gives the warnings newest first with their video ids, and the history by name", async () => {
     const r = await call("technician", "GET", `/api/follow-ups/${FU_SAFETY}`);
     expect(r.status).toBe(200);
     expect(followUpDetailSchema.safeParse(r.json).success).toBe(true);
     expect(r.json.canAct).toBe(true);
-    expect(r.json.warnings.map((w: { videoEventId: string }) => w.videoEventId)).toEqual(["evt-1", "evt-crash"]);
-    expect(r.json.warnings[0].coachingState).toBe("needsCoaching");
+    expect(r.json.warnings.map((w: { videoEventId: string }) => w.videoEventId)).toEqual(["evt-crash", "evt-1"]);
+    expect(r.json.warnings[1].coachingState).toBe("needsCoaching");
     expect(r.json.actions[0]).toMatchObject({ action: "called", actorName: "Mira Desk", note: "Driver checked the tire" });
     expectOrgScoped(rec, ORG, { exempt: SURFACE_TABLES });
   });
@@ -268,6 +284,112 @@ describe("GET /api/follow-ups/:id/video/:eventId — fresh from Samsara, never s
     expect(r.status).toBe(200);
     expect(r.json).toEqual({ restricted: false, urls: [{ url: "https://us4-safetymediadelivery.samsara.com/clip.mp4?exp=1", input: "dashcamForwardFacing" }] });
     expect(samsara.video).toHaveBeenCalledWith(rec.client, {}, ORG, "evt-1");
+  });
+});
+
+describe("GET /api/follow-ups/:id/codes — a maintenance truck's codes, never stored", () => {
+  const lampRow = (id: string, updated_at: string, codes: unknown[]) => ({
+    ...WARNINGS[0], id, source: "lamp", source_key: `s-v:lamp_stop:${updated_at}`, kind: "lamp_stop", subject_kind: "truck", driver_samsara_id: null,
+    label: "Red STOP lamp on", happened_at: updated_at, ended_at: null, still_active: true, samsara_url: null, detail: { codes }, updated_at,
+  });
+
+  it("reads the truck's codes now and those that came and went since a day before the first warning", async () => {
+    samsara.codes.mockResolvedValue({
+      asOf: "2026-11-27T10:32:12.000Z",
+      lamps: { stop: true, warning: false, emissions: false, protect: false },
+      now: [code(111)],
+      history: [{ at: "2026-11-26T01:00:00.000Z", codes: [code(111), code(222)] }, { at: "2026-11-26T09:00:00.000Z", codes: [code(111)] }],
+    });
+    const r = await call("technician", "GET", `/api/follow-ups/${FU_STOP}/codes`);
+    expect(r.status).toBe(200);
+    expect(followUpTruckCodesSchema.parse(r.json)).toMatchObject({
+      source: "samsara",
+      now: [{ spn: 111 }],
+      cameAndWent: [{ spn: 222, firstSeen: "2026-11-26T01:00:00.000Z", lastSeen: "2026-11-26T01:00:00.000Z" }],
+      since: "2026-11-25T11:00:00.000Z",
+      sinceCapped: false,
+    });
+    const [, , org, truck, window] = samsara.codes.mock.calls[0]!;
+    expect([org, truck, window.sinceIso]).toEqual([ORG, "s-v", "2026-11-25T11:00:00.000Z"]);
+  });
+
+  it("reads nothing for a trailer's follow-up or a route line — they have no engine controllers to ask", async () => {
+    expect((await call("technician", "GET", `/api/follow-ups/${FU_ATIS}/codes`)).status).toBe(404);
+    expect((await call("technician", "GET", `/api/follow-ups/${FU_ROUTE}/codes`)).status).toBe(404);
+    expect(samsara.codes).not.toHaveBeenCalled();
+  });
+
+  it("answers a dispatcher's request for a maintenance truck as missing", async () => {
+    surfaceGrants = { dispatcher: { "dispatch.route-follow-ups": true } };
+    expect((await call("dispatcher", "GET", `/api/follow-ups/${FU_STOP}/codes`)).status).toBe(404);
+    expect(samsara.codes).not.toHaveBeenCalled();
+  });
+
+  it("shows the codes kept on the newest lamp row when Samsara does not answer, passing over a row of descriptions only", async () => {
+    samsara.codes.mockRejectedValue(new Error("Samsara /fleet/vehicles/stats answered 503"));
+    lampRows = [
+      lampRow("00000000-0000-4000-8000-0000000000e7", "2026-11-25T08:00:00Z", [code(333)]),
+      lampRow("00000000-0000-4000-8000-0000000000e8", "2026-11-26T08:00:00Z", [code(444), code(555, 232)]),
+      lampRow("00000000-0000-4000-8000-0000000000e9", "2026-11-26T20:00:00Z", ["Engine Coolant Level 1"]),
+    ];
+    const r = await call("technician", "GET", `/api/follow-ups/${FU_STOP}/codes`);
+    expect(r.status).toBe(200);
+    expect(followUpTruckCodesSchema.parse(r.json)).toMatchObject({ source: "stored", asOf: "2026-11-26T08:00:00.000Z", now: [{ spn: 444 }, { spn: 555 }] });
+    expectOrgScoped(rec, ORG, { exempt: SURFACE_TABLES });
+  });
+
+  it("says Samsara did not answer when there is nothing kept to show instead", async () => {
+    samsara.codes.mockRejectedValue(new Error("Samsara /fleet/vehicles/stats answered 503"));
+    const r = await call("technician", "GET", `/api/follow-ups/${FU_STOP}/codes`);
+    expect([r.status, r.json.error.code]).toEqual([502, "samsara_unavailable"]);
+  });
+});
+
+describe("GET /api/follow-ups/:id/route/:warningId — an Out of route warning on our map", () => {
+  const VIEW = {
+    thresholdMiles: 6, samsara: { happenedAt: "2026-11-25T10:00:00.000Z", endedAt: "2026-11-25T11:00:00.000Z", stillActive: false },
+    window: { start: "2026-11-25T09:15:00.000Z", end: "2026-11-25T11:20:00.000Z", capped: false }, path: [], planned: null, notes: [], verdict: null,
+  };
+
+  it("marks the Out of route warning as one the drawer can draw", async () => {
+    const r = await call("dispatcher", "GET", `/api/follow-ups/${FU_ROUTE}`);
+    expect(followUpDetailSchema.parse(r.json).warnings.map((w) => [w.id, w.routeMap])).toEqual([[ROUTE_WARNING, true]]);
+  });
+
+  it("draws it for a dispatcher, for our truck, against the configuration's own distance", async () => {
+    offRoute.view.mockResolvedValue(VIEW);
+    const r = await call("dispatcher", "GET", `/api/follow-ups/${FU_ROUTE}/route/${ROUTE_WARNING}`);
+    expect(r.status).toBe(200);
+    expect(offRouteViewSchema.parse(r.json)).toEqual(VIEW);
+    expect(offRoute.view.mock.calls[0]!.slice(2)).toEqual([
+      ORG, ROUTE_WARNING,
+      { vehicleId: TRUCK, happenedAt: "2026-11-25T10:00:00.000Z", endedAt: "2026-11-25T11:00:00.000Z", stillActive: false, thresholdMeters: 9656 },
+    ]);
+    expectOrgScoped(rec, ORG, { exempt: SURFACE_TABLES });
+  });
+
+  it("refuses a warning that is not this follow-up's, or not an alert, before anything is read", async () => {
+    expect((await call("technician", "GET", `/api/follow-ups/${FU_ROUTE}/route/00000000-0000-4000-8000-0000000000e9`)).status).toBe(404);
+    expect((await call("technician", "GET", `/api/follow-ups/${FU_SAFETY}/route/00000000-0000-4000-8000-0000000000e1`)).status).toBe(404);
+    expect(offRoute.view).not.toHaveBeenCalled();
+  });
+
+  it("refuses an alert whose configuration carries no Out of route distance", async () => {
+    samsara.configs.mockResolvedValueOnce([{ id: "77", name: "Out of route", isEnabled: true, triggerTypeIds: [1027] }]);
+    expect((await call("dispatcher", "GET", `/api/follow-ups/${FU_ROUTE}/route/${ROUTE_WARNING}`)).status).toBe(404);
+    expect(offRoute.view).not.toHaveBeenCalled();
+  });
+
+  it("says Samsara did not answer when its configurations cannot be read, rather than calling it no route alert", async () => {
+    samsara.configs.mockRejectedValueOnce(new Error("Samsara /alerts/configurations answered 503"));
+    const r = await call("dispatcher", "GET", `/api/follow-ups/${FU_ROUTE}/route/${ROUTE_WARNING}`);
+    expect([r.status, r.json.error.code]).toEqual([503, "samsara_unavailable"]);
+  });
+
+  it("says Samsara did not answer when the view cannot be read", async () => {
+    offRoute.view.mockRejectedValue(new Error("Samsara API 503"));
+    const r = await call("dispatcher", "GET", `/api/follow-ups/${FU_ROUTE}/route/${ROUTE_WARNING}`);
+    expect([r.status, r.json.error.code]).toEqual([502, "samsara_unavailable"]);
   });
 });
 

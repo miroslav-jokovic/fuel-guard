@@ -1,16 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  DRIVER_VISIBLE_STATUSES,
-  TMS_DRIVER_VISIBLE_STATUSES,
-  resolveDriverType,
+  LOAD_ACTION_STATUSES,
   type AcceptLoadRequest,
+  type AcknowledgeLoadRequest,
   type AddStopPhotosRequest,
   type CompleteStopRequest,
   type DeclineLoadRequest,
-  type DriverType,
   type Load,
+  type LoadActionStatus,
   type StartLoadRequest,
 } from "@silvicom/shared";
+import { getDriverLoad } from "./driverLoadReads.js";
 
 /**
  * Driver-side load operations (Driver App Phase 3B, migration 0087, D45–D47).
@@ -21,14 +21,12 @@ import {
  * three calls would leave a load accepted with no event, or photos recorded against a stop that
  * never advanced — exactly the kind of half-write that makes an audit trail worthless.
  *
- * Reads are RLS-scoped anyway, but go through the service role here so the response can join unit
- * numbers and nest stops in one round trip (D29 — no launch waterfall).
+ * The reads — the load list the phone shows — are `driverLoadReads.ts`.
  *
- * The RPC contract these calls rely on is defined by migration 0141, NOT 0087. 0087's versions took
- * the driver from `auth_driver_id()`, which is always null for the service-role client used here, so
- * every driver mutation would have failed on both the argument names and the identity lookup. 0141
- * takes `p_org` / `p_driver` / `p_actor_user` explicitly and verifies the driver belongs to the org
- * and owns the load inside the function.
+ * The functions these calls rely on are 0141's, reshaped by 0661 (T1 N-8): one door,
+ * `driver_load_access`, decides who may act on a load — the current dispatch's driver and the McLeod
+ * co-driver now, anybody ever dispatched it as late evidence — and every action takes the outbox
+ * record id (`p_action_id`, D-MK23) so a replay after a lost response does nothing twice.
  */
 
 /**
@@ -48,10 +46,17 @@ const PG_TO_API: Record<string, { status: 404 | 409 | 422; code: string; message
   DL007: { status: 422, code: "late_photo_window_closed", message: "This stop finished too long ago to add a photo. Send it to the office" },
   DL010: { status: 409, code: "illegal_transition", message: "That is not a step this load can take" },
   DL011: { status: 422, code: "not_ready", message: "This load is not ready for that yet" },
+  // 0661 (T1 N-8). DL012: the phone sent one outbox record id for two different actions — a bug in
+  // the phone, never the driver's doing, so it is a 422 the outbox parks rather than retries.
+  DL012: { status: 422, code: "action_id_reused", message: "This action was already used for something else. Send it to the office" },
+  // DL013 / DL014: a McLeod load has no Start, Accept or Decline step; its status is McLeod's (D-LMR2).
+  DL013: { status: 409, code: "mcleod_load_has_no_start", message: "This load starts when you arrive at the first stop" },
+  DL014: { status: 409, code: "mcleod_load_no_offer", message: "This load came from dispatch — there is nothing to accept" },
+  DL015: { status: 422, code: "action_id_required", message: "Update the app, then try again" },
 };
 
 export type LoadResult =
-  | { ok: true; load: Load | null }
+  | { ok: true; load: Load | null; status: LoadActionStatus }
   | { ok: false; status: 404 | 409 | 422; code: string; message: string; detail?: string };
 
 interface PgLikeError {
@@ -68,166 +73,16 @@ function toLoadError(error: PgLikeError): LoadResult | null {
   return { ok: false, ...mapped, ...(error.message ? { detail: error.message } : {}) };
 }
 
-const LOAD_COLUMNS =
-  "id, ref, status, equipment, commodity, hazmat, total_miles, accepted_at, completed_at, notes, created_at, " +
-  "vehicles(unit_number), trailers(unit_number)";
-
-const STOP_COLUMNS =
-  "id, seq, kind, name, address_line, city, state, postal_code, lat, lon, appointment_start, " +
-  "appointment_end, status, arrived_at, completed_at, required_photos, skip_reason, notes, load_id, " +
-  // D-MK15 (T1 N-7): a stop McLeod stopped listing stays on the driver's load (its photos live on it),
-  // marked; N-9 adds the field to `loadStopSchema` so the app can label it.
-  "mcleod_removed_at";
-
-type UnitJoin = { unit_number: string } | { unit_number: string }[] | null;
-const unit = (u: UnitJoin): string | null =>
-  Array.isArray(u) ? (u[0]?.unit_number ?? null) : (u?.unit_number ?? null);
-
 /**
- * The McLeod loads this driver may see — `auth_visible_tms_load_ids()` (0655) restated for the service
- * role. A load counts while its CURRENT dispatch (newest `sent_at`, then `id`, exactly the helper's
- * order) names this driver, or names the load's McLeod driver while this driver is the load's McLeod
- * co-driver (O-3: both seats of a team see the load). A load re-sent to somebody else is theirs from
- * that moment, for both former seats.
+ * What the function said it did. 0661's `driver_complete_stop` and `driver_acknowledge_load` answer
+ * `{status}`; the late-photo function answers how many photos were new; accept, decline and start
+ * answer nothing, and a call that did not raise recorded its action (a replay of those is the same
+ * no-op answer, which the phone treats identically).
  */
-async function tmsLoadsVisibleTo(admin: SupabaseClient, orgId: string, driverId: string): Promise<string[]> {
-  const [{ data: mine }, { data: coSeat }] = await Promise.all([
-    admin.from("load_dispatches").select("load_id").eq("org_id", orgId).eq("driver_id", driverId),
-    admin.from("loads").select("id").eq("org_id", orgId).eq("source", "tms").eq("co_driver_id", driverId),
-  ]);
-  const candidates = [
-    ...new Set([
-      ...((mine ?? []) as { load_id: string }[]).map((r) => r.load_id),
-      ...((coSeat ?? []) as { id: string }[]).map((r) => r.id),
-    ]),
-  ];
-  if (candidates.length === 0) return [];
-
-  const [{ data: all }, { data: seats }] = await Promise.all([
-    admin
-      .from("load_dispatches")
-      .select("load_id, driver_id, sent_at, id")
-      .eq("org_id", orgId)
-      .in("load_id", candidates)
-      .order("sent_at", { ascending: false })
-      .order("id", { ascending: false }),
-    admin.from("loads").select("id, driver_id, co_driver_id").eq("org_id", orgId).in("id", candidates),
-  ]);
-  const latest = new Map<string, string>();
-  for (const r of (all ?? []) as { load_id: string; driver_id: string }[]) {
-    if (!latest.has(r.load_id)) latest.set(r.load_id, r.driver_id);
-  }
-  const seatOf = new Map(
-    ((seats ?? []) as { id: string; driver_id: string | null; co_driver_id: string | null }[]).map((l) => [l.id, l]),
-  );
-  return candidates.filter((id) => {
-    const current = latest.get(id);
-    if (current === undefined) return false;
-    if (current === driverId) return true;
-    const l = seatOf.get(id);
-    return l !== undefined && current === l.driver_id && l.co_driver_id === driverId;
-  });
-}
-
-/**
- * Every load the driver may see, stops and photos nested — one payload, no waterfall (D29).
- *
- * The filter is the SAME predicate as `loads_driver_scope` (0087, 0371, 0655), applied here too even
- * though RLS would enforce it, because this call uses the service role: the API must not become the
- * one path that leaks an unsent or unapproved load.
- */
-export async function getDriverLoads(
-  admin: SupabaseClient,
-  orgId: string,
-  driverId: string,
-): Promise<Load[]> {
-  const sent = await tmsLoadsVisibleTo(admin, orgId, driverId);
-  // Two branches, one per source:
-  //   · a manual load — 0087's rule: the driver's own, in the five driver statuses;
-  //   · a McLeod load — D-LMR5 + DF-1 + O-3: SENT (above), at any McLeod status but draft. Its
-  //     `driver_id` is McLeod's and is deliberately not required: the office's dispatch decides
-  //     (D-LMR6), and a co-driver is never `driver_id`.
-  // PostgREST refuses an empty `in.()`, hence the McLeod branch only when something was sent.
-  const manual = `and(source.neq.tms,driver_id.eq.${driverId},status.in.(${DRIVER_VISIBLE_STATUSES.join(",")}))`;
-  const mcleod = `and(source.eq.tms,status.in.(${TMS_DRIVER_VISIBLE_STATUSES.join(",")}),id.in.(${sent.join(",")}))`;
-  const { data: loads } = await admin
-    .from("loads")
-    .select(LOAD_COLUMNS)
-    .eq("org_id", orgId)
-    .or(sent.length > 0 ? `${manual},${mcleod}` : manual)
-    .order("created_at", { ascending: false });
-
-  const rows = (loads ?? []) as unknown as (Record<string, unknown> & {
-    id: string;
-    vehicles: UnitJoin;
-    trailers: UnitJoin;
-  })[];
-  if (rows.length === 0) return [];
-
-  const loadIds = rows.map((r) => r.id);
-  const [stopsRes, photosRes] = await Promise.all([
-    admin.from("load_stops").select(STOP_COLUMNS).in("load_id", loadIds).order("seq", { ascending: true }),
-    admin
-      .from("load_stop_photos")
-      .select("id, slot, storage_path, captured_at, uploaded_at, stop_id")
-      .in("load_id", loadIds)
-      .order("uploaded_at", { ascending: true }),
-  ]);
-
-  type PhotoRow = { stop_id: string } & Record<string, unknown>;
-  const photosByStop = new Map<string, Record<string, unknown>[]>();
-  for (const p of (photosRes.data ?? []) as unknown as PhotoRow[]) {
-    const { stop_id, ...rest } = p;
-    const list = photosByStop.get(stop_id) ?? [];
-    list.push(rest);
-    photosByStop.set(stop_id, list);
-  }
-
-  type StopRow = { id: string; load_id: string } & Record<string, unknown>;
-  const stopsByLoad = new Map<string, Record<string, unknown>[]>();
-  for (const s of (stopsRes.data ?? []) as unknown as StopRow[]) {
-    const { load_id, ...rest } = s;
-    const list = stopsByLoad.get(load_id) ?? [];
-    list.push({ ...rest, photos: photosByStop.get(s.id) ?? [] });
-    stopsByLoad.set(load_id, list);
-  }
-
-  return rows.map((r) => {
-    const { vehicles, trailers, ...rest } = r;
-    return {
-      ...rest,
-      vehicle_unit: unit(vehicles),
-      trailer_unit: unit(trailers),
-      stops: stopsByLoad.get(r.id) ?? [],
-    } as unknown as Load;
-  });
-}
-
-/** One load, or null when the driver may not see it — used to return fresh state after a mutation. */
-export async function getDriverLoad(
-  admin: SupabaseClient,
-  orgId: string,
-  driverId: string,
-  loadId: string,
-): Promise<Load | null> {
-  const all = await getDriverLoads(admin, orgId, driverId);
-  return all.find((l) => l.id === loadId) ?? null;
-}
-
-/** Company driver or owner-operator — decides the accept copy and the decline behaviour (D46). */
-export async function getDriverType(
-  admin: SupabaseClient,
-  orgId: string,
-  driverId: string,
-): Promise<DriverType> {
-  const [driver, org] = await Promise.all([
-    admin.from("drivers").select("driver_type").eq("id", driverId).maybeSingle(),
-    admin.from("organizations").select("default_driver_type").eq("id", orgId).maybeSingle(),
-  ]);
-  return resolveDriverType(
-    (driver.data as { driver_type?: string | null } | null)?.driver_type,
-    (org.data as { default_driver_type?: string | null } | null)?.default_driver_type,
-  );
+function actionStatus(fn: string, data: unknown): LoadActionStatus {
+  if (fn === "driver_add_stop_photos") return typeof data === "number" && data === 0 ? "replayed" : "photos_added";
+  const status = (data as { status?: unknown } | null)?.status;
+  return (LOAD_ACTION_STATUSES as readonly unknown[]).includes(status) ? (status as LoadActionStatus) : "recorded";
 }
 
 async function runRpc(
@@ -238,19 +93,20 @@ async function runRpc(
   fn: string,
   args: Record<string, unknown>,
 ): Promise<LoadResult> {
-  const { error } = await admin.rpc(fn, { p_org: orgId, p_driver: driverId, p_load: loadId, ...args });
+  const { data, error } = await admin.rpc(fn, { p_org: orgId, p_driver: driverId, p_load: loadId, ...args });
   if (error) {
     const mapped = toLoadError(error);
     if (mapped) return mapped;
     throw new Error(error.message);
   }
-  return { ok: true, load: await getDriverLoad(admin, orgId, driverId, loadId) };
+  return { ok: true, status: actionStatus(fn, data), load: await getDriverLoad(admin, orgId, driverId, loadId) };
 }
 
 /**
  * Accept / acknowledge. Idempotent — a replayed offline accept returns the same load. Stamps the
  * driver's active duty session onto the load and, if the equipment they are actually in differs from
- * dispatch's plan, writes an `equipment_mismatch` event without blocking or overwriting (D47).
+ * dispatch's plan, writes an `equipment_mismatch` event without blocking or overwriting (D47). A
+ * McLeod load is refused (DL014): it has no offer, the driver says "Got it" instead.
  */
 export function acceptLoad(
   admin: SupabaseClient,
@@ -263,6 +119,7 @@ export function acceptLoad(
   return runRpc(admin, orgId, driverId, loadId, "driver_accept_load", {
     p_actor_user: actorUserId,
     p_occurred_at: input.accepted_at ?? null,
+    p_action_id: input.action_id ?? null,
   });
 }
 
@@ -284,6 +141,7 @@ export function declineLoad(
     p_reason: reason,
     p_actor_user: actorUserId,
     p_occurred_at: input.occurred_at ?? null,
+    p_action_id: input.action_id ?? null,
   });
 }
 
@@ -299,13 +157,46 @@ export function startLoad(
   return runRpc(admin, orgId, driverId, loadId, "driver_start_load", {
     p_actor_user: actorUserId,
     p_occurred_at: input.occurred_at ?? null,
+    p_action_id: input.action_id ?? null,
   });
 }
+
+/**
+ * "Got it" — the driver has seen the McLeod load the office sent (DF-2). The office reads it as "Seen
+ * by driver" on the dispatch. The action id is required by the function itself (DL015).
+ */
+export function acknowledgeLoad(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string,
+  loadId: string,
+  actorUserId: string,
+  input: Partial<Pick<AcknowledgeLoadRequest, "action_id">> & Omit<AcknowledgeLoadRequest, "action_id">,
+): Promise<LoadResult> {
+  return runRpc(admin, orgId, driverId, loadId, "driver_acknowledge_load", {
+    // Null reaches the function, which refuses it (DL015): the requirement lives there, not here.
+    p_action_id: input.action_id ?? null,
+    p_actor_user: actorUserId,
+    p_occurred_at: input.occurred_at ?? null,
+  });
+}
+
+/** A photo as the functions store it: the client UUID, slot, path, capture time and, when sent, its hash. */
+const photoArgs = (photos: CompleteStopRequest["photos"]) =>
+  photos.map((p) => ({
+    id: p.id,
+    slot: p.slot,
+    storage_path: p.storage_path,
+    ...(p.captured_at !== undefined ? { captured_at: p.captured_at } : {}),
+    ...(p.sha256 !== undefined ? { sha256: p.sha256 } : {}),
+  }));
 
 /**
  * Advance a stop and record the photos already uploaded to Storage. Photo `id`s are the client UUIDs
  * from the outbox and become the row PKs, so a replayed sync collides and no-ops. Completing a stop
  * without one of its required photos needs an explicit reason — never a block, never a dead end (D21).
+ * A Complete carries the Arrive it followed (`arrived_at`, `arrive_action_id`, D-MK21), so a McLeod
+ * stop's arrival is the driver's tap, never invented. `p_mcleod_write` is not sent: T-5 adds it.
  */
 export function completeStop(
   admin: SupabaseClient,
@@ -320,16 +211,20 @@ export function completeStop(
     p_stop: stopId,
     p_status: input.status,
     p_skip_reason: input.skip_reason ?? null,
-    p_photos: input.photos,
+    p_photos: photoArgs(input.photos),
     p_actor_user: actorUserId,
     p_occurred_at: input.occurred_at ?? null,
+    p_action_id: input.action_id ?? null,
+    p_arrived_at: input.arrived_at ?? null,
+    p_arrive_action_id: input.arrive_action_id ?? null,
   });
 }
 
 /**
  * A late photo for a stop the driver already finished (D-DV30, migration 0645). The function adds
  * photos and nothing else; the finished stop is not changed. Idempotent on the client photo UUIDs like
- * `completeStop`, so an outbox replay adds nothing and writes no second "Late photo received" event.
+ * `completeStop`, so an outbox replay adds nothing and writes no second "Late photo received" event —
+ * which is why the function takes no action id and none is passed.
  */
 export function addStopPhotos(
   admin: SupabaseClient,
@@ -342,7 +237,7 @@ export function addStopPhotos(
 ): Promise<LoadResult> {
   return runRpc(admin, orgId, driverId, loadId, "driver_add_stop_photos", {
     p_stop: stopId,
-    p_photos: input.photos,
+    p_photos: photoArgs(input.photos),
     p_actor_user: actorUserId,
     p_occurred_at: input.occurred_at ?? null,
   });

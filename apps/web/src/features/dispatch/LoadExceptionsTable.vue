@@ -37,6 +37,15 @@ const COLUMNS: DataTableColumn[] = [
   { key: "occurred_at", label: "When", width: "lg" },
 ];
 
+/**
+ * Red where a load is not getting done as sent: a decline, or a sent load nobody's app shows (T1 N-9).
+ * Late evidence and a refused stop mirror are warnings — the work and the old stops are both kept.
+ */
+const KIND_TONE: Partial<Record<DispatchException["kind"], "danger" | "warning">> = {
+  declined: "danger",
+  dispatch_not_visible: "danger",
+};
+
 const ACTION_LABELS: Record<string, string> = {
   review_diff: "Review & clear",
   adopt_equipment: "Adopt equipment",
@@ -71,7 +80,7 @@ async function clearException(row: DispatchException) {
     @retry="emit('retry')"
   >
     <template #cell-kind="{ row }">
-      <span :class="[BADGE_BASE, toneClass(row.kind === 'declined' ? 'danger' : 'warning')]">
+      <span :class="[BADGE_BASE, toneClass(KIND_TONE[row.kind] ?? 'warning')]">
         {{ EXCEPTION_LABELS[row.kind as keyof typeof EXCEPTION_LABELS] }}
       </span>
     </template>

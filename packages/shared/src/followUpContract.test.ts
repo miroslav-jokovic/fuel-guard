@@ -1,22 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { compareFollowUps, followUpActionRequestSchema, followUpTimesLabel } from "./followUpContract.js";
 
-/** The desk's order and words (WARNING-DESK-PLAN D-WD12, §4). */
+/** The desk's order and words (WARNING-DESK-PLAN D-WD18, §4). */
 describe("compareFollowUps — the order the desk works in", () => {
   const line = (o: Partial<Parameters<typeof compareFollowUps>[0]> = {}) => ({
-    severity: "normal" as const, warnedAgain: false, firstAt: "2026-11-20T00:00:00Z", status: "new" as const, closedAt: null, ...o,
+    severity: "normal" as const, lastAt: "2026-11-20T00:00:00Z", status: "new" as const, closedAt: null, ...o,
   });
 
-  it("puts urgent before high before normal, whatever their age", () => {
-    const sorted = [line({ firstAt: "2026-11-01T00:00:00Z" }), line({ severity: "urgent", firstAt: "2026-11-25T00:00:00Z" }), line({ severity: "high" })].sort(compareFollowUps);
-    expect(sorted.map((l) => l.severity)).toEqual(["urgent", "high", "normal"]);
+  it("puts the line warned most recently first, whatever its severity", () => {
+    const urgentOld = line({ severity: "urgent", lastAt: "2026-11-27T21:31:00Z" });
+    const normalNew = line({ lastAt: "2026-11-28T00:23:00Z" });
+    const highMid = line({ severity: "high", lastAt: "2026-11-27T23:00:00Z" });
+    expect([urgentOld, normalNew, highMid].sort(compareFollowUps)).toEqual([normalNew, highMid, urgentOld]);
   });
 
-  it("within a severity, a line warned again after the call comes first, then the oldest", () => {
-    const old = line({ firstAt: "2026-11-01T00:00:00Z" });
-    const again = line({ warnedAgain: true, firstAt: "2026-11-25T00:00:00Z" });
-    const fresh = line({ firstAt: "2026-11-24T00:00:00Z" });
-    expect([fresh, old, again].sort(compareFollowUps)).toEqual([again, old, fresh]);
+  it("breaks a tie in time by severity", () => {
+    const normal = line();
+    const urgent = line({ severity: "urgent" });
+    expect([normal, urgent].sort(compareFollowUps)).toEqual([urgent, normal]);
   });
 
   it("orders closed lines by the newest close", () => {

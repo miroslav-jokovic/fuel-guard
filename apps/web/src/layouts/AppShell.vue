@@ -22,7 +22,6 @@ import { visibleSettingsScreens } from "@/lib/settingsCards";
 import SectionTabBar from "@/layouts/SectionTabBar.vue";
 import MyAlertsPanel from "@/features/settings/MyAlertsPanel.vue";
 import SignedInDevicesPanel from "@/features/settings/SignedInDevicesPanel.vue";
-import SecondFactorNotice from "@/features/settings/SecondFactorNotice.vue";
 import { useOpens } from "@/composables/useOpens";
 import { usePhoneFirst } from "@/composables/usePhoneFirst";
 import { bottomChromeHeight } from "@/composables/bottomChrome";
@@ -348,19 +347,9 @@ async function signOut() {
               backdrop, and giving the live map an extra static wrapper would break the `h-full`
               chain its outlet depends on. A page without a plate keeps exactly the DOM it had.
             -->
-            <!-- The admin's 14-day notice of two-step sign-in (IA-S1), above the page. -->
-            <div class="relative"><SecondFactorNotice /><slot /></div>
+            <div class="relative"><slot /></div>
           </template>
-          <template v-else>
-            <!--
-              The same notice on a page with no plate — which is most of them. Never on a full-bleed route:
-              the live map's outlet is an `h-full` chain and a band above it would push the map off the
-              bottom. ⚠ The first build drew it only in the plate branch above, so an admin saw it on four
-              pages and not on the rest; the unit tests passed and `e2e-apply/twoStep.spec.ts` did not.
-            -->
-            <SecondFactorNotice v-if="!fullBleed" />
-            <slot />
-          </template>
+          <slot v-else />
         </div>
       </main>
     </div>

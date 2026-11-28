@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import {
+  alertRuleKey,
   FOLLOW_UP_CATEGORIES,
   followUpActionRequestSchema,
   recordId,
@@ -9,8 +10,12 @@ import {
   type FollowUpCategory,
   type FollowUpDetail,
   type FollowUpList,
+  type FollowUpTruckCodes,
   type FollowUpVideo,
   type FollowUpWarning,
+  OUT_OF_ROUTE_TRIGGER,
+  type AlertConfigurationSummary,
+  type OffRouteView,
 } from "@silvicom/shared";
 import { requireAnySection, requireAuth, requireOrg } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
@@ -19,21 +24,25 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { readSamsaraSubjects } from "../../roster/index.js";
 import { fetchSafetyEventVideo, listSubjectWarnings, NoSamsaraTokenError, type StoredWarning } from "../../samsara/index.js";
 import { listOfficeMembers } from "../../org/index.js";
+import { readOffRouteViewCached } from "../../livemap/index.js";
 import { deskAccess } from "../access.js";
 import { CLOSED_LIMIT, countOpenByCategory, readFollowUpRow, readFollowUpRows, sortLines, subjectIdsOf, toLine, type FollowUpRow } from "../lines.js";
 import { resolvedRules } from "../ruleViews.js";
+import { hasTruckCodes, readFollowUpTruckCodes } from "../truckCodes.js";
 import { followUpRulesRouter } from "./rules.js";
 
 /**
  * `/api/follow-ups` — the warning desk (WARNING-DESK-PLAN WD4).
  *
  *  · `GET /` — the list. Maintenance › Follow-ups sees every category; Loads › Route follow-ups sees
- *    Route alone (D-WD13). Urgent → high → normal, then "warned again after the call", then oldest.
- *  · `GET /:id` — one line, its warnings in time order and its action history.
+ *    Route alone (D-WD13). Newest activity first — the latest warning on top (D-WD18).
+ *  · `GET /:id` — one line, its warnings newest first and its action history, newest first.
  *  · `POST /:id/actions` — one action through `transition_follow_up` (0653), the only writer of status.
  *    Its `follow_up_actions` row IS the record of who told which driver what (D-WD9), so no second
  *    audit row is written beside it.
  *  · `GET /:id/video/:eventId` — a fresh signed link from Samsara, never stored (D-WD7).
+ *  · `GET /:id/codes` — a maintenance follow-up's truck: Samsara's fault codes, never stored (D-ORM9).
+ *  · `GET /:id/route/:warningId` — an Out of route warning on our own map, never stored (D-ORM1).
  *  · `/rules` — the admin's card (`./rules.ts`).
  *
  * The router-level gate is the union of the two sections behind the two screens; the screen itself —
@@ -54,7 +63,14 @@ const RPC_ERRORS: Record<string, { status: number; code: string; message: string
   WD015: { status: 422, code: "note_required", message: "This needs a note." },
 };
 
-function toWarning(w: StoredWarning): FollowUpWarning {
+/** The rule keys of Samsara's Out of route alerts that carry their own distance (D-ORM4). */
+function routeAlertKinds(configs: readonly AlertConfigurationSummary[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const c of configs) if (c.triggerTypeIds.includes(OUT_OF_ROUTE_TRIGGER) && c.outOfRouteMeters) out.set(alertRuleKey(c.id), c.outOfRouteMeters);
+  return out;
+}
+
+function toWarning(w: StoredWarning, routeKinds: ReadonlyMap<string, number>): FollowUpWarning {
   const hasVideo = w.source === "safety" && w.detail.hasVideo === true;
   return {
     id: w.id,
@@ -68,6 +84,7 @@ function toWarning(w: StoredWarning): FollowUpWarning {
     samsaraUrl: w.samsaraUrl,
     videoEventId: hasVideo ? w.sourceKey : null,
     coachingState: w.source === "safety" && typeof w.detail.eventState === "string" ? w.detail.eventState : null,
+    routeMap: w.source === "alert" && routeKinds.has(w.kind) && w.vehicleSamsaraId !== null,
   };
 }
 
@@ -84,7 +101,9 @@ async function warningsOf(req: Request, orgId: string, f: FollowUpRow): Promise<
   });
   return ws
     .filter((w) => Date.parse(w.happenedAt) >= from && Date.parse(w.happenedAt) <= until)
-    .sort((a, b) => Date.parse(a.happenedAt) - Date.parse(b.happenedAt));
+    // Newest first, like the list and the history beside it (D-WD18): the warning that just came in is
+    // the one the person opened the line to read.
+    .sort((a, b) => Date.parse(b.happenedAt) - Date.parse(a.happenedAt));
 }
 
 export function followUpsRouter(): Router {
@@ -157,7 +176,7 @@ export function followUpsRouter(): Router {
       const orgId = req.auth!.orgId!;
       const admin = adminOf(req);
       const nowMs = Date.now();
-      const [{ rules }, subjects, warnings, actions, members] = await Promise.all([
+      const [{ rules, configs }, subjects, warnings, actions, members] = await Promise.all([
         resolvedRules(admin, getAppLocals(req).env, orgId, nowMs),
         readSamsaraSubjects(admin, orgId, subjectIdsOf([found.row])),
         warningsOf(req, orgId, found.row),
@@ -170,11 +189,12 @@ export function followUpsRouter(): Router {
         listOfficeMembers(admin, orgId),
       ]);
       if (actions.error) throw new Error(`follow_up_actions: ${actions.error.message}`);
+      const routeKinds = routeAlertKinds(configs);
       const names = new Map(members.map((m) => [m.userId, m.fullName || m.email || "A colleague"]));
       const body: FollowUpDetail = {
         line: toLine(found.row, new Map(rules.map((r) => [r.key, r])), subjects, req.auth!.userId, nowMs),
         canAct: found.actsOn.includes(found.row.category),
-        warnings: warnings.map(toWarning),
+        warnings: warnings.map((w) => toWarning(w, routeKinds)),
         actions: ((actions.data ?? []) as { id: string; action: FollowUpActionRow["action"]; note: string | null; actor_id: string; created_at: string }[]).map((a) => ({
           id: a.id,
           action: a.action,
@@ -250,6 +270,73 @@ export function followUpsRouter(): Router {
         }
         console.error("[follow-ups] video fetch failed:", e instanceof Error ? e.message : e);
         res.status(502).json(apiError("samsara_unavailable", "Samsara did not answer. Open the video in Samsara, or try again in a minute."));
+      }
+    }),
+  );
+
+  router.get(
+    "/:id/codes",
+    asyncHandler(async (req, res) => {
+      const found = await visibleFollowUp(req, res);
+      if (!found) return;
+      // Codes belong to a truck's engine controllers: a trailer, a driver or a route line has none to read.
+      if (!hasTruckCodes(found.row)) {
+        res.status(404).json(apiError("not_found", "Fault codes are read for a maintenance follow-up on a truck."));
+        return;
+      }
+      try {
+        const body: FollowUpTruckCodes = await readFollowUpTruckCodes(adminOf(req), getAppLocals(req).env, req.auth!.orgId!, found.row, Date.now());
+        res.set("Cache-Control", "no-store").json(body);
+      } catch (e) {
+        if (e instanceof NoSamsaraTokenError) {
+          res.status(503).json(apiError("samsara_unavailable", "Samsara is not connected for this company, so the truck's codes cannot be read."));
+          return;
+        }
+        console.error("[follow-ups] fault codes failed:", e instanceof Error ? e.message : e);
+        res.status(502).json(apiError("samsara_unavailable", "Samsara did not answer, and no codes were kept for this truck. Try again in a minute."));
+      }
+    }),
+  );
+
+  router.get(
+    "/:id/route/:warningId",
+    asyncHandler(async (req, res) => {
+      const found = await visibleFollowUp(req, res);
+      if (!found) return;
+      const orgId = req.auth!.orgId!;
+      const admin = adminOf(req);
+      const env = getAppLocals(req).env;
+      // The warning must be one of THIS follow-up's — an id from elsewhere is refused before anything is read.
+      const warning = (await warningsOf(req, orgId, found.row)).find((w) => w.id === req.params.warningId);
+      if (!warning || warning.source !== "alert" || !warning.vehicleSamsaraId) {
+        res.status(404).json(apiError("not_found", "That warning is not part of this follow-up."));
+        return;
+      }
+      const { configs, unavailable } = await resolvedRules(admin, env, orgId, Date.now());
+      const thresholdMeters = routeAlertKinds(configs).get(warning.kind);
+      if (!thresholdMeters) {
+        if (unavailable) res.status(503).json(apiError("samsara_unavailable", "Samsara did not answer, so its Out of route distance is not known. Try again in a minute."));
+        else res.status(404).json(apiError("not_found", "That warning is not an Out of route alert."));
+        return;
+      }
+      const truck = (await readSamsaraSubjects(admin, orgId, { vehicleSamsaraIds: [warning.vehicleSamsaraId], trailerSamsaraIds: [], driverSamsaraIds: [] }))
+        .trucksBySamsaraId.get(warning.vehicleSamsaraId);
+      if (!truck) {
+        res.status(404).json(apiError("not_found", "This truck is not on the roster, so where it drove cannot be drawn."));
+        return;
+      }
+      try {
+        const body: OffRouteView = await readOffRouteViewCached(admin, env, orgId, warning.id, {
+          vehicleId: truck.id,
+          happenedAt: warning.happenedAt,
+          endedAt: warning.endedAt,
+          stillActive: warning.stillActive,
+          thresholdMeters,
+        });
+        res.set("Cache-Control", "no-store").json(body);
+      } catch (e) {
+        console.error("[follow-ups] off-route view failed:", e instanceof Error ? e.message : e);
+        res.status(502).json(apiError("samsara_unavailable", "Samsara did not answer, so where the truck drove cannot be drawn. Open it in Samsara, or try again in a minute."));
       }
     }),
   );

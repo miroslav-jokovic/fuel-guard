@@ -265,9 +265,9 @@ describe("named permissions", () => {
   });
 });
 
-/** INSTALLED-APP-PLAN IA-S1: what two-step sign-in asks of the person, read before anything else. */
+/** INSTALLED-APP-PLAN IA-S1 rev 2: what two-step sign-in asks of this device, read before anything else. */
 describe("two-step sign-in", () => {
-  const OWED = { required: true, satisfied: false, has_factor: true, due_from: null, must_keep: false };
+  const OWED = { required: true, satisfied: false, email_hint: "m•••@silvicom.test", trusted_until: null };
 
   it("a session that owes its code learns so, and does not ask the API for what it would be refused", async () => {
     second.status = OWED;

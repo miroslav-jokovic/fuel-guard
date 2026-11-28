@@ -24,7 +24,12 @@ const tmsLoad = (over: Record<string, unknown> = {}) => ({
 vi.mock("@/features/dispatch/useDispatchLoads", () => ({
   useLoadDetailQuery: () => ({ data: load, isLoading: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn() }),
 }));
-vi.mock("@/features/dispatch/useLoadDispatch", () => ({ dispatchHeadline: () => "Not dispatched yet", smsReasonText: () => "" }));
+// The real wording helpers (they are pure); only the headline is pinned for the facts tests above it.
+const headline = vi.hoisted(() => ({ stub: true as boolean }));
+vi.mock("@/features/dispatch/useLoadDispatch", async (orig) => {
+  const real = (await orig()) as typeof import("@/features/dispatch/useLoadDispatch");
+  return { ...real, dispatchHeadline: (d: never) => (headline.stub ? "Not dispatched yet" : real.dispatchHeadline(d)) };
+});
 const grants = vi.hoisted(() => ({ value: {} as Record<string, boolean> }));
 vi.mock("@/stores/session", () => ({
   useSessionStore: () => ({ can: () => false, canView: () => true, hasPermission: (k: string) => grants.value[k] ?? false }),
@@ -119,5 +124,50 @@ describe("DispatchLoadDetailPage — a stop removed in McLeod", () => {
     expect(items).toHaveLength(2);
     expect(items[0]!.find('[data-testid="stop-removed-in-mcleod"]').exists()).toBe(false);
     expect(items[1]!.get('[data-testid="stop-removed-in-mcleod"]').text()).toBe("Removed in McLeod");
+  });
+});
+
+/** T1 N-9: the dispatch fact says who has seen the load, why nobody can, and when a phone went quiet. */
+describe("DispatchLoadDetailPage — the dispatch fact", () => {
+  const dispatch = (over: Record<string, unknown> = {}) => ({
+    id: "d-1", driverId: "drv-1", driverName: "Dana Reyes", sentAt: "2026-11-27T14:00:00Z", channel: "app", outcome: "sent",
+    outcomeReason: null, acknowledgements: [], seats: [{ driverId: "drv-1", driverName: "Dana Reyes" }], reachable: { ok: true },
+    seatNote: null, lastContactAt: null, ...over,
+  });
+  async function dispatchFact(d: Record<string, unknown>, loadOver: Record<string, unknown> = {}) {
+    headline.stub = false;
+    setActivePinia(createPinia());
+    load.value = tmsLoad({ dispatches: [d], ...loadOver });
+    const w = mount(Page, { global: { stubs } });
+    await flushPromises();
+    headline.stub = true;
+    return w;
+  }
+
+  it("the dispatch fact shows the driver's acknowledgement", async () => {
+    const w = await dispatchFact(dispatch({ acknowledgements: [{ driverId: "drv-1", driverName: "Dana Reyes", at: "2026-11-27T15:14:00Z" }] }));
+    expect(w.get('[data-testid="dispatch-state"]').text()).toMatch(/· Seen \d{2}\/\d{2}\/2026 \d{1,2}:\d{2} [AP]M$/);
+    // Sent through the app: no "no text was sent" line beside it.
+    expect(w.find('[data-testid="dispatch-sms-reason"]').exists()).toBe(false);
+  });
+
+  it("a silent phone on an active load shows when it last reached us", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-27T17:00:00Z"));
+    try {
+      const w = await dispatchFact(dispatch({ lastContactAt: "2026-11-27T15:05:00Z" }), { status: "in_transit" });
+      expect(w.get('[data-testid="dispatch-phone-silent"]').text()).toMatch(/^Driver's phone last reached us at /);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a dispatch to a driver with no app login says nobody will see it, with the held-text reason", async () => {
+    const w = await dispatchFact(
+      dispatch({ channel: "sms", outcome: "not_sent", outcomeReason: "sms_not_configured", reachable: { ok: false, reason: "no_app_login" }, seatNote: "mcleod_seats_someone_else" }),
+    );
+    expect(w.get('[data-testid="dispatch-reach"]').text()).toBe("Not in Dana Reyes's app — no app login");
+    expect(w.get('[data-testid="dispatch-seat-note"]').text()).toContain("McLeod has somebody else on this load");
+    expect(w.find('[data-testid="dispatch-sms-reason"]').exists()).toBe(true);
   });
 });

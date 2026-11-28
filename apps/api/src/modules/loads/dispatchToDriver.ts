@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   composeLoadDispatchSms,
+  dispatchReachable,
+  dispatchSeatNote,
+  dispatchSeats,
+  driverHasAppLogin,
   isDispatchable,
   RETURN_TO_DUTY_BLOCK,
   type DispatchSmsStop,
@@ -15,6 +19,7 @@ import { organizationTimezone } from "../idle/index.js";
 import { returnToDutyBlocked } from "../recruiting/index.js";
 import { mapChunks } from "../../lib/paging.js";
 import { loginForDriver, notify } from "../messaging/index.js";
+import { readDispatchFacts } from "./dispatchFacts.js";
 import type { DispatchResult } from "./dispatchLoads/shared.js";
 
 /**
@@ -71,7 +76,7 @@ async function prepare(
   const [loadRes, driverRes, stopsRes, orgRes] = await Promise.all([
     admin
       .from("loads")
-      .select("id, ref, status, source, vehicles(unit_number), trailers(unit_number)")
+      .select("id, ref, status, source, external_closed_at, driver_id, co_driver_id, vehicles(unit_number), trailers(unit_number)")
       .eq("org_id", orgId)
       .eq("id", loadId)
       .maybeSingle(),
@@ -93,7 +98,17 @@ async function prepare(
   ]);
 
   const load = loadRes.data as
-    | { id: string; ref: string; status: string; source: string; vehicles: Unit; trailers: Unit }
+    | {
+        id: string;
+        ref: string;
+        status: string;
+        source: string;
+        external_closed_at: string | null;
+        driver_id: string | null;
+        co_driver_id: string | null;
+        vehicles: Unit;
+        trailers: Unit;
+      }
     | null;
   if (!load) return { ok: false, status: 404, code: "not_found", message: "That load no longer exists" };
   // Dispatch is the McLeod path (D-LMR5). Manual loads can no longer be made (LR6, Q-LMR7), and one
@@ -155,7 +170,11 @@ async function prepare(
         timeZone: organizationTimezone(org?.operating_hours),
       }),
       smsHeldBecause: smsHold(env),
-      inApp: driver.user_id != null && driver.app_access_enabled === true,
+      inApp: driverHasAppLogin(driver),
+      // The same derivations the load page reads after Send (dispatchFacts.ts), so the preview's
+      // "nobody will see it" and the page's agree.
+      reachable: dispatchReachable(load, driver),
+      seatNote: dispatchSeatNote(load, driver.id),
     },
   };
 }
@@ -241,8 +260,8 @@ async function tellDriversOfDispatch(
     .eq("id", loadId)
     .maybeSingle();
   const load = data as { ref: string; driver_id: string | null; co_driver_id: string | null } | null;
-  const seats = [driverId];
-  if (load?.co_driver_id && load.driver_id === driverId && load.co_driver_id !== driverId) seats.push(load.co_driver_id);
+  // The same seats the office's "Seen by" reads (`dispatchSeats`, 0655's O-3 rule) — one definition.
+  const seats = load ? dispatchSeats(load, driverId) : [driverId];
   for (const seat of seats) {
     const userId = await loginForDriver(admin, orgId, seat);
     if (!userId) continue;
@@ -290,7 +309,7 @@ export async function dispatchesByLoad(
       return (data ?? []) as unknown[];
     })
   ).flat();
-  for (const r of rows as {
+  const typed = rows as {
     id: string;
     load_id: string;
     driver_id: string;
@@ -299,9 +318,13 @@ export async function dispatchesByLoad(
     outcome: LoadDispatchSummary["outcome"];
     outcome_reason: string | null;
     drivers: Named;
-  }[]) {
+  }[];
+  // T1 N-9: "Seen by driver", whether anybody's app shows it, McLeod's seats, the phone's last contact.
+  const facts = await readDispatchFacts(admin, orgId, typed);
+  for (const r of typed) {
     const name = Array.isArray(r.drivers) ? (r.drivers[0]?.full_name ?? null) : (r.drivers?.full_name ?? null);
     const list = out.get(r.load_id) ?? [];
+    const f = facts.get(r.id);
     list.push({
       id: r.id,
       driverId: r.driver_id,
@@ -310,6 +333,11 @@ export async function dispatchesByLoad(
       channel: r.channel,
       outcome: r.outcome,
       outcomeReason: r.outcome_reason,
+      acknowledgements: f?.acknowledgements ?? [],
+      seats: f?.seats ?? [{ driverId: r.driver_id, driverName: name }],
+      reachable: f?.reachable ?? { ok: false, reason: "closed" },
+      seatNote: f?.seatNote ?? null,
+      lastContactAt: f?.lastContactAt ?? null,
     });
     out.set(r.load_id, list);
   }

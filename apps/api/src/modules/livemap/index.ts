@@ -21,3 +21,6 @@ export { readLiveMapBoardCached, BOARD_CACHE_TTL_MS } from "./liveMapBoardCache.
 export { readDriverDispatch } from "./driverDispatch.js";
 // One load's status off the board's own rows, for a broker-mail reply draft (BROKER-MAIL-READER-PLAN D-BMR11).
 export { readLoadStatusFacts } from "./loadStatusFacts.js";
+// One Out of route warning drawn on our own map, for the follow-up drawer (OUT-OF-ROUTE-MAP-ANALYSIS
+// option A, D-ORM1): planned line, driven path and verdict, composed from samsara, loads and routing.
+export { readOffRouteViewCached, type OffRouteQuery } from "./offRouteView.js";

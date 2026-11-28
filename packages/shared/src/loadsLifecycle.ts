@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { recordId } from "./recordId.js";
-import type { LoadStatus } from "./loadsContract.js";
+import { actionId, type LoadStatus } from "./loadsContract.js";
 
 /**
  * Driver App — load lifecycle, the dispatch approval gate, and the event timeline
@@ -16,9 +16,10 @@ import type { LoadStatus } from "./loadsContract.js";
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * The statuses a DRIVER may ever see. Identical to the predicate in `loads_driver_scope` (0087) —
- * if these two ever drift, the app will render a load the database will not return. The RLS matrix
- * asserts the database half; `driverVisibleStatuses` keeps the client half honest.
+ * The statuses a driver may see on a MANUAL load — the manual branch of `loads_driver_scope` (0087,
+ * kept by 0655). If these two ever drift, the app will render a load the database will not return. The
+ * RLS matrix asserts the database half. A McLeod load has its own list, `TMS_DRIVER_VISIBLE_STATUSES`
+ * below, and is shown only once the office sent it (D-LMR5).
  */
 export const DRIVER_VISIBLE_STATUSES = [
   "offered",
@@ -153,12 +154,14 @@ export const declineLoadRequestSchema = z.object({
   reason: z.enum(DECLINE_REASONS),
   note: z.string().max(500).optional(),
   occurred_at: z.string().optional(),
+  action_id: actionId,
 });
 export type DeclineLoadRequest = z.infer<typeof declineLoadRequestSchema>;
 
 /** `POST /api/me/loads/:id/start` — explicit "rolling"; the first worked stop does this implicitly. */
 export const startLoadRequestSchema = z.object({
   occurred_at: z.string().optional(),
+  action_id: actionId,
 });
 export type StartLoadRequest = z.infer<typeof startLoadRequestSchema>;
 

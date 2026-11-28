@@ -227,10 +227,14 @@ const API_ALLOW = new Set([
   //     alert configurations' names, and a safety event's video fetched per click (D-WD7);
   //   · roster  — the unit number, the driver to call and their phone (`readSamsaraSubjects`, D-WD15);
   //   · org     — who did each action, named the way the Users page names them (`listOfficeMembers`).
-  // None of the three imports anything of followups'.
+  //   · livemap — an Out of route warning drawn on our own map (`readOffRouteViewCached`,
+  //     OUT-OF-ROUTE-MAP-ANALYSIS D-ORM1): livemap already composes the trail, the load and the HERE route
+  //     the drawer needs, and owns no table, so the drawer asks it rather than a fourth copy of that join.
+  // None of the four imports anything of followups'.
   "followups -> samsara",
   "followups -> roster",
   "followups -> org",
+  "followups -> livemap",
   // The measure week's report (§8) asks one question per matched load — is its McLeod dispatcher the
   // mailbox's owner? — and `tms_dispatchers` is mcleod's RAW table, so the answer comes through
   // `readFleetDispatchers` in mcleod's index, the same door loads and medstop use. mcleod imports

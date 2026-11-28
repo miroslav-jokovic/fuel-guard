@@ -15,12 +15,12 @@ function load(n: number, status: Load['status'], firstAppt: string | null): Load
     id: id(100 + n), seq: 1, kind: 'pickup', name: 'Yard', address_line: null, city: 'Joliet',
     state: 'IL', postal_code: null, lat: null, lon: null, appointment_start: firstAppt,
     appointment_end: null, status: 'pending', arrived_at: null, completed_at: null,
-    required_photos: [], skip_reason: null, notes: null, photos: [],
+    required_photos: [], skip_reason: null, notes: null, photos: [], external_status: null, actual_arrival_at: null, actual_departure_at: null, mcleod_removed_at: null,
   };
   return {
     id: id(n), ref: `LD-${n}`, status, equipment: 'Dry van', commodity: null, hazmat: false,
     total_miles: 100, accepted_at: null, completed_at: null, notes: null,
-    created_at: '2026-09-01T00:00:00Z', vehicle_unit: null, trailer_unit: null, stops: [stop],
+    created_at: '2026-09-01T00:00:00Z', vehicle_unit: null, trailer_unit: null, source: 'manual', acknowledged_at: null, customer_name: null, stops: [stop],
   };
 }
 

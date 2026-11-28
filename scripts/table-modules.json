@@ -1978,8 +1978,8 @@
         "growth": "time",
         "retention_days": null,
         "partition": null,
-        "budget_rows_per_day": 50,
-        "why": "budget derived from production 2026-09-21: 5 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "budget_rows_per_day": 1500,
+        "why": "was 50 (production 2026-09-21: 5 rows/day, x3). Raised by T1 N-9, the first merge that lets drivers work McLeod loads (audit A-40): ~230 McLeod stop departures/day x 2 driver events (arrive, complete) + ~100 'Got it' + mirror events, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
       }
     },
     "load_external_payloads": {
@@ -2000,8 +2000,8 @@
         "growth": "time",
         "retention_days": 1095,
         "partition": null,
-        "budget_rows_per_day": 500,
-        "why": "proof-of-delivery photographs; its 1095d (3-year) rule predates this plan and is kept."
+        "budget_rows_per_day": 1400,
+        "why": "proof-of-delivery photographs; its 1095d (3-year) rule predates this plan and is kept. Budget raised from 500 by T1 N-9 (audit A-40): ~230 McLeod stops/day x 2 required photos, x3 headroom."
       }
     },
     "load_stop_eta_predictions": {
@@ -2310,6 +2310,28 @@
         "partition": null,
         "budget_rows_per_day": 20,
         "why": "new in 0620 (2026-11-16, IA-S6); one row per (device, address) pair, read from auth.sessions.ip; production had 18 distinct addresses across 80 sessions on 2026-11-16. Written at most once per five minutes per pair. pruned 365 days after last_seen_at (Q-IA17)."
+      }
+    },
+    "two_step_codes": {
+      "module": "org",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 30,
+        "partition": null,
+        "budget_rows_per_day": 20,
+        "why": "new in 0662 (2026-11-27, IA-S1 rev 2, Q-IA20); one row per emailed sign-in code. Bounded by five per person per hour and, in use, by office people x devices x one code a week (19 accounts on production 2026-11-16). pruned 30 days after created_at: a code lives ten minutes, the rows are kept only as a recent sending record."
+      }
+    },
+    "two_step_devices": {
+      "module": "org",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 90,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "new in 0662 (2026-11-27, IA-S1 rev 2, Q-IA20); one row per (company, person, device) that gave its emailed code, updated in place each week. A row older than TWO_STEP_DAYS trusts nothing; pruned 90 days after verified_at."
       }
     },
     "member_devices": {

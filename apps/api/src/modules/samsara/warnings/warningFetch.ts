@@ -12,6 +12,7 @@
  *   /fleet/hos/violations                  startTime + endTime
  *   /readings/history?readingId=atisLamp   30 days answers 504; 3-day windows succeed (D-WD5)
  *   /fleet/vehicles/stats?types=faultCodes one page for the fleet
+ *   /fleet/vehicles/stats/history          faultCodes, one truck: a reading per change, ≤ 2 pages for 30 days
  */
 import type { AlertConfigurationSummary } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
@@ -56,6 +57,9 @@ export async function fetchAlertConfigurations(ctx: WarningFetchContext): Promis
     const c = raw as { id?: unknown; name?: unknown; isEnabled?: unknown; triggers?: unknown };
     if (typeof c.id !== "string") continue;
     const triggers = Array.isArray(c.triggers) ? c.triggers : [];
+    const meters = triggers
+      .map((t) => (t as { triggerParams?: { outOfRoute?: { maxOffRouteMeters?: unknown } } }).triggerParams?.outOfRoute?.maxOffRouteMeters)
+      .find((m): m is number => typeof m === "number" && Number.isFinite(m) && m > 0);
     out.push({
       id: c.id,
       name: typeof c.name === "string" ? c.name : "Samsara alert",
@@ -63,6 +67,7 @@ export async function fetchAlertConfigurations(ctx: WarningFetchContext): Promis
       triggerTypeIds: triggers
         .map((t) => (t as { triggerTypeId?: unknown }).triggerTypeId)
         .filter((n): n is number => typeof n === "number"),
+      ...(meters !== undefined ? { outOfRouteMeters: meters } : {}),
     });
   }
   return out;
@@ -129,6 +134,29 @@ export async function fetchAtisReadings(ctx: WarningFetchContext, fromMs: number
   return out;
 }
 
-export function fetchFaultCodes(ctx: WarningFetchContext): Promise<unknown[]> {
-  return walk(ctx, "/fleet/vehicles/stats", [["types", "faultCodes"]]);
+/** The latest fault-code reading of every vehicle, or of the ones named (one truck for a follow-up's drawer). */
+export function fetchFaultCodes(ctx: WarningFetchContext, vehicleIds?: readonly string[]): Promise<unknown[]> {
+  const params: Params = [["types", "faultCodes"]];
+  if (vehicleIds?.length) params.push(["vehicleIds", vehicleIds.join(",")]);
+  return walk(ctx, "/fleet/vehicles/stats", params);
+}
+
+/**
+ * One truck's fault-code readings over a window. Samsara writes one when the codes change, so a quiet
+ * truck answers none; 30 days on the four busiest trucks measured ≤ 2 pages, ≤ 483 ms (2026-11-27).
+ * Each page repeats the vehicle with that page's readings, so they are joined across pages here.
+ */
+export async function fetchFaultCodeHistory(ctx: WarningFetchContext, vehicleId: string, startIso: string, endIso: string): Promise<unknown[]> {
+  const items = await walk(ctx, "/fleet/vehicles/stats/history", [
+    ["vehicleIds", vehicleId],
+    ["types", "faultCodes"],
+    ["startTime", startIso],
+    ["endTime", endIso],
+  ]);
+  const out: unknown[] = [];
+  for (const item of items) {
+    const v = item as { id?: unknown; faultCodes?: unknown };
+    if (String(v.id ?? "") === vehicleId && Array.isArray(v.faultCodes)) out.push(...v.faultCodes);
+  }
+  return out;
 }

@@ -116,12 +116,11 @@ async function onAccessChanged(): Promise<void> {
 }
 
 /**
- * The API refused a genuine token because its owner must take the second step and this session has not
- * (INSTALLED-APP-PLAN IA-S1, `requireAuth`'s 403). The session is GOOD and is kept — the same one becomes
- * `aal2` once the code is entered — so this only takes the person to the page that asks for it. The router
- * guard normally gets there first; this is for the session that came to owe it while a page was already open
- * (an admin whose 14 days ran out at their desk, or who set an authenticator up on another device).
- * A full navigation, once: the page that was open cannot do anything until the code is given.
+ * The API refused a genuine token because this device owes its emailed sign-in code (INSTALLED-APP-PLAN IA-S1
+ * rev 2, `requireAuth`'s 403). The session is GOOD and is kept — the same one is let in once the code is
+ * entered — so this only takes the person to the page that asks for it. The router guard normally gets there
+ * first; this is for the device whose week ran out while a page was already open (Q-IA20: asked again after
+ * seven days, mid-session included). A full navigation, once: the open page can do nothing until the code is given.
  */
 let secondStepAsked = false;
 function onSecondStepRequired(): void {

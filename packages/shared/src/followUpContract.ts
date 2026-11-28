@@ -8,6 +8,7 @@ import {
   WARNING_SUBJECTS,
   type FollowUpCategory,
 } from "./followUpRules.js";
+import { truckFaultCodeSchema, truckLampStateSchema } from "./truckFaultCodes.js";
 
 /**
  * The warning desk's wire (docs/plans/maintenance/WARNING-DESK-PLAN.md WD4/WD5): what
@@ -131,6 +132,8 @@ export const followUpWarningSchema = z.object({
   videoEventId: z.string().nullable(),
   /** Samsara's coaching state for a safety event, read back as Samsara holds it (D-WD8). */
   coachingState: z.string().nullable(),
+  /** An Out of route alert on a truck: the drawer can draw it on our map (OUT-OF-ROUTE-MAP-ANALYSIS D-ORM1). */
+  routeMap: z.boolean(),
 });
 export type FollowUpWarning = z.infer<typeof followUpWarningSchema>;
 
@@ -175,6 +178,31 @@ export const followUpVideoSchema = z.discriminatedUnion("restricted", [
 ]);
 export type FollowUpVideo = z.infer<typeof followUpVideoSchema>;
 
+/**
+ * Samsara's fault codes on a maintenance follow-up's truck (OUT-OF-ROUTE-MAP-ANALYSIS §7, D-ORM8–10),
+ * read when the drawer opens and never stored. `samsara`: the truck's latest reading (`asOf` is when
+ * Samsara took it — measured from minutes to 561 days old, so it is always shown) and the codes that
+ * came and went since `since`. `stored`: Samsara did not answer, and these are the codes the collector
+ * kept when the truck's lamp last came on (`asOf`) — fewer, older, and said so.
+ */
+export const followUpTruckCodesSchema = z.discriminatedUnion("source", [
+  z.object({
+    source: z.literal("samsara"),
+    asOf: z.string().nullable(),
+    lamps: truckLampStateSchema.nullable(),
+    now: z.array(truckFaultCodeSchema),
+    cameAndWent: z.array(truckFaultCodeSchema.extend({ firstSeen: z.string(), lastSeen: z.string() })),
+    since: z.string(),
+    sinceCapped: z.boolean(),
+  }),
+  z.object({
+    source: z.literal("stored"),
+    asOf: z.string(),
+    now: z.array(truckFaultCodeSchema),
+  }),
+]);
+export type FollowUpTruckCodes = z.infer<typeof followUpTruckCodesSchema>;
+
 // ── rules (admin only, D-WD10) ──────────────────────────────────────────────────────────────────
 const ruleSettings = {
   enabled: z.boolean(),
@@ -208,20 +236,26 @@ export const followUpRulesSchema = z.object({
 });
 export type FollowUpRules = z.infer<typeof followUpRulesSchema>;
 
-// ── the list's order (D-WD12) ───────────────────────────────────────────────────────────────────
+// ── the list's order (D-WD18, superseding D-WD12's sort) ────────────────────────────────────────
 /**
- * Urgent → high → normal, then "warned again after the call", then the oldest problem first — the one
- * that has waited longest is the one to call about. Closed lines: newest close first. Pure.
+ * Newest activity first: the line whose LAST warning is the most recent leads, as every list of records
+ * in the app does (design contract §5.3, D-DLC4). Closed lines: newest close first. Equal times fall back
+ * to severity, so two lines warned in the same second still put the urgent one on top. Pure.
+ *
+ * Until 2026-11-27 the desk sorted urgent → high → normal, then "warned again", then OLDEST first (D-WD12).
+ * On release day the owner saw new safety events in Samsara while the top of the desk read "4 h ago" — a
+ * red-light line from 3:31 PM above the 6:23 PM following-distance warnings — and read it as the feed being
+ * four hours behind; it was 5–11 minutes behind. Owner ruling the same evening: "display activities from
+ * newest to oldest". Severity stays on the line as its badge, and the Severity filter finds the urgent ones.
  */
 export function compareFollowUps(
-  a: Pick<FollowUpLine, "severity" | "warnedAgain" | "firstAt" | "status" | "closedAt">,
-  b: Pick<FollowUpLine, "severity" | "warnedAgain" | "firstAt" | "status" | "closedAt">,
+  a: Pick<FollowUpLine, "severity" | "lastAt" | "status" | "closedAt">,
+  b: Pick<FollowUpLine, "severity" | "lastAt" | "status" | "closedAt">,
 ): number {
   if (a.status === "closed" && b.status === "closed") return Date.parse(b.closedAt ?? "") - Date.parse(a.closedAt ?? "");
-  const sev = FOLLOW_UP_SEVERITY_RANK[a.severity] - FOLLOW_UP_SEVERITY_RANK[b.severity];
-  if (sev !== 0) return sev;
-  if (a.warnedAgain !== b.warnedAgain) return a.warnedAgain ? -1 : 1;
-  return Date.parse(a.firstAt) - Date.parse(b.firstAt);
+  const newest = Date.parse(b.lastAt) - Date.parse(a.lastAt);
+  if (newest !== 0) return newest;
+  return FOLLOW_UP_SEVERITY_RANK[a.severity] - FOLLOW_UP_SEVERITY_RANK[b.severity];
 }
 
 /** "5 times in 3 days" — the days the warnings actually span, never more than the rule's window. */

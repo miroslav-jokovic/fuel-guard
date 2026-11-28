@@ -27,7 +27,7 @@ function stop(over: Partial<LoadStop>): LoadStop {
     seq: 1, kind: 'pickup', name: 'Ardent Mills', address_line: null, city: 'Chicago', state: 'IL',
     postal_code: null, lat: null, lon: null, appointment_start: iso(0.3), appointment_end: iso(2.3),
     status: 'pending', arrived_at: null, completed_at: null, required_photos: ['bol', 'seal'],
-    skip_reason: null, notes: null, photos: [], ...over,
+    skip_reason: null, notes: null, photos: [], external_status: null, actual_arrival_at: null, actual_departure_at: null, mcleod_removed_at: null, ...over,
   };
 }
 
@@ -37,7 +37,7 @@ function load(stops: LoadStop[], over: Partial<Load> = {}): Load {
   return {
     id: '11111111-1111-4111-8111-111111111111', ref: '1184530', status: 'in_transit', equipment: 'Dry van',
     commodity: null, hazmat: false, total_miles: 183, accepted_at: null, completed_at: null, notes: null,
-    created_at: iso(-12), vehicle_unit: '2241', trailer_unit: '53118', stops, ...over,
+    created_at: iso(-12), vehicle_unit: '2241', trailer_unit: '53118', source: 'manual', acknowledged_at: null, customer_name: null, stops, ...over,
   };
 }
 

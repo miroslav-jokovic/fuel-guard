@@ -174,7 +174,15 @@ export const OPEN_ROUTES = new Map<string, string>([
   ],
   [
     "GET /api/me/second-factor/",
-    "what two-step sign-in asks of the CALLER (INSTALLED-APP-PLAN IA-S1): whether a code is required of them, whether this session has given it, whether they have an authenticator, and — for an admin in their 14 days of notice — the date. Any signed-in member of the org, and deliberately reachable by a token that still OWES its code (`requireAuthFirstStep`): it is how the app learns to ask for one instead of showing a wall of refusals. It names nobody else, returns no secret and no code, and the person and org are the token's.",
+    "what two-step sign-in asks of the CALLER on this device (INSTALLED-APP-PLAN IA-S1 rev 2, Q-IA20): whether codes are asked of them, whether this device gave one in the last week, where the code goes (masked) and until when the device is trusted. Any signed-in member of the org, and deliberately reachable by a token whose device still OWES its code (`requireAuthFirstStep`): without it the person could never get back in. The person, the org, the session and the email address are the token's, never anything in the request, so a code can only ever go to the caller's own inbox; the device is the app's key header, as 0620 reads it. Returns no code and no hash.",
+  ],
+  [
+    "POST /api/me/second-factor/code",
+    "emails the CALLER a 6-digit sign-in code (INSTALLED-APP-PLAN IA-S1 rev 2, Q-IA20). Any signed-in member of the org, and deliberately reachable by a token whose device still OWES its code (`requireAuthFirstStep`): without it the person could never get back in. The person, the org, the session and the email address are the token's, never anything in the request, so a code can only ever go to the caller's own inbox; the device is the app's key header, as 0620 reads it. Budgeted in the database (0662): five codes per person per hour, nothing new within a minute of the last, one live code per device.",
+  ],
+  [
+    "POST /api/me/second-factor/verify",
+    "the CALLER enters their emailed sign-in code (INSTALLED-APP-PLAN IA-S1 rev 2, Q-IA20); the right one trusts this device for a week. Any signed-in member of the org, and deliberately reachable by a token whose device still OWES its code (`requireAuthFirstStep`): without it the person could never get back in. The person, the org, the session and the email address are the token's, never anything in the request, so a code can only ever go to the caller's own inbox; the device is the app's key header, as 0620 reads it. Five wrong entries kill a code, counted under a per-person lock (0662), so tabs cannot share guesses.",
   ],
   [
     "GET /api/me/devices/",
@@ -239,6 +247,10 @@ export const ROLE_LIST_WAIVERS = new Map<string, string>([
   [
     "modules/driver-app/routes/me.ts [driver]",
     "the driver app's own surface — a role test, not a section question. Every row it returns is scoped to the caller's own driver record",
+  ],
+  [
+    "modules/driver-app/routes/meLoads.ts [driver]",
+    "the driver app's load routes, moved out of me.ts at T1 N-9 with the same role test — a driver works only the loads the database says are theirs (driver_visible_tms_load_ids / driver_load_access, 0661), resolved from the caller's own driver record",
   ],
   [
     "modules/hazmat/routes/meHazmat.ts [driver]",

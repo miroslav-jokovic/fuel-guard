@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FollowUpLine } from "@silvicom/shared";
-import { agoLabel, driverLabel, ruleCountText, stateBadge, unitLabel } from "./followUpRows";
+import { sortRows } from "@silvicom/ui";
+import { agoLabel, driverLabel, followUpListSort, followUpSortValue, ruleCountText, stateBadge, unitLabel, warningsByDay } from "./followUpRows";
 
 /** How a follow-up line reads (WARNING-DESK-PLAN §4). */
 const line = (o: Partial<FollowUpLine> = {}): FollowUpLine => ({
@@ -48,5 +49,42 @@ describe("agoLabel", () => {
     expect(agoLabel("2026-11-26T11:45:00Z", now)).toBe("15 min ago");
     expect(agoLabel("2026-11-26T10:00:00Z", now)).toBe("2 h ago");
     expect(agoLabel("2026-11-23T12:00:00Z", now)).toBe("3 days ago");
+  });
+});
+
+/** The list opens newest first and a header click overrides it (D-WD18; contract §5.3). */
+describe("followUpListSort", () => {
+  it("opens open lines by their newest warning and closed lines by their close, newest first", () => {
+    expect(followUpListSort({ key: null, dir: "asc" }, false)).toEqual({ key: "lastAt", dir: "desc" });
+    expect(followUpListSort({ key: null, dir: "asc" }, true)).toEqual({ key: "closedAt", dir: "desc" });
+  });
+
+  it("steps aside for a clicked header", () => {
+    expect(followUpListSort({ key: "unit", dir: "asc" }, false)).toEqual({ key: "unit", dir: "asc" });
+  });
+
+  it("puts the 6:23 PM warning above the 3:31 PM high-severity one, as the owner asked on release day", () => {
+    const redLight = line({ id: "a", severity: "high", lastAt: "2026-11-27T21:31:36Z" });
+    const following = line({ id: "b", lastAt: "2026-11-28T00:23:57Z" });
+    const sorted = sortRows([redLight, following], followUpListSort({ key: null, dir: "asc" }, false), followUpSortValue);
+    expect(sorted.map((l) => l.id)).toEqual(["b", "a"]);
+  });
+});
+
+describe("warningsByDay", () => {
+  it("groups warnings by calendar day and keeps the order they came in (newest first)", () => {
+    const groups = warningsByDay([
+      { id: "3", happenedAt: "2026-11-27T13:00:00Z" },
+      { id: "2", happenedAt: "2026-11-27T12:00:00Z" },
+      { id: "1", happenedAt: "2026-11-25T12:00:00Z" },
+    ]);
+    expect(groups.map((g) => [g.label, g.warnings.map((w) => w.id)])).toEqual([
+      ["11/27/2026", ["3", "2"]],
+      ["11/25/2026", ["1"]],
+    ]);
+  });
+
+  it("answers nothing for no warnings", () => {
+    expect(warningsByDay([])).toEqual([]);
   });
 });

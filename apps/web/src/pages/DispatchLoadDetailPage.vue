@@ -18,7 +18,13 @@ import { useSessionStore } from "@/stores/session";
 import HazmatPanel from "@/features/hazmat/HazmatPanel.vue";
 import DispatchLoadDrawer from "@/features/dispatch/DispatchLoadDrawer.vue";
 import LoadRateFacts from "@/features/dispatch/LoadRateFacts.vue";
-import { dispatchHeadline, smsReasonText } from "@/features/dispatch/useLoadDispatch";
+import {
+  dispatchHeadline,
+  dispatchReachText,
+  phoneSilentText,
+  seatNoteText,
+  smsReasonText,
+} from "@/features/dispatch/useLoadDispatch";
 import { useLoadDetailQuery, type DispatchStopDetail } from "@/features/dispatch/useDispatchLoads";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { formatDateTime } from "@/lib/format";
@@ -101,6 +107,23 @@ const loadFacts = computed<Fact[]>(() => {
     ...(l.external_id ? [{ label: "TMS reference", value: l.external_id }] : []),
     ...(tms ? [{ key: "dispatch", label: "Dispatch", value: dispatchHeadline(l.dispatches[0]) }] : []),
   ];
+});
+
+/**
+ * The lines under the dispatch fact (T1 N-9). The SMS reason only when the app was not the channel:
+ * "no text was sent" beside "in their app" would read as a failure that is not one.
+ */
+const dispatchLines = computed(() => {
+  const l = load.value;
+  const d = l?.dispatches[0];
+  if (!l || !d) return [];
+  const lines = [
+    { testid: "dispatch-reach", text: dispatchReachText(d.reachable, d.driverName) },
+    { testid: "dispatch-seat-note", text: seatNoteText(d.seatNote) },
+    { testid: "dispatch-phone-silent", text: phoneSilentText(l, d) },
+    { testid: "dispatch-sms-reason", text: d.channel === "app" ? null : smsReasonText(d.outcomeReason) },
+  ];
+  return lines.filter((x): x is { testid: string; text: string } => x.text !== null);
 });
 
 const STOP_TONE: Record<string, string> = {
@@ -211,7 +234,8 @@ function markBroken(id: string) {
             </template>
             <template #value-dispatch>
               <span data-testid="dispatch-state">{{ dispatchHeadline(load.dispatches[0]) }}</span>
-              <span v-if="load.dispatches[0]?.outcomeReason" class="block text-xs font-normal text-ink-muted">{{ smsReasonText(load.dispatches[0].outcomeReason) }}</span>
+              <!-- T1 N-9: why nobody's app shows it, McLeod disagreeing on the seat, and a silent phone. -->
+              <span v-for="line in dispatchLines" :key="line.testid" class="block text-xs font-normal text-ink-muted" :data-testid="line.testid">{{ line.text }}</span>
             </template>
           </FactList>
 

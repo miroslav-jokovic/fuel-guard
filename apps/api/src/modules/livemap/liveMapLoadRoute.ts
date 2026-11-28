@@ -43,10 +43,29 @@ import { readVehiclePositions } from "../samsara/index.js";
  * silently.
  */
 /** ~0.7 mi of latitude: fine enough to start the line at the truck, coarse enough to share a cache row. */
-const ORIGIN_GRID_DEG = 0.01;
+export const ORIGIN_GRID_DEG = 0.01;
 /** Heading buckets, for the same reason; HERE needs only which way the truck is pointing. */
 const COURSE_STEP_DEG = 15;
-const snap = (v: number, step: number) => Math.round(v / step) * step;
+export const snap = (v: number, step: number) => Math.round(v / step) * step;
+
+export type RouteEnds = Pick<HereRouteRequest, "profile" | "hazmat" | "tunnelCategory" | "avoidTunnels">;
+
+/**
+ * The truck's planning row and the HERE request's fixed half for one of its loads: the fleet's truck
+ * profile (D-TC3's note), no hazmat classes (TC4 open). One function, so the off-route view asks HERE
+ * exactly what this route asks and shares its cache rows (OUT-OF-ROUTE-MAP-ANALYSIS D-ORM2). Null when
+ * the truck is not on the roster.
+ */
+export async function loadRouteRequest(admin: SupabaseClient, orgId: string, vehicleId: string, trailerIsReefer: boolean) {
+  const truck = await loadPlanningTruck(admin, orgId, vehicleId, null, trailerIsReefer);
+  if (!truck) return null;
+  const profile = effectiveTruckProfile(
+    { heightIn: truck.veh.height_in, lengthIn: truck.veh.length_in, widthIn: truck.veh.width_in, axleCount: truck.veh.axle_count, grossWeightLb: null },
+    truck.cfg,
+  );
+  const ends: RouteEnds = { profile, hazmat: [], tunnelCategory: null, avoidTunnels: false };
+  return { truck, ends };
+}
 
 export type LoadRouteAnswer =
   | { ok: true; route: LiveMapLoadRoute }
@@ -59,15 +78,11 @@ export async function readLoadRoute(admin: SupabaseClient, env: Env, orgId: stri
     return { ok: false, status: 409, code: "no_route", message: "This load has fewer than two stops with a location, so there is no route to draw." };
   }
   if (!load.vehicleId) return { ok: false, status: 409, code: "no_truck", message: "This load has no truck on it." };
-  const truck = await loadPlanningTruck(admin, orgId, load.vehicleId, null, load.trailerIsReefer);
-  if (!truck) return { ok: false, status: 404, code: "not_found", message: "This load's truck is not on the roster." };
+  const planning = await loadRouteRequest(admin, orgId, load.vehicleId, load.trailerIsReefer);
+  if (!planning) return { ok: false, status: 404, code: "not_found", message: "This load's truck is not on the roster." };
+  const { truck, ends } = planning;
 
   const points: LatLng[] = load.stops.map((s) => ({ lat: s.lat, lng: s.lng }));
-  const profile = effectiveTruckProfile(
-    { heightIn: truck.veh.height_in, lengthIn: truck.veh.length_in, widthIn: truck.veh.width_in, axleCount: truck.veh.axle_count, grossWeightLb: null },
-    truck.cfg,
-  );
-  const ends: Pick<HereRouteRequest, "profile" | "hazmat" | "tunnelCategory" | "avoidTunnels"> = { profile, hazmat: [], tunnelCategory: null, avoidTunnels: false };
   let route;
   try {
     route = await getOrComputeRoute(admin, env, { origin: points[0]!, via: points.slice(1, -1), destination: points.at(-1)!, ...ends });

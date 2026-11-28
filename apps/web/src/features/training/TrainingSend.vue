@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import type { TrainingSendOutcome } from "@silvicom/shared";
-import { AppBadge, AppButton, AppCallout, AppCard as BaseCard, AppCheckbox, AppDateField, AppFormField, AppSelect, DataTable, DataWorkspace, FilterBar, TablePagination, useQueryState, type DataTableColumn } from "@silvicom/ui";
+import { AppBadge, AppButton, AppCallout, AppCard as BaseCard, AppCheckbox, AppDateField, AppFormField, AppInput, AppRadioGroup, AppSelect, DataTable, DataWorkspace, FilterBar, TablePagination, useQueryState, type DataTableColumn } from "@silvicom/ui";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useToastStore } from "@/stores/toast";
 import { formatPhone } from "@/lib/format";
-import { useSendTraining, useTrainingCatalogue, useTrainingReach } from "./useTraining";
+import { useSendTraining, useSendTrainingToPhone, useTrainingCatalogue, useTrainingReach } from "./useTraining";
 import { publishedVersion, reachLabel, VIA_LABEL } from "./trainingRows";
 
 /**
@@ -14,6 +14,10 @@ import { publishedVersion, reachLabel, VIA_LABEL } from "./trainingRows";
  * cover it (an applicant today), else email, else the office copies the link and sends it itself.
  * Hired drivers are never texted until Q-TR9 (a driver-operations number and a driver consent) lands;
  * when it does, the API's answer changes and this tab with it.
+ *
+ * "A phone number" (0663, owner 2026-11-27) sends to a person who is not on the roster: the office
+ * types a name and a number, and gets the link back to send from its own phone. Nothing is texted —
+ * the person has agreed to no texts from us, and the applicant number may not carry training (Q-TR9).
  */
 defineProps<{ canManage: boolean }>();
 const toast = useToastStore();
@@ -56,21 +60,48 @@ const columns: DataTableColumn[] = [
   { key: "reach", label: "Can we text?" },
 ];
 
+const TO_OPTIONS = [
+  { value: "drivers", label: "Drivers I pick in the list" },
+  { value: "phone", label: "A phone number", description: "Someone not on the driver list. You get the link to send them." },
+];
+const to = ref<"drivers" | "phone">("drivers");
+const phoneName = ref("");
+const phoneNumber = ref("");
+
 const send = useSendTraining();
+const sendToPhone = useSendTrainingToPhone();
 const sent = ref<Array<TrainingSendOutcome & { name: string }>>([]);
-const canSend = computed(() => picked.value.length > 0 && !!course.value && (whole.value || chosen.value.size > 0) && !send.isPending.value);
+const pending = computed(() => send.isPending.value || sendToPhone.isPending.value);
+const filmsReady = computed(() => !!course.value && (whole.value || chosen.value.size > 0));
+const canSend = computed(
+  () => filmsReady.value && !pending.value && (to.value === "phone" ? !!phoneName.value.trim() && !!phoneNumber.value.trim() : picked.value.length > 0),
+);
 async function doSend() {
   if (!canSend.value || !course.value) return;
+  if (to.value === "phone") return doSendToPhone();
   try {
     const out = await send.mutateAsync({ driverIds: picked.value, courseId: course.value.id, lessonIds: whole.value ? null : [...chosen.value], dueOn: dueOn.value });
     const names = new Map(active.value.map((d) => [d.id, d.full_name]));
-    sent.value = out.map((o) => ({ ...o, name: names.get(o.driverId) ?? "Driver" }));
+    sent.value = out.map((o) => ({ ...o, name: (o.driverId && names.get(o.driverId)) || "Driver" }));
     selected.value = new Set();
     const failed = out.filter((o) => !o.ok).length;
     if (failed) toast.warning(`Sent to ${out.length - failed} of ${out.length}`, "See below for who did not get it.");
     else toast.success(`Training sent to ${out.length} ${out.length === 1 ? "driver" : "drivers"}`);
   } catch (e) {
     toast.error("Training not sent", e instanceof Error ? e.message : undefined);
+  }
+}
+async function doSendToPhone() {
+  if (!course.value) return;
+  const name = phoneName.value.trim();
+  try {
+    const out = await sendToPhone.mutateAsync({ name, phone: phoneNumber.value, courseId: course.value.id, lessonIds: whole.value ? null : [...chosen.value], dueOn: dueOn.value });
+    sent.value = [{ ...out, name: `${name} · ${formatPhone(phoneNumber.value)}` }];
+    phoneName.value = "";
+    phoneNumber.value = "";
+    toast.success(`Link made for ${name}`, "Copy it below and send it from your phone.");
+  } catch (e) {
+    toast.error("Link not made", e instanceof Error ? e.message : undefined);
   }
 }
 async function copy(link: string) {
@@ -96,12 +127,12 @@ async function copy(link: string) {
           </span>
           <span v-if="s.link" class="flex items-center gap-2">
             <code class="max-w-xs truncate font-mono text-xs text-ink-secondary">{{ s.link }}</code>
-            <AppButton size="sm" :data-test="`send-copy-${s.driverId}`" @click="copy(s.link)">Copy link</AppButton>
+            <AppButton size="sm" :data-test="`send-copy-${s.driverId ?? s.assignmentId}`" @click="copy(s.link)">Copy link</AppButton>
           </span>
           <AppBadge v-else :tone="s.ok ? 'success' : 'danger'">{{ s.ok ? "Sent" : "Not sent" }}</AppBadge>
         </li>
       </ul>
-      <p class="text-xs text-ink-tertiary">A copied link opens only this driver's training. Send it to them yourself, by text from your own phone or by message.</p>
+      <p class="text-xs text-ink-tertiary">A copied link opens only this person's training. Send it to them yourself, by text from your own phone or by message.</p>
     </section>
 
     <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -139,6 +170,15 @@ async function copy(link: string) {
         <h2 class="text-sm font-semibold text-ink">Send training</h2>
         <p v-if="!courses.length" class="text-sm text-ink-secondary">No course has a published video yet. Publish one under Videos first.</p>
         <template v-else>
+          <AppRadioGroup v-model="to" legend="Send to" :options="TO_OPTIONS" data-test="send-to" />
+          <template v-if="to === 'phone'">
+            <AppFormField v-slot="{ id }" label="Name" required>
+              <AppInput :id="id" v-model="phoneName" autocomplete="off" maxlength="120" data-test="send-phone-name" />
+            </AppFormField>
+            <AppFormField v-slot="{ id }" label="Phone number" required hint="A US or Canada number with its area code.">
+              <AppInput :id="id" v-model="phoneNumber" type="tel" inputmode="tel" autocomplete="off" data-test="send-phone-number" />
+            </AppFormField>
+          </template>
           <AppFormField v-slot="{ id }" label="Course" required>
             <AppSelect :id="id" v-model="courseId" :options="courses.map((c) => ({ value: c.id, label: c.title }))" data-test="send-course" />
           </AppFormField>
@@ -159,10 +199,12 @@ async function copy(link: string) {
           <AppFormField v-slot="{ id }" label="Finish by" hint="Optional. Shown to the driver, and late ones are marked on Progress.">
             <AppDateField :id="id" v-model="dueOn" data-test="send-due" />
           </AppFormField>
-          <p class="text-sm text-ink-secondary" data-test="send-summary">
+          <p v-if="to === 'drivers'" class="text-sm text-ink-secondary" data-test="send-summary">
             {{ picked.length ? `${picked.length} ${picked.length === 1 ? "driver" : "drivers"} picked.` : "No driver picked." }}
           </p>
-          <AppButton variant="primary" class="w-full" :disabled="!canSend" data-test="send-go" @click="doSend">{{ send.isPending.value ? "Sending…" : "Send" }}</AppButton>
+          <AppButton variant="primary" class="w-full" :disabled="!canSend" data-test="send-go" @click="doSend">
+            {{ pending ? "Sending…" : to === "phone" ? "Make the link" : "Send" }}
+          </AppButton>
         </template>
       </BaseCard>
     </div>

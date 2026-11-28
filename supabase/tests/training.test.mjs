@@ -13,6 +13,8 @@
 // 5. RLS on with no client policy on every table; the bucket is private.
 // 6. 0650 (SEGMENT-QUIZ D-TR13/14): a question names its point, an attempt keeps when each answer came,
 //    and a new version asks 3 per segment and passes on 3.
+// 2b. 0663: an assignment belongs to exactly one of a driver or a named phone recipient (+1 E.164);
+//    who it was sent to is fixed (TR021), and a phone recipient's link never moves onto a driver.
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { readFileSync, readdirSync } from "node:fs";
@@ -177,6 +179,25 @@ ok("a roster merge may move it to a driver of the same carrier", (await refuses(
 ok("…never to another carrier's driver", (await refuses(`update training_assignments set driver_id = $2 where id = $1`, [A, DX])) === "TR022");
 ok("an assignment is never deleted", (await refuses(`delete from training_assignments where id = $1`, [A])) === "TR020");
 ok("a driver with training cannot be deleted out from under it", (await refuses(`delete from drivers where id = $1`, [D2])) !== null);
+
+// ── 2b: a recipient by phone number (0663) ──────────────────────────────────────────────────────
+const toPhone = (name, phone, drv = null, hash = null) =>
+  refuses(
+    `insert into training_assignments (org_id, driver_id, recipient_name, recipient_phone, course_id, token_hash, link_expires_at, created_by) values ($1, $2, $3, $4, $5, $6, now() + interval '28 days', $7)`,
+    [ORG, drv, name, phone, C, hash ?? Math.random().toString(16).slice(2).padEnd(64, "0").slice(0, 64), USER],
+  );
+ok("a course may go to a named person by phone number", (await toPhone("Jordan Reyes", "+13125550188", null, "3".repeat(64))) === null);
+ok("…but not to nobody", (await toPhone(null, null)) === "23514");
+ok("…nor to a driver and a number at once", (await toPhone("Jordan Reyes", "+13125550188", D1)) === "23514");
+ok("…nor to a number without a name", (await toPhone(null, "+13125550188")) === "23514");
+ok("…nor to a blank name", (await toPhone("   ", "+13125550188")) === "23514");
+ok("a number not in +1 and ten digits is refused", (await toPhone("Jordan Reyes", "312-555-0188")) === "23514");
+ok("…as is one with an impossible area code", (await toPhone("Jordan Reyes", "+11125550188")) === "23514");
+const AP = (await one(`select id from training_assignments where token_hash = $1`, ["3".repeat(64)])).id;
+ok("who it was sent to is fixed: the number", (await refuses(`update training_assignments set recipient_phone = '+13125550199' where id = $1`, [AP])) === "TR021");
+ok("…and the name", (await refuses(`update training_assignments set recipient_name = 'Someone Else' where id = $1`, [AP])) === "TR021");
+ok("a phone recipient's link is never moved onto a driver", (await refuses(`update training_assignments set driver_id = $2, recipient_name = null, recipient_phone = null where id = $1`, [AP, D1])) === "TR021");
+ok("a phone recipient's link may be resent", (await refuses(`update training_assignments set token_hash = $2, last_sent_at = now(), last_sent_via = 'copy' where id = $1`, [AP, "4".repeat(64)])) === null);
 
 // ── 3: progress and attempts ──────────────────────────────────────────────────────────────────
 ok("progress is one row per assignment and version", (await refuses(`insert into training_progress (assignment_id, version_id, org_id, watched) values ($1, $2, $3, '[[0,60000]]')`, [A, V2, ORG])) === null);

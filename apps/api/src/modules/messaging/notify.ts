@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { deepLinkFor, type NotificationCategory, type NotificationSeverity } from "@silvicom/shared";
+import { fetchAllPagedIn } from "../../lib/paging.js";
 
 /**
  * Notification emission + Expo Push delivery (Phase 5N, D53).
@@ -122,6 +123,36 @@ export async function loginForDriver(
     .eq("id", driverId)
     .maybeSingle();
   return (data as { user_id: string | null } | null)?.user_id ?? null;
+}
+
+/**
+ * Each login's latest app check-in: the newest `last_seen_at` of its live push tokens. The app
+ * re-registers its token on every launch (`POST /api/notifications/token`), so this is the last time
+ * that phone reached us whatever it was doing — the half of "Driver's phone last reached us" (D-MK22)
+ * that a driver who has not touched a load still produces. Read in id chunks, org-scoped; a failed read
+ * throws, because "no contact" is a claim the office acts on.
+ */
+export async function lastAppCheckIns(
+  admin: SupabaseClient,
+  orgId: string,
+  userIds: readonly string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const rows = await fetchAllPagedIn<{ user_id: string; last_seen_at: string }>([...new Set(userIds)], (chunk) => (from, to) =>
+    admin
+      .from("device_push_tokens")
+      .select("user_id, last_seen_at")
+      .eq("org_id", orgId)
+      .in("user_id", chunk)
+      .is("revoked_at", null)
+      .order("token")
+      .range(from, to),
+  );
+  for (const r of rows) {
+    const prev = out.get(r.user_id);
+    if (!prev || Date.parse(r.last_seen_at) > Date.parse(prev)) out.set(r.user_id, r.last_seen_at);
+  }
+  return out;
 }
 
 /** Revoke every push token for a user — sign-out and offboarding (D14/D53). */

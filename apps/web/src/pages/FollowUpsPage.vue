@@ -1,13 +1,35 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { FOLLOW_UP_CATEGORIES, FOLLOW_UP_CATEGORY_LABELS, type FollowUpCategory, type FollowUpLine } from "@silvicom/shared";
-import { AppBadge, AppTabs, DataTable, DataWorkspace, FilterBar, TablePagination, useQueryState, type DataTableColumn } from "@silvicom/ui";
+import { FOLLOW_UP_CATEGORIES, FOLLOW_UP_CATEGORY_LABELS, FOLLOW_UP_SEVERITIES, type FollowUpCategory, type FollowUpLine } from "@silvicom/shared";
+import {
+  AppBadge,
+  AppTabs,
+  DataTable,
+  DataWorkspace,
+  FilterBar,
+  SORT_DIRECTIONS,
+  sortRows,
+  TablePagination,
+  useQueryState,
+  useUrlSort,
+  type DataTableColumn,
+} from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { formatPhone, phoneDialString } from "@/lib/format";
 import { useFollowUpsQuery } from "@/features/followUps/useFollowUps";
 import FollowUpDrawer from "@/features/followUps/FollowUpDrawer.vue";
-import { agoLabel, driverLabel, matchesFollowUpSearch, problemDetail, SEVERITY_BADGE, stateBadge, unitLabel } from "@/features/followUps/followUpRows";
+import {
+  agoLabel,
+  driverLabel,
+  followUpListSort,
+  followUpSortValue,
+  matchesFollowUpSearch,
+  problemDetail,
+  SEVERITY_BADGE,
+  stateBadge,
+  unitLabel,
+} from "@/features/followUps/followUpRows";
 
 /**
  * Follow-ups — the warning desk (WARNING-DESK-PLAN §4, D-WD1/D-WD13). Samsara's warnings, one line per
@@ -18,16 +40,21 @@ import { agoLabel, driverLabel, matchesFollowUpSearch, problemDetail, SEVERITY_B
  * Route follow-ups (`/loads/follow-ups`, `routeOnly`, category fixed to Route). Out of route is one record
  * both show, so whoever acts first closes it for both. Which categories arrive is the API's answer.
  *
- * Phone and tablet first: DataTable turns into cards under 768 px. Tab, filters, search, page and the open
- * line (`open=`, the bell's deep link) are in the URL (D-US2).
+ * Phone and tablet first: DataTable turns into cards under 768 px. Tab, filters, search, sort, page and the
+ * open line (`open=`, the bell's deep link) are in the URL (D-US2).
+ *
+ * Newest activity first (D-WD18, owner 2026-11-27): the line whose last warning is the most recent leads,
+ * as on every list of records (design contract §5.3). Severity no longer orders the list — it is the
+ * line's badge, and the Severity filter pulls the urgent and high lines out when that is the question.
  */
 const props = withDefaults(defineProps<{ routeOnly?: boolean }>(), { routeOnly: false });
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 const qs = useQueryState();
 const search = qs.param("search");
-const show = qs.param("show");
-const whose = qs.param("whose");
+const show = qs.param("show", ["closed"]);
+const whose = qs.param("whose", ["mine"]);
+const severity = qs.param("severity", FOLLOW_UP_SEVERITIES);
 const openId = qs.param("open");
 const page = qs.page();
 
@@ -38,7 +65,7 @@ const tab = computed<Tab>({
 });
 const closed = computed(() => show.value === "closed");
 const mine = computed(() => whose.value === "mine");
-watch([search, show, whose, tab], () => (page.value = 1));
+watch([search, show, whose, severity, tab], () => (page.value = 1));
 
 const { data, isLoading, isError, isFetching, refetch } = useFollowUpsQuery(tab, closed, mine);
 
@@ -46,8 +73,31 @@ const { data, isLoading, isError, isFetching, refetch } = useFollowUpsQuery(tab,
 const now = ref(Date.now());
 watch(data, () => (now.value = Date.now()));
 
-const rows = computed(() => (data.value?.lines ?? []).filter((l) => matchesFollowUpSearch(l, search.value)));
+const columns: DataTableColumn[] = [
+  { key: "problem", label: "Problem", sortable: true, card: "title" },
+  { key: "unit", label: "Unit / driver", sortable: true, card: "sentence" },
+  { key: "lastAt", label: "Last time", sortable: true, card: "meta" },
+  { key: "state", label: "State", card: "status" },
+];
+const { sort: urlSort, onSort } = useUrlSort(
+  qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("dir", SORT_DIRECTIONS),
+);
+const sort = computed(() => followUpListSort(urlSort.value, closed.value));
+
+const rows = computed(() =>
+  sortRows(
+    (data.value?.lines ?? []).filter((l) => (!severity.value || l.severity === severity.value) && matchesFollowUpSearch(l, search.value)),
+    sort.value,
+    followUpSortValue,
+  ),
+);
 const pageRows = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+// A pasted `?page=9` or a line closed by a colleague never leaves the desk on an empty page.
+watch([() => rows.value.length, () => Boolean(data.value)], ([n, loaded]) => {
+  const maxPage = Math.max(1, Math.ceil(n / PAGE_SIZE));
+  if (loaded && page.value > maxPage) page.value = maxPage;
+});
 
 const tabItems = computed(() => {
   const visible: readonly FollowUpCategory[] = data.value?.categories ?? FOLLOW_UP_CATEGORIES;
@@ -62,17 +112,15 @@ const showTabs = computed(() => !props.routeOnly && (data.value?.categories.leng
 
 const SHOW_OPTIONS = [{ value: "closed", label: "Closed" }];
 const WHOSE_OPTIONS = [{ value: "mine", label: "Mine" }];
-const activeFilterCount = computed(() => (search.value.trim() ? 1 : 0) + (show.value ? 1 : 0) + (whose.value ? 1 : 0));
+// The badge's own words, so the filter and the line cannot name a severity differently.
+const SEVERITY_OPTIONS = FOLLOW_UP_SEVERITIES.map((s) => ({ value: s, label: SEVERITY_BADGE[s]?.text ?? "Normal" }));
+const activeFilterCount = computed(
+  () => (search.value.trim() ? 1 : 0) + (show.value ? 1 : 0) + (whose.value ? 1 : 0) + (severity.value ? 1 : 0),
+);
+/** Clears what narrows the list and keeps the sort (contract §5.5 rule 5). */
 function resetFilters() {
-  qs.set({ search: undefined, show: undefined, whose: undefined });
+  qs.set({ search: undefined, show: undefined, whose: undefined, severity: undefined });
 }
-
-const columns: DataTableColumn[] = [
-  { key: "problem", label: "Problem", card: "title" },
-  { key: "unit", label: "Unit / driver", card: "sentence" },
-  { key: "lastAt", label: "Last time", card: "meta" },
-  { key: "state", label: "State", card: "status" },
-];
 
 const emptyText = computed(() => {
   if (closed.value) return "No follow-up was closed recently.";
@@ -108,6 +156,7 @@ function openLine(r: unknown) {
         @clear-all="resetFilters"
       >
         <template #filters>
+          <FilterSelect v-model="severity" label="Severity" :options="SEVERITY_OPTIONS" />
           <FilterSelect v-model="whose" label="Whose" :options="WHOSE_OPTIONS" />
           <FilterSelect v-model="show" label="Show" :options="SHOW_OPTIONS" />
         </template>
@@ -118,10 +167,12 @@ function openLine(r: unknown) {
         :rows="pageRows"
         embedded
         row-key="id"
+        :sort="sort"
         :loading="isLoading"
         :error="isError ? 'Could not load the follow-ups.' : null"
         :retrying="isFetching"
         @retry="refetch"
+        @sort="onSort"
         @row-click="openLine"
       >
         <template #empty>

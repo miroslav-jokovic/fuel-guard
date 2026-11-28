@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alertIncidentRow, defectRow, hosViolationRow, isRetiredUnitName, safetyEventRow, truckLamps } from "./warningRows.js";
+import { alertIncidentRow, defectRow, hosViolationRow, isRetiredUnitName, LAMP_DETAIL_BYTES, safetyEventRow, truckLamps } from "./warningRows.js";
 import { foldLampObservations, MERGE_GAP_MS, type Episode } from "./lampEpisodes.js";
 
 const b = { orgId: "org-1", seenAt: "2026-11-26T12:00:00.000Z" };
@@ -108,11 +108,34 @@ describe("defectRow and hosViolationRow", () => {
 
 describe("truckLamps", () => {
   it("reads the stop and amber lamps and skips sold or swapped trucks", () => {
-    const v = { id: "V1", name: "556", faultCodes: { j1939: { checkEngineLights: { emissionsIsOn: true, protectIsOn: false, stopIsOn: true, warningIsOn: true }, diagnosticTroubleCodes: [{ spnDescription: "Engine Intake Manifold 1 Temperature" }] } } };
-    expect(truckLamps(v)).toMatchObject({ stop: true, amber: true, codes: ["Engine Intake Manifold 1 Temperature"] });
+    // The live shape, 2026-11-27 (truck 669's first code).
+    const live = { fmiDescription: "Voltage Above Normal", fmiId: 3, occurrenceCount: 3, spnId: 1636, spnDescription: "Engine Intake Manifold 1 Temperature (High Resolution)", milStatus: 1, txId: 1, sourceAddressName: "Engine #2" };
+    const v = { id: "V1", name: "556", faultCodes: { j1939: { checkEngineLights: { emissionsIsOn: true, protectIsOn: false, stopIsOn: true, warningIsOn: true }, diagnosticTroubleCodes: [live] } } };
+    expect(truckLamps(v)).toMatchObject({
+      stop: true,
+      amber: true,
+      codes: [{ module: 1, moduleName: "Engine #2", spn: 1636, fmi: 3, description: "Engine Intake Manifold 1 Temperature (High Resolution)", fmiDescription: "Voltage Above Normal", makerSpecific: false, occurrences: 3 }],
+    });
     expect(truckLamps({ ...v, name: "556 - SOLD" })).toBeNull();
     expect(isRetiredUnitName("783 - OLD")).toBe(true);
     expect(isRetiredUnitName("783")).toBe(false);
+  });
+
+  it("keeps the SPN of a maker-specific code and drops Samsara's placeholder words for it", () => {
+    const v = { id: "V1", name: "669", faultCodes: { j1939: { diagnosticTroubleCodes: [{ fmiId: 31, occurrenceCount: 1, spnId: 521049, spnDescription: "Manufacturer Assignable SPN", txId: 1, sourceAddressName: "Engine #2" }, { spnDescription: "no SPN, nothing to look up" }] } } };
+    expect(truckLamps(v)?.codes).toEqual([{ module: 1, moduleName: "Engine #2", spn: 521049, fmi: 31, description: null, fmiDescription: null, makerSpecific: true, occurrences: 1 }]);
+  });
+
+  it("stays inside 0653's 2 KB detail CHECK on a truck with many long codes, the truck's own codes kept first", () => {
+    const long = "Reserved for future assignment by SAE but available for use by self configurable ECUs";
+    const camera = { spnId: 1, fmiId: 1, txId: 232, sourceAddressName: "Forward Road Image Processor", spnDescription: long, fmiDescription: long, occurrenceCount: 1 };
+    const engine = (spn: number) => ({ spnId: spn, fmiId: 2, txId: 0, sourceAddressName: long, spnDescription: long, fmiDescription: long, occurrenceCount: 9 });
+    const v = { id: "V1", name: "744", faultCodes: { j1939: { diagnosticTroubleCodes: [camera, ...Array.from({ length: 14 }, (_, i) => engine(100 + i))] } } };
+    const codes = truckLamps(v)!.codes;
+    expect(Buffer.byteLength(JSON.stringify({ codes }))).toBeLessThanOrEqual(LAMP_DETAIL_BYTES);
+    expect(codes.length).toBeGreaterThan(0);
+    expect(codes.every((c) => c.module === 0)).toBe(true);
+    expect(codes[0]!.description).toHaveLength(80);
   });
 });
 

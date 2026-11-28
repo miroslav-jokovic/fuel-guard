@@ -198,3 +198,82 @@ describe("dispatchesByLoad", () => {
     expect(rec.queries).toHaveLength(0);
   });
 });
+
+/**
+ * What the office sees after Send (T1 N-9): who said "Got it", whether anybody's app shows the load,
+ * and McLeod's seats — derived per read from the load, the driver and 0661's events.
+ */
+describe("dispatchesByLoad — what the office sees after Send (T1 N-9)", () => {
+  const CO = "11111111-2222-4333-8444-000000000009";
+  const SOMEONE = "11111111-2222-4333-8444-000000000008";
+  const facts = (over: { load?: Record<string, unknown>; drivers?: unknown[]; events?: unknown[]; tokens?: unknown[] } = {}) =>
+    createSupabaseRecorder({
+      tables: {
+        load_dispatches: [
+          { id: "d-1", load_id: LOAD, driver_id: DRIVER, sent_at: "2026-11-27T14:00:00Z", channel: "app", outcome: "sent", outcome_reason: null, drivers: { full_name: "Dana Kelly" } },
+        ],
+        loads: [{ id: LOAD, status: "approved", external_closed_at: null, driver_id: DRIVER, co_driver_id: null, ...over.load }],
+        drivers: over.drivers ?? [{ id: DRIVER, full_name: "Dana Kelly", user_id: "u-dana", app_access_enabled: true }],
+        load_events: over.events ?? [],
+        device_push_tokens: over.tokens ?? [],
+      },
+    });
+
+  it("a dispatch seen by its driver lists the acknowledgement", async () => {
+    const rec = facts({
+      events: [
+        { load_id: LOAD, kind: "acknowledged", occurred_at: "2026-11-27T15:14:00Z", recorded_at: "2026-11-27T15:14:02Z", payload: { dispatch_id: "d-1", driver_id: DRIVER } },
+        // An ack of an EARLIER dispatch of the same load is not this dispatch's.
+        { load_id: LOAD, kind: "acknowledged", occurred_at: "2026-11-26T09:00:00Z", recorded_at: "2026-11-26T09:00:00Z", payload: { dispatch_id: "d-0", driver_id: DRIVER } },
+      ],
+      tokens: [{ user_id: "u-dana", last_seen_at: "2026-11-27T13:00:00Z" }],
+    });
+    const [d] = (await dispatchesByLoad(rec.client, ORG, [LOAD])).get(LOAD)!;
+    expect(d).toMatchObject({
+      acknowledgements: [{ driverId: DRIVER, driverName: "Dana Kelly", at: "2026-11-27T15:14:00Z" }],
+      reachable: { ok: true },
+      seatNote: null,
+      // The later of the driver's newest event on this load and the app's last check-in.
+      lastContactAt: "2026-11-27T15:14:02Z",
+    });
+    expect(rec.forTable("load_events")[0]!.filters()).toContainEqual({ col: "actor_role", val: "driver" });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("a dispatch to a driver with no app login says the driver will not see it", async () => {
+    const rec = facts({ drivers: [{ id: DRIVER, full_name: "Dana Kelly", user_id: null, app_access_enabled: false }] });
+    const [d] = (await dispatchesByLoad(rec.client, ORG, [LOAD])).get(LOAD)!;
+    expect(d!.reachable).toEqual({ ok: false, reason: "no_app_login" });
+    expect(d!.lastContactAt).toBeNull();
+  });
+
+  it("a dispatch of an uncovered McLeod load says nobody will see it", async () => {
+    const rec = facts({ load: { status: "draft" } });
+    const [d] = (await dispatchesByLoad(rec.client, ORG, [LOAD])).get(LOAD)!;
+    expect(d!.reachable).toEqual({ ok: false, reason: "uncovered_in_mcleod" });
+  });
+
+  it("a dispatch to a driver McLeod does not seat is visible to them and says McLeod seats someone else", async () => {
+    const rec = facts({ load: { driver_id: SOMEONE, co_driver_id: CO } });
+    const [d] = (await dispatchesByLoad(rec.client, ORG, [LOAD])).get(LOAD)!;
+    expect(d!.reachable).toEqual({ ok: true });
+    expect(d!.seatNote).toBe("mcleod_seats_someone_else");
+    // Sent to somebody McLeod does not name, the co-driver is not a seat of this dispatch (0655).
+    expect(d!.seats.map((s) => s.driverId)).toEqual([DRIVER]);
+  });
+
+  it("a dispatch to McLeod's driver seats the co-driver too, by name", async () => {
+    const rec = facts({
+      load: { co_driver_id: CO },
+      drivers: [
+        { id: DRIVER, full_name: "Dana Kelly", user_id: "u-dana", app_access_enabled: true },
+        { id: CO, full_name: "Luis Ortega", user_id: null, app_access_enabled: false },
+      ],
+    });
+    const [d] = (await dispatchesByLoad(rec.client, ORG, [LOAD])).get(LOAD)!;
+    expect(d!.seats).toEqual([
+      { driverId: DRIVER, driverName: "Dana Kelly" },
+      { driverId: CO, driverName: "Luis Ortega" },
+    ]);
+  });
+});

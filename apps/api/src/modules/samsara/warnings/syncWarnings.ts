@@ -22,7 +22,7 @@
  * than three days on 2026-11-26).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AlertConfigurationSummary, WarningSource } from "@silvicom/shared";
+import type { AlertConfigurationSummary, TruckFaultCode, WarningSource } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { readFeedCursor, persistFeedCursorQuietly } from "../lib/feedCursor.js";
@@ -130,7 +130,7 @@ const LAMP_LABEL: Record<string, string> = {
   lamp_amber: "Check-engine lamp on",
 };
 
-function episodeRow(orgId: string, source: "atis" | "lamp", e: Episode, seenAt: string, unit: { name: string | null; codes: string[] } | undefined): WarningRow {
+function episodeRow(orgId: string, source: "atis" | "lamp", e: Episode, seenAt: string, unit: { name: string | null; codes: TruckFaultCode[] } | undefined): WarningRow {
   return {
     org_id: orgId,
     source,
@@ -162,7 +162,7 @@ async function syncAtis(admin: SupabaseClient, ctx: WarningFetchContext, orgId: 
 async function syncEngineLamps(admin: SupabaseClient, ctx: WarningFetchContext, orgId: string, nowMs: number, seenAt: string): Promise<SourceResult> {
   const items = await fetchFaultCodes(ctx);
   const at = new Date(nowMs).toISOString();
-  const units = new Map<string, { name: string | null; codes: string[] }>();
+  const units = new Map<string, { name: string | null; codes: TruckFaultCode[] }>();
   const observations: LampObservation[] = [];
   let refused = 0;
   for (const raw of items) {

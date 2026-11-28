@@ -70,7 +70,7 @@ export const authRoutes: RouteRecordRaw[] = [
    * a session whose claims it has not yet read.
    */
   /**
-   * Two-step sign-in (IA-S1): the code, or setting an authenticator up. NOT public — it needs the session
+   * Two-step sign-in (IA-S1 rev 2): the emailed code. NOT public — it needs the session
    * whose second step it is — and in the auth layout, not the shell: a session that owes its code is refused
    * by every API route the shell calls. The guard in `index.ts` holds such a session on this page.
    */

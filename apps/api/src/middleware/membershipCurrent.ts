@@ -2,12 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DEVICE_KEY_PATTERN,
   DEVICE_LIMIT,
-  SECOND_STEP_DONE,
   SESSION_IDLE_HOURS,
+  TWO_STEP_DAYS,
   isRecordId,
-  secondFactorRequired,
+  twoStepRequired,
+  twoStepSatisfied,
   type AuthContext,
-  type UserRole,
 } from "@silvicom/shared";
 
 /**
@@ -46,14 +46,18 @@ import {
  * the same 401 `access_changed` — the web's answer to that is a refresh, which fails, and a sign-in.
  * A token that names no session (`session_alive` NULL) is "cannot tell" and stands.
  *
- * ── AND HAS THE SECOND STEP BEEN TAKEN? (INSTALLED-APP-PLAN IA-S1; migration 0617) ──
- * The read is now `member_access_state`: the same answers plus the company's date and whether the person
- * has a verified second factor — still one round trip. The RULE is `secondFactorRequired` in
- * `@silvicom/shared`; this file only asks it. A token that needs the second step and is not `aal2` is
- * `second_factor`: never cached, and answered by `requireAuth` with 403 `second_factor_required`.
+ * ── AND HAS THIS DEVICE GIVEN ITS CODE THIS WEEK? (INSTALLED-APP-PLAN IA-S1 rev 2, Q-IA20; migration 0662) ──
+ * The second step is a 6-digit code emailed to the person, and a DEVICE that gave one is trusted for
+ * `TWO_STEP_DAYS`. The read reports when this device last gave its code (`two_step_at`); the RULE —
+ * who is asked (`twoStepRequired`), and whether the week still holds (`twoStepSatisfied`) — is in
+ * `@silvicom/shared`, and this file only asks it. An office token whose device owes its code is
+ * `second_factor`: never cached, and answered by `requireAuth` with 403 `second_factor_required`. The week
+ * runs out mid-session too: a "current" answer is cached for 15 s, so the refusal comes within 15 s of the
+ * seventh day. (Revision 1, 2026-11-15, read Supabase's authenticator-app `aal2` claim instead; the owner
+ * replaced it on 2026-11-27 as too complicated.)
  *
- * ── AND WHICH DEVICE IS THIS? (INSTALLED-APP-PLAN IA-S6; migration 0620) ──
- * The read is now `member_access_check`: the same answers, and on the way it REMEMBERS the device the request
+ * ── AND WHICH DEVICE IS THIS? (INSTALLED-APP-PLAN IA-S6; migration 0620, carried into 0662's `member_access_gate`) ──
+ * The read also REMEMBERS the device the request
  * comes from (the app's own key, `DEVICE_KEY_HEADER`) and the address Supabase saw it at, and says whether
  * the device holds one of the `DEVICE_LIMIT` places. Still one round trip, still at most once per session per
  * 15 s. A device that does not hold one is `device_limit` (Q-IA14 (b): the fourth sign-in is STOPPED, nobody
@@ -69,13 +73,15 @@ export const MEMBERSHIP_CACHE_MS = 15_000;
 
 export type Verdict = "current" | "stale" | "signed_out" | "second_factor" | "device_limit";
 type Ctx = Pick<AuthContext, "userId" | "orgId" | "role"> &
-  Pick<Partial<AuthContext>, "sessionId" | "aal"> & {
+  Pick<Partial<AuthContext>, "sessionId"> & {
     /** The app's own device key from the request header (0620); anything not in its alphabet is no key. */
     deviceKey?: string | null;
   };
 const cache = new Map<string, number>();
-// The assurance level is in the key: the SAME session is refused before its code and current after it.
-const key = (userId: string, orgId: string, sessionId: string | null, aal: string | null) => `${userId}:${orgId}:${sessionId ?? "-"}:${aal ?? "-"}`;
+// The device key is in the key: one session is ONE device to 0620, but a refusal must never be answered from
+// another device's cached "current".
+const key = (userId: string, orgId: string, sessionId: string | null, deviceKey: string | null) =>
+  `${userId}:${orgId}:${sessionId ?? "-"}:${deviceKey ?? "-"}`;
 
 /**
  * Clears this process's cached answers for a person — every session of theirs — called after any change
@@ -94,40 +100,36 @@ export interface AccessStateRow {
   role: string;
   suspended_at: string | null;
   session_alive?: boolean | null;
-  second_factor_required_from?: string | null;
-  has_second_factor?: boolean | null;
+  /** 0662: when THIS device last gave its emailed code; null for never. */
+  two_step_at?: string | null;
   /** 0620: whether this device holds a place — null when nothing was decided (no live session, or one owing its code). */
   device_admitted?: boolean | null;
   devices_in_use?: number | null;
 }
 
-/** PostgREST's and Postgres's "there is no such function". */
-const functionMissing = (e: { code?: string }) => e.code === "PGRST202" || e.code === "42883";
-
 /**
- * The read: `member_access_check` (0620).
+ * The read: `member_access_gate` (0662). It needs the role rule's answer as a fact, `p_two_step_required`,
+ * because which roles are asked lives in `@silvicom/shared` and nowhere in SQL. The token's role is the one
+ * asked: a token whose role no longer matches the membership is `stale` whatever the row says.
  *
- * DEPLOY-WINDOW GUARD, labelled as one: on a database without 0620 it asks 0617's `member_access_state`, which
- * answers everything but the device — so nothing is remembered there and nothing else changes. Production has
- * had 0617 since the release of 2026-11-16 (seen in its catalogue that day), so the two older fallbacks this
- * replaced — 0616's `member_token_state` and SP7's `memberships` read — are gone, as their own comment asked.
- * Remove this one once 0620 is in a production release; `member_access_state` then has no reader, and
- * `member_token_state` already has none — both are dropped a release after that.
+ * No fallback to 0620's `member_access_check`: this reader merged after 0662 was applied to staging, and a
+ * release applies migrations before code. A database without it fails the read, which is answered as every
+ * failed read is (below) — and logged.
  */
 export async function readAccessState(
   admin: SupabaseClient,
-  ctx: { userId: string; orgId: string; sessionId: string | null; deviceKey?: string | null },
+  ctx: { userId: string; orgId: string; sessionId: string | null; deviceKey?: string | null; role: string | null },
 ): Promise<{ row: AccessStateRow | null } | { error: string }> {
-  const base = { p_org: ctx.orgId, p_user: ctx.userId, p_session: ctx.sessionId };
-  const check = await admin.rpc("member_access_check", {
-    ...base,
+  const res = await admin.rpc("member_access_gate", {
+    p_org: ctx.orgId,
+    p_user: ctx.userId,
+    p_session: ctx.sessionId,
     p_device_key: ctx.deviceKey ?? null,
     p_limit: DEVICE_LIMIT,
     p_idle_hours: SESSION_IDLE_HOURS,
+    p_two_step_days: TWO_STEP_DAYS,
+    p_two_step_required: twoStepRequired(ctx.role),
   });
-  if (!check.error) return { row: ((check.data ?? []) as AccessStateRow[])[0] ?? null };
-  if (!functionMissing(check.error as { code?: string })) return { error: check.error.message };
-  const res = await admin.rpc("member_access_state", base);
   if (res.error) return { error: res.error.message };
   return { row: ((res.data ?? []) as AccessStateRow[])[0] ?? null };
 }
@@ -140,23 +142,18 @@ export const deviceKeyClaim = (raw: string | undefined | null): string | null =>
 export const sessionClaim = (ctx: Pick<Partial<AuthContext>, "sessionId">): string | null =>
   ctx.sessionId && isRecordId(ctx.sessionId) ? ctx.sessionId : null;
 
-/** The facts `secondFactorRequired` reads, from a row; a database without 0617 has none, and requires nothing. */
-export const secondFactorFacts = (row: AccessStateRow) => ({
-  role: row.role as UserRole,
-  hasFactor: row.has_second_factor === true,
-  requiredFrom: row.second_factor_required_from ?? null,
-});
 
 export async function membershipVerdict(admin: SupabaseClient, ctx: Ctx, now: number = Date.now()): Promise<Verdict> {
   // A token with no org (a person with no membership yet, or already suspended) claims nothing to
   // re-check: `requireOrg` refuses it wherever an org is needed.
   if (!ctx.orgId) return "current";
   const sessionId = sessionClaim(ctx);
-  const k = key(ctx.userId, ctx.orgId, sessionId, ctx.aal ?? null);
+  const deviceKey = deviceKeyClaim(ctx.deviceKey);
+  const k = key(ctx.userId, ctx.orgId, sessionId, deviceKey);
   const until = cache.get(k);
   if (until !== undefined && until > now) return "current";
 
-  const read = await readAccessState(admin, { userId: ctx.userId, orgId: ctx.orgId, sessionId, deviceKey: deviceKeyClaim(ctx.deviceKey) });
+  const read = await readAccessState(admin, { userId: ctx.userId, orgId: ctx.orgId, sessionId, deviceKey, role: ctx.role });
   if ("error" in read) {
     console.error(`[membership] could not confirm ${ctx.userId} in ${ctx.orgId}; allowing the signed token`, read.error);
     return "current";
@@ -171,7 +168,7 @@ export async function membershipVerdict(admin: SupabaseClient, ctx: Ctx, now: nu
     cache.delete(k);
     return "signed_out";
   }
-  if (ctx.aal !== SECOND_STEP_DONE && secondFactorRequired(secondFactorFacts(row), new Date(now))) {
+  if (twoStepRequired(row.role) && !twoStepSatisfied(row.two_step_at, new Date(now))) {
     cache.delete(k);
     return "second_factor";
   }
