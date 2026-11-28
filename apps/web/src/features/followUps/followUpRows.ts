@@ -3,12 +3,15 @@
  * and the page and the drawer cannot disagree about them.
  */
 import {
+  displayDayOf,
+  formatDisplayDate,
   FOLLOW_UP_DRIVER_SOURCE_LABELS,
   FOLLOW_UP_STATUS_LABELS,
   followUpTimesLabel,
   type FollowUpLine,
   type FollowUpSeverity,
 } from "@silvicom/shared";
+import type { SortState } from "@silvicom/ui";
 import type { BadgeTone } from "@/lib/badges";
 
 export interface StateBadge {
@@ -99,4 +102,48 @@ export function ruleCountText(r: { thresholdCount: number; windowDays: number; m
   if (r.minActiveHours > 0 && r.thresholdCount === 1) return `Not cleared after ${hoursText(r.minActiveHours)}`;
   const base = r.thresholdCount === 1 ? "The first time" : `${r.thresholdCount} times in ${r.windowDays} ${r.windowDays === 1 ? "day" : "days"}`;
   return r.minActiveHours > 0 ? `${base}, each on ${hoursText(r.minActiveHours)}` : base;
+}
+
+// ── the list's order (D-WD18; design contract §5.3) ─────────────────────────────────────────────
+/**
+ * The order the list OPENS in, until a header is clicked: open lines by their newest warning, closed ones
+ * by their close — each the row's own event time, newest first, as every list of records does. The key
+ * `closedAt` is not a column; a header click writes its own key to the URL and this steps aside.
+ */
+export function followUpListSort(url: SortState, closed: boolean): SortState {
+  if (url.key) return url;
+  return closed ? { key: "closedAt", dir: "desc" } : { key: "lastAt", dir: "desc" };
+}
+
+/** What each sortable column sorts by — the words the cell prints, or the instant behind "2 h ago". */
+export function followUpSortValue(line: FollowUpLine, key: string): unknown {
+  if (key === "problem") return line.ruleLabel;
+  if (key === "unit") return unitLabel(line) || line.subjectName;
+  if (key === "lastAt") return Date.parse(line.lastAt);
+  if (key === "closedAt") return line.closedAt ? Date.parse(line.closedAt) : null;
+  return null;
+}
+
+export interface WarningDay<T> {
+  /** `YYYY-MM-DD` on the reader's clock — the group's key. */
+  day: string;
+  /** `MM/DD/YYYY`, the heading. */
+  label: string;
+  warnings: T[];
+}
+
+/**
+ * The drawer's warnings, one group per calendar day on the reader's clock, in the order given (the API
+ * sends them newest first). A line can carry 70 warnings over a week; a day heading lets the eye find
+ * "today" without reading every date.
+ */
+export function warningsByDay<T extends { happenedAt: string }>(warnings: readonly T[]): WarningDay<T>[] {
+  const out: WarningDay<T>[] = [];
+  for (const w of warnings) {
+    const day = displayDayOf(new Date(w.happenedAt));
+    const last = out[out.length - 1];
+    if (last && last.day === day) last.warnings.push(w);
+    else out.push({ day, label: formatDisplayDate(new Date(w.happenedAt)), warnings: [w] });
+  }
+  return out;
 }

@@ -236,20 +236,26 @@ export const followUpRulesSchema = z.object({
 });
 export type FollowUpRules = z.infer<typeof followUpRulesSchema>;
 
-// ── the list's order (D-WD12) ───────────────────────────────────────────────────────────────────
+// ── the list's order (D-WD18, superseding D-WD12's sort) ────────────────────────────────────────
 /**
- * Urgent → high → normal, then "warned again after the call", then the oldest problem first — the one
- * that has waited longest is the one to call about. Closed lines: newest close first. Pure.
+ * Newest activity first: the line whose LAST warning is the most recent leads, as every list of records
+ * in the app does (design contract §5.3, D-DLC4). Closed lines: newest close first. Equal times fall back
+ * to severity, so two lines warned in the same second still put the urgent one on top. Pure.
+ *
+ * Until 2026-11-27 the desk sorted urgent → high → normal, then "warned again", then OLDEST first (D-WD12).
+ * On release day the owner saw new safety events in Samsara while the top of the desk read "4 h ago" — a
+ * red-light line from 3:31 PM above the 6:23 PM following-distance warnings — and read it as the feed being
+ * four hours behind; it was 5–11 minutes behind. Owner ruling the same evening: "display activities from
+ * newest to oldest". Severity stays on the line as its badge, and the Severity filter finds the urgent ones.
  */
 export function compareFollowUps(
-  a: Pick<FollowUpLine, "severity" | "warnedAgain" | "firstAt" | "status" | "closedAt">,
-  b: Pick<FollowUpLine, "severity" | "warnedAgain" | "firstAt" | "status" | "closedAt">,
+  a: Pick<FollowUpLine, "severity" | "lastAt" | "status" | "closedAt">,
+  b: Pick<FollowUpLine, "severity" | "lastAt" | "status" | "closedAt">,
 ): number {
   if (a.status === "closed" && b.status === "closed") return Date.parse(b.closedAt ?? "") - Date.parse(a.closedAt ?? "");
-  const sev = FOLLOW_UP_SEVERITY_RANK[a.severity] - FOLLOW_UP_SEVERITY_RANK[b.severity];
-  if (sev !== 0) return sev;
-  if (a.warnedAgain !== b.warnedAgain) return a.warnedAgain ? -1 : 1;
-  return Date.parse(a.firstAt) - Date.parse(b.firstAt);
+  const newest = Date.parse(b.lastAt) - Date.parse(a.lastAt);
+  if (newest !== 0) return newest;
+  return FOLLOW_UP_SEVERITY_RANK[a.severity] - FOLLOW_UP_SEVERITY_RANK[b.severity];
 }
 
 /** "5 times in 3 days" — the days the warnings actually span, never more than the rule's window. */
