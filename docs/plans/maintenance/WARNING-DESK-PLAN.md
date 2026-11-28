@@ -213,7 +213,7 @@ alerts (duplicates of safety events), "DVIR submitted" alert (duplicate of defec
 - **D-WD12. Categories:** Maintenance (ATIS, battery, lamps, DVIR, dashcam, low fuel), Safety (safety
   events, speeding), Compliance (HOS), Route (out of route). Severity: **Urgent** = crash, red STOP
   lamp, panic button; **High** = serious behaviour, HOS driving limit, ATIS on > 4 h in one episode;
-  **Normal** = the rest. The list sorts Urgent → High → Normal, then "warned again", then oldest.
+  **Normal** = the rest. The list sorts Urgent → High → Normal, then "warned again", then oldest. *(Sort superseded by D-WD18 on 2026-11-27: newest activity first.)*
 - **D-WD13. Dispatch sees Route follow-ups on its own screen.** Surface `dispatch.route-follow-ups`,
   path `/loads/follow-ups`, gate `section("dispatch")`, the same page component with category fixed
   to Route. The API checks the surface that matches the follow-up's category, so a dispatcher can act
@@ -233,6 +233,17 @@ alerts (duplicates of safety events), "DVIR submitted" alert (duplicate of defec
   right on day one; open items (DVIR, lamps) open immediately. Expect ≈ 88 backlog lines the first
   day. Samsara's 894-event coaching backlog is **not** imported: safety follow-ups open only for
   events from the backfill window on.
+
+- **D-WD18. Newest activity first (owner ruling 2026-11-27, release day).** The list opens by each line's
+  LAST warning, newest first; closed lines by their close, newest first — the row's own event time, as
+  design contract §5.3 (D-DLC4) asks of every list of records. Problem, Unit / driver and Last time are
+  sortable headers, the sort is in the URL, and a Severity filter (Urgent · High · Normal) replaces what
+  severity-first ordering did. The drawer lists its warnings newest first, grouped by day, the first ten
+  shown and "Show all N" for the rest; its History was already newest first. Why: on release day the owner
+  saw new safety events in Samsara while the top of the desk read "4 h ago" (a high-severity red-light line from
+  3:31 PM CT above the 6:23 PM following-distance warnings) and read the feed as four hours behind —
+  measured, every safety event had landed 5–11 minutes after it happened. D-WD12's order hid fresh
+  activity under old severe lines.
 
 ## 4. What the screen looks like
 
@@ -384,3 +395,10 @@ screens; trailer TPMS and wheel-end temperature rules (catalogue entries, enable
   violation, `MediaError` 4; new policy → loaded, 8.0 s, no violation. Also: Samsara names cameras
   `MEDIA_INPUT_PRIMARY` (road) / `SECONDARY` (driver, always an empty URL on our cameras), and the drawer now
   says when a clip fails to play instead of showing a black box.
+- 2026-11-27 — **D-WD18 built: newest activity first.** `compareFollowUps` (shared) sorts by last warning,
+  severity only breaking a tie; the page opens on `followUpListSort` and sorts with `sortRows`, pages at 20
+  (contract §5.4), clamps a page past the end, and gains the Severity filter. The drawer's warnings come
+  newest first from the API and are grouped by day (`warningsByDay`). Same pass, Settings › Follow-up rules:
+  Turn on/off, Change and Reset moved from three equal buttons in a label-less cell into the row's
+  `KebabMenu` (contract §5.6), and the row opens its rule. Measured the same evening on production: the
+  tick ran 87 times since 11:59 AM CT, all `done`; ~85–90 warnings an hour arriving.

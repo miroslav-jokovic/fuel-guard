@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { FOLLOW_UP_CATEGORY_LABELS, type FollowUpRuleView } from "@silvicom/shared";
 import { AppBadge, AppButton, AppCallout, DataTable, QueryState, type DataTableColumn } from "@silvicom/ui";
+import KebabMenu from "@/components/KebabMenu.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { useToastStore } from "@/stores/toast";
 import { useFollowUpRulesQuery, useResetFollowUpRule, useSaveFollowUpRule } from "@/features/followUps/useFollowUps";
@@ -14,6 +15,10 @@ import { ruleCountText, SEVERITY_BADGE } from "@/features/followUps/followUpRows
  * urgent. The fixed kinds, then every alert configuration Samsara has, each with the default derived from
  * its trigger — a configuration added in Samsara tomorrow appears here with nothing to code. Only a change
  * is stored; "Reset to default" removes it. Every save is on the Audit page.
+ *
+ * A row opens its rule in the drawer; Turn on/off, Change and Reset sit in the row's menu (contract §5.6).
+ * Until 2026-11-27 they were three equal buttons in a label-less cell — the shape the gate refuses in
+ * `#actions`, reached through a cell slot the gate does not read.
  */
 const { data, isLoading, isError, error, isFetching, refetch } = useFollowUpRulesQuery();
 const save = useSaveFollowUpRule();
@@ -59,7 +64,6 @@ const columns: DataTableColumn[] = [
   { key: "count", label: "Opens a follow-up", card: "sentence" },
   { key: "category", label: "Category", card: "meta" },
   { key: "enabled", label: "On", card: "status" },
-  { key: "act", label: "", align: "right" },
 ];
 const ruleOf = (r: unknown) => r as FollowUpRuleView;
 </script>
@@ -87,7 +91,7 @@ const ruleOf = (r: unknown) => r as FollowUpRuleView;
             <p class="text-sm text-ink-muted">{{ group.hint }}</p>
           </div>
           <!-- ui-adoption: unpaged — 8 fixed kinds and one row per Samsara alert (17 on 2026-11-26). -->
-          <DataTable :columns="columns" :rows="group.rows" row-key="key" empty-text="Samsara has no alerts set up.">
+          <DataTable :columns="columns" :rows="group.rows" row-key="key" empty-text="Samsara has no alerts set up." @row-click="editing = ruleOf($event)">
             <template #cell-label="{ row }">
               <span class="font-medium text-ink">{{ ruleOf(row).label }}</span>
               <span v-if="ruleOf(row).samsara && !ruleOf(row).samsara!.isEnabled" class="block text-xs text-ink-tertiary">switched off in Samsara</span>
@@ -103,14 +107,14 @@ const ruleOf = (r: unknown) => r as FollowUpRuleView;
             <template #cell-enabled="{ row }">
               <AppBadge :tone="ruleOf(row).enabled ? 'success' : 'neutral'">{{ ruleOf(row).enabled ? "On" : "Off" }}</AppBadge>
             </template>
-            <template #cell-act="{ row }">
-              <div class="flex flex-wrap justify-end gap-2">
-                <AppButton size="sm" variant="secondary" :disabled="save.isPending.value" @click="toggle(ruleOf(row), !ruleOf(row).enabled)">
+            <template #actions="{ row }">
+              <KebabMenu>
+                <AppButton class="kebab-item" :disabled="save.isPending.value" @click="toggle(ruleOf(row), !ruleOf(row).enabled)">
                   {{ ruleOf(row).enabled ? "Turn off" : "Turn on" }}
                 </AppButton>
-                <AppButton size="sm" variant="secondary" @click="editing = ruleOf(row)">Change</AppButton>
-                <AppButton v-if="ruleOf(row).overridden" size="sm" variant="link" :disabled="reset.isPending.value" @click="onReset(ruleOf(row))">Reset to default</AppButton>
-              </div>
+                <AppButton class="kebab-item" @click="editing = ruleOf(row)">Change…</AppButton>
+                <AppButton v-if="ruleOf(row).overridden" class="kebab-item" :disabled="reset.isPending.value" @click="onReset(ruleOf(row))">Reset to default</AppButton>
+              </KebabMenu>
             </template>
           </DataTable>
         </section>

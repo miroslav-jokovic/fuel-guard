@@ -35,8 +35,8 @@ import { followUpRulesRouter } from "./rules.js";
  * `/api/follow-ups` — the warning desk (WARNING-DESK-PLAN WD4).
  *
  *  · `GET /` — the list. Maintenance › Follow-ups sees every category; Loads › Route follow-ups sees
- *    Route alone (D-WD13). Urgent → high → normal, then "warned again after the call", then oldest.
- *  · `GET /:id` — one line, its warnings in time order and its action history.
+ *    Route alone (D-WD13). Newest activity first — the latest warning on top (D-WD18).
+ *  · `GET /:id` — one line, its warnings newest first and its action history, newest first.
  *  · `POST /:id/actions` — one action through `transition_follow_up` (0653), the only writer of status.
  *    Its `follow_up_actions` row IS the record of who told which driver what (D-WD9), so no second
  *    audit row is written beside it.
@@ -101,7 +101,9 @@ async function warningsOf(req: Request, orgId: string, f: FollowUpRow): Promise<
   });
   return ws
     .filter((w) => Date.parse(w.happenedAt) >= from && Date.parse(w.happenedAt) <= until)
-    .sort((a, b) => Date.parse(a.happenedAt) - Date.parse(b.happenedAt));
+    // Newest first, like the list and the history beside it (D-WD18): the warning that just came in is
+    // the one the person opened the line to read.
+    .sort((a, b) => Date.parse(b.happenedAt) - Date.parse(a.happenedAt));
 }
 
 export function followUpsRouter(): Router {

@@ -166,12 +166,13 @@ const SURFACE_TABLES = ["org_role_surface_access", "user_surface_access"];
 const categoryFilter = () => rec.forTable("follow_ups").map((q) => q.ops.find((o) => o.method === "in" && o.args[0] === "category")?.args[1]);
 
 describe("GET /api/follow-ups — the desk's list", () => {
-  it("gives the desk every category, urgent first, with who to call and which record named them", async () => {
+  it("gives the desk every category, newest warning first, with who to call and which record named them", async () => {
     const r = await call("technician", "GET", "/api/follow-ups");
     expect(r.status).toBe(200);
     expect(followUpListSchema.safeParse(r.json).success).toBe(true);
     expect(r.json.categories).toEqual(["maintenance", "safety", "compliance", "route"]);
-    expect(r.json.lines.map((l: { id: string }) => l.id)).toEqual([FU_STOP, FU_SAFETY, FU_ROUTE, FU_ATIS]);
+    // last_at 11:00, 10:00, 09:00, 08:00 — newest first, severity only breaks a tie (D-WD18).
+    expect(r.json.lines.map((l: { id: string }) => l.id)).toEqual([FU_STOP, FU_ATIS, FU_ROUTE, FU_SAFETY]);
     const atis = r.json.lines.find((l: { id: string }) => l.id === FU_ATIS);
     expect(atis.trailer).toEqual({ id: TRAILER, number: "R535973" });
     expect(atis.truck).toEqual({ id: TRUCK, number: "847" });
@@ -213,13 +214,13 @@ describe("GET /api/follow-ups/:id — one line", () => {
     expect((await call("dispatcher", "GET", `/api/follow-ups/${FU_SAFETY}`)).status).toBe(404);
   });
 
-  it("gives the warnings in time order with their video ids, and the history by name", async () => {
+  it("gives the warnings newest first with their video ids, and the history by name", async () => {
     const r = await call("technician", "GET", `/api/follow-ups/${FU_SAFETY}`);
     expect(r.status).toBe(200);
     expect(followUpDetailSchema.safeParse(r.json).success).toBe(true);
     expect(r.json.canAct).toBe(true);
-    expect(r.json.warnings.map((w: { videoEventId: string }) => w.videoEventId)).toEqual(["evt-1", "evt-crash"]);
-    expect(r.json.warnings[0].coachingState).toBe("needsCoaching");
+    expect(r.json.warnings.map((w: { videoEventId: string }) => w.videoEventId)).toEqual(["evt-crash", "evt-1"]);
+    expect(r.json.warnings[1].coachingState).toBe("needsCoaching");
     expect(r.json.actions[0]).toMatchObject({ action: "called", actorName: "Mira Desk", note: "Driver checked the tire" });
     expectOrgScoped(rec, ORG, { exempt: SURFACE_TABLES });
   });
