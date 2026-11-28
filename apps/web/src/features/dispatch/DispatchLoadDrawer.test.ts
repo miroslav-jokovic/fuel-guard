@@ -17,6 +17,7 @@ const MCLEOD = "d-mcleod";
 const OTHER = "d-other";
 const GONE = "d-gone";
 
+const preview = vi.hoisted(() => ({ uncovered: false }));
 const calls = vi.hoisted(() => ({ gets: [] as string[], posts: [] as { url: string; body: unknown }[] }));
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (url: string, opts?: { method?: string; body?: unknown }) => {
@@ -40,6 +41,9 @@ vi.mock("@/lib/api", () => ({
           smsHeldBecause: "sms_not_configured",
           // OTHER has an app login in this fixture; MCLEOD does not.
           inApp: driverId === OTHER,
+          // T1 N-9: the fixture's switch for an uncovered load and McLeod's other seat.
+          reachable: preview.uncovered ? { ok: false, reason: "uncovered_in_mcleod" } : driverId === OTHER ? { ok: true } : { ok: false, reason: "no_app_login" },
+          seatNote: driverId === OTHER ? "mcleod_seats_someone_else" : null,
         },
       },
     };
@@ -72,6 +76,7 @@ beforeEach(() => {
   setActivePinia(createPinia());
   calls.gets.length = 0;
   calls.posts.length = 0;
+  preview.uncovered = false;
 });
 
 describe("DispatchLoadDrawer", () => {
@@ -95,6 +100,24 @@ describe("DispatchLoadDrawer", () => {
     expect(w.get("[data-testid=dispatch-in-app]").text()).toContain("app and notifies them");
     expect(w.find("[data-testid=dispatch-no-app]").exists()).toBe(false);
     expect(w.find("[data-testid=dispatch-held]").exists()).toBe(false);
+  });
+
+  it("says before Send that McLeod has somebody else on the load (T1 N-9)", async () => {
+    const w = mountIt();
+    await flushPromises();
+    expect(w.find("[data-testid=dispatch-seat-note]").exists()).toBe(false);
+    w.findComponent(AppCombobox).vm.$emit("update:modelValue", OTHER);
+    await flushPromises();
+    expect(w.get("[data-testid=dispatch-seat-note]").text()).toContain("McLeod has somebody else on this load");
+  });
+
+  it("a dispatch of an uncovered McLeod load says nobody will see it, whoever it goes to (T1 N-9)", async () => {
+    preview.uncovered = true;
+    const w = mountIt();
+    w.findComponent(AppCombobox).vm.$emit("update:modelValue", OTHER);
+    await flushPromises();
+    expect(w.get("[data-testid=dispatch-uncovered]").text()).toContain("nobody sees it in the app");
+    expect(w.find("[data-testid=dispatch-in-app]").exists()).toBe(false);
   });
 
   it("sends the driver the dispatcher CHOSE, even when it is not McLeod's", async () => {

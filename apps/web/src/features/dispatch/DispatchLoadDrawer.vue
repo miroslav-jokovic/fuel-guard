@@ -6,7 +6,7 @@ import { AppCombobox as ComboSelect } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useToastStore } from "@/stores/toast";
-import { dispatchHeadline, smsReasonText, useDispatchLoad, useDispatchPreview } from "./useLoadDispatch";
+import { dispatchHeadline, seatNoteText, smsReasonText, useDispatchLoad, useDispatchPreview } from "./useLoadDispatch";
 import type { DispatchLoad } from "./useDispatchLoads";
 
 /**
@@ -65,6 +65,13 @@ const held = computed(() => smsReasonText(preview.data.value?.smsHeldBecause ?? 
 // S1.1: Send puts the load in the driver's app when they have an app login; otherwise nothing reaches
 // a phone, and the dispatcher is told so before pressing Send, not after.
 const inApp = computed(() => preview.data.value?.inApp === true);
+// T1 N-9: from the same derivation the load page reads after Send. Uncovered in McLeod means nobody's
+// app shows the load whoever it goes to; the seat note says McLeod has somebody else on it.
+const uncovered = computed(() => {
+  const r = preview.data.value?.reachable;
+  return r !== undefined && !r.ok && r.reason === "uncovered_in_mcleod";
+});
+const seatNote = computed(() => seatNoteText(preview.data.value?.seatNote));
 
 async function send(): Promise<void> {
   const load = props.load;
@@ -109,7 +116,11 @@ async function send(): Promise<void> {
             class="whitespace-pre-wrap break-words rounded-surface bg-surface-muted px-3 py-2 font-sans text-sm text-ink ring-1 ring-inset ring-edge"
             data-testid="dispatch-preview"
           >{{ preview.data.value.body }}</pre>
-          <p v-if="inApp" class="text-xs text-ink-muted" data-testid="dispatch-in-app">
+          <p v-if="uncovered" class="text-xs text-ink-muted" data-testid="dispatch-uncovered">
+            McLeod has this load uncovered, so nobody sees it in the app until it is covered there. Dispatching still
+            records who takes the load and when.
+          </p>
+          <p v-else-if="inApp" class="text-xs text-ink-muted" data-testid="dispatch-in-app">
             Send puts this load in {{ preview.data.value.driverName }}'s app and notifies them.
           </p>
           <p v-else class="text-xs text-ink-muted" data-testid="dispatch-no-app">
@@ -117,6 +128,7 @@ async function send(): Promise<void> {
             records who takes the load and when. Set up app access on the driver's page.
           </p>
           <p v-if="held && !inApp" class="text-xs text-ink-muted" data-testid="dispatch-held">{{ held }}</p>
+          <p v-if="seatNote" class="text-xs text-ink-muted" data-testid="dispatch-seat-note">{{ seatNote }}</p>
         </template>
       </section>
     </div>
