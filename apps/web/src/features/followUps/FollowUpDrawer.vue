@@ -14,6 +14,7 @@ import SlideOver from "@/components/SlideOver.vue";
 import { phoneDialString, formatPhone } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
 import { useFollowUpAction, useFollowUpDetailQuery, useFollowUpVideo } from "./useFollowUps";
+import FollowUpRouteMap from "./FollowUpRouteMap.vue";
 import FollowUpTruckCodes from "./FollowUpTruckCodes.vue";
 import { coachingLabel, driverLabel, problemDetail, SEVERITY_BADGE, stateBadge, unitLabel } from "./followUpRows";
 
@@ -187,6 +188,7 @@ const CAMERA: Record<string, string> = {
                 <a v-if="w.samsaraUrl" :href="w.samsaraUrl" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-12 items-center gap-1 text-sm text-link hover:text-link-hover">Open in Samsara <AppLinkArrow external /></a>
                 <AppButton v-if="w.videoEventId && !videos[w.id]" variant="secondary" size="sm" :disabled="video.isPending.value" @click="playVideo(w)">Play video</AppButton>
               </div>
+              <FollowUpRouteMap v-if="w.routeMap" :follow-up-id="line.id" :warning-id="w.id" />
               <template v-if="videos[w.id]">
                 <AppCallout v-if="videos[w.id]!.restricted" tone="info">
                   Samsara keeps crash video restricted. Open it in Samsara to watch it.
